@@ -1,0 +1,149 @@
+{
+  "profile_id": "default_it",
+  "description": "Attribute extraction defaults for semi-structured technical docs, incidents, and log fragments.",
+  "total_limit": 8,
+  "slot_limits": {
+    "TOOL": 3,
+    "LANGUAGE": 2,
+    "ERROR": 3,
+    "COMPONENT": 2,
+    "VERSION": 2,
+    "PROTOCOL": 2,
+    "DB": 2,
+    "CLOUD": 2
+  },
+  "global_stopwords": [
+    "fix",
+    "todo"
+  ],
+  "slot_stopwords": {
+    "ERROR": [
+      "error",
+      "issue",
+      "problem",
+      "exception",
+      "bug"
+    ]
+  },
+  "aliases": [
+    {
+      "alias": "k8s",
+      "canonical": "kubernetes",
+      "slot": "TOOL",
+      "confidence": 0.99
+    },
+    {
+      "alias": "kube",
+      "canonical": "kubernetes",
+      "slot": "TOOL",
+      "confidence": 0.97
+    },
+    {
+      "alias": "kubectl",
+      "canonical": "kubectl",
+      "slot": "TOOL",
+      "confidence": 0.97
+    },
+    {
+      "alias": "net core",
+      "canonical": "dotnet",
+      "slot": "LANGUAGE",
+      "confidence": 0.96
+    },
+    {
+      "alias": ".net",
+      "canonical": "dotnet",
+      "slot": "LANGUAGE",
+      "confidence": 0.96
+    },
+    {
+      "alias": "asp.net",
+      "canonical": "dotnet",
+      "slot": "LANGUAGE",
+      "confidence": 0.95
+    },
+    {
+      "alias": "postgres",
+      "canonical": "postgresql",
+      "slot": "DB",
+      "confidence": 0.96
+    },
+    {
+      "alias": "pg",
+      "canonical": "postgresql",
+      "slot": "DB",
+      "confidence": 0.91
+    },
+    {
+      "alias": "grpc",
+      "canonical": "grpc",
+      "slot": "PROTOCOL",
+      "confidence": 0.95
+    },
+    {
+      "alias": "eks",
+      "canonical": "amazon eks",
+      "slot": "CLOUD",
+      "confidence": 0.93
+    }
+  ],
+  "regex_rules": [
+    {
+      "id": "version_semver",
+      "slot": "VERSION",
+      "pattern": "\\bv?(\\d+\\.\\d+(?:\\.\\d+)?)\\b",
+      "canonical_template": "{match}",
+      "confidence": 0.94,
+      "ignore_case": true
+    },
+    {
+      "id": "error_generic_marker",
+      "slot": "ERROR",
+      "pattern": "\\berror\\b|\\bissue\\b|\\bproblem\\b|\\bexception\\b|\\bbug\\b",
+      "canonical_template": "{match}",
+      "confidence": 0.5,
+      "ignore_case": true
+    },
+    {
+      "id": "error_crashloop",
+      "slot": "ERROR",
+      "pattern": "\\bcrashloopbackoff\\b|\\bcrashloop\\b",
+      "canonical": "crashloopbackoff",
+      "confidence": 0.96,
+      "ignore_case": true
+    },
+    {
+      "id": "error_timeout",
+      "slot": "ERROR",
+      "pattern": "\\btimeout\\b",
+      "canonical": "timeout",
+      "confidence": 0.91,
+      "ignore_case": true
+    },
+    {
+      "id": "error_oomkilled",
+      "slot": "ERROR",
+      "pattern": "\\boomkilled?\\b|\\boom kill(?:ed)?\\b",
+      "canonical": "oomkilled",
+      "confidence": 0.95,
+      "ignore_case": true
+    },
+    {
+      "id": "component_api_server",
+      "slot": "COMPONENT",
+      "pattern": "\\bapi[- ]server\\b",
+      "canonical": "api-server",
+      "confidence": 0.92,
+      "ignore_case": true
+    }
+  ],
+  "snapshot": {
+    "version": "default_it@2026-04-29-v1",
+    "created_at": "2026-04-29",
+    "source": "file",
+    "description": "Default IT terminology profile snapshot for SkeinRank demo and local runtime."
+  },
+  "alias_matcher": {
+    "backend": "aho_corasick"
+  }
+}

@@ -1,0 +1,54 @@
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "skeinrank"
+version = "0.0.11"
+description = "SkeinRank — production-grade reranking core (query + candidates → ranked results) with passports and strict contracts."
+authors = ["NkvMax"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/SkeinRank"
+repository = "https://github.com/SkeinRank/skeinrank-core"
+keywords = ["search", "reranking", "retrieval", "bm25", "embedding", "rag"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
+packages = [{ include = "skeinrank" }]
+include = [
+  { path = "skeinrank/attributes/config/*.json", format = ["sdist", "wheel"] }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+pydantic = ">=2.6,<3"
+typing-extensions = {version = ">=4.7", markers = "python_version < '3.11'"}
+
+# Optional heavy ML deps are grouped behind extras.
+torch = {version = ">=2.1", optional = true}
+transformers = {version = ">=4.40,<5", optional = true}
+gliner = {version = ">=0.2", optional = true}
+sentence-transformers = {version = ">=2.6,<4", optional = true}
+keybert = {version = ">=0.8,<1", optional = true}
+
+
+[tool.poetry.extras]
+torch = ["torch", "transformers"]
+attribute-models = ["gliner", "sentence-transformers", "keybert"]
+
+[tool.poetry.scripts]
+skeinrank-extract = "skeinrank.attributes.cli:extract_main"
+skeinrank-enrich-jsonl = "skeinrank.attributes.cli:enrich_jsonl_main"
+skeinrank-eval-demo = "skeinrank.attributes.cli:eval_demo_main"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.4"
+pytest-cov = ">=4.1"
+
+[tool.poetry.urls]
+Homepage = "https://github.com/SkeinRank"
+Repository = "https://github.com/SkeinRank/skeinrank-core"
+Issues = "https://github.com/SkeinRank/skeinrank-core/issues"

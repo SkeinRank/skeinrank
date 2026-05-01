@@ -1,0 +1,51 @@
+# macOS
+.DS_Store
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtualenvs
+.venv/
+venv/
+ENV/
+env/
+
+# Poetry
+# Обычно poetry.lock КОММИТЯТ для приложений/сервисов.
+# Для библиотек — по желанию, но чаще тоже коммитят для воспроизводимых dev/test.
+# Если хочешь НЕ коммитить lock для библиотеки — раскомментируй строку ниже.
+# poetry.lock
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.cover
+*.log
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Type checkers / linters
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor junk
+.idea/
+.vscode/
+*.swp
+
+# Pyenv (по желанию)
+# Если хочешь фиксировать версию Python для проекта — оставь .python-version в git (НЕ игнорируй).
+# Если не хочешь — раскомментируй:
+# .python-version

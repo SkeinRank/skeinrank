@@ -1,0 +1,29 @@
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "skeinrank-provider-elasticsearch"
+version = "0.1.0"
+description = "Elasticsearch provider and enrichment CLI for SkeinRank"
+readme = "README.md"
+authors = ["SkeinRank"]
+license = "Apache-2.0"
+keywords = ["reranking", "search", "elasticsearch", "bm25", "skeinrank", "enrichment"]
+packages = [{ include = "skeinrank_provider_elasticsearch" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+elasticsearch = ">=8.12,<9"
+pydantic = ">=2.0"
+skeinrank = { path = "../skeinrank-core", develop = true }
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.0"
+pytest-cov = ">=4.0"
+
+[tool.poetry.scripts]
+skeinrank-es-enrich = "skeinrank_provider_elasticsearch.enrich_cli:main"
+
+[tool.pytest.ini_options]
+addopts = "-q"

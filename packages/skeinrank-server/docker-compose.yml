@@ -1,0 +1,14 @@
+services:
+  skeinrank-server:
+    build: .
+    environment:
+      ES_URL: ${ES_URL}
+      ES_DEFAULT_INDEX: ${ES_DEFAULT_INDEX:-kb}
+      ES_TEXT_FIELD: ${ES_TEXT_FIELD:-text}
+      ES_QUERY_FIELDS: ${ES_QUERY_FIELDS:-text,title}
+      ES_TIMEOUT_S: ${ES_TIMEOUT_S:-5}
+      SKEINRANK_DEFAULT_PROFILE: ${SKEINRANK_DEFAULT_PROFILE:-e5_fast_torch}
+      SKEINRANK_DEFAULT_PASSPORT: ${SKEINRANK_DEFAULT_PASSPORT:-summary}
+      SKEINRANK_TELEMETRY: ${SKEINRANK_TELEMETRY:-jsonl}
+    ports:
+      - "8000:8000"
