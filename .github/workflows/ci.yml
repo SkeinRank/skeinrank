@@ -6,6 +6,34 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install lint tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff==0.8.0
+
+      - name: Run Ruff lint
+        run: |
+          ruff check \
+            packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
+            packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
+            packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests
+
+      - name: Check Ruff formatting
+        run: |
+          ruff format --check \
+            packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
+            packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
+            packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests
+
   test:
     runs-on: ubuntu-latest
 

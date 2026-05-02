@@ -1,0 +1,22 @@
+line-length = 88
+target-version = "py311"
+force-exclude = true
+
+exclude = [
+  ".git",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".venv",
+  "build",
+  "dist",
+]
+
+[lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

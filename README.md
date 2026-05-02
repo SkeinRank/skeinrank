@@ -88,6 +88,34 @@ Example result shape:
 }
 ```
 
+
+## Development hygiene
+
+This repository uses Ruff and pre-commit for lightweight linting and formatting.
+
+Install local developer tools from the repository root:
+
+```bash
+python -m pip install -r requirements-dev.txt
+pre-commit install
+```
+
+Run the same checks manually:
+
+```bash
+ruff check \
+  packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
+  packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
+  packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests
+
+ruff format --check \
+  packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
+  packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
+  packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests
+```
+
+GitHub Actions runs Ruff once at the repository level and runs package tests through Poetry for each package.
+
 ## Demo flow
 
 The repository includes a tiny demo corpus under `examples/demo/`:
