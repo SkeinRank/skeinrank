@@ -128,7 +128,7 @@ from skeinrank import build_attribute_profile, extract_attributes
 profile = build_attribute_profile(
     profile_id="company_terms",
     aliases={
-        "kubernetes": ["k8s", "kube", "кубер"],
+        "kubernetes": ["k8s", "kube", "kuber"],
         "postgresql": ["pg", "postgres", "psql"],
     },
     slots={
@@ -138,13 +138,13 @@ profile = build_attribute_profile(
     snapshot_version="company_terms@v1",
 )
 
-pack = extract_attributes("кубер timeout on pg", profile=profile)
+pack = extract_attributes("kuber timeout on pg", profile=profile)
 ```
 
 CLI with a custom profile file:
 
 ```bash
-skeinrank-extract --text "кубер timeout on pg" --profile-file ./company_terms.json
+skeinrank-extract --text "kuber timeout on pg" --profile-file ./company_terms.json
 skeinrank-enrich-jsonl docs.jsonl enriched.jsonl --profile-file ./company_terms.json
 skeinrank-es-enrich --index docs --text-field body --profile-file ./company_terms.json --dry-run
 ```

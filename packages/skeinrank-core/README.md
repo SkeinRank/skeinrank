@@ -42,7 +42,7 @@ from skeinrank import build_attribute_profile, extract_attributes
 profile = build_attribute_profile(
     profile_id="company_terms",
     aliases={
-        "kubernetes": ["k8s", "kube", "кубер"],
+        "kubernetes": ["k8s", "kube", "kuber"],
         "postgresql": ["pg", "postgres"],
     },
     slots={
@@ -52,7 +52,7 @@ profile = build_attribute_profile(
     snapshot_version="company_terms@v1",
 )
 
-pack = extract_attributes("кубер timeout on pg", profile=profile)
+pack = extract_attributes("kuber timeout on pg", profile=profile)
 ```
 
 Or load a JSON snapshot:
@@ -61,7 +61,7 @@ Or load a JSON snapshot:
 from skeinrank import extract_attributes, load_attribute_profile
 
 profile = load_attribute_profile("company_terms.json")
-pack = extract_attributes("кубер timeout on pg", profile=profile)
+pack = extract_attributes("kuber timeout on pg", profile=profile)
 ```
 
 A profile file can use the compact grouped alias format:
@@ -77,7 +77,7 @@ A profile file can use the compact grouped alias format:
     {
       "slot": "TOOL",
       "canonical": "kubernetes",
-      "aliases": ["k8s", "kube", "кубер"]
+      "aliases": ["k8s", "kube", "kuber"]
     },
     {
       "slot": "DB",
