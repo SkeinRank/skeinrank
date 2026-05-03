@@ -261,7 +261,7 @@ That profile currently controls:
 
 ## Elasticsearch enrichment
 
-The provider package can enrich an existing Elasticsearch index. The command is intentionally explicit: users provide the index, one or more source text fields, and the target field that receives SkeinRank attributes. The default payload is compact for production indexes; add `--include-evidence` only when you need full debug evidence. Start with `--dry-run`; use `--write` only when the preview is correct.
+The provider package can enrich an existing Elasticsearch index. The command is intentionally explicit: users provide the index, one or more source text fields, and the target field that receives SkeinRank attributes. The default payload is compact for production indexes; add `--include-matched-aliases` when you need a compact alias trace, and add `--include-evidence` only when you need full debug evidence. Start with `--dry-run`; use `--write` only when the preview is correct.
 
 ```bash
 cd packages/skeinrank-provider-elasticsearch
@@ -276,7 +276,24 @@ poetry run skeinrank-es-enrich \
   --dry-run
 ```
 
-Dry-run does not modify the Elasticsearch index. Write mode uses bulk partial updates and only adds/replaces the configured `--target-field`. By default the target field stores `profile_id`, `snapshot_version`, `alias_matcher_backend`, `canonical_values`, and slot-grouped values. Full attributes/evidences are opt-in via `--include-evidence`.
+Dry-run does not modify the Elasticsearch index. Write mode uses bulk partial updates and only adds/replaces the configured `--target-field`. By default the target field stores `profile_id`, `snapshot_version`, `alias_matcher_backend`, `canonical_values`, and slot-grouped values. Compact alias traces are opt-in via `--include-matched-aliases`; full attributes/evidences are opt-in via `--include-evidence`.
+
+### Optional matched aliases mode
+
+Use `--include-matched-aliases` when you want to keep a compact trace of the surface forms that produced canonical values, without storing full evidence payloads:
+
+```bash
+skeinrank-es-enrich \
+  --url http://localhost:9200 \
+  --index docs \
+  --text-field title \
+  --text-field body \
+  --target-field skeinrank \
+  --include-matched-aliases \
+  --dry-run
+```
+
+This adds `matched_aliases` and `matched_aliases_by_value` to the compact Elasticsearch payload.
 
 ### Elasticsearch write mode
 
