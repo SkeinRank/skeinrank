@@ -8,13 +8,16 @@ from typing import Any
 
 from .demo import enrich_jsonl, evaluate_demo_queries, load_jsonl
 from .pipeline import extract_attributes
+from .profiles import AttributeProfileInput, load_attribute_profile
 
 
 def _dump_json(payload: dict[str, Any], *, pretty: bool = True) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2 if pretty else None)
 
 
-def _attributes_payload(text: str, *, profile: str, debug: bool) -> dict[str, Any]:
+def _attributes_payload(
+    text: str, *, profile: AttributeProfileInput, debug: bool
+) -> dict[str, Any]:
     pack = extract_attributes(text, profile=profile, debug=debug)
     attributes = [item.model_dump(mode="json") for item in pack.attributes]
     canonical_values = sorted({item["value"] for item in attributes})
@@ -42,13 +45,23 @@ def _attributes_payload(text: str, *, profile: str, debug: bool) -> dict[str, An
     return payload
 
 
+def _resolve_profile(profile: str, profile_file: Path | None) -> AttributeProfileInput:
+    return load_attribute_profile(profile_file) if profile_file is not None else profile
+
+
 def build_extract_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Extract normalized technical attributes from text."
     )
     parser.add_argument("--text", help="Text to process. If omitted, stdin is used.")
     parser.add_argument(
-        "--profile", default="default_it", help="Attribute profile name."
+        "--profile", default="default_it", help="Built-in attribute profile name."
+    )
+    parser.add_argument(
+        "--profile-file",
+        type=Path,
+        default=None,
+        help="Path to a custom JSON terminology profile snapshot.",
     )
     parser.add_argument(
         "--debug",
@@ -67,7 +80,8 @@ def extract_main(argv: list[str] | None = None) -> int:
     text = args.text if args.text is not None else sys.stdin.read()
     if not text or not text.strip():
         parser.error("Provide --text or pipe text to stdin.")
-    payload = _attributes_payload(text.strip(), profile=args.profile, debug=args.debug)
+    profile = _resolve_profile(args.profile, args.profile_file)
+    payload = _attributes_payload(text.strip(), profile=profile, debug=args.debug)
     print(_dump_json(payload, pretty=not args.compact))
     return 0
 
@@ -79,7 +93,13 @@ def build_enrich_jsonl_parser() -> argparse.ArgumentParser:
     parser.add_argument("input", type=Path, help="Input JSONL path.")
     parser.add_argument("output", type=Path, help="Output enriched JSONL path.")
     parser.add_argument(
-        "--profile", default="default_it", help="Attribute profile name."
+        "--profile", default="default_it", help="Built-in attribute profile name."
+    )
+    parser.add_argument(
+        "--profile-file",
+        type=Path,
+        default=None,
+        help="Path to a custom JSON terminology profile snapshot.",
     )
     parser.add_argument(
         "--no-debug",
@@ -100,7 +120,7 @@ def enrich_jsonl_main(argv: list[str] | None = None) -> int:
     count = enrich_jsonl(
         args.input,
         args.output,
-        profile=args.profile,
+        profile=_resolve_profile(args.profile, args.profile_file),
         debug=not args.no_debug,
         title_field=args.title_field,
         text_field=args.text_field,
@@ -117,7 +137,13 @@ def build_eval_demo_parser() -> argparse.ArgumentParser:
     parser.add_argument("queries", type=Path, help="Queries JSONL path.")
     parser.add_argument("documents", type=Path, help="Enriched documents JSONL path.")
     parser.add_argument(
-        "--profile", default="default_it", help="Attribute profile name."
+        "--profile", default="default_it", help="Built-in attribute profile name."
+    )
+    parser.add_argument(
+        "--profile-file",
+        type=Path,
+        default=None,
+        help="Path to a custom JSON terminology profile snapshot.",
     )
     parser.add_argument(
         "--top-k",
@@ -147,7 +173,7 @@ def eval_demo_main(argv: list[str] | None = None) -> int:
     report = evaluate_demo_queries(
         queries,
         documents,
-        profile=args.profile,
+        profile=_resolve_profile(args.profile, args.profile_file),
         top_k=args.top_k,
         title_field=args.title_field,
         text_field=args.text_field,

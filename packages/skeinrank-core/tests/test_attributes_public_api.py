@@ -14,12 +14,14 @@ from skeinrank import (
     StaticE5Adapter,
     StaticGLiNERAdapter,
     StaticKeyBERTAdapter,
+    build_attribute_profile,
     enrich_documents,
     enrich_jsonl,
     evaluate_demo_queries,
     extract_attributes,
     get_attribute_profile,
     list_attribute_profiles,
+    load_attribute_profile,
     load_jsonl,
     write_jsonl,
 )
@@ -30,6 +32,8 @@ def test_attribute_symbols_are_exported_from_public_api():
     assert callable(extract_attributes)
     assert callable(get_attribute_profile)
     assert callable(list_attribute_profiles)
+    assert callable(build_attribute_profile)
+    assert callable(load_attribute_profile)
     assert callable(load_jsonl)
     assert callable(write_jsonl)
     assert callable(enrich_documents)

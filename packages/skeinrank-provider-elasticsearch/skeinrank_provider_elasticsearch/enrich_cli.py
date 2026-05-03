@@ -11,6 +11,8 @@ try:
 except Exception:  # pragma: no cover
     Elasticsearch = None  # type: ignore[assignment]
 
+from skeinrank import load_attribute_profile
+
 from .enrichment import (
     ElasticsearchEnrichmentConfig,
     preview_enrichment,
@@ -40,7 +42,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Field that would receive the enrichment payload",
     )
     parser.add_argument(
-        "--profile", default="default_it", help="SkeinRank attribute profile"
+        "--profile", default="default_it", help="Built-in SkeinRank attribute profile"
+    )
+    parser.add_argument(
+        "--profile-file",
+        type=Path,
+        default=None,
+        help="Path to a custom JSON terminology profile snapshot",
     )
     parser.add_argument(
         "--limit", type=int, default=20, help="Maximum number of documents to preview"
@@ -89,7 +97,9 @@ def run(
         index=args.index,
         text_fields=tuple(args.text_fields),
         target_field=args.target_field,
-        profile=args.profile,
+        profile=load_attribute_profile(args.profile_file)
+        if args.profile_file is not None
+        else args.profile,
         limit=args.limit,
         batch_size=args.batch_size,
         include_passport=bool(args.include_passport),

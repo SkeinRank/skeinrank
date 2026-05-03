@@ -48,6 +48,8 @@ python -m skeinrank_provider_elasticsearch.enrich_cli \
   --dry-run
 ```
 
+You can pass `--profile-file ./company_terms.json` to enrich with your own terminology snapshot instead of the built-in profile.
+
 Equivalent console script after installation:
 
 ```bash
