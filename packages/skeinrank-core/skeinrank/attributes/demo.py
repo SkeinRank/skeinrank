@@ -61,6 +61,9 @@ def enrich_documents(
     debug: bool = True,
     title_field: str = "title",
     text_field: str = "text",
+    enable_fuzzy: bool = False,
+    fuzzy_threshold: float = 0.9,
+    fuzzy_min_length: int = 4,
 ) -> list[dict[str, Any]]:
     enriched: list[dict[str, Any]] = []
     for record in records:
@@ -68,7 +71,14 @@ def enrich_documents(
         composed_text = _compose_document_text(
             base, title_field=title_field, text_field=text_field
         )
-        pack = extract_attributes(composed_text, profile=profile, debug=debug)
+        pack = extract_attributes(
+            composed_text,
+            profile=profile,
+            debug=debug,
+            enable_fuzzy=enable_fuzzy,
+            fuzzy_threshold=fuzzy_threshold,
+            fuzzy_min_length=fuzzy_min_length,
+        )
         attributes = [item.model_dump(mode="json") for item in pack.attributes]
         canonical_values = sorted({item["value"] for item in attributes})
         passport = (
@@ -100,6 +110,9 @@ def enrich_jsonl(
     debug: bool = True,
     title_field: str = "title",
     text_field: str = "text",
+    enable_fuzzy: bool = False,
+    fuzzy_threshold: float = 0.9,
+    fuzzy_min_length: int = 4,
 ) -> int:
     rows = load_jsonl(input_path)
     enriched = enrich_documents(
@@ -108,6 +121,9 @@ def enrich_jsonl(
         debug=debug,
         title_field=title_field,
         text_field=text_field,
+        enable_fuzzy=enable_fuzzy,
+        fuzzy_threshold=fuzzy_threshold,
+        fuzzy_min_length=fuzzy_min_length,
     )
     return write_jsonl(output_path, enriched)
 
@@ -189,6 +205,9 @@ def evaluate_demo_queries(
     top_k: int = 3,
     title_field: str = "title",
     text_field: str = "text",
+    enable_fuzzy: bool = False,
+    fuzzy_threshold: float = 0.9,
+    fuzzy_min_length: int = 4,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     baseline_hits = 0
@@ -198,7 +217,14 @@ def evaluate_demo_queries(
 
     query_list = list(queries)
     for query in query_list:
-        query_pack = extract_attributes(str(query["text"]), profile=profile, debug=True)
+        query_pack = extract_attributes(
+            str(query["text"]),
+            profile=profile,
+            debug=True,
+            enable_fuzzy=enable_fuzzy,
+            fuzzy_threshold=fuzzy_threshold,
+            fuzzy_min_length=fuzzy_min_length,
+        )
         query_values = {item.value for item in query_pack.attributes}
         relevant = {str(x) for x in query.get("relevant", [])}
 

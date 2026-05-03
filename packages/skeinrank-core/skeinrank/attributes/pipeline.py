@@ -130,6 +130,9 @@ def extract_attributes(
     use_gliner: bool | None = None,
     use_e5: bool | None = None,
     use_keybert: bool | None = None,
+    enable_fuzzy: bool = False,
+    fuzzy_threshold: float = 0.9,
+    fuzzy_min_length: int = 4,
 ) -> AttributePack:
     payload = _resolve_profile_payload(profile)
     profile_obj = get_attribute_profile(profile)
@@ -156,24 +159,52 @@ def extract_attributes(
     stage_status: list[AttributeStageStatus] = []
 
     candidates: list[tuple[AttributeTrace, AttributeEvidence]] = []
+    exact_alias_spans: list[tuple[int, int]] = []
 
     for match in alias_map.find(normalized_text):
         trace = AttributeTrace(
             slot=match.slot,
             value=match.canonical,
-            source="alias",
+            source=match.source,
             matched_text=match.matched_text,
             canonicalized_from=match.alias,
             confidence=match.confidence,
+            reason=match.reason,
         )
         evidence = AttributeEvidence(
-            source="alias",
+            source=match.source,
             matched_text=match.matched_text,
             start=match.start,
             end=match.end,
         )
         proposed.append(trace)
         candidates.append((trace, evidence))
+        exact_alias_spans.append((match.start, match.end))
+
+    if enable_fuzzy:
+        for match in alias_map.find_fuzzy(
+            normalized_text,
+            threshold=fuzzy_threshold,
+            min_length=fuzzy_min_length,
+            excluded_spans=exact_alias_spans,
+        ):
+            trace = AttributeTrace(
+                slot=match.slot,
+                value=match.canonical,
+                source=match.source,
+                matched_text=match.matched_text,
+                canonicalized_from=match.alias,
+                confidence=match.confidence,
+                reason=match.reason,
+            )
+            evidence = AttributeEvidence(
+                source=match.source,
+                matched_text=match.matched_text,
+                start=match.start,
+                end=match.end,
+            )
+            proposed.append(trace)
+            candidates.append((trace, evidence))
 
     for match in rule_set.find(normalized_text):
         trace = AttributeTrace(

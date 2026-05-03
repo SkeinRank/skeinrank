@@ -24,6 +24,9 @@ class ElasticsearchEnrichmentConfig:
     batch_size: int = 50
     include_passport: bool = False
     include_evidence: bool = False
+    enable_fuzzy: bool = False
+    fuzzy_threshold: float = 0.9
+    fuzzy_min_length: int = 4
 
     def __post_init__(self) -> None:
         if not self.index:
@@ -146,6 +149,9 @@ def build_enrichment_payload(
     profile: Any = "default_it",
     include_passport: bool = False,
     include_evidence: bool = False,
+    enable_fuzzy: bool = False,
+    fuzzy_threshold: float = 0.9,
+    fuzzy_min_length: int = 4,
 ) -> dict[str, Any]:
     """Build the Elasticsearch enrichment payload for one text.
 
@@ -154,7 +160,14 @@ def build_enrichment_payload(
     reranking. Pass ``include_evidence=True`` to include full attributes,
     evidences, and the full snapshot object for debugging.
     """
-    pack = extract_attributes(text, profile=profile, debug=include_passport)
+    pack = extract_attributes(
+        text,
+        profile=profile,
+        debug=include_passport,
+        enable_fuzzy=enable_fuzzy,
+        fuzzy_threshold=fuzzy_threshold,
+        fuzzy_min_length=fuzzy_min_length,
+    )
     attributes = [item.model_dump(mode="json") for item in pack.attributes]
     canonical_values = sorted({item["value"] for item in attributes})
     payload: dict[str, Any] = {
@@ -237,6 +250,9 @@ def iter_enrichment_previews(
             profile=config.profile,
             include_passport=config.include_passport,
             include_evidence=config.include_evidence,
+            enable_fuzzy=config.enable_fuzzy,
+            fuzzy_threshold=config.fuzzy_threshold,
+            fuzzy_min_length=config.fuzzy_min_length,
         )
         previews.append(
             EnrichmentPreview(
@@ -278,6 +294,9 @@ def _summary(
         "skipped": skipped,
         "include_evidence": config.include_evidence,
         "include_passport": config.include_passport,
+        "enable_fuzzy": config.enable_fuzzy,
+        "fuzzy_threshold": config.fuzzy_threshold,
+        "fuzzy_min_length": config.fuzzy_min_length,
     }
 
 
