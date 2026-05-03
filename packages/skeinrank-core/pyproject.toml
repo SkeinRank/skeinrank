@@ -43,6 +43,7 @@ attribute-models = ["gliner", "sentence-transformers", "keybert"]
 skeinrank-extract = "skeinrank.attributes.cli:extract_main"
 skeinrank-enrich-jsonl = "skeinrank.attributes.cli:enrich_jsonl_main"
 skeinrank-eval-demo = "skeinrank.attributes.cli:eval_demo_main"
+skeinrank-validate-profile = "skeinrank.attributes.cli:validate_profile_main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.4"

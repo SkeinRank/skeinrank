@@ -149,6 +149,16 @@ skeinrank-enrich-jsonl docs.jsonl enriched.jsonl --profile-file ./company_terms.
 skeinrank-es-enrich --index docs --text-field body --profile-file ./company_terms.json --dry-run
 ```
 
+Validate a profile before using it in enrichment jobs:
+
+```bash
+skeinrank-validate-profile ./company_terms.json
+skeinrank-validate-profile ./company_terms.json --json
+skeinrank-validate-profile ./company_terms.json --strict
+```
+
+The validator reports collisions such as one alias pointing to multiple canonical terms, and warns about generic or short aliases such as `api`, `service`, or `pg`.
+
 ## Demo flow
 
 The repository includes a tiny demo corpus under `examples/demo/`:
