@@ -14,7 +14,12 @@ from .model_adapters import (
     StaticKeyBERTAdapter,
 )
 from .pipeline import extract_attributes, get_attribute_profile, list_attribute_profiles
-from .profiles import build_attribute_profile, load_attribute_profile
+from .profiles import (
+    build_attribute_profile,
+    build_attribute_profile_template,
+    load_attribute_profile,
+    write_attribute_profile_template,
+)
 from .types import (
     AttributeEvidence,
     AttributePack,
@@ -38,6 +43,8 @@ __all__ = [
     "list_attribute_profiles",
     "build_attribute_profile",
     "load_attribute_profile",
+    "write_attribute_profile_template",
+    "build_attribute_profile_template",
     "validate_attribute_profile",
     "ProfileValidationIssue",
     "ProfileValidationReport",

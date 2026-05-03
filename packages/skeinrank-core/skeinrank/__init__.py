@@ -25,6 +25,7 @@ from .attributes import (
     StaticGLiNERAdapter,
     StaticKeyBERTAdapter,
     build_attribute_profile,
+    build_attribute_profile_template,
     enrich_documents,
     enrich_jsonl,
     evaluate_demo_queries,
@@ -34,6 +35,7 @@ from .attributes import (
     load_attribute_profile,
     load_jsonl,
     validate_attribute_profile,
+    write_attribute_profile_template,
     write_jsonl,
 )
 from .domain.errors import ContractError, ModelUnavailable, SkeinRankError
@@ -65,6 +67,8 @@ __all__ = [
     "list_attribute_profiles",
     "build_attribute_profile",
     "load_attribute_profile",
+    "write_attribute_profile_template",
+    "build_attribute_profile_template",
     "validate_attribute_profile",
     "ProfileValidationIssue",
     "ProfileValidationReport",

@@ -118,7 +118,14 @@ GitHub Actions runs Ruff once at the repository level and runs package tests thr
 
 ## Bring your own terminology
 
-You can use a built-in profile such as `default_it`, or pass a custom JSON snapshot without editing SkeinRank source code.
+You can use a built-in profile such as `default_it`, generate a starter profile, or pass a custom JSON snapshot without editing SkeinRank source code.
+
+Create a starter profile:
+
+```bash
+skeinrank-init-profile company_terms.json
+skeinrank-validate-profile company_terms.json
+```
 
 Python API:
 

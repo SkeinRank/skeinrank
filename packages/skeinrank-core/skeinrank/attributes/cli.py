@@ -8,7 +8,11 @@ from typing import Any
 
 from .demo import enrich_jsonl, evaluate_demo_queries, load_jsonl
 from .pipeline import extract_attributes
-from .profiles import AttributeProfileInput, load_attribute_profile
+from .profiles import (
+    AttributeProfileInput,
+    load_attribute_profile,
+    write_attribute_profile_template,
+)
 from .validation import ProfileValidationReport, validate_attribute_profile
 
 
@@ -241,4 +245,54 @@ def validate_profile_main(argv: list[str] | None = None) -> int:
         return 1
     if args.strict and report.warning_count:
         return 1
+    return 0
+
+
+def build_init_profile_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Create a starter SkeinRank terminology profile JSON file."
+    )
+    parser.add_argument("output", type=Path, help="Output profile JSON path.")
+    parser.add_argument(
+        "--profile-id",
+        default=None,
+        help="Profile id to write. Defaults to the output filename stem.",
+    )
+    parser.add_argument(
+        "--snapshot-version",
+        default=None,
+        help="Snapshot version to write. Defaults to '<profile_id>@v1'.",
+    )
+    parser.add_argument(
+        "--description",
+        default=None,
+        help="Profile description to include in the generated file.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite the output file if it already exists.",
+    )
+    return parser
+
+
+def init_profile_main(argv: list[str] | None = None) -> int:
+    parser = build_init_profile_parser()
+    args = parser.parse_args(argv)
+    try:
+        output = write_attribute_profile_template(
+            args.output,
+            profile_id=args.profile_id,
+            description=args.description,
+            snapshot_version=args.snapshot_version,
+            overwrite=args.overwrite,
+        )
+    except FileExistsError as exc:
+        parser.error(str(exc))
+
+    profile = load_attribute_profile(output)
+    snapshot = profile.get("snapshot") or {}
+    print(f"created_profile={output}")
+    print(f"profile_id={profile.get('profile_id')}")
+    print(f"snapshot_version={snapshot.get('version')}")
     return 0
