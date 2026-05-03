@@ -106,6 +106,39 @@ poetry run skeinrank-validate-profile company_terms.json --strict
 
 The validation report catches fatal alias collisions and warns about aliases that are likely to hurt retrieval quality, such as overly generic terms (`api`, `service`, `app`) or very short aliases (`pg`, `go`, `js`).
 
+## High-level Python enrichment
+
+Use `enrich_texts(...)` when you want to process a small in-memory corpus without writing the extraction loop yourself.
+
+```python
+from skeinrank import build_attribute_profile, enrich_texts
+
+profile = build_attribute_profile(
+    profile_id="company_terms",
+    aliases={
+        "kubernetes": ["k8s", "kube", "kuber"],
+        "postgresql": ["pg", "postgres", "psql"],
+    },
+    slots={
+        "kubernetes": "TOOL",
+        "postgresql": "DB",
+    },
+    snapshot_version="company_terms@v1",
+)
+
+rows = enrich_texts(
+    [
+        {"id": "doc-1", "text": "k8s timeout after upgrade"},
+        {"id": "doc-2", "text": "pg latency spike"},
+    ],
+    profile=profile,
+)
+
+print(rows[0]["canonical_values"])  # ["kubernetes"]
+```
+
+By default, the result is compact and search-friendly: `canonical_values`, `slots`, `snapshot_version`, and `alias_matcher_backend`. Use `include_attributes=True` or `include_passport=True` when you need explainability/debug output.
+
 ## Batch enrichment and demo eval
 
 The core package also ships helper functions and product-friendly CLI entrypoints for demo workflows.

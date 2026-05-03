@@ -20,6 +20,7 @@ from skeinrank import (
     build_attribute_profile_template,
     enrich_documents,
     enrich_jsonl,
+    enrich_texts,
     evaluate_demo_queries,
     extract_attributes,
     get_attribute_profile,
@@ -46,6 +47,7 @@ def test_attribute_symbols_are_exported_from_public_api():
     assert callable(write_jsonl)
     assert callable(enrich_documents)
     assert callable(enrich_jsonl)
+    assert callable(enrich_texts)
     assert callable(evaluate_demo_queries)
     assert AttributeEvidence is not None
     assert ExtractedAttribute is not None
