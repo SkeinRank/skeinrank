@@ -102,9 +102,11 @@ Validate a profile before using it for extraction or enrichment:
 poetry run skeinrank-validate-profile company_terms.json
 poetry run skeinrank-validate-profile company_terms.json --json
 poetry run skeinrank-validate-profile company_terms.json --strict
+# Optional: customize short-alias warning threshold
+poetry run skeinrank-validate-profile company_terms.json --min-short-alias-length 4
 ```
 
-The validation report catches fatal alias collisions and warns about aliases that are likely to hurt retrieval quality, such as overly generic terms (`api`, `service`, `app`) or very short aliases (`pg`, `go`, `js`).
+The validation report catches fatal alias collisions and warns about aliases that are likely to hurt retrieval quality, such as overly generic terms (`api`, `service`, `app`) or very short aliases (`pg`, `go`, `js`). It also validates governance statuses (`active`, `deprecated`, `pending`, `ambiguous`, `disabled`, `rejected`) and can elevate warnings to errors in `--strict` mode before publishing a snapshot.
 
 ## Optional fuzzy alias fallback
 

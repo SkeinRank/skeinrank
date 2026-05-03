@@ -162,9 +162,11 @@ Validate a profile before using it in enrichment jobs:
 skeinrank-validate-profile ./company_terms.json
 skeinrank-validate-profile ./company_terms.json --json
 skeinrank-validate-profile ./company_terms.json --strict
+# Optional: customize short-alias warning threshold
+skeinrank-validate-profile ./company_terms.json --min-short-alias-length 4
 ```
 
-The validator reports collisions such as one alias pointing to multiple canonical terms, and warns about generic or short aliases such as `api`, `service`, or `pg`.
+The validator reports collisions such as one alias pointing to multiple canonical terms, warns about generic or short aliases such as `api`, `service`, or `pg`, and understands governance statuses such as `active`, `deprecated`, `pending`, `ambiguous`, `disabled`, and `rejected`. In `--strict` mode, governance warnings are elevated to errors so the command can be used as a snapshot publishing gate in CI.
 
 ### Optional fuzzy alias fallback
 
