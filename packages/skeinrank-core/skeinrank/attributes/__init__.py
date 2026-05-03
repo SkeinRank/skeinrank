@@ -26,6 +26,11 @@ from .types import (
     AttributeTrace,
     ExtractedAttribute,
 )
+from .validation import (
+    ProfileValidationIssue,
+    ProfileValidationReport,
+    validate_attribute_profile,
+)
 
 __all__ = [
     "extract_attributes",
@@ -33,6 +38,9 @@ __all__ = [
     "list_attribute_profiles",
     "build_attribute_profile",
     "load_attribute_profile",
+    "validate_attribute_profile",
+    "ProfileValidationIssue",
+    "ProfileValidationReport",
     "AttributeModelAdapters",
     "ModelCandidate",
     "StaticGLiNERAdapter",

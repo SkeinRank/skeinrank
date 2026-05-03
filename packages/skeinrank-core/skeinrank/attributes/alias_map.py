@@ -171,7 +171,7 @@ class AhoCorasickAliasMatcher:
         return matches
 
 
-def _expand_profile_aliases(raw_aliases: Iterable[dict[str, Any]]) -> list[AliasEntry]:
+def expand_profile_aliases(raw_aliases: Iterable[dict[str, Any]]) -> list[AliasEntry]:
     """Normalize supported profile alias formats into AliasEntry objects.
 
     SkeinRank accepts both the original flat snapshot format::
@@ -251,7 +251,7 @@ class AliasMap:
     def from_profile(
         cls, raw_aliases: Iterable[dict[str, Any]], *, matcher_backend: str = "simple"
     ) -> "AliasMap":
-        entries = _expand_profile_aliases(raw_aliases)
+        entries = expand_profile_aliases(raw_aliases)
         return cls(entries, matcher_backend=matcher_backend)
 
     @property

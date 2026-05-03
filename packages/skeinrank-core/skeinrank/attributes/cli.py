@@ -9,10 +9,34 @@ from typing import Any
 from .demo import enrich_jsonl, evaluate_demo_queries, load_jsonl
 from .pipeline import extract_attributes
 from .profiles import AttributeProfileInput, load_attribute_profile
+from .validation import ProfileValidationReport, validate_attribute_profile
 
 
 def _dump_json(payload: dict[str, Any], *, pretty: bool = True) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2 if pretty else None)
+
+
+def _validation_payload(report: ProfileValidationReport) -> dict[str, Any]:
+    return report.model_dump(mode="json")
+
+
+def _print_validation_human(report: ProfileValidationReport) -> None:
+    status = "ok" if report.ok else "failed"
+    print(
+        f"profile_id={report.profile_id or '-'} status={status} "
+        f"errors={report.error_count} warnings={report.warning_count} "
+        f"info={report.info_count}"
+    )
+    for issue in report.issues:
+        parts = [f"[{issue.severity}]", issue.code]
+        if issue.alias is not None:
+            parts.append(f"alias={issue.alias}")
+        if issue.canonical is not None:
+            parts.append(f"canonical={issue.canonical}")
+        if issue.slot is not None:
+            parts.append(f"slot={issue.slot}")
+        print(" ".join(parts))
+        print(f"  {issue.message}")
 
 
 def _attributes_payload(
@@ -185,4 +209,36 @@ def eval_demo_main(argv: list[str] | None = None) -> int:
             json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         print(f"report={args.out}")
+    return 0
+
+
+def build_validate_profile_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Validate a SkeinRank terminology profile snapshot."
+    )
+    parser.add_argument("profile_file", type=Path, help="Profile JSON snapshot path.")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print machine-readable JSON validation report.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return a non-zero exit code when warnings are present.",
+    )
+    return parser
+
+
+def validate_profile_main(argv: list[str] | None = None) -> int:
+    args = build_validate_profile_parser().parse_args(argv)
+    report = validate_attribute_profile(args.profile_file)
+    if args.json:
+        print(_dump_json(_validation_payload(report), pretty=True))
+    else:
+        _print_validation_human(report)
+    if report.error_count:
+        return 1
+    if args.strict and report.warning_count:
+        return 1
     return 0

@@ -91,6 +91,16 @@ A profile file can use the compact grouped alias format:
 
 The CLI accepts the same file with `--profile-file`.
 
+Validate a profile before using it for extraction or enrichment:
+
+```bash
+poetry run skeinrank-validate-profile company_terms.json
+poetry run skeinrank-validate-profile company_terms.json --json
+poetry run skeinrank-validate-profile company_terms.json --strict
+```
+
+The validation report catches fatal alias collisions and warns about aliases that are likely to hurt retrieval quality, such as overly generic terms (`api`, `service`, `app`) or very short aliases (`pg`, `go`, `js`).
+
 ## Batch enrichment and demo eval
 
 The core package also ships helper functions and product-friendly CLI entrypoints for demo workflows.

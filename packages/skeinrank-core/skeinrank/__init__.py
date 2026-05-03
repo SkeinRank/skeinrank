@@ -19,6 +19,8 @@ from .attributes import (
     ExtractedAttribute,
     FailingAdapter,
     ModelCandidate,
+    ProfileValidationIssue,
+    ProfileValidationReport,
     StaticE5Adapter,
     StaticGLiNERAdapter,
     StaticKeyBERTAdapter,
@@ -31,6 +33,7 @@ from .attributes import (
     list_attribute_profiles,
     load_attribute_profile,
     load_jsonl,
+    validate_attribute_profile,
     write_jsonl,
 )
 from .domain.errors import ContractError, ModelUnavailable, SkeinRankError
@@ -62,6 +65,9 @@ __all__ = [
     "list_attribute_profiles",
     "build_attribute_profile",
     "load_attribute_profile",
+    "validate_attribute_profile",
+    "ProfileValidationIssue",
+    "ProfileValidationReport",
     "load_jsonl",
     "write_jsonl",
     "enrich_documents",

@@ -11,6 +11,8 @@ from skeinrank import (
     ExtractedAttribute,
     FailingAdapter,
     ModelCandidate,
+    ProfileValidationIssue,
+    ProfileValidationReport,
     StaticE5Adapter,
     StaticGLiNERAdapter,
     StaticKeyBERTAdapter,
@@ -23,6 +25,7 @@ from skeinrank import (
     list_attribute_profiles,
     load_attribute_profile,
     load_jsonl,
+    validate_attribute_profile,
     write_jsonl,
 )
 
@@ -34,6 +37,7 @@ def test_attribute_symbols_are_exported_from_public_api():
     assert callable(list_attribute_profiles)
     assert callable(build_attribute_profile)
     assert callable(load_attribute_profile)
+    assert callable(validate_attribute_profile)
     assert callable(load_jsonl)
     assert callable(write_jsonl)
     assert callable(enrich_documents)
@@ -43,6 +47,8 @@ def test_attribute_symbols_are_exported_from_public_api():
     assert ExtractedAttribute is not None
     assert AttributeTrace is not None
     assert AttributeProfile is not None
+    assert ProfileValidationIssue is not None
+    assert ProfileValidationReport is not None
     assert AttributeSnapshot is not None
     assert AttributeStageStatus is not None
     assert AttributePassport is not None
