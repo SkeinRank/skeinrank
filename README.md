@@ -116,6 +116,39 @@ ruff format --check \
 
 GitHub Actions runs Ruff once at the repository level and runs package tests through Poetry for each package.
 
+## Bring your own terminology
+
+You can use a built-in profile such as `default_it`, or pass a custom JSON snapshot without editing SkeinRank source code.
+
+Python API:
+
+```python
+from skeinrank import build_attribute_profile, extract_attributes
+
+profile = build_attribute_profile(
+    profile_id="company_terms",
+    aliases={
+        "kubernetes": ["k8s", "kube", "кубер"],
+        "postgresql": ["pg", "postgres", "psql"],
+    },
+    slots={
+        "kubernetes": "TOOL",
+        "postgresql": "DB",
+    },
+    snapshot_version="company_terms@v1",
+)
+
+pack = extract_attributes("кубер timeout on pg", profile=profile)
+```
+
+CLI with a custom profile file:
+
+```bash
+skeinrank-extract --text "кубер timeout on pg" --profile-file ./company_terms.json
+skeinrank-enrich-jsonl docs.jsonl enriched.jsonl --profile-file ./company_terms.json
+skeinrank-es-enrich --index docs --text-field body --profile-file ./company_terms.json --dry-run
+```
+
 ## Demo flow
 
 The repository includes a tiny demo corpus under `examples/demo/`:

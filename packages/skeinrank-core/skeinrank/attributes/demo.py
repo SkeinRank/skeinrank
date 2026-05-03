@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .pipeline import extract_attributes
+from .profiles import AttributeProfileInput
 
 _TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9\.-]*")
 
@@ -56,7 +57,7 @@ def _tokenize(text: str) -> set[str]:
 def enrich_documents(
     records: Iterable[dict[str, Any]],
     *,
-    profile: str = "default_it",
+    profile: AttributeProfileInput = "default_it",
     debug: bool = True,
     title_field: str = "title",
     text_field: str = "text",
@@ -95,7 +96,7 @@ def enrich_jsonl(
     input_path: str | Path,
     output_path: str | Path,
     *,
-    profile: str = "default_it",
+    profile: AttributeProfileInput = "default_it",
     debug: bool = True,
     title_field: str = "title",
     text_field: str = "text",
@@ -184,7 +185,7 @@ def evaluate_demo_queries(
     queries: Iterable[dict[str, Any]],
     enriched_documents: list[dict[str, Any]],
     *,
-    profile: str = "default_it",
+    profile: AttributeProfileInput = "default_it",
     top_k: int = 3,
     title_field: str = "title",
     text_field: str = "text",

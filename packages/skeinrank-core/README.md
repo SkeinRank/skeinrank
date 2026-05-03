@@ -32,6 +32,65 @@ for item in pack.attributes:
 print(pack.passport)
 ```
 
+## Custom terminology profile
+
+You can build a profile directly in Python:
+
+```python
+from skeinrank import build_attribute_profile, extract_attributes
+
+profile = build_attribute_profile(
+    profile_id="company_terms",
+    aliases={
+        "kubernetes": ["k8s", "kube", "кубер"],
+        "postgresql": ["pg", "postgres"],
+    },
+    slots={
+        "kubernetes": "TOOL",
+        "postgresql": "DB",
+    },
+    snapshot_version="company_terms@v1",
+)
+
+pack = extract_attributes("кубер timeout on pg", profile=profile)
+```
+
+Or load a JSON snapshot:
+
+```python
+from skeinrank import extract_attributes, load_attribute_profile
+
+profile = load_attribute_profile("company_terms.json")
+pack = extract_attributes("кубер timeout on pg", profile=profile)
+```
+
+A profile file can use the compact grouped alias format:
+
+```json
+{
+  "profile_id": "company_terms",
+  "snapshot": {
+    "version": "company_terms@v1",
+    "source": "file"
+  },
+  "aliases": [
+    {
+      "slot": "TOOL",
+      "canonical": "kubernetes",
+      "aliases": ["k8s", "kube", "кубер"]
+    },
+    {
+      "slot": "DB",
+      "canonical": "postgresql",
+      "aliases": ["pg", "postgres", "psql"]
+    }
+  ],
+  "rules": []
+}
+```
+
+The CLI accepts the same file with `--profile-file`.
+
 ## Batch enrichment and demo eval
 
 The core package also ships helper functions and product-friendly CLI entrypoints for demo workflows.

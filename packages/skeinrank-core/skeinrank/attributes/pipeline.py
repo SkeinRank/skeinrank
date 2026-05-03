@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from importlib import resources
 from typing import Any
 
@@ -8,6 +9,7 @@ from .alias_map import AliasMap
 from .model_adapters import AttributeModelAdapters, ModelCandidate
 from .normalize import normalize_text, normalize_value
 from .passport import build_passport
+from .profiles import AttributeProfileInput
 from .rules import RuleSet, should_filter
 from .types import (
     AttributeEvidence,
@@ -29,7 +31,7 @@ def list_attribute_profiles() -> list[str]:
     return sorted(path.stem for path in root.iterdir() if path.name.endswith(".json"))
 
 
-def _load_profile_payload(profile: str) -> dict[str, Any]:
+def _load_builtin_profile_payload(profile: str) -> dict[str, Any]:
     try:
         text = (
             resources.files("skeinrank.attributes.config")
@@ -58,8 +60,18 @@ def _alias_matcher_backend_from_payload(payload: dict[str, Any]) -> str:
     return str(cfg.get("backend", "simple"))
 
 
-def get_attribute_profile(profile: str = _DEFAULT_PROFILE) -> AttributeProfile:
-    payload = _load_profile_payload(profile)
+def _resolve_profile_payload(
+    profile: AttributeProfileInput = _DEFAULT_PROFILE,
+) -> dict[str, Any]:
+    if isinstance(profile, Mapping):
+        return dict(profile)
+    return _load_builtin_profile_payload(str(profile))
+
+
+def get_attribute_profile(
+    profile: AttributeProfileInput = _DEFAULT_PROFILE,
+) -> AttributeProfile:
+    payload = _resolve_profile_payload(profile)
     return AttributeProfile(
         profile_id=str(payload["profile_id"]),
         description=str(payload.get("description", "")),
@@ -112,14 +124,14 @@ def _build_model_candidates(
 def extract_attributes(
     text: str,
     *,
-    profile: str = _DEFAULT_PROFILE,
+    profile: AttributeProfileInput = _DEFAULT_PROFILE,
     debug: bool = False,
     adapters: AttributeModelAdapters | None = None,
     use_gliner: bool | None = None,
     use_e5: bool | None = None,
     use_keybert: bool | None = None,
 ) -> AttributePack:
-    payload = _load_profile_payload(profile)
+    payload = _resolve_profile_payload(profile)
     profile_obj = get_attribute_profile(profile)
 
     normalized_text = normalize_text(text)

@@ -171,6 +171,70 @@ class AhoCorasickAliasMatcher:
         return matches
 
 
+def _expand_profile_aliases(raw_aliases: Iterable[dict[str, Any]]) -> list[AliasEntry]:
+    """Normalize supported profile alias formats into AliasEntry objects.
+
+    SkeinRank accepts both the original flat snapshot format::
+
+        {"alias": "k8s", "canonical": "kubernetes", "slot": "TOOL"}
+
+    and a more user-friendly grouped format::
+
+        {"canonical": "kubernetes", "slot": "TOOL", "aliases": ["k8s", "kube"]}
+
+    The grouped format is expanded at load time so the runtime matcher keeps a
+    single simple internal representation.
+    """
+    entries: list[AliasEntry] = []
+    for item in raw_aliases:
+        canonical = str(item["canonical"])
+        slot = AttributeSlot(str(item["slot"]))
+        default_confidence = float(item.get("confidence", 0.95))
+
+        if "alias" in item:
+            entries.append(
+                AliasEntry(
+                    alias=str(item["alias"]),
+                    canonical=canonical,
+                    slot=slot,
+                    confidence=default_confidence,
+                )
+            )
+            continue
+
+        if "aliases" not in item:
+            raise ValueError(
+                "Alias profile entries must define either 'alias' or 'aliases'"
+            )
+
+        raw_values = item["aliases"]
+        if isinstance(raw_values, str):
+            raw_values = [raw_values]
+
+        for raw_value in raw_values:
+            alias_confidence = default_confidence
+            if isinstance(raw_value, dict):
+                alias = raw_value.get("alias", raw_value.get("value"))
+                if alias is None:
+                    raise ValueError(
+                        "Grouped alias objects must define 'alias' or 'value'"
+                    )
+                alias_confidence = float(
+                    raw_value.get("confidence", default_confidence)
+                )
+            else:
+                alias = raw_value
+            entries.append(
+                AliasEntry(
+                    alias=str(alias),
+                    canonical=canonical,
+                    slot=slot,
+                    confidence=alias_confidence,
+                )
+            )
+    return entries
+
+
 class AliasMap:
     def __init__(
         self, entries: Iterable[AliasEntry], *, matcher_backend: str = "simple"
@@ -187,15 +251,7 @@ class AliasMap:
     def from_profile(
         cls, raw_aliases: Iterable[dict[str, Any]], *, matcher_backend: str = "simple"
     ) -> "AliasMap":
-        entries = [
-            AliasEntry(
-                alias=str(item["alias"]),
-                canonical=str(item["canonical"]),
-                slot=AttributeSlot(str(item["slot"])),
-                confidence=float(item.get("confidence", 0.95)),
-            )
-            for item in raw_aliases
-        ]
+        entries = _expand_profile_aliases(raw_aliases)
         return cls(entries, matcher_backend=matcher_backend)
 
     @property

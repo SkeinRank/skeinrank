@@ -19,7 +19,7 @@ class ElasticsearchEnrichmentConfig:
     index: str
     text_fields: tuple[str, ...]
     target_field: str = "skeinrank"
-    profile: str = "default_it"
+    profile: Any = "default_it"
     limit: int = 20
     batch_size: int = 50
     include_passport: bool = False
@@ -143,7 +143,7 @@ def _slot_values_from_attributes(
 def build_enrichment_payload(
     text: str,
     *,
-    profile: str = "default_it",
+    profile: Any = "default_it",
     include_passport: bool = False,
     include_evidence: bool = False,
 ) -> dict[str, Any]:
@@ -251,6 +251,12 @@ def iter_enrichment_previews(
     return previews, skipped
 
 
+def _profile_id(profile: Any) -> str:
+    if isinstance(profile, dict):
+        return str(profile.get("profile_id", "custom"))
+    return str(profile)
+
+
 def _summary(
     config: ElasticsearchEnrichmentConfig,
     *,
@@ -262,7 +268,7 @@ def _summary(
     return {
         "dry_run": dry_run,
         "index": config.index,
-        "profile": config.profile,
+        "profile": _profile_id(config.profile),
         "text_fields": list(config.text_fields),
         "target_field": config.target_field,
         "limit": config.limit,

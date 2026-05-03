@@ -14,6 +14,7 @@ from .model_adapters import (
     StaticKeyBERTAdapter,
 )
 from .pipeline import extract_attributes, get_attribute_profile, list_attribute_profiles
+from .profiles import build_attribute_profile, load_attribute_profile
 from .types import (
     AttributeEvidence,
     AttributePack,
@@ -30,6 +31,8 @@ __all__ = [
     "extract_attributes",
     "get_attribute_profile",
     "list_attribute_profiles",
+    "build_attribute_profile",
+    "load_attribute_profile",
     "AttributeModelAdapters",
     "ModelCandidate",
     "StaticGLiNERAdapter",
