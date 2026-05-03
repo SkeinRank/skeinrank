@@ -110,6 +110,86 @@ def build_attribute_profile(
     }
 
 
+def build_attribute_profile_template(
+    *,
+    profile_id: str = "company_terms",
+    description: str | None = None,
+    snapshot_version: str | None = None,
+    alias_matcher_backend: str = "aho_corasick",
+) -> AttributeProfilePayload:
+    """Build a starter terminology profile in the grouped alias format.
+
+    The template is intentionally small but valid: users can edit it, validate it,
+    and pass it to ``--profile-file`` without knowing the full snapshot schema.
+    """
+    profile_id = profile_id.strip()
+    if not profile_id:
+        raise ValueError("profile_id must not be empty")
+
+    resolved_description = description or "Company terminology profile."
+    resolved_snapshot_version = snapshot_version or f"{profile_id}@v1"
+    return {
+        "profile_id": profile_id,
+        "description": resolved_description,
+        "total_limit": 20,
+        "slot_limits": {},
+        "global_stopwords": [],
+        "slot_stopwords": {},
+        "aliases": [
+            {
+                "slot": "TOOL",
+                "canonical": "kubernetes",
+                "aliases": ["k8s", "kube", "kuber"],
+                "confidence": 0.95,
+            },
+            {
+                "slot": "DB",
+                "canonical": "postgresql",
+                "aliases": ["pg", "postgres", "psql"],
+                "confidence": 0.95,
+            },
+        ],
+        "regex_rules": [],
+        "snapshot": {
+            "version": resolved_snapshot_version,
+            "source": "file",
+            "description": f"Starter profile snapshot for {profile_id}.",
+        },
+        "alias_matcher": {"backend": alias_matcher_backend},
+    }
+
+
+def write_attribute_profile_template(
+    path: str | Path,
+    *,
+    profile_id: str | None = None,
+    description: str | None = None,
+    snapshot_version: str | None = None,
+    overwrite: bool = False,
+) -> Path:
+    """Write a starter terminology profile to ``path``.
+
+    Existing files are not overwritten unless ``overwrite=True``.
+    """
+    profile_path = Path(path)
+    if profile_path.exists() and not overwrite:
+        raise FileExistsError(
+            f"Profile already exists: {profile_path}. Use overwrite=True to replace it."
+        )
+    resolved_profile_id = profile_id or profile_path.stem or "company_terms"
+    payload = build_attribute_profile_template(
+        profile_id=resolved_profile_id,
+        description=description,
+        snapshot_version=snapshot_version,
+    )
+    profile_path.parent.mkdir(parents=True, exist_ok=True)
+    profile_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return profile_path
+
+
 def load_attribute_profile(path: str | Path) -> AttributeProfilePayload:
     """Load a terminology profile snapshot from JSON."""
     profile_path = Path(path)

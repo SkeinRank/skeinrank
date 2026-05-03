@@ -17,6 +17,7 @@ from skeinrank import (
     StaticGLiNERAdapter,
     StaticKeyBERTAdapter,
     build_attribute_profile,
+    build_attribute_profile_template,
     enrich_documents,
     enrich_jsonl,
     evaluate_demo_queries,
@@ -26,6 +27,7 @@ from skeinrank import (
     load_attribute_profile,
     load_jsonl,
     validate_attribute_profile,
+    write_attribute_profile_template,
     write_jsonl,
 )
 
@@ -36,7 +38,9 @@ def test_attribute_symbols_are_exported_from_public_api():
     assert callable(get_attribute_profile)
     assert callable(list_attribute_profiles)
     assert callable(build_attribute_profile)
+    assert callable(build_attribute_profile_template)
     assert callable(load_attribute_profile)
+    assert callable(write_attribute_profile_template)
     assert callable(validate_attribute_profile)
     assert callable(load_jsonl)
     assert callable(write_jsonl)

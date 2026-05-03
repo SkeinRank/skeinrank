@@ -55,7 +55,12 @@ profile = build_attribute_profile(
 pack = extract_attributes("kuber timeout on pg", profile=profile)
 ```
 
-Or load a JSON snapshot:
+Or create a starter profile and load it as a JSON snapshot:
+
+```bash
+poetry run skeinrank-init-profile company_terms.json
+poetry run skeinrank-validate-profile company_terms.json
+```
 
 ```python
 from skeinrank import extract_attributes, load_attribute_profile
