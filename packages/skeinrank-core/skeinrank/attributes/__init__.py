@@ -20,6 +20,7 @@ from .profiles import (
     load_attribute_profile,
     write_attribute_profile_template,
 )
+from .texts import enrich_texts
 from .types import (
     AttributeEvidence,
     AttributePack,
@@ -67,5 +68,6 @@ __all__ = [
     "write_jsonl",
     "enrich_documents",
     "enrich_jsonl",
+    "enrich_texts",
     "evaluate_demo_queries",
 ]
