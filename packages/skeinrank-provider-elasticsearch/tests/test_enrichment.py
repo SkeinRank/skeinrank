@@ -247,3 +247,83 @@ def test_write_enrichment_reports_bulk_errors():
     assert report["summary"]["updated"] == 0
     assert report["summary"]["failed"] == 1
     assert report["errors"][0]["_id"] == "1"
+
+
+def test_build_enrichment_payload_can_include_matched_aliases_without_evidence():
+    payload = build_enrichment_payload(
+        "k8s timeout on pg",
+        profile="default_it",
+        include_matched_aliases=True,
+    )
+
+    assert "k8s" in payload["matched_aliases"]
+    assert "pg" in payload["matched_aliases"]
+    assert payload["matched_aliases_by_value"]["kubernetes"] == ["k8s"]
+    assert payload["matched_aliases_by_value"]["postgresql"] == ["pg"]
+    assert "attributes" not in payload
+    assert "snapshot" not in payload
+    assert "passport" not in payload
+
+
+def test_build_enrichment_payload_deduplicates_matched_aliases():
+    payload = build_enrichment_payload(
+        "k8s and k8s timeout",
+        profile="default_it",
+        include_matched_aliases=True,
+    )
+
+    assert payload["matched_aliases"].count("k8s") == 1
+    assert payload["matched_aliases_by_value"]["kubernetes"] == ["k8s"]
+
+
+def test_build_enrichment_payload_can_include_fuzzy_matched_aliases():
+    profile = {
+        "profile_id": "company_terms",
+        "snapshot": {"version": "company_terms@v1", "source": "test"},
+        "aliases": [
+            {
+                "slot": "TOOL",
+                "canonical": "kubernetes",
+                "aliases": ["kubernetes", "kuber"],
+            }
+        ],
+        "rules": [],
+    }
+
+    payload = build_enrichment_payload(
+        "kubernets issue",
+        profile=profile,
+        include_matched_aliases=True,
+        enable_fuzzy=True,
+        fuzzy_threshold=0.88,
+    )
+
+    assert payload["matched_aliases"] == ["kubernets"]
+    assert payload["matched_aliases_by_value"] == {"kubernetes": ["kubernets"]}
+
+
+def test_write_enrichment_can_report_matched_aliases_when_requested():
+    client = FakeElasticsearchClient(
+        [
+            {
+                "_id": "1",
+                "_index": "docs",
+                "_source": {"body": "k8s timeout"},
+            }
+        ]
+    )
+    config = ElasticsearchEnrichmentConfig(
+        index="docs",
+        text_fields=("body",),
+        target_field="skeinrank",
+        limit=1,
+        batch_size=1,
+        include_matched_aliases=True,
+    )
+
+    report = write_enrichment(client, config)
+
+    assert report["summary"]["include_matched_aliases"] is True
+    assert report["updates"][0]["matched_aliases"] == ["k8s"]
+    payload = client.bulk_calls[0][1]["doc"]["skeinrank"]
+    assert payload["matched_aliases_by_value"] == {"kubernetes": ["k8s"]}

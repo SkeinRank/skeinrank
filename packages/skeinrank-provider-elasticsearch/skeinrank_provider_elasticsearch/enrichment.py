@@ -24,6 +24,7 @@ class ElasticsearchEnrichmentConfig:
     batch_size: int = 50
     include_passport: bool = False
     include_evidence: bool = False
+    include_matched_aliases: bool = False
     enable_fuzzy: bool = False
     fuzzy_threshold: float = 0.9
     fuzzy_min_length: int = 4
@@ -143,12 +144,42 @@ def _slot_values_from_attributes(
     return {slot: sorted(values) for slot, values in sorted(slots.items())}
 
 
+def _matched_aliases_from_attributes(
+    attributes: list[dict[str, Any]],
+) -> tuple[list[str], dict[str, list[str]]]:
+    """Return compact alias trace fields for Elasticsearch payloads.
+
+    This keeps production payloads smaller than full evidence while still
+    preserving which surface forms produced canonical values. Only alias-like
+    sources are included; regex/rule matches stay out of these fields.
+    """
+    aliases: set[str] = set()
+    by_value: dict[str, set[str]] = {}
+    for item in attributes:
+        if item.get("source") not in {"alias", "fuzzy_alias"}:
+            continue
+        value = str(item.get("value", "")).strip()
+        if not value:
+            continue
+        for evidence in item.get("evidences", []) or []:
+            matched = str(evidence.get("matched_text", "")).strip()
+            if not matched:
+                continue
+            aliases.add(matched)
+            by_value.setdefault(value, set()).add(matched)
+    return (
+        sorted(aliases),
+        {value: sorted(items) for value, items in sorted(by_value.items())},
+    )
+
+
 def build_enrichment_payload(
     text: str,
     *,
     profile: Any = "default_it",
     include_passport: bool = False,
     include_evidence: bool = False,
+    include_matched_aliases: bool = False,
     enable_fuzzy: bool = False,
     fuzzy_threshold: float = 0.9,
     fuzzy_min_length: int = 4,
@@ -179,6 +210,12 @@ def build_enrichment_payload(
         "canonical_values": canonical_values,
         "slots": _slot_values_from_attributes(attributes),
     }
+    if include_matched_aliases:
+        matched_aliases, matched_aliases_by_value = _matched_aliases_from_attributes(
+            attributes
+        )
+        payload["matched_aliases"] = matched_aliases
+        payload["matched_aliases_by_value"] = matched_aliases_by_value
     if include_evidence:
         payload["snapshot"] = (
             pack.snapshot.model_dump(mode="json") if pack.snapshot is not None else None
@@ -250,6 +287,7 @@ def iter_enrichment_previews(
             profile=config.profile,
             include_passport=config.include_passport,
             include_evidence=config.include_evidence,
+            include_matched_aliases=config.include_matched_aliases,
             enable_fuzzy=config.enable_fuzzy,
             fuzzy_threshold=config.fuzzy_threshold,
             fuzzy_min_length=config.fuzzy_min_length,
@@ -294,6 +332,7 @@ def _summary(
         "skipped": skipped,
         "include_evidence": config.include_evidence,
         "include_passport": config.include_passport,
+        "include_matched_aliases": config.include_matched_aliases,
         "enable_fuzzy": config.enable_fuzzy,
         "fuzzy_threshold": config.fuzzy_threshold,
         "fuzzy_min_length": config.fuzzy_min_length,
@@ -359,15 +398,18 @@ def write_enrichment(
         errors.extend(batch_errors)
         updated += max(0, len(batch) - len(batch_errors))
         for preview in batch:
-            updates.append(
-                {
-                    "_id": preview.doc_id,
-                    "_index": preview.index,
-                    "target_field": preview.target_field,
-                    "canonical_values": preview.payload.get("canonical_values", []),
-                    "snapshot_version": preview.payload.get("snapshot_version"),
-                }
-            )
+            update_record = {
+                "_id": preview.doc_id,
+                "_index": preview.index,
+                "target_field": preview.target_field,
+                "canonical_values": preview.payload.get("canonical_values", []),
+                "snapshot_version": preview.payload.get("snapshot_version"),
+            }
+            if config.include_matched_aliases:
+                update_record["matched_aliases"] = preview.payload.get(
+                    "matched_aliases", []
+                )
+            updates.append(update_record)
 
     summary = _summary(
         config,

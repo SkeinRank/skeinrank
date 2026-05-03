@@ -67,6 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include full attributes, evidences, and snapshot metadata instead of the compact production payload",
     )
     parser.add_argument(
+        "--include-matched-aliases",
+        action="store_true",
+        help="Include compact matched_aliases and matched_aliases_by_value fields in Elasticsearch payloads",
+    )
+    parser.add_argument(
         "--enable-fuzzy",
         action="store_true",
         help="Enable conservative fuzzy alias fallback for typo-like terms.",
@@ -121,6 +126,7 @@ def run(
         batch_size=args.batch_size,
         include_passport=bool(args.include_passport),
         include_evidence=bool(args.include_evidence),
+        include_matched_aliases=bool(args.include_matched_aliases),
         enable_fuzzy=bool(args.enable_fuzzy),
         fuzzy_threshold=args.fuzzy_threshold,
         fuzzy_min_length=args.fuzzy_min_length,

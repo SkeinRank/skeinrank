@@ -115,3 +115,28 @@ def test_cli_run_outputs_write_report_with_fake_client(capsys):
     assert len(client.bulk_calls) == 1
     payload = client.bulk_calls[0][1]["doc"]["skeinrank"]
     assert "attributes" not in payload
+
+
+def test_cli_run_can_include_matched_aliases(capsys):
+    client = FakeElasticsearchClient()
+
+    report = run(
+        [
+            "--index",
+            "docs",
+            "--text-field",
+            "body",
+            "--limit",
+            "1",
+            "--include-matched-aliases",
+            "--dry-run",
+        ],
+        client=client,
+    )
+
+    captured = capsys.readouterr()
+    assert '"include_matched_aliases": true' in captured.out
+    payload = report["previews"][0]["doc"]["skeinrank"]
+    assert payload["matched_aliases"] == ["k8s"]
+    assert payload["matched_aliases_by_value"] == {"kubernetes": ["k8s"]}
+    assert "attributes" not in payload

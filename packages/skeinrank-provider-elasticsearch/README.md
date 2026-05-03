@@ -115,9 +115,38 @@ skeinrank-es-enrich \
 
 Matches produced by this fallback use `fuzzy_alias` as their source when evidence is included.
 
+### Optional matched aliases mode
+
+Use `--include-matched-aliases` when you want to store which surface forms were matched without storing full evidence details:
+
+```bash
+skeinrank-es-enrich \
+  --url http://localhost:9200 \
+  --index docs \
+  --text-field title \
+  --text-field body \
+  --target-field skeinrank \
+  --include-matched-aliases \
+  --dry-run
+```
+
+This adds two compact fields:
+
+```json
+{
+  "matched_aliases": ["k8s", "pg"],
+  "matched_aliases_by_value": {
+    "kubernetes": ["k8s"],
+    "postgresql": ["pg"]
+  }
+}
+```
+
+This is useful for terminology audit, UI explanations, and future governance workflows.
+
 ### Optional full evidence mode
 
-The default Elasticsearch payload is compact and production-oriented. If you need full debug evidence, add `--include-evidence`:
+The default Elasticsearch payload is compact and production-oriented. If you need a lightweight alias trace, add `--include-matched-aliases`. If you need full debug evidence, add `--include-evidence`:
 
 ```bash
 skeinrank-es-enrich \
@@ -181,4 +210,4 @@ PYTHONPATH=.:../skeinrank-core pytest -q
 
 - You own the Elasticsearch index mappings and analyzers.
 - Write mode is opt-in with `--write`; dry-run remains the recommended first check before touching an index.
-- Compact payload is the default. Use `--include-evidence` only when you need a detailed debugging payload.
+- Compact payload is the default. Use `--include-matched-aliases` for lightweight alias trace fields, and `--include-evidence` only when you need a detailed debugging payload.
