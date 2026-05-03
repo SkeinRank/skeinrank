@@ -306,21 +306,32 @@ def build_validate_profile_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Return a non-zero exit code when warnings are present.",
+        help=(
+            "Elevate governance warnings to errors and return a non-zero exit "
+            "code when the profile is not strict-publishable."
+        ),
+    )
+    parser.add_argument(
+        "--min-short-alias-length",
+        type=int,
+        default=3,
+        help="Aliases shorter than this length are reported as short. Default: 3.",
     )
     return parser
 
 
 def validate_profile_main(argv: list[str] | None = None) -> int:
     args = build_validate_profile_parser().parse_args(argv)
-    report = validate_attribute_profile(args.profile_file)
+    report = validate_attribute_profile(
+        args.profile_file,
+        strict=args.strict,
+        min_short_alias_length=args.min_short_alias_length,
+    )
     if args.json:
         print(_dump_json(_validation_payload(report), pretty=True))
     else:
         _print_validation_human(report)
     if report.error_count:
-        return 1
-    if args.strict and report.warning_count:
         return 1
     return 0
 
