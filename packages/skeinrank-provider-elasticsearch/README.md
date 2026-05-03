@@ -48,7 +48,7 @@ python -m skeinrank_provider_elasticsearch.enrich_cli \
   --dry-run
 ```
 
-You can pass `--profile-file ./company_terms.json` to enrich with your own terminology snapshot instead of the built-in profile.
+You can pass `--profile-file ./company_terms.json` to enrich with your own terminology snapshot instead of the built-in profile. Add `--enable-fuzzy` only when you want to catch typo-like aliases during enrichment.
 
 Equivalent console script after installation:
 
@@ -95,6 +95,25 @@ Example compact dry-run preview shape:
   ]
 }
 ```
+
+### Optional fuzzy alias fallback
+
+Fuzzy matching is disabled by default. Enable it explicitly for typo-tolerant enrichment:
+
+```bash
+skeinrank-es-enrich \
+  --url http://localhost:9200 \
+  --index docs \
+  --text-field title \
+  --text-field body \
+  --target-field skeinrank \
+  --profile-file ./company_terms.json \
+  --enable-fuzzy \
+  --fuzzy-threshold 0.88 \
+  --dry-run
+```
+
+Matches produced by this fallback use `fuzzy_alias` as their source when evidence is included.
 
 ### Optional full evidence mode
 

@@ -166,6 +166,20 @@ skeinrank-validate-profile ./company_terms.json --strict
 
 The validator reports collisions such as one alias pointing to multiple canonical terms, and warns about generic or short aliases such as `api`, `service`, or `pg`.
 
+### Optional fuzzy alias fallback
+
+Exact alias matching remains the default. If you want to catch typo-like terms, enable conservative fuzzy fallback explicitly:
+
+```bash
+skeinrank-extract \
+  --text "kubernets timeout on postgress" \
+  --profile-file ./company_terms.json \
+  --enable-fuzzy \
+  --fuzzy-threshold 0.88
+```
+
+Fuzzy matching is disabled by default, ignores short aliases such as `pg`, and is reported as `fuzzy_alias` in attributes/passport output.
+
 ## Demo flow
 
 The repository includes a tiny demo corpus under `examples/demo/`:

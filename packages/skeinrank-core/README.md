@@ -106,6 +106,34 @@ poetry run skeinrank-validate-profile company_terms.json --strict
 
 The validation report catches fatal alias collisions and warns about aliases that are likely to hurt retrieval quality, such as overly generic terms (`api`, `service`, `app`) or very short aliases (`pg`, `go`, `js`).
 
+## Optional fuzzy alias fallback
+
+Exact alias matching is the default. Enable fuzzy fallback only when you want to catch typo-like terms:
+
+```python
+from skeinrank import extract_attributes, load_attribute_profile
+
+profile = load_attribute_profile("company_terms.json")
+pack = extract_attributes(
+    "kubernets timeout on postgress",
+    profile=profile,
+    enable_fuzzy=True,
+    fuzzy_threshold=0.88,
+)
+```
+
+The same option is available in CLI commands:
+
+```bash
+poetry run skeinrank-extract \
+  --text "kubernets timeout on postgress" \
+  --profile-file company_terms.json \
+  --enable-fuzzy \
+  --fuzzy-threshold 0.88
+```
+
+Fuzzy matching is intentionally conservative: it is disabled by default, ignores short aliases by default, and marks matches as `fuzzy_alias` in attributes/passport output.
+
 ## High-level Python enrichment
 
 Use `enrich_texts(...)` when you want to process a small in-memory corpus without writing the extraction loop yourself.

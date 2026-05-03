@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections import deque
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Any, Iterable, Protocol
 
 from .normalize import normalize_value
@@ -34,6 +35,8 @@ class AliasMatch:
     start: int
     end: int
     confidence: float
+    source: str = "alias"
+    reason: str | None = None
 
 
 class AliasMatcher(Protocol):
@@ -50,6 +53,51 @@ def _has_word_boundaries(text: str, start: int, end: int) -> bool:
     before_ok = start == 0 or not _is_word_char(text[start - 1])
     after_ok = end >= len(text) or not _is_word_char(text[end])
     return before_ok and after_ok
+
+
+_FUZZY_TOKEN_STRIP = ".,;:!?()[]{}<>\"'`"
+_DEFAULT_FUZZY_GENERIC_ALIASES = frozenset(
+    {
+        "api",
+        "app",
+        "application",
+        "component",
+        "data",
+        "error",
+        "issue",
+        "job",
+        "node",
+        "problem",
+        "service",
+        "system",
+        "worker",
+    }
+)
+
+
+def _overlaps(span: tuple[int, int], spans: Iterable[tuple[int, int]]) -> bool:
+    start, end = span
+    return any(
+        start < other_end and end > other_start for other_start, other_end in spans
+    )
+
+
+def _iter_fuzzy_tokens(
+    normalized_text: str, *, min_length: int
+) -> Iterable[tuple[str, int, int]]:
+    for match in re.finditer(r"\S+", normalized_text):
+        raw = match.group(0)
+        stripped = raw.strip(_FUZZY_TOKEN_STRIP)
+        if not stripped:
+            continue
+        leading = len(raw) - len(raw.lstrip(_FUZZY_TOKEN_STRIP))
+        start = match.start() + leading
+        end = start + len(stripped)
+        if len(stripped) < min_length:
+            continue
+        if not any(char.isalnum() for char in stripped):
+            continue
+        yield stripped, start, end
 
 
 class SimpleAliasMatcher:
@@ -258,6 +306,10 @@ class AliasMap:
     def matcher_backend(self) -> str:
         return self._matcher.backend_name
 
+    @property
+    def entries(self) -> tuple[AliasEntry, ...]:
+        return tuple(self._entries)
+
     def _build_matcher(self, matcher_backend: str) -> AliasMatcher:
         normalized_backend = matcher_backend.strip().lower().replace("-", "_")
         if normalized_backend in {"aho", "aho_corasick", "ahocorasick"}:
@@ -285,3 +337,85 @@ class AliasMap:
 
     def find(self, normalized_text: str) -> list[AliasMatch]:
         return self._matcher.find(normalized_text)
+
+    def find_fuzzy(
+        self,
+        normalized_text: str,
+        *,
+        threshold: float = 0.9,
+        min_length: int = 4,
+        generic_aliases: Iterable[str] | None = None,
+        excluded_spans: Iterable[tuple[int, int]] = (),
+    ) -> list[AliasMatch]:
+        """Find typo-like aliases with conservative string similarity.
+
+        Fuzzy matching is intentionally opt-in and conservative. It ignores
+        short aliases, multi-word aliases, and generic aliases so terms such as
+        ``api`` or ``pg`` do not become noisy fuzzy candidates. Exact matching
+        should always run first; ``excluded_spans`` can be used to skip text
+        spans already covered by exact alias matches.
+        """
+        if threshold <= 0 or threshold > 1:
+            raise ValueError("fuzzy threshold must be in the range (0, 1]")
+        if min_length < 1:
+            raise ValueError("fuzzy min_length must be >= 1")
+
+        generic = {normalize_value(value) for value in (generic_aliases or [])}
+        if not generic_aliases:
+            generic = set(_DEFAULT_FUZZY_GENERIC_ALIASES)
+        excluded = tuple(excluded_spans)
+
+        candidates = [
+            entry
+            for entry in self._entries
+            if len(entry.normalized_alias) >= min_length
+            and " " not in entry.normalized_alias
+            and entry.normalized_alias not in generic
+        ]
+        if not candidates:
+            return []
+
+        matches: list[AliasMatch] = []
+        for token, start, end in _iter_fuzzy_tokens(
+            normalized_text, min_length=min_length
+        ):
+            if _overlaps((start, end), excluded):
+                continue
+
+            best_entry: AliasEntry | None = None
+            best_score = 0.0
+            for entry in candidates:
+                alias = entry.normalized_alias
+                if token == alias:
+                    continue
+                score = SequenceMatcher(None, token, alias).ratio()
+                if score < threshold:
+                    continue
+                if (
+                    best_entry is None
+                    or score > best_score
+                    or (
+                        score == best_score
+                        and len(alias) > len(best_entry.normalized_alias)
+                    )
+                ):
+                    best_entry = entry
+                    best_score = score
+
+            if best_entry is None:
+                continue
+
+            matches.append(
+                AliasMatch(
+                    slot=best_entry.slot,
+                    canonical=best_entry.normalized_canonical,
+                    alias=best_entry.normalized_alias,
+                    matched_text=token,
+                    start=start,
+                    end=end,
+                    confidence=min(best_entry.confidence, best_score),
+                    source="fuzzy_alias",
+                    reason="fuzzy_match",
+                )
+            )
+        return matches

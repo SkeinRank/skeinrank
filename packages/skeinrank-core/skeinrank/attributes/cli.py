@@ -44,9 +44,22 @@ def _print_validation_human(report: ProfileValidationReport) -> None:
 
 
 def _attributes_payload(
-    text: str, *, profile: AttributeProfileInput, debug: bool
+    text: str,
+    *,
+    profile: AttributeProfileInput,
+    debug: bool,
+    enable_fuzzy: bool = False,
+    fuzzy_threshold: float = 0.9,
+    fuzzy_min_length: int = 4,
 ) -> dict[str, Any]:
-    pack = extract_attributes(text, profile=profile, debug=debug)
+    pack = extract_attributes(
+        text,
+        profile=profile,
+        debug=debug,
+        enable_fuzzy=enable_fuzzy,
+        fuzzy_threshold=fuzzy_threshold,
+        fuzzy_min_length=fuzzy_min_length,
+    )
     attributes = [item.model_dump(mode="json") for item in pack.attributes]
     canonical_values = sorted({item["value"] for item in attributes})
     slots: dict[str, list[str]] = {}
@@ -97,6 +110,23 @@ def build_extract_parser() -> argparse.ArgumentParser:
         help="Include passport/debug trace in the output.",
     )
     parser.add_argument(
+        "--enable-fuzzy",
+        action="store_true",
+        help="Enable conservative fuzzy alias fallback for typo-like terms.",
+    )
+    parser.add_argument(
+        "--fuzzy-threshold",
+        type=float,
+        default=0.9,
+        help="Minimum fuzzy similarity in the range (0, 1]. Default: 0.9.",
+    )
+    parser.add_argument(
+        "--fuzzy-min-length",
+        type=int,
+        default=4,
+        help="Minimum token/alias length for fuzzy matching. Default: 4.",
+    )
+    parser.add_argument(
         "--compact", action="store_true", help="Print compact one-line JSON."
     )
     return parser
@@ -109,7 +139,14 @@ def extract_main(argv: list[str] | None = None) -> int:
     if not text or not text.strip():
         parser.error("Provide --text or pipe text to stdin.")
     profile = _resolve_profile(args.profile, args.profile_file)
-    payload = _attributes_payload(text.strip(), profile=profile, debug=args.debug)
+    payload = _attributes_payload(
+        text.strip(),
+        profile=profile,
+        debug=args.debug,
+        enable_fuzzy=args.enable_fuzzy,
+        fuzzy_threshold=args.fuzzy_threshold,
+        fuzzy_min_length=args.fuzzy_min_length,
+    )
     print(_dump_json(payload, pretty=not args.compact))
     return 0
 
@@ -135,6 +172,23 @@ def build_enrich_jsonl_parser() -> argparse.ArgumentParser:
         help="Do not include passport/debug traces in output rows.",
     )
     parser.add_argument(
+        "--enable-fuzzy",
+        action="store_true",
+        help="Enable conservative fuzzy alias fallback for typo-like terms.",
+    )
+    parser.add_argument(
+        "--fuzzy-threshold",
+        type=float,
+        default=0.9,
+        help="Minimum fuzzy similarity in the range (0, 1]. Default: 0.9.",
+    )
+    parser.add_argument(
+        "--fuzzy-min-length",
+        type=int,
+        default=4,
+        help="Minimum token/alias length for fuzzy matching. Default: 4.",
+    )
+    parser.add_argument(
         "--title-field", default="title", help="Document title field name."
     )
     parser.add_argument(
@@ -152,6 +206,9 @@ def enrich_jsonl_main(argv: list[str] | None = None) -> int:
         debug=not args.no_debug,
         title_field=args.title_field,
         text_field=args.text_field,
+        enable_fuzzy=args.enable_fuzzy,
+        fuzzy_threshold=args.fuzzy_threshold,
+        fuzzy_min_length=args.fuzzy_min_length,
     )
     print(f"enriched_documents={count}")
     print(f"output={args.output}")
@@ -172,6 +229,23 @@ def build_eval_demo_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Path to a custom JSON terminology profile snapshot.",
+    )
+    parser.add_argument(
+        "--enable-fuzzy",
+        action="store_true",
+        help="Enable conservative fuzzy alias fallback for query extraction.",
+    )
+    parser.add_argument(
+        "--fuzzy-threshold",
+        type=float,
+        default=0.9,
+        help="Minimum fuzzy similarity in the range (0, 1]. Default: 0.9.",
+    )
+    parser.add_argument(
+        "--fuzzy-min-length",
+        type=int,
+        default=4,
+        help="Minimum token/alias length for fuzzy matching. Default: 4.",
     )
     parser.add_argument(
         "--top-k",
@@ -205,6 +279,9 @@ def eval_demo_main(argv: list[str] | None = None) -> int:
         top_k=args.top_k,
         title_field=args.title_field,
         text_field=args.text_field,
+        enable_fuzzy=args.enable_fuzzy,
+        fuzzy_threshold=args.fuzzy_threshold,
+        fuzzy_min_length=args.fuzzy_min_length,
     )
     print(_dump_json(report["summary"], pretty=not args.compact))
     if args.out is not None:

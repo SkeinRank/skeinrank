@@ -66,6 +66,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include full attributes, evidences, and snapshot metadata instead of the compact production payload",
     )
+    parser.add_argument(
+        "--enable-fuzzy",
+        action="store_true",
+        help="Enable conservative fuzzy alias fallback for typo-like terms.",
+    )
+    parser.add_argument(
+        "--fuzzy-threshold",
+        type=float,
+        default=0.9,
+        help="Minimum fuzzy similarity in the range (0, 1]. Default: 0.9.",
+    )
+    parser.add_argument(
+        "--fuzzy-min-length",
+        type=int,
+        default=4,
+        help="Minimum token/alias length for fuzzy matching. Default: 4.",
+    )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
         "--dry-run",
@@ -104,6 +121,9 @@ def run(
         batch_size=args.batch_size,
         include_passport=bool(args.include_passport),
         include_evidence=bool(args.include_evidence),
+        enable_fuzzy=bool(args.enable_fuzzy),
+        fuzzy_threshold=args.fuzzy_threshold,
+        fuzzy_min_length=args.fuzzy_min_length,
     )
     es_client = client if client is not None else _make_client(args.url)
     report = (

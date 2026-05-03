@@ -39,7 +39,7 @@ class AttributeSnapshot(BaseModel):
 
 class AttributeEvidence(BaseModel):
     source: str = Field(
-        description="Evidence source: alias | regex | gliner | e5 | keybert | literal"
+        description="Evidence source: alias | fuzzy_alias | regex | gliner | e5 | keybert | literal"
     )
     matched_text: str = Field(
         description="Original text span that triggered the attribute"

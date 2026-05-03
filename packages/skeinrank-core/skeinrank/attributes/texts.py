@@ -73,6 +73,9 @@ def enrich_texts(
     include_text: bool = True,
     include_attributes: bool = False,
     include_passport: bool = False,
+    enable_fuzzy: bool = False,
+    fuzzy_threshold: float = 0.9,
+    fuzzy_min_length: int = 4,
 ) -> list[EnrichedTextRecord]:
     """Enrich a small in-memory text corpus with canonical attributes.
 
@@ -90,7 +93,14 @@ def enrich_texts(
             id_field=id_field,
             text_field=text_field,
         )
-        pack = extract_attributes(text, profile=profile, debug=debug)
+        pack = extract_attributes(
+            text,
+            profile=profile,
+            debug=debug,
+            enable_fuzzy=enable_fuzzy,
+            fuzzy_threshold=fuzzy_threshold,
+            fuzzy_min_length=fuzzy_min_length,
+        )
         payload = _compact_pack_payload(
             pack,
             include_attributes=include_attributes,
