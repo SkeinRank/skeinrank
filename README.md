@@ -273,7 +273,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the first HTTP layer for that control plane. It currently exposes configuration, database session wiring, `/healthz`, and REST endpoints for profiles, canonical terms, and aliases. Future patches will add snapshot export/publishing endpoints, suggestions, approval flow, and authentication.
+`packages/skeinrank-governance-api` is the first HTTP layer for that control plane. It currently exposes configuration, database session wiring, `/healthz`, REST endpoints for profiles, canonical terms, aliases, and runtime-compatible snapshot export. Future patches will add snapshot publishing lifecycle, suggestions, approval flow, and authentication.
 
 The intended architecture is:
 
@@ -295,6 +295,14 @@ cd ../skeinrank-governance-api
 poetry install
 poetry run pytest -q
 poetry run skeinrank-governance-api --reload
+```
+
+Export a runtime-compatible snapshot through the API:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/export \
+  -H "Content-Type: application/json" \
+  -d '{"snapshot_version":"default_it@v1"}'
 ```
 
 The initial schema includes profiles, canonical terms, aliases, profile snapshots, and audit events.
