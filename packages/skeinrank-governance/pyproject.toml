@@ -1,0 +1,31 @@
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "skeinrank-governance"
+version = "0.1.0"
+description = "Postgres-ready terminology governance models and Alembic migrations for SkeinRank"
+readme = "README.md"
+authors = ["SkeinRank"]
+license = "Apache-2.0"
+keywords = ["skeinrank", "terminology", "governance", "postgresql", "sqlalchemy", "alembic"]
+packages = [{ include = "skeinrank_governance" }]
+include = [
+  { path = "alembic.ini", format = ["sdist", "wheel"] },
+  { path = "alembic/**/*.py", format = ["sdist", "wheel"] },
+  { path = "alembic/script.py.mako", format = ["sdist", "wheel"] },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+sqlalchemy = ">=2.0,<3.0"
+alembic = ">=1.13,<2.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0"
+pytest-cov = ">=4.1"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

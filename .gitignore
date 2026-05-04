@@ -50,5 +50,10 @@ dist/
 # Docker/local runtime junk
 *.pid
 
-# Node (на будущее, если появится)
+# Node
 node_modules/
+
+# Local SQLite databases
+*.db
+*.sqlite
+*.sqlite3
