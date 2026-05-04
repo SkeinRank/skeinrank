@@ -28,6 +28,7 @@ from .models import (
     CanonicalTerm,
     TermAlias,
     TerminologyProfile,
+    normalize_profile_name,
     normalize_value,
     utc_now,
 )
@@ -55,7 +56,7 @@ def create_profile(
 ) -> TerminologyProfile:
     """Create a terminology profile."""
 
-    normalized_name = normalize_value(name)
+    normalized_name = normalize_profile_name(name)
     existing = session.scalar(
         select(TerminologyProfile).where(
             TerminologyProfile.normalized_name == normalized_name
@@ -84,7 +85,7 @@ def get_profile(session: Session, name: str) -> TerminologyProfile:
 
     profile = session.scalar(
         select(TerminologyProfile).where(
-            TerminologyProfile.normalized_name == normalize_value(name)
+            TerminologyProfile.normalized_name == normalize_profile_name(name)
         )
     )
     if profile is None:

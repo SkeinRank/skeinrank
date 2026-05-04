@@ -1,6 +1,6 @@
 # skeinrank-governance-api
 
-FastAPI control-plane API skeleton for SkeinRank terminology governance.
+FastAPI control-plane API for SkeinRank terminology governance.
 
 This package is the HTTP layer that will later power the SkeinRank governance UI. It sits above `skeinrank-governance`, which owns SQLAlchemy models, Alembic migrations, and the admin CLI.
 
@@ -82,13 +82,44 @@ Production deployments should use Alembic migrations from `packages/skeinrank-go
 
 ## Current scope
 
-This is a skeleton package. It currently provides:
+This package currently provides:
 
 - FastAPI app factory
 - environment-based configuration
 - SQLAlchemy session dependency
 - `/healthz` endpoint
+- governance REST endpoints for profiles, terms, and aliases
 - Uvicorn launcher command
-- tests for app creation, health checks, and DB dependency wiring
+- tests for app creation, health checks, DB dependency wiring, and governance routes
 
-Future patches will add REST endpoints for profiles, terms, aliases, suggestions, and snapshot publishing.
+## Governance REST endpoints
+
+Profiles:
+
+```bash
+curl http://127.0.0.1:8010/v1/governance/profiles
+
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles \
+  -H "Content-Type: application/json" \
+  -d '{"name":"default_it","description":"Default IT terms"}'
+```
+
+Canonical terms:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/terms \
+  -H "Content-Type: application/json" \
+  -d '{"canonical_value":"kubernetes","slot":"TOOL"}'
+
+curl http://127.0.0.1:8010/v1/governance/profiles/default_it/terms
+```
+
+Aliases:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kubernetes/aliases \
+  -H "Content-Type: application/json" \
+  -d '{"alias_value":"k8s","confidence":0.97}'
+```
+
+Future patches will add snapshot export/publishing endpoints, suggestions, approval flow, and authentication.

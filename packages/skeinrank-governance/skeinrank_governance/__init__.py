@@ -27,6 +27,7 @@ from .models import (
     ProfileSnapshot,
     TermAlias,
     TerminologyProfile,
+    normalize_profile_name,
     normalize_value,
 )
 
@@ -53,5 +54,6 @@ __all__ = [
     "create_all",
     "create_governance_engine",
     "create_session_factory",
+    "normalize_profile_name",
     "normalize_value",
 ]

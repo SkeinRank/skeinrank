@@ -26,7 +26,8 @@ jobs:
             packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
             packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
             packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests \
-            packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests
+            packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests \
+            packages/skeinrank-governance-api/skeinrank_governance_api packages/skeinrank-governance-api/tests
 
       - name: Check Ruff formatting
         run: |
@@ -34,7 +35,8 @@ jobs:
             packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
             packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
             packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests \
-            packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests
+            packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests \
+            packages/skeinrank-governance-api/skeinrank_governance_api packages/skeinrank-governance-api/tests
 
   test:
     runs-on: ubuntu-latest
@@ -47,6 +49,7 @@ jobs:
           - packages/skeinrank-server
           - packages/skeinrank-provider-elasticsearch
           - packages/skeinrank-governance
+          - packages/skeinrank-governance-api
         python-version: ["3.11"]
 
     steps:

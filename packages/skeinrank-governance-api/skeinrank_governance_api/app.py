@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from .config import GovernanceApiConfig
 from .dependencies import configure_database
+from .routes.governance import router as governance_router
 from .routes.health import router as health_router
 
 
@@ -21,4 +22,5 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
     app.state.config = config
     configure_database(app, config)
     app.include_router(health_router)
+    app.include_router(governance_router)
     return app
