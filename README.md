@@ -23,7 +23,8 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 - `packages/skeinrank-core` — core library and attribute extraction pipeline
 - `packages/skeinrank-server` — FastAPI service wrapper
 - `packages/skeinrank-provider-elasticsearch` — optional Elasticsearch retrieval provider and enrichment CLI
-- `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation for future Postgres terminology governance
+- `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation and admin CLI for Postgres terminology governance
+- `packages/skeinrank-governance-api` — FastAPI control-plane API skeleton for future governance UI
 - `examples/demo/` — small demo corpus, demo queries, and usage notes
 
 ## Quickstart
@@ -108,16 +109,36 @@ ruff check \
   packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
   packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
   packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests \
-  packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests
+  packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests \
+  packages/skeinrank-governance-api/skeinrank_governance_api packages/skeinrank-governance-api/tests
 
 ruff format --check \
   packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
   packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
   packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests \
-  packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests
+  packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests \
+  packages/skeinrank-governance-api/skeinrank_governance_api packages/skeinrank-governance-api/tests
 ```
 
 GitHub Actions runs Ruff once at the repository level and runs package tests through Poetry for each package.
+
+## Governance API preview
+
+The governance API package is the HTTP control-plane layer that will later power the SkeinRank UI. It uses `skeinrank-governance` as the database/model layer and keeps runtime extraction snapshot-based.
+
+```bash
+cd packages/skeinrank-governance-api
+poetry install
+poetry run skeinrank-governance-api --reload
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8010/healthz
+```
+
+The API reads `SKEINRANK_GOVERNANCE_DATABASE_URL` or `SKEINRANK_GOVERNANCE_API_DATABASE_URL`. For local demos only, set `SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true`; production deployments should use Alembic migrations from `packages/skeinrank-governance`.
 
 ## Bring your own terminology
 
@@ -250,23 +271,30 @@ That profile currently controls:
 
 ## Governance package preview
 
-`packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models and an Alembic migration skeleton for a future Postgres-backed terminology control plane.
+`packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
+
+`packages/skeinrank-governance-api` is the first HTTP layer for that control plane. It currently exposes the FastAPI app skeleton, configuration, database session wiring, and `/healthz`; future patches will add profile, term, alias, suggestion, and snapshot endpoints.
 
 The intended architecture is:
 
 ```text
-Postgres governance store -> published snapshot JSON -> runtime matcher -> API / CLI / Elasticsearch enrichment
+Postgres governance store -> governance API/UI -> published snapshot JSON -> runtime matcher -> API / CLI / Elasticsearch enrichment
 ```
 
-The hot extraction path still uses exported snapshots; it does not query Postgres per request.
+The hot extraction path still uses exported snapshots; it does not query Postgres or the governance API per request.
 
-Local smoke test:
+Local smoke tests:
 
 ```bash
 cd packages/skeinrank-governance
 poetry install
 poetry run pytest -q
 poetry run alembic upgrade head
+
+cd ../skeinrank-governance-api
+poetry install
+poetry run pytest -q
+poetry run skeinrank-governance-api --reload
 ```
 
 The initial schema includes profiles, canonical terms, aliases, profile snapshots, and audit events.
