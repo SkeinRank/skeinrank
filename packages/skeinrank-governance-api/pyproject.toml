@@ -1,0 +1,33 @@
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "skeinrank-governance-api"
+version = "0.1.0"
+description = "FastAPI control-plane API skeleton for SkeinRank terminology governance"
+readme = "README.md"
+authors = ["SkeinRank"]
+license = "Apache-2.0"
+keywords = ["skeinrank", "governance", "fastapi", "terminology", "control-plane"]
+packages = [{ include = "skeinrank_governance_api" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+fastapi = ">=0.110,<1.0"
+uvicorn = {version = ">=0.27,<1.0", extras = ["standard"]}
+sqlalchemy = ">=2.0,<3.0"
+pydantic = ">=2.0,<3.0"
+skeinrank-governance = { path = "../skeinrank-governance", develop = true }
+
+[tool.poetry.scripts]
+skeinrank-governance-api = "skeinrank_governance_api.cli:main"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0"
+pytest-cov = ">=4.1"
+httpx = ">=0.27,<1.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
