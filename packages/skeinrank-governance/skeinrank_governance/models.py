@@ -7,6 +7,7 @@ in-memory matcher.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -50,6 +51,20 @@ def normalize_value(value: str) -> str:
     """Normalize user-facing terminology values for uniqueness checks."""
 
     return " ".join(value.strip().lower().split())
+
+
+def normalize_profile_name(value: str) -> str:
+    """Normalize profile names for human-friendly uniqueness checks.
+
+    Profile names are commonly written either as slugs (``default_it``) or as
+    display names (``Default IT``). Governance treats those forms as the same
+    profile to avoid accidentally creating two terminology stores for one
+    logical profile.
+    """
+
+    normalized = normalize_value(value)
+    normalized = re.sub(r"[\s_-]+", "_", normalized)
+    return normalized.strip("_")
 
 
 class TimestampMixin:
@@ -258,7 +273,7 @@ def _fill_normalized_profile(
     mapper: Any, connection: Any, target: TerminologyProfile
 ) -> None:
     del mapper, connection
-    target.normalized_name = normalize_value(target.name)
+    target.normalized_name = normalize_profile_name(target.name)
 
 
 def _fill_normalized_term(mapper: Any, connection: Any, target: CanonicalTerm) -> None:

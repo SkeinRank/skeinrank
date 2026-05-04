@@ -11,6 +11,7 @@ from skeinrank_governance import (
     create_all,
     create_governance_engine,
     create_session_factory,
+    normalize_profile_name,
     normalize_value,
 )
 from sqlalchemy import inspect
@@ -68,7 +69,7 @@ def test_create_governance_rows_and_normalized_values(session):
     session.add_all([profile, term, alias, snapshot, audit])
     session.commit()
 
-    assert profile.normalized_name == "default it"
+    assert profile.normalized_name == "default_it"
     assert term.normalized_value == "kubernetes"
     assert term.slot == "TOOL"
     assert alias.normalized_alias == "k8s"
@@ -133,3 +134,10 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
 
 def test_normalize_value_collapses_case_and_whitespace():
     assert normalize_value("  Kube   API  Server ") == "kube api server"
+
+
+def test_normalize_profile_name_treats_slugs_and_display_names_as_same():
+    assert normalize_profile_name("default_it") == "default_it"
+    assert normalize_profile_name("Default IT") == "default_it"
+    assert normalize_profile_name("default-it") == "default_it"
+    assert normalize_profile_name("  Default   IT  ") == "default_it"
