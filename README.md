@@ -25,6 +25,7 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 - `packages/skeinrank-provider-elasticsearch` — optional Elasticsearch retrieval provider and enrichment CLI
 - `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation and admin CLI for Postgres terminology governance
 - `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, and future governance UI
+- `packages/skeinrank-ui` — React/TypeScript governance console skeleton
 - `examples/demo/` — small demo corpus, demo queries, and usage notes
 
 ## Quickstart
@@ -120,7 +121,7 @@ ruff format --check \
   packages/skeinrank-governance-api/skeinrank_governance_api packages/skeinrank-governance-api/tests
 ```
 
-GitHub Actions runs Ruff once at the repository level and runs package tests through Poetry for each package.
+GitHub Actions runs Ruff once at the repository level, runs package tests through Poetry for each Python package, and runs UI typecheck/tests/build for `packages/skeinrank-ui`.
 
 ## Governance API preview
 
@@ -139,6 +140,44 @@ curl http://127.0.0.1:8010/healthz
 ```
 
 The API reads `SKEINRANK_GOVERNANCE_DATABASE_URL` or `SKEINRANK_GOVERNANCE_API_DATABASE_URL`. For local demos only, set `SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true`; production deployments should use Alembic migrations from `packages/skeinrank-governance`.
+
+
+## Governance UI preview
+
+The UI package is the first frontend skeleton for the future SkeinRank governance console. It uses React, TypeScript, Vite, shadcn-style local components, TanStack Query, and TanStack Table.
+
+Start the governance API first:
+
+```bash
+cd packages/skeinrank-governance-api
+export SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true
+poetry run skeinrank-governance-api --reload
+```
+
+Then start the UI:
+
+```bash
+cd packages/skeinrank-ui
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173
+```
+
+Current UI scope:
+
+- app shell
+- profile selector
+- terms table
+- aliases display
+- snapshot export panel
+- API-ready state management through TanStack Query
+
+Create/update/delete forms, authentication, approval flow, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
