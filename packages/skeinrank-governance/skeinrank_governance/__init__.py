@@ -5,6 +5,17 @@ management. Runtime extraction still uses exported snapshots; the database is a
 control-plane source of truth.
 """
 
+from .cli import (
+    GovernanceCliError,
+    add_alias,
+    add_term,
+    build_snapshot,
+    create_profile,
+    export_snapshot,
+    get_profile,
+    list_terms,
+    resolve_database_url,
+)
 from .db import Base, create_all, create_governance_engine, create_session_factory
 from .models import (
     ACTIVE_STATUS,
@@ -20,6 +31,15 @@ from .models import (
 )
 
 __all__ = [
+    "GovernanceCliError",
+    "add_alias",
+    "add_term",
+    "build_snapshot",
+    "create_profile",
+    "export_snapshot",
+    "get_profile",
+    "list_terms",
+    "resolve_database_url",
     "ACTIVE_STATUS",
     "ALIAS_STATUSES",
     "Base",

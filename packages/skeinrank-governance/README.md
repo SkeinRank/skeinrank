@@ -80,14 +80,51 @@ with Session() as session:
     session.commit()
 ```
 
+
+## Admin CLI preview
+
+`skeinrank-governance` now includes a small `skeinrank-admin` CLI for local terminology governance workflows.
+
+Initialize a local SQLite database for development:
+
+```bash
+cd packages/skeinrank-governance
+poetry run skeinrank-admin db init
+```
+
+Create a profile, add terms and aliases, and export a runtime snapshot:
+
+```bash
+poetry run skeinrank-admin profile create default_it --description "Default IT terms"
+poetry run skeinrank-admin term add default_it kubernetes --slot TOOL
+poetry run skeinrank-admin alias add default_it kubernetes k8s
+poetry run skeinrank-admin alias add default_it kubernetes kube
+poetry run skeinrank-admin term list default_it
+poetry run skeinrank-admin snapshot export default_it --out /tmp/default_it.json --snapshot-version default_it@v1
+```
+
+The exported JSON is compatible with `skeinrank-core` runtime commands:
+
+```bash
+cd ../skeinrank-core
+poetry run skeinrank-validate-profile /tmp/default_it.json
+poetry run skeinrank-extract --text "k8s timeout" --profile-file /tmp/default_it.json --compact
+```
+
+By default the CLI uses `sqlite:///skeinrank_governance.db`. Override it with:
+
+```bash
+export SKEINRANK_GOVERNANCE_DATABASE_URL='postgresql+psycopg://user:password@localhost:5432/skeinrank'
+```
+
+
 ## Current scope
 
-This is a platform-foundation package only. It does not yet include:
+This is a platform-foundation package. It now includes basic admin CLI commands for local terminology editing and snapshot export. It does not yet include:
 
-- admin CLI commands
-- snapshot export from Postgres
 - approval workflows
 - UI
 - background enrichment jobs
+- snapshot publish/archive lifecycle beyond JSON export
 
 Those pieces are planned for later platform patches.
