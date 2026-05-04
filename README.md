@@ -23,6 +23,7 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 - `packages/skeinrank-core` — core library and attribute extraction pipeline
 - `packages/skeinrank-server` — FastAPI service wrapper
 - `packages/skeinrank-provider-elasticsearch` — optional Elasticsearch retrieval provider and enrichment CLI
+- `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation for future Postgres terminology governance
 - `examples/demo/` — small demo corpus, demo queries, and usage notes
 
 ## Quickstart
@@ -106,12 +107,14 @@ Run the same checks manually:
 ruff check \
   packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
   packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
-  packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests
+  packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests \
+  packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests
 
 ruff format --check \
   packages/skeinrank-core/skeinrank packages/skeinrank-core/tests \
   packages/skeinrank-server/skeinrank_server packages/skeinrank-server/tests \
-  packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests
+  packages/skeinrank-provider-elasticsearch/skeinrank_provider_elasticsearch packages/skeinrank-provider-elasticsearch/tests \
+  packages/skeinrank-governance/skeinrank_governance packages/skeinrank-governance/tests
 ```
 
 GitHub Actions runs Ruff once at the repository level and runs package tests through Poetry for each package.
@@ -244,6 +247,29 @@ That profile currently controls:
 - slot-level and total limits
 - stopwords
 - rule-based runtime settings
+
+## Governance package preview
+
+`packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models and an Alembic migration skeleton for a future Postgres-backed terminology control plane.
+
+The intended architecture is:
+
+```text
+Postgres governance store -> published snapshot JSON -> runtime matcher -> API / CLI / Elasticsearch enrichment
+```
+
+The hot extraction path still uses exported snapshots; it does not query Postgres per request.
+
+Local smoke test:
+
+```bash
+cd packages/skeinrank-governance
+poetry install
+poetry run pytest -q
+poetry run alembic upgrade head
+```
+
+The initial schema includes profiles, canonical terms, aliases, profile snapshots, and audit events.
 
 ## Notes and current limitations
 
