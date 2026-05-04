@@ -125,3 +125,69 @@ def test_missing_term_returns_404_for_alias_create(tmp_path):
 
     assert response.status_code == 404
     assert "Canonical term not found" in response.json()["detail"]
+
+
+def test_snapshot_export_returns_runtime_compatible_profile(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 0.97},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "kube"},
+    )
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/snapshot/export",
+        json={
+            "snapshot_version": "default_it@v1",
+            "description": "API exported snapshot",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["profile_id"] == "default_it"
+    assert payload["snapshot"]["version"] == "default_it@v1"
+    assert payload["snapshot"]["source"] == "postgres"
+    assert payload["snapshot"]["description"] == "API exported snapshot"
+    assert payload["alias_matcher"] == {"backend": "aho_corasick"}
+    assert payload["rules"] == []
+    assert payload["aliases"] == [
+        {
+            "slot": "TOOL",
+            "canonical": "kubernetes",
+            "aliases": [{"value": "k8s", "confidence": 0.97}, "kube"],
+        }
+    ]
+
+
+def test_snapshot_export_accepts_empty_request_body(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    response = client.post("/v1/governance/profiles/default_it/snapshot/export")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["profile_id"] == "default_it"
+    assert payload["snapshot"]["version"] == "default_it@v1"
+    assert payload["aliases"] == []
+
+
+def test_snapshot_export_missing_profile_returns_404(tmp_path):
+    client = _client(tmp_path)
+
+    response = client.post(
+        "/v1/governance/profiles/missing/snapshot/export",
+        json={"snapshot_version": "missing@v1"},
+    )
+
+    assert response.status_code == 404
+    assert "Profile not found" in response.json()["detail"]

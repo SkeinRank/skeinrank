@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -91,6 +92,40 @@ class TermResponse(BaseModel):
     aliases: list[AliasResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+
+
+class SnapshotExportRequest(BaseModel):
+    """Request body for building a runtime snapshot from a profile."""
+
+    snapshot_version: str | None = None
+    description: str | None = None
+
+
+class SnapshotMetadataResponse(BaseModel):
+    """Runtime snapshot metadata."""
+
+    version: str
+    source: str
+    created_at: str
+    description: str | None = None
+
+
+class SnapshotAliasGroupResponse(BaseModel):
+    """Grouped aliases for one canonical term in a runtime snapshot."""
+
+    slot: str
+    canonical: str
+    aliases: list[str | dict[str, Any]]
+
+
+class RuntimeSnapshotResponse(BaseModel):
+    """Runtime-compatible terminology snapshot response."""
+
+    profile_id: str
+    snapshot: SnapshotMetadataResponse
+    alias_matcher: dict[str, str]
+    aliases: list[SnapshotAliasGroupResponse]
+    rules: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ErrorResponse(BaseModel):

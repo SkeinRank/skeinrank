@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from skeinrank_governance.cli import (
     GovernanceCliError,
     add_alias,
     add_term,
+    build_snapshot,
     create_profile,
     get_profile,
     get_term,
@@ -26,6 +27,8 @@ from ..schemas import (
     AliasResponse,
     ProfileCreateRequest,
     ProfileResponse,
+    RuntimeSnapshotResponse,
+    SnapshotExportRequest,
     TermCreateRequest,
     TermResponse,
 )
@@ -205,6 +208,34 @@ def get_profile_term(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     term.aliases.sort(key=lambda alias: alias.normalized_alias)
     return _term_response(term)
+
+
+@router.post(
+    "/profiles/{profile_name}/snapshot/export",
+    response_model=RuntimeSnapshotResponse,
+)
+def export_profile_snapshot(
+    profile_name: str,
+    request: SnapshotExportRequest | None = Body(default=None),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Build and return a runtime-compatible snapshot for a profile.
+
+    The endpoint does not write files or publish state. It returns the same
+    snapshot shape that the runtime packages can consume through
+    ``--profile-file`` or ``load_attribute_profile(...)``.
+    """
+
+    request = request or SnapshotExportRequest()
+    try:
+        return build_snapshot(
+            session,
+            profile_name,
+            snapshot_version=request.snapshot_version,
+            description=request.description,
+        )
+    except GovernanceCliError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
 def _get_profile_or_404(session: Session, profile_name: str) -> TerminologyProfile:

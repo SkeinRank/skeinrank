@@ -88,7 +88,7 @@ This package currently provides:
 - environment-based configuration
 - SQLAlchemy session dependency
 - `/healthz` endpoint
-- governance REST endpoints for profiles, terms, and aliases
+- governance REST endpoints for profiles, terms, aliases, and snapshot export
 - Uvicorn launcher command
 - tests for app creation, health checks, DB dependency wiring, and governance routes
 
@@ -122,4 +122,14 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kuber
   -d '{"alias_value":"k8s","confidence":0.97}'
 ```
 
-Future patches will add snapshot export/publishing endpoints, suggestions, approval flow, and authentication.
+Snapshot export:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/export \
+  -H "Content-Type: application/json" \
+  -d '{"snapshot_version":"default_it@v1","description":"Runtime snapshot exported from the governance API"}'
+```
+
+The response is a runtime-compatible profile snapshot that can be passed to `skeinrank-core` through `--profile-file` or `load_attribute_profile(...)`.
+
+Future patches will add snapshot publishing lifecycle, suggestions, approval flow, and authentication.
