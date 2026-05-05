@@ -18,11 +18,11 @@ export function TermDetailsPanel({ errorMessage, isAddingAlias = false, onAddAli
       <Card>
         <CardHeader>
           <CardTitle>Term details</CardTitle>
-          <CardDescription>Select a canonical term to inspect aliases and add new mappings.</CardDescription>
+          <CardDescription>Select a canonical term to manage aliases. Suggested aliases will appear in the approval workflow.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-xl border border-dashed border-slate-200 p-5 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-            No term selected yet.
+            No term selected yet. Select a canonical term to manage aliases, or create the first term manually.
           </div>
         </CardContent>
       </Card>
@@ -35,7 +35,7 @@ export function TermDetailsPanel({ errorMessage, isAddingAlias = false, onAddAli
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle>{term.canonical_value}</CardTitle>
-            <CardDescription>Canonical term details and alias management.</CardDescription>
+            <CardDescription>Approved canonical term and manual alias management.</CardDescription>
           </div>
           <Badge>{term.slot}</Badge>
         </div>
@@ -63,16 +63,15 @@ export function TermDetailsPanel({ errorMessage, isAddingAlias = false, onAddAli
                 <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800" key={alias.id}>
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-slate-950 dark:text-slate-50">{alias.alias_value}</span>
-                    <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200">{alias.confidence.toFixed(2)}</Badge>
+                    <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">{alias.status}</Badge>
                   </div>
-                  <div className="mt-1 text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">{alias.status}</div>
                   {alias.notes ? <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{alias.notes}</p> : null}
                 </div>
               ))}
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-              No aliases yet. Add the first known spelling, abbreviation, or team jargon.
+              No aliases yet. Add the first known spelling, abbreviation, or team jargon. Suggested aliases will be reviewed in the approval workflow.
             </div>
           )}
         </div>

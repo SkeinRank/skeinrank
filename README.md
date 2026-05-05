@@ -175,13 +175,13 @@ Current UI scope:
 - terms table with row selection
 - term details panel
 - create canonical term form
-- create alias form
+- create alias form with manual confidence hidden
 - aliases display
-- snapshot export panel
+- draft snapshot export and JSON download panel
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-Edit/delete actions, authentication, approval flow, and realtime collaboration are intentionally left for follow-up patches.
+Edit/delete actions, profile creation, authentication, approval flow, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 

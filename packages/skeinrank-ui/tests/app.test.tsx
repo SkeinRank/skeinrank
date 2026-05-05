@@ -114,6 +114,29 @@ function stubGovernanceApi(options: StubOptions = {}) {
       return Response.json(newAlias, { status: 201 });
     }
 
+    if (url.endsWith("/v1/governance/profiles/default_it/snapshot/export") && method === "POST") {
+      return Response.json({
+        profile_id: "default_it",
+        snapshot: {
+          version: "default_it@draft",
+          source: "governance-api",
+          created_at: "2026-05-05T00:00:00Z",
+          description: "Runtime snapshot exported from the governance console.",
+        },
+        alias_matcher: {
+          backend: "aho_corasick",
+        },
+        aliases: [
+          {
+            slot: "TOOL",
+            canonical: "kubernetes",
+            aliases: ["k8s"],
+          },
+        ],
+        rules: [],
+      });
+    }
+
     return Response.json({ detail: "not found" }, { status: 404 });
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -123,6 +146,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
 describe("App", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     window.localStorage.clear();
     document.documentElement.classList.remove("dark");
     document.documentElement.style.colorScheme = "";
@@ -144,6 +168,8 @@ describe("App", () => {
     });
     expect(screen.getAllByText("k8s").length).toBeGreaterThan(0);
     expect(screen.getByText("Postgres → Snapshot → Aho-Corasick")).toBeInTheDocument();
+    expect(screen.getByText("MVP")).toBeInTheDocument();
+    expect(screen.queryByText("UI skeleton")).not.toBeInTheDocument();
   });
 
   it("cycles the governance console theme", async () => {
@@ -194,16 +220,17 @@ describe("App", () => {
     );
   });
 
-  it("adds an alias to the selected canonical term", async () => {
+  it("adds an alias to the selected canonical term with manual confidence hidden", async () => {
     const fetchMock = stubGovernanceApi();
 
     render(<App />);
 
     await screen.findByText("default_it");
-    const aliasValueInput = await screen.findByLabelText("Alias value");
+    const aliasInput = await screen.findByLabelText("Alias");
 
-    fireEvent.change(aliasValueInput, { target: { value: "kube" } });
-    fireEvent.change(screen.getByLabelText("Confidence"), { target: { value: "0.91" } });
+    expect(screen.queryByLabelText("Confidence")).not.toBeInTheDocument();
+
+    fireEvent.change(aliasInput, { target: { value: "kube" } });
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Common Kubernetes shorthand" } });
     fireEvent.click(screen.getByRole("button", { name: "Add alias" }));
 
@@ -216,9 +243,42 @@ describe("App", () => {
       expect.objectContaining({
         body: JSON.stringify({
           alias_value: "kube",
-          confidence: 0.91,
+          confidence: 1,
           notes: "Common Kubernetes shorthand",
           status: "active",
+        }),
+        method: "POST",
+      }),
+    );
+  });
+
+  it("exports and downloads the runtime snapshot JSON", async () => {
+    const fetchMock = stubGovernanceApi();
+    const createObjectUrl = vi.fn(() => "blob:skeinrank-snapshot");
+    const revokeObjectUrl = vi.fn();
+    const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
+
+    render(<App />);
+
+    await screen.findByText("default_it");
+
+    fireEvent.click(screen.getByRole("button", { name: "Export draft snapshot" }));
+
+    expect(await screen.findByText(/"profile_id": "default_it"/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
+
+    expect(createObjectUrl).toHaveBeenCalledTimes(1);
+    expect(clickAnchor).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:skeinrank-snapshot");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/export",
+      expect.objectContaining({
+        body: JSON.stringify({
+          snapshot_version: "default_it@draft",
+          description: "Runtime snapshot exported from the governance console.",
         }),
         method: "POST",
       }),

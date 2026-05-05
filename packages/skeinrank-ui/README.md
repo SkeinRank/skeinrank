@@ -2,7 +2,7 @@
 
 SkeinRank Governance Console UI.
 
-This package is the first frontend layer for the governance platform. It reads profiles, terms, aliases, and runtime snapshots from `packages/skeinrank-governance-api`, and provides the MVP forms for creating canonical terms and aliases.
+This package is the first frontend layer for the governance platform. It reads profiles, terms, aliases, and runtime snapshots from `packages/skeinrank-governance-api`, and provides MVP workflows for manual terminology governance.
 
 ## Stack
 
@@ -54,13 +54,13 @@ The governance console currently includes:
 - terms table with row selection
 - term details panel
 - create canonical term form
-- create alias form
+- create alias form with manual confidence hidden
 - aliases display
-- snapshot export panel
+- draft snapshot export and JSON download panel
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-It intentionally does not yet implement edit/delete actions, authentication, approval flow, or realtime collaboration.
+Manual aliases are sent as approved entries with `confidence = 1.0`; model confidence will be shown later in the suggestions/approval workflow. The UI intentionally does not yet implement edit/delete actions, profile creation, authentication, approval flow, or realtime collaboration.
 
 ## Checks
 
