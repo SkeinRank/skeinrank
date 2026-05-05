@@ -71,3 +71,29 @@ jobs:
       - name: Run tests
         working-directory: ${{ matrix.package }}
         run: poetry run pytest -q
+
+  ui:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install UI dependencies
+        working-directory: packages/skeinrank-ui
+        run: npm install
+
+      - name: Run UI typecheck
+        working-directory: packages/skeinrank-ui
+        run: npm run typecheck
+
+      - name: Run UI tests
+        working-directory: packages/skeinrank-ui
+        run: npm test -- --run
+
+      - name: Build UI
+        working-directory: packages/skeinrank-ui
+        run: npm run build
