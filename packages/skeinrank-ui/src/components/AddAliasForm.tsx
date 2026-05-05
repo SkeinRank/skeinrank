@@ -13,11 +13,8 @@ type AddAliasFormProps = {
 
 export function AddAliasForm({ disabled = false, errorMessage, isSubmitting = false, onSubmit }: AddAliasFormProps) {
   const [aliasValue, setAliasValue] = useState("");
-  const [confidence, setConfidence] = useState("1");
   const [notes, setNotes] = useState("");
-  const confidenceValue = Number(confidence);
-  const confidenceIsValid = Number.isFinite(confidenceValue) && confidenceValue >= 0 && confidenceValue <= 1;
-  const canSubmit = !disabled && aliasValue.trim().length > 0 && confidenceIsValid && !isSubmitting;
+  const canSubmit = !disabled && aliasValue.trim().length > 0 && !isSubmitting;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,13 +25,12 @@ export function AddAliasForm({ disabled = false, errorMessage, isSubmitting = fa
     try {
       await onSubmit({
         alias_value: aliasValue.trim(),
-        confidence: confidenceValue,
+        confidence: 1,
         notes: notes.trim() || null,
         status: "active",
       });
 
       setAliasValue("");
-      setConfidence("1");
       setNotes("");
     } catch {
       // The parent mutation owns user-facing error rendering.
@@ -43,24 +39,10 @@ export function AddAliasForm({ disabled = false, errorMessage, isSubmitting = fa
 
   return (
     <form className="space-y-3" onSubmit={handleSubmit}>
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Alias value</span>
-          <Input disabled={disabled || isSubmitting} onChange={(event) => setAliasValue(event.target.value)} placeholder="k8s" value={aliasValue} />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Confidence</span>
-          <Input
-            disabled={disabled || isSubmitting}
-            max="1"
-            min="0"
-            onChange={(event) => setConfidence(event.target.value)}
-            step="0.01"
-            type="number"
-            value={confidence}
-          />
-        </label>
-      </div>
+      <label className="space-y-1.5">
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Alias</span>
+        <Input disabled={disabled || isSubmitting} onChange={(event) => setAliasValue(event.target.value)} placeholder="k8s" value={aliasValue} />
+      </label>
       <label className="space-y-1.5">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Notes</span>
         <Input
@@ -70,7 +52,9 @@ export function AddAliasForm({ disabled = false, errorMessage, isSubmitting = fa
           value={notes}
         />
       </label>
-      {!confidenceIsValid ? <p className="text-sm text-red-600 dark:text-red-300">Confidence must be between 0 and 1.</p> : null}
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Manual aliases are treated as approved governance entries. Suggestion confidence will appear in the approval workflow.
+      </p>
       {errorMessage ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
           {errorMessage}

@@ -151,7 +151,7 @@ export function GovernanceDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Profile selector</CardTitle>
-              <CardDescription>Select the profile that the console should inspect.</CardDescription>
+              <CardDescription>Choose the terminology namespace to edit and export.</CardDescription>
             </CardHeader>
             <CardContent>
               {profilesQuery.isError ? (
@@ -177,7 +177,7 @@ export function GovernanceDashboard() {
                 </div>
               ) : (
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No profiles found. Create a profile through the governance API or admin CLI.
+                  No profiles found. Create a terminology profile through the governance API or admin CLI before adding terms.
                 </p>
               )}
             </CardContent>

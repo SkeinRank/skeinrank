@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <ThemeIcon className="mr-2 h-4 w-4" />
                 {themeLabel[theme]}
               </Button>
-              <Badge>UI skeleton</Badge>
+              <Badge>MVP</Badge>
             </div>
           </div>
         </header>

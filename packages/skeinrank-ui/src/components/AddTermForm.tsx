@@ -45,7 +45,7 @@ export function AddTermForm({ disabled = false, errorMessage, isSubmitting = fal
     <Card>
       <CardHeader>
         <CardTitle>Add canonical term</CardTitle>
-        <CardDescription>Create a typed canonical term in the selected terminology profile.</CardDescription>
+        <CardDescription>Create an approved canonical term in the selected terminology profile.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_180px]" onSubmit={handleSubmit}>
@@ -73,7 +73,7 @@ export function AddTermForm({ disabled = false, errorMessage, isSubmitting = fal
           </label>
           <div className="flex flex-col gap-2 lg:col-span-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Terms are created as active records and appear in the runtime snapshot after export.
+              Manual terms are created as approved active records. Suggested terms will be reviewed in the next workflow.
             </p>
             <Button disabled={!canSubmit} type="submit">
               {isSubmitting ? "Adding..." : "Add term"}
