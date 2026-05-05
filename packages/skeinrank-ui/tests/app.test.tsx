@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
@@ -39,23 +39,31 @@ const terms = [
   },
 ];
 
+function stubGovernanceApi() {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = input.toString();
+    if (url.endsWith("/v1/governance/profiles")) {
+      return Response.json(profiles);
+    }
+    if (url.endsWith("/v1/governance/profiles/default_it/terms")) {
+      return Response.json(terms);
+    }
+    return Response.json({ detail: "not found" }, { status: 404 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 describe("App", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    window.localStorage.clear();
+    document.documentElement.classList.remove("dark");
+    document.documentElement.style.colorScheme = "";
   });
 
   it("renders the governance console with profiles and terms", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = input.toString();
-      if (url.endsWith("/v1/governance/profiles")) {
-        return Response.json(profiles);
-      }
-      if (url.endsWith("/v1/governance/profiles/default_it/terms")) {
-        return Response.json(terms);
-      }
-      return Response.json({ detail: "not found" }, { status: 404 });
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    stubGovernanceApi();
 
     render(<App />);
 
@@ -68,5 +76,23 @@ describe("App", () => {
     expect(await screen.findByText("kubernetes")).toBeInTheDocument();
     expect(screen.getByText("k8s")).toBeInTheDocument();
     expect(screen.getByText("Postgres → Snapshot → Aho-Corasick")).toBeInTheDocument();
+  });
+
+  it("cycles the governance console theme", async () => {
+    stubGovernanceApi();
+
+    render(<App />);
+
+    const themeButton = screen.getByRole("button", { name: /switch theme/i });
+    expect(themeButton).toHaveTextContent("System");
+
+    fireEvent.click(themeButton);
+    expect(themeButton).toHaveTextContent("Light");
+    expect(document.documentElement).not.toHaveClass("dark");
+
+    fireEvent.click(themeButton);
+    expect(themeButton).toHaveTextContent("Dark");
+    expect(document.documentElement).toHaveClass("dark");
+    expect(window.localStorage.getItem("skeinrank-ui-theme")).toBe("dark");
   });
 });

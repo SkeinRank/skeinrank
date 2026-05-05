@@ -13,6 +13,11 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root.dark {
+  color: #f8fafc;
+  background: #020617;
+}
+
 body {
   margin: 0;
   min-width: 320px;

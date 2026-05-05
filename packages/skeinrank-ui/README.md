@@ -13,6 +13,7 @@ This package is the first frontend layer for the governance platform. It is inte
 - Tailwind CSS
 - TanStack Query
 - TanStack Table
+- Light/dark/system theme toggle
 
 ## Run locally
 
@@ -53,6 +54,7 @@ Patch 21 adds only the UI skeleton:
 - terms table
 - aliases display
 - snapshot export panel
+- light/dark/system theme toggle with local persistence
 - health/API-ready wiring through TanStack Query
 
 It does not yet implement create/update/delete forms, authentication, approval flow, or realtime collaboration.
