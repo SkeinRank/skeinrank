@@ -206,3 +206,272 @@ def test_cors_preflight_allows_local_ui_origin(tmp_path):
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+
+
+def test_update_profile_allows_rename_and_description_clear(tmp_path):
+    client = _client(tmp_path)
+    client.post(
+        "/v1/governance/profiles",
+        json={"name": "default_it", "description": "Default IT terms"},
+    )
+
+    response = client.patch(
+        "/v1/governance/profiles/default_it",
+        json={"name": "Infra Incidents", "description": None},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["name"] == "Infra Incidents"
+    assert payload["normalized_name"] == "infra_incidents"
+    assert payload["description"] is None
+
+    old_response = client.get("/v1/governance/profiles/default_it/terms")
+    assert old_response.status_code == 404
+
+
+def test_update_profile_rename_collision_returns_conflict(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post("/v1/governance/profiles", json={"name": "security_docs"})
+
+    response = client.patch(
+        "/v1/governance/profiles/security_docs",
+        json={"name": "Default IT"},
+    )
+
+    assert response.status_code == 409
+    assert "Profile already exists" in response.json()["detail"]
+
+
+def test_delete_profile_removes_profile_and_children(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+
+    response = client.delete("/v1/governance/profiles/default_it")
+
+    assert response.status_code == 204
+    profiles_response = client.get("/v1/governance/profiles")
+    assert profiles_response.status_code == 200
+    assert profiles_response.json() == []
+    terms_response = client.get("/v1/governance/profiles/default_it/terms")
+    assert terms_response.status_code == 404
+
+
+def test_update_term_allows_rename_slot_status_and_description_clear(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={
+            "canonical_value": "kubernetes",
+            "slot": "tool",
+            "description": "Container platform",
+        },
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s"},
+    )
+
+    response = client.patch(
+        "/v1/governance/profiles/default_it/terms/kubernetes",
+        json={
+            "canonical_value": "Kubernetes Platform",
+            "slot": "platform",
+            "status": "deprecated",
+            "description": None,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["canonical_value"] == "Kubernetes Platform"
+    assert payload["normalized_value"] == "kubernetes platform"
+    assert payload["slot"] == "PLATFORM"
+    assert payload["status"] == "deprecated"
+    assert payload["description"] is None
+    assert payload["aliases"][0]["alias_value"] == "k8s"
+
+    old_response = client.get("/v1/governance/profiles/default_it/terms/kubernetes")
+    assert old_response.status_code == 404
+
+
+def test_update_term_collision_returns_conflict(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "postgresql", "slot": "DB"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+
+    response = client.patch(
+        "/v1/governance/profiles/default_it/terms/kubernetes",
+        json={"canonical_value": "PostgreSQL"},
+    )
+
+    assert response.status_code == 409
+    assert "Canonical term already exists" in response.json()["detail"]
+
+
+def test_update_term_rejects_invalid_status(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+
+    response = client.patch(
+        "/v1/governance/profiles/default_it/terms/kubernetes",
+        json={"status": "pending"},
+    )
+
+    assert response.status_code == 422
+    assert "Invalid term status" in response.json()["detail"]
+
+
+def test_delete_term_removes_term_and_aliases(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s"},
+    )
+
+    response = client.delete("/v1/governance/profiles/default_it/terms/kubernetes")
+
+    assert response.status_code == 204
+    terms_response = client.get("/v1/governance/profiles/default_it/terms")
+    assert terms_response.status_code == 200
+    assert terms_response.json() == []
+
+
+def test_update_alias_allows_value_status_confidence_and_notes_clear(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    created = client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 1.0, "notes": "Manual alias"},
+    )
+    alias_id = created.json()["id"]
+
+    response = client.patch(
+        f"/v1/governance/profiles/default_it/terms/kubernetes/aliases/{alias_id}",
+        json={
+            "alias_value": "kube",
+            "confidence": 0.84,
+            "status": "ambiguous",
+            "notes": None,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["alias_value"] == "kube"
+    assert payload["normalized_alias"] == "kube"
+    assert payload["confidence"] == 0.84
+    assert payload["status"] == "ambiguous"
+    assert payload["notes"] is None
+
+
+def test_update_alias_collision_returns_conflict(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    first = client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s"},
+    )
+    second = client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "kube"},
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+
+    response = client.patch(
+        f"/v1/governance/profiles/default_it/terms/kubernetes/aliases/{second.json()['id']}",
+        json={"alias_value": "K8S"},
+    )
+
+    assert response.status_code == 409
+    assert "Alias already exists" in response.json()["detail"]
+
+
+def test_update_alias_rejects_invalid_status(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    created = client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s"},
+    )
+
+    response = client.patch(
+        f"/v1/governance/profiles/default_it/terms/kubernetes/aliases/{created.json()['id']}",
+        json={"status": "unknown"},
+    )
+
+    assert response.status_code == 422
+    assert "Invalid alias status" in response.json()["detail"]
+
+
+def test_delete_alias_removes_alias_from_term(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    created = client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s"},
+    )
+
+    response = client.delete(
+        f"/v1/governance/profiles/default_it/terms/kubernetes/aliases/{created.json()['id']}"
+    )
+
+    assert response.status_code == 204
+    terms_response = client.get("/v1/governance/profiles/default_it/terms")
+    assert terms_response.status_code == 200
+    assert terms_response.json()[0]["aliases"] == []
+
+
+def test_delete_alias_missing_alias_returns_404(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+
+    response = client.delete(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases/999"
+    )
+
+    assert response.status_code == 404
+    assert "Alias not found" in response.json()["detail"]

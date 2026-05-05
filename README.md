@@ -316,7 +316,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the first HTTP layer for that control plane. It currently exposes configuration, database session wiring, `/healthz`, REST endpoints for profiles, canonical terms, aliases, and runtime-compatible snapshot export. Future patches will add snapshot publishing lifecycle, suggestions, approval flow, and authentication.
+`packages/skeinrank-governance-api` is the first HTTP layer for that control plane. It currently exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, and runtime-compatible snapshot export. Future patches will add UI controls for update/delete flows, snapshot publishing lifecycle, suggestions, approval flow, and authentication.
 
 The intended architecture is:
 

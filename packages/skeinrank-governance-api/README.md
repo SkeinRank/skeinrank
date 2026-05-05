@@ -102,6 +102,7 @@ This package currently provides:
 - SQLAlchemy session dependency
 - `/healthz` endpoint
 - governance REST endpoints for profiles, terms, aliases, and snapshot export
+- CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
 - Uvicorn launcher command
 - tests for app creation, health checks, DB dependency wiring, and governance routes
 
@@ -115,6 +116,12 @@ curl http://127.0.0.1:8010/v1/governance/profiles
 curl -X POST http://127.0.0.1:8010/v1/governance/profiles \
   -H "Content-Type: application/json" \
   -d '{"name":"default_it","description":"Default IT terms"}'
+
+curl -X PATCH http://127.0.0.1:8010/v1/governance/profiles/default_it \
+  -H "Content-Type: application/json" \
+  -d '{"name":"infra_incidents","description":"Infra incident terminology"}'
+
+curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/infra_incidents
 ```
 
 Canonical terms:
@@ -125,6 +132,12 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/terms \
   -d '{"canonical_value":"kubernetes","slot":"TOOL"}'
 
 curl http://127.0.0.1:8010/v1/governance/profiles/default_it/terms
+
+curl -X PATCH http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kubernetes \
+  -H "Content-Type: application/json" \
+  -d '{"canonical_value":"kubernetes platform","slot":"PLATFORM","status":"active"}'
+
+curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kubernetes%20platform
 ```
 
 Aliases:
@@ -133,6 +146,13 @@ Aliases:
 curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kubernetes/aliases \
   -H "Content-Type: application/json" \
   -d '{"alias_value":"k8s","confidence":0.97}'
+
+# Replace 1 with the alias id returned by the create response.
+curl -X PATCH http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kubernetes/aliases/1 \
+  -H "Content-Type: application/json" \
+  -d '{"alias_value":"kube","confidence":0.84,"status":"ambiguous"}'
+
+curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kubernetes/aliases/1
 ```
 
 Snapshot export:
@@ -145,4 +165,4 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
 
 The response is a runtime-compatible profile snapshot that can be passed to `skeinrank-core` through `--profile-file` or `load_attribute_profile(...)`.
 
-Future patches will add snapshot publishing lifecycle, suggestions, approval flow, and authentication.
+Future patches will add UI controls for these CRUD routes, snapshot publishing lifecycle, suggestions, approval flow, and authentication.

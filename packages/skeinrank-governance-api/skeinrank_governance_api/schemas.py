@@ -38,6 +38,13 @@ class ProfileCreateRequest(BaseModel):
     description: str | None = None
 
 
+class ProfileUpdateRequest(BaseModel):
+    """Request body for updating a terminology profile."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = None
+
+
 class ProfileResponse(BaseModel):
     """Terminology profile response."""
 
@@ -58,12 +65,30 @@ class TermCreateRequest(BaseModel):
     status: str = "active"
 
 
+class TermUpdateRequest(BaseModel):
+    """Request body for updating a canonical term."""
+
+    canonical_value: str | None = Field(default=None, min_length=1, max_length=256)
+    slot: str | None = Field(default=None, min_length=1, max_length=64)
+    description: str | None = None
+    status: str | None = None
+
+
 class AliasCreateRequest(BaseModel):
     """Request body for creating an alias for a canonical term."""
 
     alias_value: str = Field(..., min_length=1, max_length=256)
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     status: str = "active"
+    notes: str | None = None
+
+
+class AliasUpdateRequest(BaseModel):
+    """Request body for updating an alias for a canonical term."""
+
+    alias_value: str | None = Field(default=None, min_length=1, max_length=256)
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    status: str | None = None
     notes: str | None = None
 
 
