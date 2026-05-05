@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from skeinrank_governance.cli import (
     GovernanceCliError,
     add_alias,
@@ -13,9 +13,13 @@ from skeinrank_governance.cli import (
     get_term,
 )
 from skeinrank_governance.models import (
+    ALIAS_STATUSES,
+    TERM_STATUSES,
     CanonicalTerm,
     TermAlias,
     TerminologyProfile,
+    normalize_profile_name,
+    normalize_value,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -25,12 +29,15 @@ from ..dependencies import get_session
 from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
+    AliasUpdateRequest,
     ProfileCreateRequest,
     ProfileResponse,
+    ProfileUpdateRequest,
     RuntimeSnapshotResponse,
     SnapshotExportRequest,
     TermCreateRequest,
     TermResponse,
+    TermUpdateRequest,
 )
 
 router = APIRouter(prefix="/v1/governance", tags=["governance"])
@@ -74,10 +81,64 @@ def create_profile_endpoint(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     except IntegrityError as exc:
         session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Database integrity error: {exc.orig}",
+        raise _integrity_conflict(exc) from exc
+
+
+@router.patch(
+    "/profiles/{profile_name}",
+    response_model=ProfileResponse,
+)
+def update_profile_endpoint(
+    profile_name: str,
+    request: ProfileUpdateRequest,
+    session: Session = Depends(get_session),
+) -> ProfileResponse:
+    """Update a terminology profile name or description."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    fields = request.model_fields_set
+
+    if "name" in fields and request.name is not None:
+        normalized_name = normalize_profile_name(request.name)
+        existing = session.scalar(
+            select(TerminologyProfile).where(
+                TerminologyProfile.normalized_name == normalized_name,
+                TerminologyProfile.id != profile.id,
+            )
         )
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Profile already exists: {request.name}",
+            )
+        profile.name = request.name
+
+    if "description" in fields:
+        profile.description = request.description
+
+    try:
+        session.commit()
+        session.refresh(profile)
+        return _profile_response(profile)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.delete(
+    "/profiles/{profile_name}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_profile_endpoint(
+    profile_name: str,
+    session: Session = Depends(get_session),
+) -> Response:
+    """Delete a terminology profile and its child terms/aliases."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    session.delete(profile)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -139,10 +200,107 @@ def add_profile_term(
         raise HTTPException(status_code=status_code, detail=str(exc))
     except IntegrityError as exc:
         session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Database integrity error: {exc.orig}",
+        raise _integrity_conflict(exc) from exc
+
+
+@router.get(
+    "/profiles/{profile_name}/terms/{canonical_value}",
+    response_model=TermResponse,
+)
+def get_profile_term(
+    profile_name: str,
+    canonical_value: str,
+    session: Session = Depends(get_session),
+) -> TermResponse:
+    """Return a canonical term and its aliases."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    try:
+        term = get_term(session, profile, canonical_value)
+    except GovernanceCliError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    term.aliases.sort(key=lambda alias: alias.normalized_alias)
+    return _term_response(term)
+
+
+@router.patch(
+    "/profiles/{profile_name}/terms/{canonical_value}",
+    response_model=TermResponse,
+)
+def update_profile_term(
+    profile_name: str,
+    canonical_value: str,
+    request: TermUpdateRequest,
+    session: Session = Depends(get_session),
+) -> TermResponse:
+    """Update a canonical term inside a terminology profile."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    try:
+        term = get_term(session, profile, canonical_value)
+    except GovernanceCliError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    fields = request.model_fields_set
+
+    if "status" in fields and request.status is not None:
+        _validate_status(request.status, TERM_STATUSES, "term")
+        term.status = request.status
+
+    if "canonical_value" in fields and request.canonical_value is not None:
+        normalized_value = normalize_value(request.canonical_value)
+        existing = session.scalar(
+            select(CanonicalTerm).where(
+                CanonicalTerm.profile_id == profile.id,
+                CanonicalTerm.normalized_value == normalized_value,
+                CanonicalTerm.id != term.id,
+            )
         )
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Canonical term already exists in profile {profile.name!r}: "
+                    f"{request.canonical_value}"
+                ),
+            )
+        term.canonical_value = request.canonical_value
+
+    if "slot" in fields and request.slot is not None:
+        term.slot = request.slot
+
+    if "description" in fields:
+        term.description = request.description
+
+    try:
+        session.commit()
+        session.refresh(term)
+        term.aliases.sort(key=lambda alias: alias.normalized_alias)
+        return _term_response(term)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.delete(
+    "/profiles/{profile_name}/terms/{canonical_value}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_profile_term(
+    profile_name: str,
+    canonical_value: str,
+    session: Session = Depends(get_session),
+) -> Response:
+    """Delete a canonical term and its aliases."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    try:
+        term = get_term(session, profile, canonical_value)
+    except GovernanceCliError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    session.delete(term)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -184,30 +342,87 @@ def add_term_alias(
         raise HTTPException(status_code=status_code, detail=message)
     except IntegrityError as exc:
         session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Database integrity error: {exc.orig}",
-        )
+        raise _integrity_conflict(exc) from exc
 
 
-@router.get(
-    "/profiles/{profile_name}/terms/{canonical_value}",
-    response_model=TermResponse,
+@router.patch(
+    "/profiles/{profile_name}/terms/{canonical_value}/aliases/{alias_id}",
+    response_model=AliasResponse,
 )
-def get_profile_term(
+def update_term_alias(
     profile_name: str,
     canonical_value: str,
+    alias_id: int,
+    request: AliasUpdateRequest,
     session: Session = Depends(get_session),
-) -> TermResponse:
-    """Return a canonical term and its aliases."""
+) -> AliasResponse:
+    """Update an alias attached to a canonical term."""
 
     profile = _get_profile_or_404(session, profile_name)
     try:
         term = get_term(session, profile, canonical_value)
     except GovernanceCliError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    term.aliases.sort(key=lambda alias: alias.normalized_alias)
-    return _term_response(term)
+    alias = _get_alias_or_404(session, term, alias_id)
+
+    fields = request.model_fields_set
+
+    if "status" in fields and request.status is not None:
+        _validate_status(request.status, ALIAS_STATUSES, "alias")
+        alias.status = request.status
+
+    if "alias_value" in fields and request.alias_value is not None:
+        normalized_alias = normalize_value(request.alias_value)
+        existing = session.scalar(
+            select(TermAlias).where(
+                TermAlias.profile_id == profile.id,
+                TermAlias.normalized_alias == normalized_alias,
+                TermAlias.id != alias.id,
+            )
+        )
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Alias already exists in profile {profile.name!r}: {request.alias_value}",
+            )
+        alias.alias_value = request.alias_value
+
+    if "confidence" in fields and request.confidence is not None:
+        alias.confidence = request.confidence
+
+    if "notes" in fields:
+        alias.notes = request.notes
+
+    try:
+        session.commit()
+        session.refresh(alias)
+        return _alias_response(alias)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.delete(
+    "/profiles/{profile_name}/terms/{canonical_value}/aliases/{alias_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_term_alias(
+    profile_name: str,
+    canonical_value: str,
+    alias_id: int,
+    session: Session = Depends(get_session),
+) -> Response:
+    """Delete an alias attached to a canonical term."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    try:
+        term = get_term(session, profile, canonical_value)
+    except GovernanceCliError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    alias = _get_alias_or_404(session, term, alias_id)
+    session.delete(alias)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -243,6 +458,40 @@ def _get_profile_or_404(session: Session, profile_name: str) -> TerminologyProfi
         return get_profile(session, profile_name)
     except GovernanceCliError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+def _get_alias_or_404(
+    session: Session, term: CanonicalTerm, alias_id: int
+) -> TermAlias:
+    alias = session.scalar(
+        select(TermAlias).where(
+            TermAlias.id == alias_id,
+            TermAlias.term_id == term.id,
+            TermAlias.profile_id == term.profile_id,
+        )
+    )
+    if alias is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Alias not found for canonical term {term.canonical_value!r}: {alias_id}",
+        )
+    return alias
+
+
+def _validate_status(value: str, allowed: tuple[str, ...], entity_name: str) -> None:
+    if value not in allowed:
+        allowed_values = ", ".join(allowed)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Invalid {entity_name} status: {value}. Allowed values: {allowed_values}",
+        )
+
+
+def _integrity_conflict(exc: IntegrityError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=f"Database integrity error: {exc.orig}",
+    )
 
 
 def _profile_response(profile: TerminologyProfile) -> ProfileResponse:
