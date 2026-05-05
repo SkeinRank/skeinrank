@@ -25,7 +25,7 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 - `packages/skeinrank-provider-elasticsearch` — optional Elasticsearch retrieval provider and enrichment CLI
 - `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation and admin CLI for Postgres terminology governance
 - `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, and future governance UI
-- `packages/skeinrank-ui` — React/TypeScript governance console skeleton
+- `packages/skeinrank-ui` — React/TypeScript governance console for terms, aliases, and snapshots
 - `examples/demo/` — small demo corpus, demo queries, and usage notes
 
 ## Quickstart
@@ -144,7 +144,7 @@ The API reads `SKEINRANK_GOVERNANCE_DATABASE_URL` or `SKEINRANK_GOVERNANCE_API_D
 
 ## Governance UI preview
 
-The UI package is the first frontend skeleton for the future SkeinRank governance console. It uses React, TypeScript, Vite, shadcn-style local components, TanStack Query, and TanStack Table.
+The UI package is the first frontend for the SkeinRank governance console. It uses React, TypeScript, Vite, shadcn-style local components, TanStack Query, and TanStack Table.
 
 Start the governance API first:
 
@@ -172,13 +172,16 @@ Current UI scope:
 
 - app shell
 - profile selector
-- terms table
+- terms table with row selection
+- term details panel
+- create canonical term form
+- create alias form
 - aliases display
 - snapshot export panel
-- API-ready state management through TanStack Query
+- API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-Create/update/delete forms, authentication, approval flow, and realtime collaboration are intentionally left for follow-up patches.
+Edit/delete actions, authentication, approval flow, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
