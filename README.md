@@ -176,6 +176,7 @@ Current UI scope:
 - aliases display
 - snapshot export panel
 - API-ready state management through TanStack Query
+- light/dark/system theme toggle with local persistence
 
 Create/update/delete forms, authentication, approval flow, and realtime collaboration are intentionally left for follow-up patches.
 

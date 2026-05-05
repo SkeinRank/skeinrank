@@ -33,14 +33,14 @@ export function SnapshotPanel({ profileName }: { profileName: string | null }) {
           {mutation.isPending ? "Exporting..." : "Export draft snapshot"}
         </Button>
 
-        {mutation.isError ? <p className="text-sm text-red-600">{mutation.error.message}</p> : null}
+        {mutation.isError ? <p className="text-sm text-red-600 dark:text-red-300">{mutation.error.message}</p> : null}
 
         {mutation.data ? (
-          <pre className="max-h-80 overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
+          <pre className="max-h-80 overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100 dark:bg-black">
             {JSON.stringify(mutation.data, null, 2)}
           </pre>
         ) : (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Snapshot publishing is not enabled yet. This skeleton only exports the current active profile as JSON.
           </p>
         )}

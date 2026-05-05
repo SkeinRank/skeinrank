@@ -71,15 +71,15 @@ export function GovernanceDashboard() {
               {profilesQuery.isError ? (
                 <ErrorMessage message={profilesQuery.error.message} />
               ) : profilesQuery.isLoading ? (
-                <p className="text-sm text-slate-500">Loading profiles...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading profiles...</p>
               ) : profilesQuery.data && profilesQuery.data.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {profilesQuery.data.map((profile) => (
                     <button
                       className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                         selectedProfile === profile.name
-                          ? "border-slate-950 bg-slate-950 text-white"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                          ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
                       }`}
                       key={profile.id}
                       onClick={() => setSelectedProfile(profile.name)}
@@ -90,7 +90,7 @@ export function GovernanceDashboard() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   No profiles found. Create a profile through the governance API or admin CLI.
                 </p>
               )}
@@ -102,7 +102,7 @@ export function GovernanceDashboard() {
           ) : termsQuery.isLoading && selectedProfile ? (
             <Card>
               <CardContent>
-                <p className="text-sm text-slate-500">Loading terms...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading terms...</p>
               </CardContent>
             </Card>
           ) : (
@@ -118,7 +118,7 @@ export function GovernanceDashboard() {
 
 function ErrorMessage({ message }: { message: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+    <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
       <AlertCircle className="mt-0.5 h-4 w-4" />
       <div>
         <div className="font-medium">Unable to load governance data</div>
