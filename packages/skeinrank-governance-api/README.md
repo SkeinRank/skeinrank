@@ -2,7 +2,7 @@
 
 FastAPI control-plane API for SkeinRank terminology governance.
 
-This package is the HTTP layer that will later power the SkeinRank governance UI. It sits above `skeinrank-governance`, which owns SQLAlchemy models, Alembic migrations, and the admin CLI.
+This package is the HTTP layer that powers the SkeinRank governance UI. It sits above `skeinrank-governance`, which owns SQLAlchemy models, Alembic migrations, and the admin CLI.
 
 ## Role in the architecture
 
@@ -10,7 +10,7 @@ This package is the HTTP layer that will later power the SkeinRank governance UI
 Postgres governance store
   -> skeinrank-governance SQLAlchemy models
   -> skeinrank-governance-api HTTP control plane
-  -> future skeinrank-ui
+  -> skeinrank-ui
   -> published snapshot JSON
   -> fast runtime matcher
 ```
@@ -76,6 +76,19 @@ For local demos/tests only, tables can be created at startup:
 
 ```bash
 export SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true
+```
+
+The local UI origin is allowed by default for browser-based development:
+
+```bash
+http://127.0.0.1:5173
+http://localhost:5173
+```
+
+Override CORS origins with a comma-separated value when needed:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_CORS_ORIGINS='http://127.0.0.1:5173,http://localhost:5173'
 ```
 
 Production deployments should use Alembic migrations from `packages/skeinrank-governance` instead.

@@ -21,3 +21,17 @@ def test_config_falls_back_to_governance_database_env(monkeypatch):
     config = GovernanceApiConfig.from_env()
 
     assert config.database_url == "sqlite:///base.db"
+
+
+def test_config_parses_cors_origins_from_env(monkeypatch):
+    monkeypatch.setenv(
+        "SKEINRANK_GOVERNANCE_API_CORS_ORIGINS",
+        "http://127.0.0.1:5173, http://localhost:5173",
+    )
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.cors_allow_origins == (
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    )

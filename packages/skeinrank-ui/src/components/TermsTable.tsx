@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 
+import { cn } from "../lib/utils";
 import type { CanonicalTerm } from "../types";
 import { Badge } from "./ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -47,7 +48,13 @@ const columns: ColumnDef<CanonicalTerm>[] = [
   },
 ];
 
-export function TermsTable({ terms }: { terms: CanonicalTerm[] }) {
+type TermsTableProps = {
+  onSelectTerm?: (term: CanonicalTerm) => void;
+  selectedTermId?: number | null;
+  terms: CanonicalTerm[];
+};
+
+export function TermsTable({ onSelectTerm, selectedTermId, terms }: TermsTableProps) {
   const [filter, setFilter] = useState("");
   const data = useMemo(() => terms, [terms]);
 
@@ -67,7 +74,7 @@ export function TermsTable({ terms }: { terms: CanonicalTerm[] }) {
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle>Canonical terms</CardTitle>
-          <CardDescription>Search and inspect profile terms, slots, and aliases.</CardDescription>
+          <CardDescription>Search, select, and inspect profile terms, slots, and aliases.</CardDescription>
         </div>
         <Input
           className="sm:w-72"
@@ -93,7 +100,22 @@ export function TermsTable({ terms }: { terms: CanonicalTerm[] }) {
             <tbody>
               {table.getRowModel().rows.length > 0 ? (
                 table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950">
+                  <tr
+                    aria-selected={selectedTermId === row.original.id}
+                    className={cn(
+                      "cursor-pointer border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-300 dark:border-slate-800 dark:hover:bg-slate-950 dark:focus:ring-slate-700",
+                      selectedTermId === row.original.id && "bg-blue-50/70 hover:bg-blue-50 dark:bg-blue-950/30 dark:hover:bg-blue-950/30",
+                    )}
+                    key={row.id}
+                    onClick={() => onSelectTerm?.(row.original)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelectTerm?.(row.original);
+                      }
+                    }}
+                    tabIndex={0}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-5 py-4 align-top">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

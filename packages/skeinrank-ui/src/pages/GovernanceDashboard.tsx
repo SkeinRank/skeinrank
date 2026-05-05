@@ -1,20 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { AddTermForm } from "../components/AddTermForm";
 import { SnapshotPanel } from "../components/SnapshotPanel";
+import { TermDetailsPanel } from "../components/TermDetailsPanel";
 import { TermsTable } from "../components/TermsTable";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { listProfiles, listTerms } from "../lib/api";
+import { createAlias, createTerm, listProfiles, listTerms } from "../lib/api";
+import type { AliasCreateRequest, CanonicalTerm, TermCreateRequest } from "../types";
 
 export function GovernanceDashboard() {
+  const queryClient = useQueryClient();
   const profilesQuery = useQuery({
     queryKey: ["profiles"],
     queryFn: listProfiles,
   });
 
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+  const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!selectedProfile && profilesQuery.data && profilesQuery.data.length > 0) {
@@ -27,6 +32,87 @@ export function GovernanceDashboard() {
     queryFn: () => listTerms(selectedProfile ?? ""),
     enabled: Boolean(selectedProfile),
   });
+
+  useEffect(() => {
+    if (!termsQuery.data) {
+      return;
+    }
+
+    if (termsQuery.data.length === 0) {
+      setSelectedTermId(null);
+      return;
+    }
+
+    if (!selectedTermId || !termsQuery.data.some((term) => term.id === selectedTermId)) {
+      setSelectedTermId(termsQuery.data[0].id);
+    }
+  }, [selectedTermId, termsQuery.data]);
+
+  const selectedTerm = useMemo(() => {
+    if (!termsQuery.data || !selectedTermId) {
+      return null;
+    }
+    return termsQuery.data.find((term) => term.id === selectedTermId) ?? null;
+  }, [selectedTermId, termsQuery.data]);
+
+  const createTermMutation = useMutation({
+    mutationFn: (payload: TermCreateRequest) => {
+      if (!selectedProfile) {
+        throw new Error("Select a profile before creating a term.");
+      }
+      return createTerm(selectedProfile, payload);
+    },
+    onSuccess: (term) => {
+      setSelectedTermId(term.id);
+      queryClient.setQueryData<CanonicalTerm[]>(["terms", selectedProfile], (currentTerms = []) => {
+        if (currentTerms.some((currentTerm) => currentTerm.id === term.id)) {
+          return currentTerms;
+        }
+        return [...currentTerms, term];
+      });
+      void queryClient.invalidateQueries({ queryKey: ["terms", selectedProfile] });
+    },
+  });
+
+  const createAliasMutation = useMutation({
+    mutationFn: (payload: AliasCreateRequest) => {
+      if (!selectedProfile || !selectedTerm) {
+        throw new Error("Select a canonical term before creating an alias.");
+      }
+      return createAlias(selectedProfile, selectedTerm.canonical_value, payload);
+    },
+    onSuccess: (alias) => {
+      queryClient.setQueryData<CanonicalTerm[]>(["terms", selectedProfile], (currentTerms = []) =>
+        currentTerms.map((term) => {
+          if (term.id !== selectedTerm?.id || term.aliases.some((currentAlias) => currentAlias.id === alias.id)) {
+            return term;
+          }
+          return { ...term, aliases: [...term.aliases, alias] };
+        }),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["terms", selectedProfile] });
+    },
+  });
+
+  function handleProfileSelect(profileName: string) {
+    setSelectedProfile(profileName);
+    setSelectedTermId(null);
+    createTermMutation.reset();
+    createAliasMutation.reset();
+  }
+
+  async function handleCreateTerm(payload: TermCreateRequest) {
+    await createTermMutation.mutateAsync(payload);
+  }
+
+  async function handleCreateAlias(payload: AliasCreateRequest) {
+    await createAliasMutation.mutateAsync(payload);
+  }
+
+  function handleTermSelect(termId: number) {
+    setSelectedTermId(termId);
+    createAliasMutation.reset();
+  }
 
   return (
     <div className="space-y-6">
@@ -82,7 +168,7 @@ export function GovernanceDashboard() {
                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
                       }`}
                       key={profile.id}
-                      onClick={() => setSelectedProfile(profile.name)}
+                      onClick={() => handleProfileSelect(profile.name)}
                       type="button"
                     >
                       {profile.name}
@@ -97,6 +183,13 @@ export function GovernanceDashboard() {
             </CardContent>
           </Card>
 
+          <AddTermForm
+            disabled={!selectedProfile}
+            errorMessage={errorMessage(createTermMutation.error)}
+            isSubmitting={createTermMutation.isPending}
+            onSubmit={handleCreateTerm}
+          />
+
           {termsQuery.isError ? (
             <ErrorMessage message={termsQuery.error.message} />
           ) : termsQuery.isLoading && selectedProfile ? (
@@ -106,11 +199,19 @@ export function GovernanceDashboard() {
               </CardContent>
             </Card>
           ) : (
-            <TermsTable terms={termsQuery.data ?? []} />
+            <TermsTable onSelectTerm={(term) => handleTermSelect(term.id)} selectedTermId={selectedTermId} terms={termsQuery.data ?? []} />
           )}
         </div>
 
-        <SnapshotPanel profileName={selectedProfile} />
+        <div className="space-y-6">
+          <TermDetailsPanel
+            errorMessage={errorMessage(createAliasMutation.error)}
+            isAddingAlias={createAliasMutation.isPending}
+            onAddAlias={handleCreateAlias}
+            term={selectedTerm}
+          />
+          <SnapshotPanel profileName={selectedProfile} />
+        </div>
       </section>
     </div>
   );
@@ -126,4 +227,11 @@ function ErrorMessage({ message }: { message: string }) {
       </div>
     </div>
   );
+}
+
+function errorMessage(error: unknown) {
+  if (!error) {
+    return null;
+  }
+  return error instanceof Error ? error.message : "Request failed. Check the governance API and try again.";
 }

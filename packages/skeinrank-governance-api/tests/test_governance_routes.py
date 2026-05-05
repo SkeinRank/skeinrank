@@ -191,3 +191,18 @@ def test_snapshot_export_missing_profile_returns_404(tmp_path):
 
     assert response.status_code == 404
     assert "Profile not found" in response.json()["detail"]
+
+
+def test_cors_preflight_allows_local_ui_origin(tmp_path):
+    client = _client(tmp_path)
+
+    response = client.options(
+        "/v1/governance/profiles",
+        headers={
+            "Origin": "http://127.0.0.1:5173",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"

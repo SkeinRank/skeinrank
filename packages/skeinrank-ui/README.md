@@ -1,8 +1,8 @@
 # skeinrank-ui
 
-SkeinRank Governance Console UI skeleton.
+SkeinRank Governance Console UI.
 
-This package is the first frontend layer for the governance platform. It is intentionally small and API-ready: it reads profiles, terms, aliases, and runtime snapshots from `packages/skeinrank-governance-api`.
+This package is the first frontend layer for the governance platform. It reads profiles, terms, aliases, and runtime snapshots from `packages/skeinrank-governance-api`, and provides the MVP forms for creating canonical terms and aliases.
 
 ## Stack
 
@@ -47,17 +47,20 @@ export VITE_SKEINRANK_GOVERNANCE_API_URL=http://127.0.0.1:8010
 
 ## Current scope
 
-Patch 21 adds only the UI skeleton:
+The governance console currently includes:
 
 - app shell
 - profile selector
-- terms table
+- terms table with row selection
+- term details panel
+- create canonical term form
+- create alias form
 - aliases display
 - snapshot export panel
 - light/dark/system theme toggle with local persistence
-- health/API-ready wiring through TanStack Query
+- API state management through TanStack Query
 
-It does not yet implement create/update/delete forms, authentication, approval flow, or realtime collaboration.
+It intentionally does not yet implement edit/delete actions, authentication, approval flow, or realtime collaboration.
 
 ## Checks
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .config import GovernanceApiConfig
 from .dependencies import configure_database
@@ -20,6 +21,13 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
         version=config.service_version,
     )
     app.state.config = config
+    if config.cors_allow_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(config.cors_allow_origins),
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
     configure_database(app, config)
     app.include_router(health_router)
     app.include_router(governance_router)

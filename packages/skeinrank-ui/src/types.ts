@@ -30,6 +30,21 @@ export type CanonicalTerm = {
   updated_at: string;
 };
 
+
+export type TermCreateRequest = {
+  canonical_value: string;
+  slot: string;
+  description?: string | null;
+  status?: string;
+};
+
+export type AliasCreateRequest = {
+  alias_value: string;
+  confidence?: number;
+  status?: string;
+  notes?: string | null;
+};
+
 export type SnapshotExportRequest = {
   snapshot_version?: string;
   description?: string;
