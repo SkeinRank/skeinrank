@@ -176,6 +176,7 @@ Current UI scope:
 - create, edit, and delete canonical terms
 - term details panel with lifecycle status controls
 - create, edit, and delete aliases with manual confidence hidden
+- manual alias status choices limited to `active`, `deprecated`, and `disabled`; review-only statuses stay reserved for future suggestions and validation flags
 - aliases display
 - draft snapshot export and JSON download panel
 - API state management through TanStack Query

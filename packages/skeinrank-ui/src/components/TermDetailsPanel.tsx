@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Input } from "./ui/input";
 
 const TERM_STATUSES = ["active", "deprecated", "disabled"];
-const ALIAS_STATUSES = ["active", "deprecated", "disabled", "ambiguous", "pending", "rejected"];
+const ALIAS_STATUSES = ["active", "deprecated", "disabled"];
 
 type TermDetailsPanelProps = {
   aliasErrorMessage?: string | null;
