@@ -13,6 +13,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -39,6 +40,7 @@ ALIAS_STATUSES = (
     "rejected",
 )
 SNAPSHOT_STATUSES = ("draft", "published", "archived")
+USER_ROLES = ("admin", "moderator", "contributor")
 
 
 def utc_now() -> datetime:
@@ -203,6 +205,69 @@ class TermAlias(TimestampMixin, Base):
         return f"TermAlias(alias={self.alias_value!r}, term_id={self.term_id!r})"
 
 
+class GovernanceUser(TimestampMixin, Base):
+    """A local governance API user for MVP authentication and role checks."""
+
+    __tablename__ = "governance_users"
+    __table_args__ = (
+        CheckConstraint(
+            f"role IN {USER_ROLES!r}",
+            name="governance_user_role",
+        ),
+        Index("ix_governance_users_normalized_username", "normalized_username"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    normalized_username: Mapped[str] = mapped_column(
+        String(128), nullable=False, unique=True
+    )
+    display_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    tokens: Mapped[list[GovernanceAuthToken]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"GovernanceUser(username={self.username!r}, role={self.role!r})"
+
+
+class GovernanceAuthToken(TimestampMixin, Base):
+    """A hashed bearer token issued by the governance API login endpoint."""
+
+    __tablename__ = "governance_auth_tokens"
+    __table_args__ = (
+        Index("ix_governance_auth_tokens_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("governance_users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    token_prefix: Mapped[str] = mapped_column(String(16), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+    user: Mapped[GovernanceUser] = relationship(back_populates="tokens")
+
+    def __repr__(self) -> str:
+        return f"GovernanceAuthToken(user_id={self.user_id!r}, prefix={self.token_prefix!r})"
+
+
 class ProfileSnapshot(TimestampMixin, Base):
     """A versioned runtime snapshot exported from governance data."""
 
@@ -287,9 +352,17 @@ def _fill_normalized_alias(mapper: Any, connection: Any, target: TermAlias) -> N
     target.normalized_alias = normalize_value(target.alias_value)
 
 
+def _fill_normalized_user(mapper: Any, connection: Any, target: GovernanceUser) -> None:
+    del mapper, connection
+    target.normalized_username = normalize_profile_name(target.username)
+
+
 event.listen(TerminologyProfile, "before_insert", _fill_normalized_profile)
 event.listen(TerminologyProfile, "before_update", _fill_normalized_profile)
 event.listen(CanonicalTerm, "before_insert", _fill_normalized_term)
 event.listen(CanonicalTerm, "before_update", _fill_normalized_term)
 event.listen(TermAlias, "before_insert", _fill_normalized_alias)
 event.listen(TermAlias, "before_update", _fill_normalized_alias)
+
+event.listen(GovernanceUser, "before_insert", _fill_normalized_user)
+event.listen(GovernanceUser, "before_update", _fill_normalized_user)

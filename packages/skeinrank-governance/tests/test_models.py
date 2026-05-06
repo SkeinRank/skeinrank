@@ -5,6 +5,8 @@ from skeinrank_governance import (
     AuditEvent,
     Base,
     CanonicalTerm,
+    GovernanceAuthToken,
+    GovernanceUser,
     ProfileSnapshot,
     TermAlias,
     TerminologyProfile,
@@ -34,6 +36,8 @@ def test_metadata_contains_expected_tables():
         "term_aliases",
         "profile_snapshots",
         "audit_events",
+        "governance_users",
+        "governance_auth_tokens",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -130,6 +134,8 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "terminology_profiles" in table_names
     assert "canonical_terms" in table_names
     assert "term_aliases" in table_names
+    assert "governance_users" in table_names
+    assert "governance_auth_tokens" in table_names
 
 
 def test_normalize_value_collapses_case_and_whitespace():
@@ -141,3 +147,50 @@ def test_normalize_profile_name_treats_slugs_and_display_names_as_same():
     assert normalize_profile_name("Default IT") == "default_it"
     assert normalize_profile_name("default-it") == "default_it"
     assert normalize_profile_name("  Default   IT  ") == "default_it"
+
+
+def test_governance_user_normalized_username(session):
+    user = GovernanceUser(
+        username="Admin User",
+        display_name="Admin",
+        password_hash="hash",
+        role="admin",
+    )
+    session.add(user)
+    session.commit()
+
+    assert user.normalized_username == "admin_user"
+
+
+def test_invalid_governance_user_role_is_rejected(session):
+    user = GovernanceUser(
+        username="bad",
+        password_hash="hash",
+        role="owner",
+    )
+    session.add(user)
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_governance_auth_token_is_linked_to_user(session):
+    from datetime import timedelta
+
+    from skeinrank_governance.models import utc_now
+
+    user = GovernanceUser(
+        username="admin",
+        password_hash="hash",
+        role="admin",
+    )
+    token = GovernanceAuthToken(
+        user=user,
+        token_hash="abc",
+        token_prefix="abc",
+        expires_at=utc_now() + timedelta(hours=1),
+    )
+    session.add_all([user, token])
+    session.commit()
+
+    assert token.user.username == "admin"

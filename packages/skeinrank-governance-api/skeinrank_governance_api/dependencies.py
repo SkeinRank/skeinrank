@@ -32,8 +32,13 @@ def configure_database(app: Any, config: GovernanceApiConfig) -> None:
     engine = create_engine_for_config(config)
     if config.create_tables_on_startup:
         create_all(engine)
+    session_factory = create_session_factory(engine)
     app.state.governance_engine = engine
-    app.state.governance_session_factory = create_session_factory(engine)
+    app.state.governance_session_factory = session_factory
+    if config.bootstrap_admin:
+        from .auth import bootstrap_admin_if_needed
+
+        bootstrap_admin_if_needed(session_factory, config)
 
 
 def get_engine(request: Request) -> Engine:

@@ -9,6 +9,9 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.TermAlias.__tablename__ == "term_aliases"
     assert governance.ProfileSnapshot.__tablename__ == "profile_snapshots"
     assert governance.AuditEvent.__tablename__ == "audit_events"
+    assert governance.GovernanceUser.__tablename__ == "governance_users"
+    assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"
+    assert governance.USER_ROLES == ("admin", "moderator", "contributor")
     assert governance.normalize_value(" K8S ") == "k8s"
     assert governance.normalize_profile_name("Default IT") == "default_it"
     assert governance.create_profile is not None
