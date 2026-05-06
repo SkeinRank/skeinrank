@@ -32,17 +32,18 @@ By default the API uses the same local SQLite URL as the governance CLI:
 sqlite:///skeinrank_governance.db
 ```
 
-Initialize the database through the governance CLI first:
+From the repository root, initialize or upgrade the database through Alembic first:
 
 ```bash
-cd ../skeinrank-governance
-poetry run skeinrank-admin db init
+cd packages/skeinrank-governance-api
+poetry run python -m skeinrank_governance_api.migrations upgrade head
 ```
 
-Then start the API:
+For quick local demos only, you can still use `SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true`, but migration-based setup is the production-like path.
+
+Then start the API from the same package directory:
 
 ```bash
-cd ../skeinrank-governance-api
 poetry run skeinrank-governance-api --reload
 ```
 
@@ -60,7 +61,13 @@ curl http://127.0.0.1:8010/healthz
 
 ## Configuration
 
-The API reads database configuration from env vars:
+The API reads database configuration from env vars. The API-specific variable has priority:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_DATABASE_URL='sqlite:///skeinrank_governance.db'
+```
+
+The shared governance variable is still supported as a fallback:
 
 ```bash
 export SKEINRANK_GOVERNANCE_DATABASE_URL='sqlite:///skeinrank_governance.db'
@@ -91,7 +98,50 @@ Override CORS origins with a comma-separated value when needed:
 export SKEINRANK_GOVERNANCE_API_CORS_ORIGINS='http://127.0.0.1:5173,http://localhost:5173'
 ```
 
-Production deployments should use Alembic migrations from `packages/skeinrank-governance` instead.
+Production-like deployments should run Alembic migrations before starting the API.
+
+## Database migrations
+
+`skeinrank-governance` owns the SQLAlchemy models and canonical Alembic revision files. The API package exposes a configuration-aware migration wrapper that uses the same database URL resolution as the HTTP service.
+
+Upgrade the configured database to the latest governance schema:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run python -m skeinrank_governance_api.migrations upgrade head
+```
+
+Show the current database revision:
+
+```bash
+poetry run python -m skeinrank_governance_api.migrations current
+```
+
+Show migration history:
+
+```bash
+poetry run python -m skeinrank_governance_api.migrations history
+```
+
+Downgrade one revision when developing locally:
+
+```bash
+poetry run python -m skeinrank_governance_api.migrations downgrade -1
+```
+
+The migration wrapper resolves database URL precedence in the same order as the API:
+
+1. `SKEINRANK_GOVERNANCE_API_DATABASE_URL`
+2. `SKEINRANK_GOVERNANCE_DATABASE_URL`
+3. `sqlite:///skeinrank_governance.db`
+
+If deployments need a custom migration directory, set:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_ALEMBIC_SCRIPT_LOCATION=/path/to/alembic
+```
+
+`SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true` remains available for lightweight demos/tests, but Alembic is the preferred operational path before adding users, roles, suggestions, snapshot history, and bindings.
 
 ## Current scope
 
@@ -104,7 +154,8 @@ This package currently provides:
 - governance REST endpoints for profiles, terms, aliases, and snapshot export
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
 - Uvicorn launcher command
-- tests for app creation, health checks, DB dependency wiring, and governance routes
+- Alembic migration wrapper for the API database URL
+- tests for app creation, health checks, DB dependency wiring, migrations, and governance routes
 
 ## Governance REST endpoints
 
@@ -165,4 +216,4 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
 
 The response is a runtime-compatible profile snapshot that can be passed to `skeinrank-core` through `--profile-file` or `load_attribute_profile(...)`.
 
-Future patches will add UI controls for these CRUD routes, snapshot publishing lifecycle, suggestions, approval flow, and authentication.
+Future patches will add snapshot publishing lifecycle, suggestions, approval flow, authentication, users, and roles.
