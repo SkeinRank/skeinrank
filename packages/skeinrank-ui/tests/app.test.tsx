@@ -2,8 +2,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
-import type { AuthUser, CanonicalTerm, GovernanceSuggestion, Profile, TermAlias } from "../src/types";
-
+import type {
+  AuthUser,
+  CanonicalTerm,
+  GovernanceSuggestion,
+  Profile,
+  TermAlias,
+} from "../src/types";
 
 const adminUser: AuthUser = {
   id: 1,
@@ -71,7 +76,6 @@ const terms: CanonicalTerm[] = [
   },
 ];
 
-
 const suggestions: GovernanceSuggestion[] = [
   {
     id: 1,
@@ -124,338 +128,451 @@ function stubGovernanceApi(options: StubOptions = {}) {
   let nextAliasId = 20;
   let nextSuggestionId = 10;
 
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = input.toString();
-    const method = init?.method ?? "GET";
-    const headers = new Headers(init?.headers);
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = init?.method ?? "GET";
+      const headers = new Headers(init?.headers);
 
-    if (url.endsWith("/v1/auth/me") && method === "GET") {
-      if (options.authRequired && headers.get("Authorization") !== "Bearer test-token") {
-        return Response.json({ detail: "Missing bearer token" }, { status: 401 });
-      }
-      return Response.json(currentUser);
-    }
-
-    if (url.endsWith("/v1/auth/login") && method === "POST") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as { username: string; password: string };
-      if (payload.username !== "admin" || payload.password !== "change-me") {
-        return Response.json({ detail: "Invalid username or password" }, { status: 401 });
-      }
-      currentUser = adminUser;
-      return Response.json({
-        access_token: "test-token",
-        token_type: "bearer",
-        expires_at: "2026-05-06T00:00:00Z",
-        user: adminUser,
-      });
-    }
-
-    if (url.endsWith("/v1/auth/logout") && method === "POST") {
-      return new Response(null, { status: 204 });
-    }
-
-    if (url.endsWith("/v1/auth/users") && method === "GET") {
-      return Response.json(currentUsers);
-    }
-
-    if (url.endsWith("/v1/auth/users") && method === "POST") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-        display_name?: string | null;
-        role: AuthUser["role"];
-        username: string;
-      };
-      const user: AuthUser = {
-        id: 20,
-        username: payload.username,
-        normalized_username: payload.username.toLowerCase(),
-        display_name: payload.display_name ?? null,
-        role: payload.role,
-        is_active: true,
-        created_at: "2026-05-05T00:00:00Z",
-        updated_at: "2026-05-05T00:00:00Z",
-        last_login_at: null,
-      };
-      currentUsers = [...currentUsers, user];
-      return Response.json(user, { status: 201 });
-    }
-
-    if (url.endsWith("/v1/auth/users/contributor") && method === "PATCH") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as Partial<AuthUser> & { password?: string | null };
-      const updated: AuthUser = {
-        ...contributorUser,
-        username: payload.username ?? contributorUser.username,
-        normalized_username: (payload.username ?? contributorUser.username).toLowerCase(),
-        display_name: payload.display_name ?? null,
-        role: payload.role ?? contributorUser.role,
-        is_active: payload.is_active ?? contributorUser.is_active,
-        updated_at: "2026-05-06T00:00:00Z",
-      };
-      currentUsers = currentUsers.map((user) => (user.username === "contributor" ? updated : user));
-      return Response.json(updated);
-    }
-
-    if (url.endsWith("/v1/auth/users/contributor") && method === "DELETE") {
-      currentUsers = currentUsers.filter((user) => user.username !== "contributor");
-      return new Response(null, { status: 204 });
-    }
-
-    if (url.endsWith("/v1/governance/profiles") && method === "GET") {
-      return Response.json(currentProfiles);
-    }
-
-    if (url.endsWith("/v1/governance/profiles") && method === "POST") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-        description?: string | null;
-        name: string;
-      };
-      const newProfile: Profile = {
-        id: nextProfileId++,
-        name: payload.name,
-        normalized_name: payload.name.toLowerCase(),
-        description: payload.description ?? null,
-        created_at: "2026-05-05T00:00:00Z",
-        updated_at: "2026-05-05T00:00:00Z",
-      };
-      currentProfiles = [...currentProfiles, newProfile];
-      return Response.json(newProfile, { status: 201 });
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it") && method === "PATCH") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-        description?: string | null;
-        name?: string | null;
-      };
-      const updatedProfile: Profile = {
-        ...currentProfiles[0],
-        name: payload.name ?? currentProfiles[0].name,
-        normalized_name: (payload.name ?? currentProfiles[0].name).toLowerCase(),
-        description: payload.description ?? null,
-        updated_at: "2026-05-05T00:00:00Z",
-      };
-      currentProfiles = [updatedProfile, ...currentProfiles.slice(1)];
-      return Response.json(updatedProfile);
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it") && method === "DELETE") {
-      currentProfiles = currentProfiles.filter((profile) => profile.name !== "default_it");
-      currentTerms = [];
-      return new Response(null, { status: 204 });
-    }
-
-    if ((url.endsWith("/v1/governance/profiles/default_it/terms") || url.endsWith("/v1/governance/profiles/platform_terms/terms")) && method === "GET") {
-      return Response.json(currentTerms);
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it/terms") && method === "POST") {
-      if (options.duplicateTerm) {
-        return Response.json({ detail: "Term already exists in profile 'default_it': kubernetes" }, { status: 409 });
+      if (url.endsWith("/v1/auth/me") && method === "GET") {
+        if (
+          options.authRequired &&
+          headers.get("Authorization") !== "Bearer test-token"
+        ) {
+          return Response.json(
+            { detail: "Missing bearer token" },
+            { status: 401 },
+          );
+        }
+        return Response.json(currentUser);
       }
 
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-        canonical_value: string;
-        description?: string | null;
-        slot: string;
-        status?: string;
-      };
-      const newTerm: CanonicalTerm = {
-        id: nextTermId++,
-        canonical_value: payload.canonical_value,
-        normalized_value: payload.canonical_value.toLowerCase(),
-        slot: payload.slot.toUpperCase(),
-        status: payload.status ?? "active",
-        description: payload.description ?? null,
-        aliases: [],
-        created_at: "2026-05-05T00:00:00Z",
-        updated_at: "2026-05-05T00:00:00Z",
-      };
-      currentTerms = [...currentTerms, newTerm];
-      return Response.json(newTerm, { status: 201 });
-    }
+      if (url.endsWith("/v1/auth/login") && method === "POST") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          username: string;
+          password: string;
+        };
+        if (payload.username !== "admin" || payload.password !== "change-me") {
+          return Response.json(
+            { detail: "Invalid username or password" },
+            { status: 401 },
+          );
+        }
+        currentUser = adminUser;
+        return Response.json({
+          access_token: "test-token",
+          token_type: "bearer",
+          expires_at: "2026-05-06T00:00:00Z",
+          user: adminUser,
+        });
+      }
 
-    if (url.endsWith("/v1/governance/profiles/default_it/terms/kubernetes") && method === "PATCH") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-        canonical_value?: string | null;
-        description?: string | null;
-        slot?: string | null;
-        status?: string | null;
-      };
-      const updatedTerm: CanonicalTerm = {
-        ...currentTerms[0],
-        canonical_value: payload.canonical_value ?? currentTerms[0].canonical_value,
-        normalized_value: (payload.canonical_value ?? currentTerms[0].canonical_value).toLowerCase(),
-        slot: payload.slot ?? currentTerms[0].slot,
-        status: payload.status ?? currentTerms[0].status,
-        description: payload.description ?? null,
-        updated_at: "2026-05-05T00:00:00Z",
-      };
-      currentTerms = [updatedTerm, ...currentTerms.slice(1)];
-      return Response.json(updatedTerm);
-    }
+      if (url.endsWith("/v1/auth/logout") && method === "POST") {
+        return new Response(null, { status: 204 });
+      }
 
-    if (url.endsWith("/v1/governance/profiles/default_it/terms/kubernetes") && method === "DELETE") {
-      currentTerms = currentTerms.filter((term) => term.canonical_value !== "kubernetes");
-      return new Response(null, { status: 204 });
-    }
+      if (url.endsWith("/v1/auth/users") && method === "GET") {
+        return Response.json(currentUsers);
+      }
 
-    if (url.endsWith("/v1/governance/profiles/default_it/terms/kubernetes/aliases") && method === "POST") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-        alias_value: string;
-        confidence?: number;
-        notes?: string | null;
-        status?: string;
-      };
-      const newAlias: TermAlias = {
-        id: nextAliasId++,
-        alias_value: payload.alias_value,
-        normalized_alias: payload.alias_value.toLowerCase(),
-        status: payload.status ?? "active",
-        confidence: payload.confidence ?? 1,
-        notes: payload.notes ?? null,
-        created_at: "2026-05-05T00:00:00Z",
-        updated_at: "2026-05-05T00:00:00Z",
-      };
-      currentTerms = currentTerms.map((term) =>
-        term.canonical_value === "kubernetes" ? { ...term, aliases: [...term.aliases, newAlias] } : term,
-      );
-      return Response.json(newAlias, { status: 201 });
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it/terms/kubernetes/aliases/1") && method === "PATCH") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-        alias_value?: string | null;
-        confidence?: number | null;
-        notes?: string | null;
-        status?: string | null;
-      };
-      const updatedAlias: TermAlias = {
-        ...currentTerms[0].aliases[0],
-        alias_value: payload.alias_value ?? currentTerms[0].aliases[0].alias_value,
-        normalized_alias: (payload.alias_value ?? currentTerms[0].aliases[0].alias_value).toLowerCase(),
-        status: payload.status ?? currentTerms[0].aliases[0].status,
-        confidence: payload.confidence ?? currentTerms[0].aliases[0].confidence,
-        notes: payload.notes ?? null,
-        updated_at: "2026-05-05T00:00:00Z",
-      };
-      currentTerms = currentTerms.map((term) => ({
-        ...term,
-        aliases: term.aliases.map((alias) => (alias.id === 1 ? updatedAlias : alias)),
-      }));
-      return Response.json(updatedAlias);
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it/terms/kubernetes/aliases/1") && method === "DELETE") {
-      currentTerms = currentTerms.map((term) => ({ ...term, aliases: term.aliases.filter((alias) => alias.id !== 1) }));
-      return new Response(null, { status: 204 });
-    }
-
-    if (url.includes("/v1/governance/profiles/default_it/suggestions") && method === "GET") {
-      const status = new URL(url).searchParams.get("status");
-      const visibleSuggestions = status
-        ? currentSuggestions.filter((suggestion) => suggestion.status === status)
-        : currentSuggestions;
-      return Response.json(visibleSuggestions);
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it/suggestions") && method === "POST") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-        alias_value: string;
-        canonical_value: string;
-        confidence?: number;
-        context?: string | null;
-        slot: string;
-        source?: GovernanceSuggestion["source"];
-      };
-      const suggestion: GovernanceSuggestion = {
-        id: nextSuggestionId++,
-        profile_id: 1,
-        alias_id: null,
-        canonical_value: payload.canonical_value,
-        normalized_canonical: payload.canonical_value.toLowerCase(),
-        alias_value: payload.alias_value,
-        normalized_alias: payload.alias_value.toLowerCase(),
-        slot: payload.slot,
-        confidence: payload.confidence ?? 1,
-        source: payload.source ?? "manual",
-        context: payload.context ?? null,
-        status: "pending",
-        created_by: currentUser.username,
-        reviewed_by: null,
-        review_comment: null,
-        reviewed_at: null,
-        created_at: "2026-05-06T00:00:00Z",
-        updated_at: "2026-05-06T00:00:00Z",
-      };
-      currentSuggestions = [suggestion, ...currentSuggestions];
-      return Response.json(suggestion, { status: 201 });
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it/suggestions/1/approve") && method === "POST") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as { review_comment?: string | null };
-      const newAlias: TermAlias = {
-        id: nextAliasId++,
-        alias_value: currentSuggestions[0].alias_value,
-        normalized_alias: currentSuggestions[0].normalized_alias,
-        status: "active",
-        confidence: currentSuggestions[0].confidence,
-        notes: currentSuggestions[0].context,
-        created_at: "2026-05-06T00:00:00Z",
-        updated_at: "2026-05-06T00:00:00Z",
-      };
-      currentTerms = currentTerms.map((term) =>
-        term.canonical_value === "kubernetes" ? { ...term, aliases: [...term.aliases, newAlias] } : term,
-      );
-      const updatedSuggestion: GovernanceSuggestion = {
-        ...currentSuggestions[0],
-        alias_id: newAlias.id,
-        status: "approved",
-        reviewed_by: currentUser.username,
-        review_comment: payload.review_comment ?? null,
-        reviewed_at: "2026-05-06T00:00:00Z",
-        updated_at: "2026-05-06T00:00:00Z",
-      };
-      currentSuggestions = currentSuggestions.map((suggestion) => (suggestion.id === 1 ? updatedSuggestion : suggestion));
-      return Response.json(updatedSuggestion);
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it/suggestions/1/reject") && method === "POST") {
-      const payload = JSON.parse(init?.body?.toString() ?? "{}") as { review_comment?: string | null };
-      const updatedSuggestion: GovernanceSuggestion = {
-        ...currentSuggestions[0],
-        status: "rejected",
-        reviewed_by: currentUser.username,
-        review_comment: payload.review_comment ?? null,
-        reviewed_at: "2026-05-06T00:00:00Z",
-        updated_at: "2026-05-06T00:00:00Z",
-      };
-      currentSuggestions = currentSuggestions.map((suggestion) => (suggestion.id === 1 ? updatedSuggestion : suggestion));
-      return Response.json(updatedSuggestion);
-    }
-
-    if (url.endsWith("/v1/governance/profiles/default_it/snapshot/export") && method === "POST") {
-      return Response.json({
-        profile_id: "default_it",
-        snapshot: {
-          version: "default_it@draft",
-          source: "governance-api",
+      if (url.endsWith("/v1/auth/users") && method === "POST") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          display_name?: string | null;
+          role: AuthUser["role"];
+          username: string;
+        };
+        const user: AuthUser = {
+          id: 20,
+          username: payload.username,
+          normalized_username: payload.username.toLowerCase(),
+          display_name: payload.display_name ?? null,
+          role: payload.role,
+          is_active: true,
           created_at: "2026-05-05T00:00:00Z",
-          description: "Runtime snapshot exported from the governance console.",
-        },
-        alias_matcher: {
-          backend: "aho_corasick",
-        },
-        aliases: [
-          {
-            slot: "TOOL",
-            canonical: "kubernetes",
-            aliases: ["k8s"],
-          },
-        ],
-        rules: [],
-      });
-    }
+          updated_at: "2026-05-05T00:00:00Z",
+          last_login_at: null,
+        };
+        currentUsers = [...currentUsers, user];
+        return Response.json(user, { status: 201 });
+      }
 
-    return Response.json({ detail: "not found" }, { status: 404 });
-  });
+      if (url.endsWith("/v1/auth/users/contributor") && method === "PATCH") {
+        const payload = JSON.parse(
+          init?.body?.toString() ?? "{}",
+        ) as Partial<AuthUser> & { password?: string | null };
+        const updated: AuthUser = {
+          ...contributorUser,
+          username: payload.username ?? contributorUser.username,
+          normalized_username: (
+            payload.username ?? contributorUser.username
+          ).toLowerCase(),
+          display_name: payload.display_name ?? null,
+          role: payload.role ?? contributorUser.role,
+          is_active: payload.is_active ?? contributorUser.is_active,
+          updated_at: "2026-05-06T00:00:00Z",
+        };
+        currentUsers = currentUsers.map((user) =>
+          user.username === "contributor" ? updated : user,
+        );
+        return Response.json(updated);
+      }
+
+      if (url.endsWith("/v1/auth/users/contributor") && method === "DELETE") {
+        currentUsers = currentUsers.filter(
+          (user) => user.username !== "contributor",
+        );
+        return new Response(null, { status: 204 });
+      }
+
+      if (url.endsWith("/v1/governance/profiles") && method === "GET") {
+        return Response.json(currentProfiles);
+      }
+
+      if (url.endsWith("/v1/governance/profiles") && method === "POST") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          description?: string | null;
+          name: string;
+        };
+        const newProfile: Profile = {
+          id: nextProfileId++,
+          name: payload.name,
+          normalized_name: payload.name.toLowerCase(),
+          description: payload.description ?? null,
+          created_at: "2026-05-05T00:00:00Z",
+          updated_at: "2026-05-05T00:00:00Z",
+        };
+        currentProfiles = [...currentProfiles, newProfile];
+        return Response.json(newProfile, { status: 201 });
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it") &&
+        method === "PATCH"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          description?: string | null;
+          name?: string | null;
+        };
+        const updatedProfile: Profile = {
+          ...currentProfiles[0],
+          name: payload.name ?? currentProfiles[0].name,
+          normalized_name: (
+            payload.name ?? currentProfiles[0].name
+          ).toLowerCase(),
+          description: payload.description ?? null,
+          updated_at: "2026-05-05T00:00:00Z",
+        };
+        currentProfiles = [updatedProfile, ...currentProfiles.slice(1)];
+        return Response.json(updatedProfile);
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it") &&
+        method === "DELETE"
+      ) {
+        currentProfiles = currentProfiles.filter(
+          (profile) => profile.name !== "default_it",
+        );
+        currentTerms = [];
+        return new Response(null, { status: 204 });
+      }
+
+      if (
+        (url.endsWith("/v1/governance/profiles/default_it/terms") ||
+          url.endsWith("/v1/governance/profiles/platform_terms/terms")) &&
+        method === "GET"
+      ) {
+        return Response.json(currentTerms);
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/terms") &&
+        method === "POST"
+      ) {
+        if (options.duplicateTerm) {
+          return Response.json(
+            {
+              detail: "Term already exists in profile 'default_it': kubernetes",
+            },
+            { status: 409 },
+          );
+        }
+
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          canonical_value: string;
+          description?: string | null;
+          slot: string;
+          status?: string;
+        };
+        const newTerm: CanonicalTerm = {
+          id: nextTermId++,
+          canonical_value: payload.canonical_value,
+          normalized_value: payload.canonical_value.toLowerCase(),
+          slot: payload.slot.toUpperCase(),
+          status: payload.status ?? "active",
+          description: payload.description ?? null,
+          aliases: [],
+          created_at: "2026-05-05T00:00:00Z",
+          updated_at: "2026-05-05T00:00:00Z",
+        };
+        currentTerms = [...currentTerms, newTerm];
+        return Response.json(newTerm, { status: 201 });
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/terms/kubernetes") &&
+        method === "PATCH"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          canonical_value?: string | null;
+          description?: string | null;
+          slot?: string | null;
+          status?: string | null;
+        };
+        const updatedTerm: CanonicalTerm = {
+          ...currentTerms[0],
+          canonical_value:
+            payload.canonical_value ?? currentTerms[0].canonical_value,
+          normalized_value: (
+            payload.canonical_value ?? currentTerms[0].canonical_value
+          ).toLowerCase(),
+          slot: payload.slot ?? currentTerms[0].slot,
+          status: payload.status ?? currentTerms[0].status,
+          description: payload.description ?? null,
+          updated_at: "2026-05-05T00:00:00Z",
+        };
+        currentTerms = [updatedTerm, ...currentTerms.slice(1)];
+        return Response.json(updatedTerm);
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/terms/kubernetes") &&
+        method === "DELETE"
+      ) {
+        currentTerms = currentTerms.filter(
+          (term) => term.canonical_value !== "kubernetes",
+        );
+        return new Response(null, { status: 204 });
+      }
+
+      if (
+        url.endsWith(
+          "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        ) &&
+        method === "POST"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          alias_value: string;
+          confidence?: number;
+          notes?: string | null;
+          status?: string;
+        };
+        const newAlias: TermAlias = {
+          id: nextAliasId++,
+          alias_value: payload.alias_value,
+          normalized_alias: payload.alias_value.toLowerCase(),
+          status: payload.status ?? "active",
+          confidence: payload.confidence ?? 1,
+          notes: payload.notes ?? null,
+          created_at: "2026-05-05T00:00:00Z",
+          updated_at: "2026-05-05T00:00:00Z",
+        };
+        currentTerms = currentTerms.map((term) =>
+          term.canonical_value === "kubernetes"
+            ? { ...term, aliases: [...term.aliases, newAlias] }
+            : term,
+        );
+        return Response.json(newAlias, { status: 201 });
+      }
+
+      if (
+        url.endsWith(
+          "/v1/governance/profiles/default_it/terms/kubernetes/aliases/1",
+        ) &&
+        method === "PATCH"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          alias_value?: string | null;
+          confidence?: number | null;
+          notes?: string | null;
+          status?: string | null;
+        };
+        const updatedAlias: TermAlias = {
+          ...currentTerms[0].aliases[0],
+          alias_value:
+            payload.alias_value ?? currentTerms[0].aliases[0].alias_value,
+          normalized_alias: (
+            payload.alias_value ?? currentTerms[0].aliases[0].alias_value
+          ).toLowerCase(),
+          status: payload.status ?? currentTerms[0].aliases[0].status,
+          confidence:
+            payload.confidence ?? currentTerms[0].aliases[0].confidence,
+          notes: payload.notes ?? null,
+          updated_at: "2026-05-05T00:00:00Z",
+        };
+        currentTerms = currentTerms.map((term) => ({
+          ...term,
+          aliases: term.aliases.map((alias) =>
+            alias.id === 1 ? updatedAlias : alias,
+          ),
+        }));
+        return Response.json(updatedAlias);
+      }
+
+      if (
+        url.endsWith(
+          "/v1/governance/profiles/default_it/terms/kubernetes/aliases/1",
+        ) &&
+        method === "DELETE"
+      ) {
+        currentTerms = currentTerms.map((term) => ({
+          ...term,
+          aliases: term.aliases.filter((alias) => alias.id !== 1),
+        }));
+        return new Response(null, { status: 204 });
+      }
+
+      if (
+        url.includes("/v1/governance/profiles/default_it/suggestions") &&
+        method === "GET"
+      ) {
+        const status = new URL(url).searchParams.get("status");
+        const visibleSuggestions = status
+          ? currentSuggestions.filter(
+              (suggestion) => suggestion.status === status,
+            )
+          : currentSuggestions;
+        return Response.json(visibleSuggestions);
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/suggestions") &&
+        method === "POST"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          alias_value: string;
+          canonical_value: string;
+          confidence?: number;
+          context?: string | null;
+          slot: string;
+          source?: GovernanceSuggestion["source"];
+        };
+        const suggestion: GovernanceSuggestion = {
+          id: nextSuggestionId++,
+          profile_id: 1,
+          alias_id: null,
+          canonical_value: payload.canonical_value,
+          normalized_canonical: payload.canonical_value.toLowerCase(),
+          alias_value: payload.alias_value,
+          normalized_alias: payload.alias_value.toLowerCase(),
+          slot: payload.slot,
+          confidence: payload.confidence ?? 1,
+          source: payload.source ?? "manual",
+          context: payload.context ?? null,
+          status: "pending",
+          created_by: currentUser.username,
+          reviewed_by: null,
+          review_comment: null,
+          reviewed_at: null,
+          created_at: "2026-05-06T00:00:00Z",
+          updated_at: "2026-05-06T00:00:00Z",
+        };
+        currentSuggestions = [suggestion, ...currentSuggestions];
+        return Response.json(suggestion, { status: 201 });
+      }
+
+      if (
+        url.endsWith(
+          "/v1/governance/profiles/default_it/suggestions/1/approve",
+        ) &&
+        method === "POST"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          review_comment?: string | null;
+        };
+        const newAlias: TermAlias = {
+          id: nextAliasId++,
+          alias_value: currentSuggestions[0].alias_value,
+          normalized_alias: currentSuggestions[0].normalized_alias,
+          status: "active",
+          confidence: currentSuggestions[0].confidence,
+          notes: currentSuggestions[0].context,
+          created_at: "2026-05-06T00:00:00Z",
+          updated_at: "2026-05-06T00:00:00Z",
+        };
+        currentTerms = currentTerms.map((term) =>
+          term.canonical_value === "kubernetes"
+            ? { ...term, aliases: [...term.aliases, newAlias] }
+            : term,
+        );
+        const updatedSuggestion: GovernanceSuggestion = {
+          ...currentSuggestions[0],
+          alias_id: newAlias.id,
+          status: "approved",
+          reviewed_by: currentUser.username,
+          review_comment: payload.review_comment ?? null,
+          reviewed_at: "2026-05-06T00:00:00Z",
+          updated_at: "2026-05-06T00:00:00Z",
+        };
+        currentSuggestions = currentSuggestions.map((suggestion) =>
+          suggestion.id === 1 ? updatedSuggestion : suggestion,
+        );
+        return Response.json(updatedSuggestion);
+      }
+
+      if (
+        url.endsWith(
+          "/v1/governance/profiles/default_it/suggestions/1/reject",
+        ) &&
+        method === "POST"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          review_comment?: string | null;
+        };
+        const updatedSuggestion: GovernanceSuggestion = {
+          ...currentSuggestions[0],
+          status: "rejected",
+          reviewed_by: currentUser.username,
+          review_comment: payload.review_comment ?? null,
+          reviewed_at: "2026-05-06T00:00:00Z",
+          updated_at: "2026-05-06T00:00:00Z",
+        };
+        currentSuggestions = currentSuggestions.map((suggestion) =>
+          suggestion.id === 1 ? updatedSuggestion : suggestion,
+        );
+        return Response.json(updatedSuggestion);
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/snapshot/export") &&
+        method === "POST"
+      ) {
+        return Response.json({
+          profile_id: "default_it",
+          snapshot: {
+            version: "default_it@draft",
+            source: "governance-api",
+            created_at: "2026-05-05T00:00:00Z",
+            description:
+              "Runtime snapshot exported from the governance console.",
+          },
+          alias_matcher: {
+            backend: "aho_corasick",
+          },
+          aliases: [
+            {
+              slot: "TOOL",
+              canonical: "kubernetes",
+              aliases: ["k8s"],
+            },
+          ],
+          rules: [],
+        });
+      }
+
+      return Response.json({ detail: "not found" }, { status: 404 });
+    },
+  );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -474,7 +591,9 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Terminology control plane")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Terminology control plane"),
+    ).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getAllByText("default_it").length).toBeGreaterThan(0);
@@ -484,7 +603,9 @@ describe("App", () => {
       expect(screen.getAllByText("kubernetes").length).toBeGreaterThan(0);
     });
     expect(screen.getAllByText("k8s").length).toBeGreaterThan(0);
-    expect(screen.getByText("Postgres → Snapshot → Aho-Corasick")).toBeInTheDocument();
+    expect(
+      screen.getByText("Postgres → Snapshot → Aho-Corasick"),
+    ).toBeInTheDocument();
     expect(screen.getByText("MVP")).toBeInTheDocument();
     expect(screen.queryByText("UI skeleton")).not.toBeInTheDocument();
   });
@@ -494,7 +615,9 @@ describe("App", () => {
 
     render(<App />);
 
-    const themeButton = await screen.findByRole("button", { name: /switch theme/i });
+    const themeButton = await screen.findByRole("button", {
+      name: /switch theme/i,
+    });
     expect(themeButton).toHaveTextContent("System");
 
     fireEvent.click(themeButton);
@@ -514,8 +637,12 @@ describe("App", () => {
 
     await screen.findByRole("button", { name: "Create profile" });
 
-    fireEvent.change(screen.getByLabelText("New profile name"), { target: { value: "security_docs" } });
-    fireEvent.change(screen.getByLabelText("New profile description"), { target: { value: "Security terminology" } });
+    fireEvent.change(screen.getByLabelText("New profile name"), {
+      target: { value: "security_docs" },
+    });
+    fireEvent.change(screen.getByLabelText("New profile description"), {
+      target: { value: "Security terminology" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create profile" }));
 
     await waitFor(() => {
@@ -534,8 +661,12 @@ describe("App", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "default_it" }));
-    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "platform_terms" } });
-    fireEvent.change(screen.getByLabelText("Profile description"), { target: { value: "Platform terminology" } });
+    fireEvent.change(screen.getByLabelText("Profile name"), {
+      target: { value: "platform_terms" },
+    });
+    fireEvent.change(screen.getByLabelText("Profile description"), {
+      target: { value: "Platform terminology" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
 
     await waitFor(() => {
@@ -561,10 +692,14 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "default_it" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Delete profile" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete profile" }),
+    );
 
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "default_it" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "default_it" }),
+      ).not.toBeInTheDocument();
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -580,9 +715,15 @@ describe("App", () => {
 
     await screen.findByText("default_it");
 
-    fireEvent.change(screen.getByLabelText("Canonical value"), { target: { value: "postgresql" } });
-    fireEvent.change(screen.getByLabelText("Slot"), { target: { value: "DB" } });
-    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "PostgreSQL database" } });
+    fireEvent.change(screen.getByLabelText("Canonical value"), {
+      target: { value: "postgresql" },
+    });
+    fireEvent.change(screen.getByLabelText("Slot"), {
+      target: { value: "DB" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "PostgreSQL database" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Add term" }));
 
     await waitFor(() => {
@@ -612,10 +753,18 @@ describe("App", () => {
     await screen.findByText("default_it");
     await screen.findByLabelText("Edit canonical value");
 
-    fireEvent.change(screen.getByLabelText("Edit canonical value"), { target: { value: "kubernetes" } });
-    fireEvent.change(screen.getByLabelText("Edit slot"), { target: { value: "PLATFORM" } });
-    fireEvent.change(screen.getByLabelText("Edit description"), { target: { value: "Container orchestration platform" } });
-    fireEvent.change(screen.getByLabelText("Term status"), { target: { value: "deprecated" } });
+    fireEvent.change(screen.getByLabelText("Edit canonical value"), {
+      target: { value: "kubernetes" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit slot"), {
+      target: { value: "PLATFORM" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit description"), {
+      target: { value: "Container orchestration platform" },
+    });
+    fireEvent.change(screen.getByLabelText("Term status"), {
+      target: { value: "deprecated" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save term" }));
 
     await waitFor(() => {
@@ -636,7 +785,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete term" }));
 
     await waitFor(() => {
-      expect(screen.getByText("No terms found for this profile.")).toBeInTheDocument();
+      expect(
+        screen.getByText("No terms found for this profile."),
+      ).toBeInTheDocument();
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -656,7 +807,9 @@ describe("App", () => {
     expect(screen.queryByLabelText("Confidence")).not.toBeInTheDocument();
 
     fireEvent.change(aliasInput, { target: { value: "kube" } });
-    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Common Kubernetes shorthand" } });
+    fireEvent.change(screen.getByLabelText("Notes"), {
+      target: { value: "Common Kubernetes shorthand" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Add alias" }));
 
     await waitFor(() => {
@@ -686,15 +839,23 @@ describe("App", () => {
     await screen.findByText("default_it");
     await screen.findByText("k8s");
 
-    const editAliasButton = await screen.findByRole("button", { name: "Edit alias" });
+    const editAliasButton = await screen.findByRole("button", {
+      name: "Edit alias",
+    });
     expect(editAliasButton).not.toBeDisabled();
     fireEvent.click(editAliasButton);
     const editAliasInput = await screen.findByLabelText("Edit alias");
     fireEvent.change(editAliasInput, { target: { value: "kube" } });
-    fireEvent.change(screen.getByLabelText("Edit alias notes"), { target: { value: "Short Kubernetes alias" } });
+    fireEvent.change(screen.getByLabelText("Edit alias notes"), {
+      target: { value: "Short Kubernetes alias" },
+    });
 
-    const aliasStatusSelect = screen.getByLabelText("Alias status") as HTMLSelectElement;
-    const aliasStatusOptions = Array.from(aliasStatusSelect.options).map((option) => option.value);
+    const aliasStatusSelect = screen.getByLabelText(
+      "Alias status",
+    ) as HTMLSelectElement;
+    const aliasStatusOptions = Array.from(aliasStatusSelect.options).map(
+      (option) => option.value,
+    );
     expect(aliasStatusOptions).toEqual(["active", "deprecated", "disabled"]);
     expect(aliasStatusOptions).not.toContain("ambiguous");
     expect(aliasStatusOptions).not.toContain("pending");
@@ -736,15 +897,25 @@ describe("App", () => {
     const fetchMock = stubGovernanceApi();
     const createObjectUrl = vi.fn(() => "blob:skeinrank-snapshot");
     const revokeObjectUrl = vi.fn();
-    const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
-    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
+    const clickAnchor = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
 
     render(<App />);
 
     await screen.findByText("default_it");
 
-    const exportButton = screen.getByRole("button", { name: "Export draft snapshot" });
+    const exportButton = screen.getByRole("button", {
+      name: "Export draft snapshot",
+    });
     await waitFor(() => expect(exportButton).not.toBeDisabled());
     fireEvent.click(exportButton);
 
@@ -754,7 +925,8 @@ describe("App", () => {
         expect.objectContaining({
           body: JSON.stringify({
             snapshot_version: "default_it@draft",
-            description: "Runtime snapshot exported from the governance console.",
+            description:
+              "Runtime snapshot exported from the governance console.",
           }),
           method: "POST",
         }),
@@ -769,7 +941,9 @@ describe("App", () => {
     });
     expect(snapshotPreview).toBeInTheDocument();
 
-    const downloadButton = screen.getByRole("button", { name: "Download JSON" });
+    const downloadButton = screen.getByRole("button", {
+      name: "Download JSON",
+    });
     await waitFor(() => expect(downloadButton).not.toBeDisabled());
     fireEvent.click(downloadButton);
 
@@ -778,24 +952,33 @@ describe("App", () => {
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:skeinrank-snapshot");
   });
 
-
   it("signs in when auth is enabled and sends bearer tokens", async () => {
     const fetchMock = stubGovernanceApi({ authRequired: true });
 
     render(<App />);
 
     expect(await screen.findByText("SkeinRank sign in")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "admin" } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "change-me" } });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "admin" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "change-me" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await screen.findByText("Terminology control plane");
     await screen.findByText("default_it");
 
-    const profileRequest = fetchMock.mock.calls.find(([url]) => url.toString().endsWith("/v1/governance/profiles"));
+    const profileRequest = fetchMock.mock.calls.find(([url]) =>
+      url.toString().endsWith("/v1/governance/profiles"),
+    );
     expect(profileRequest).toBeTruthy();
-    expect(new Headers(profileRequest?.[1]?.headers).get("Authorization")).toBe("Bearer test-token");
-    expect(window.localStorage.getItem("skeinrank-ui-auth-token")).toBe("test-token");
+    expect(new Headers(profileRequest?.[1]?.headers).get("Authorization")).toBe(
+      "Bearer test-token",
+    );
+    expect(window.localStorage.getItem("skeinrank-ui-auth-token")).toBe(
+      "test-token",
+    );
   });
 
   it("lets admins manage users from the Users page", async () => {
@@ -810,10 +993,18 @@ describe("App", () => {
     expect(await screen.findByText("Users and roles")).toBeInTheDocument();
     expect(await screen.findByText("Admin User")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("New username"), { target: { value: "alex" } });
-    fireEvent.change(screen.getByLabelText("New display name"), { target: { value: "Alex Kim" } });
-    fireEvent.change(screen.getByLabelText("Temporary password"), { target: { value: "temporary-password" } });
-    fireEvent.change(screen.getByLabelText("New user role"), { target: { value: "moderator" } });
+    fireEvent.change(screen.getByLabelText("New username"), {
+      target: { value: "alex" },
+    });
+    fireEvent.change(screen.getByLabelText("New display name"), {
+      target: { value: "Alex Kim" },
+    });
+    fireEvent.change(screen.getByLabelText("Temporary password"), {
+      target: { value: "temporary-password" },
+    });
+    fireEvent.change(screen.getByLabelText("New user role"), {
+      target: { value: "moderator" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create user" }));
 
     await screen.findByText("Alex Kim");
@@ -832,8 +1023,12 @@ describe("App", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /contributor/i }));
-    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Term Contributor" } });
-    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "moderator" } });
+    fireEvent.change(screen.getByLabelText("Display name"), {
+      target: { value: "Term Contributor" },
+    });
+    fireEvent.change(screen.getByLabelText("Role"), {
+      target: { value: "moderator" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save user" }));
 
     await waitFor(() => {
@@ -871,14 +1066,25 @@ describe("App", () => {
     await screen.findByText("default_it");
     await screen.findByText("kubernetes");
 
-    expect(screen.queryByRole("button", { name: "Users" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Users" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add term" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Create profile" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Export draft snapshot" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Edit alias" })).not.toBeInTheDocument();
-    expect(screen.getByText("Your role has read-only access to this terminology profile. Use the Suggestions tab to propose changes for review.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create profile" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Export draft snapshot" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Edit alias" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Your role has read-only access to this terminology profile. Use the Suggestions tab to propose changes for review.",
+      ),
+    ).toBeInTheDocument();
   });
-
 
   it("lets contributors create suggestions without review actions", async () => {
     const fetchMock = stubGovernanceApi({ currentUser: contributorUser });
@@ -888,17 +1094,40 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
-    expect(await screen.findByText("Suggestions and approvals")).toBeInTheDocument();
-    expect(await screen.findByText("People search for kube in incident docs.")).toBeInTheDocument();
-    expect(screen.getByText("Contributors can create suggestions, but only admins and moderators can approve or reject them.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Approve suggestion/ })).toBeDisabled();
+    expect(
+      await screen.findByText("Suggestions and approvals"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("People search for kube in incident docs."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Contributors can create suggestions, but only admins and moderators can approve or reject them.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Approve suggestion/ }),
+    ).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Canonical term"), { target: { value: "kubernetes" } });
-    fireEvent.change(screen.getByLabelText("Suggested alias"), { target: { value: "k8s-prod" } });
-    fireEvent.change(screen.getByLabelText("Slot"), { target: { value: "TOOL" } });
-    fireEvent.change(screen.getByLabelText("Confidence"), { target: { value: "0.9" } });
-    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "manual" } });
-    fireEvent.change(screen.getByLabelText("Context"), { target: { value: "Support tickets mention k8s-prod." } });
+    expect(screen.queryByLabelText("Confidence")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Source")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Canonical term"), {
+      target: { value: "kube" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: /kubernetes.*1 aliases/i }),
+    );
+    expect(screen.getByLabelText("Slot")).toHaveValue("TOOL");
+    expect(screen.getByText("Existing aliases")).toBeInTheDocument();
+    expect(screen.getByText("k8s")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Suggested alias"), {
+      target: { value: "k8s-prod" },
+    });
+    fireEvent.change(screen.getByLabelText("Context"), {
+      target: { value: "Support tickets mention k8s-prod." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create suggestion" }));
 
     await waitFor(() => {
@@ -909,7 +1138,7 @@ describe("App", () => {
             canonical_value: "kubernetes",
             alias_value: "k8s-prod",
             slot: "TOOL",
-            confidence: 0.9,
+            confidence: 1,
             source: "manual",
             context: "Support tickets mention k8s-prod.",
           }),
@@ -917,6 +1146,35 @@ describe("App", () => {
         }),
       );
     });
+  });
+
+  it("blocks duplicate alias suggestions for the selected canonical term", async () => {
+    stubGovernanceApi({ currentUser: contributorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
+
+    expect(
+      await screen.findByText("Suggestions and approvals"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Canonical term"), {
+      target: { value: "kubernetes" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: /kubernetes.*1 aliases/i }),
+    );
+    fireEvent.change(screen.getByLabelText("Suggested alias"), {
+      target: { value: "k8s" },
+    });
+
+    expect(
+      await screen.findByText(/This alias already exists for kubernetes/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create suggestion" }),
+    ).toBeDisabled();
   });
 
   it("lets moderators approve suggestions into active aliases", async () => {
@@ -927,23 +1185,38 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
-    expect(await screen.findByText("Suggestions and approvals")).toBeInTheDocument();
-    expect(await screen.findByText("People search for kube in incident docs.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Suggestions and approvals"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("People search for kube in incident docs."),
+    ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Review comment"), { target: { value: "Looks valid for Kubernetes docs." } });
+    fireEvent.change(screen.getByLabelText("Review comment"), {
+      target: { value: "Looks valid for Kubernetes docs." },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Approve suggestion/ }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions/1/approve",
         expect.objectContaining({
-          body: JSON.stringify({ review_comment: "Looks valid for Kubernetes docs." }),
+          body: JSON.stringify({
+            review_comment: "Looks valid for Kubernetes docs.",
+          }),
           method: "POST",
         }),
       );
     });
 
-    expect(await screen.findByText("This suggestion has already been reviewed.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText("No suggestions found for this filter."),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("This suggestion has already been reviewed."),
+    ).not.toBeInTheDocument();
   });
 
   it("lets admins reject suggestions with a review comment", async () => {
@@ -954,22 +1227,37 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
-    expect(await screen.findByText("Suggestions and approvals")).toBeInTheDocument();
-    expect(await screen.findByText("People search for kube in incident docs.")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Review comment"), { target: { value: "Too ambiguous for the default profile." } });
+    expect(
+      await screen.findByText("Suggestions and approvals"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("People search for kube in incident docs."),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Review comment"), {
+      target: { value: "Too ambiguous for the default profile." },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Reject suggestion/ }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions/1/reject",
         expect.objectContaining({
-          body: JSON.stringify({ review_comment: "Too ambiguous for the default profile." }),
+          body: JSON.stringify({
+            review_comment: "Too ambiguous for the default profile.",
+          }),
           method: "POST",
         }),
       );
     });
 
-    expect(await screen.findByText("This suggestion has already been reviewed.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText("No suggestions found for this filter."),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("This suggestion has already been reviewed."),
+    ).not.toBeInTheDocument();
   });
 
   it("shows governance API conflicts when a canonical term cannot be added", async () => {
@@ -979,10 +1267,18 @@ describe("App", () => {
 
     await screen.findByText("default_it");
 
-    fireEvent.change(screen.getByLabelText("Canonical value"), { target: { value: "kubernetes" } });
-    fireEvent.change(screen.getByLabelText("Slot"), { target: { value: "TOOL" } });
+    fireEvent.change(screen.getByLabelText("Canonical value"), {
+      target: { value: "kubernetes" },
+    });
+    fireEvent.change(screen.getByLabelText("Slot"), {
+      target: { value: "TOOL" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Add term" }));
 
-    expect(await screen.findByText("Term already exists in profile 'default_it': kubernetes")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Term already exists in profile 'default_it': kubernetes",
+      ),
+    ).toBeInTheDocument();
   });
 });

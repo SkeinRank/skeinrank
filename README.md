@@ -200,6 +200,7 @@ Current UI scope:
 - admin-only Users page for local user CRUD and role assignment
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias proposals
+- searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms
@@ -211,7 +212,7 @@ Current UI scope:
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-The API and UI now include the suggestions/approval workflow. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Publish/rollback, Elasticsearch bindings, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The API and UI now include the suggestions/approval workflow. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. New canonical term proposals are intentionally left for a separate workflow. Publish/rollback, Elasticsearch bindings, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
