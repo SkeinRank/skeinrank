@@ -61,6 +61,7 @@ The governance console currently includes:
 - admin-only Users page for local user CRUD and role assignment
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias proposals
+- searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms
@@ -72,7 +73,7 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-Manual aliases are sent as approved entries with `confidence = 1.0`. Suggestions can carry confidence, source, and context metadata before a moderator/admin approves them into active aliases. The UI now supports CRUD for users, profiles, canonical terms, aliases, and suggestions through the governance API. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, Elasticsearch bindings, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+Manual aliases are sent as approved entries with `confidence = 1.0`. Manual suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. New canonical term proposals are intentionally left for a separate workflow. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, and suggestions through the governance API. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, Elasticsearch bindings, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Checks
 
