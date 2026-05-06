@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from skeinrank_governance.cli import (
     GovernanceCliError,
     add_alias,
@@ -14,12 +14,16 @@ from skeinrank_governance.cli import (
 )
 from skeinrank_governance.models import (
     ALIAS_STATUSES,
+    SUGGESTION_SOURCES,
+    SUGGESTION_STATUSES,
     TERM_STATUSES,
     CanonicalTerm,
+    GovernanceSuggestion,
     TermAlias,
     TerminologyProfile,
     normalize_profile_name,
     normalize_value,
+    utc_now,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -36,6 +40,9 @@ from ..schemas import (
     ProfileUpdateRequest,
     RuntimeSnapshotResponse,
     SnapshotExportRequest,
+    SuggestionCreateRequest,
+    SuggestionResponse,
+    SuggestionReviewRequest,
     TermCreateRequest,
     TermResponse,
     TermUpdateRequest,
@@ -446,6 +453,168 @@ def delete_term_alias(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get(
+    "/profiles/{profile_name}/suggestions",
+    response_model=list[SuggestionResponse],
+)
+def list_profile_suggestions(
+    profile_name: str,
+    status_filter: str | None = Query(default=None, alias="status"),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[SuggestionResponse]:
+    """List alias suggestions for a terminology profile."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    if status_filter is not None:
+        _validate_status(status_filter, SUGGESTION_STATUSES, "suggestion")
+    query = select(GovernanceSuggestion).where(
+        GovernanceSuggestion.profile_id == profile.id
+    )
+    if status_filter is not None:
+        query = query.where(GovernanceSuggestion.status == status_filter)
+    suggestions = list(
+        session.scalars(
+            query.order_by(
+                GovernanceSuggestion.status,
+                GovernanceSuggestion.updated_at.desc(),
+                GovernanceSuggestion.id.desc(),
+            )
+        )
+    )
+    return [_suggestion_response(suggestion) for suggestion in suggestions]
+
+
+@router.post(
+    "/profiles/{profile_name}/suggestions",
+    response_model=SuggestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_profile_suggestion(
+    profile_name: str,
+    request: SuggestionCreateRequest,
+    current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> SuggestionResponse:
+    """Create a pending alias suggestion without mutating active aliases."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    _validate_status(request.source, SUGGESTION_SOURCES, "suggestion source")
+
+    suggestion = GovernanceSuggestion(
+        profile=profile,
+        canonical_value=request.canonical_value,
+        alias_value=request.alias_value,
+        slot=request.slot,
+        confidence=request.confidence,
+        source=request.source,
+        context=request.context,
+        status="pending",
+        created_by=current_user.username,
+    )
+    session.add(suggestion)
+    try:
+        session.commit()
+        session.refresh(suggestion)
+        return _suggestion_response(suggestion)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.post(
+    "/profiles/{profile_name}/suggestions/{suggestion_id}/approve",
+    response_model=SuggestionResponse,
+)
+def approve_profile_suggestion(
+    profile_name: str,
+    suggestion_id: int,
+    request: SuggestionReviewRequest | None = Body(default=None),
+    reviewer: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> SuggestionResponse:
+    """Approve a pending suggestion and create an active alias."""
+
+    request = request or SuggestionReviewRequest()
+    profile = _get_profile_or_404(session, profile_name)
+    suggestion = _get_suggestion_or_404(session, profile, suggestion_id)
+    _ensure_pending_suggestion(suggestion)
+
+    try:
+        term = get_term(session, profile, suggestion.canonical_value)
+    except GovernanceCliError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    existing_alias = session.scalar(
+        select(TermAlias).where(
+            TermAlias.profile_id == profile.id,
+            TermAlias.normalized_alias == suggestion.normalized_alias,
+        )
+    )
+    if existing_alias is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Alias already exists in profile {profile.name!r}: {suggestion.alias_value}",
+        )
+
+    alias = TermAlias(
+        profile=profile,
+        term=term,
+        alias_value=suggestion.alias_value,
+        confidence=suggestion.confidence,
+        status="active",
+        notes=suggestion.context,
+    )
+    session.add(alias)
+    session.flush()
+
+    suggestion.alias_id = alias.id
+    suggestion.status = "approved"
+    suggestion.reviewed_by = reviewer.username
+    suggestion.review_comment = request.review_comment
+    suggestion.reviewed_at = utc_now()
+
+    try:
+        session.commit()
+        session.refresh(suggestion)
+        return _suggestion_response(suggestion)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.post(
+    "/profiles/{profile_name}/suggestions/{suggestion_id}/reject",
+    response_model=SuggestionResponse,
+)
+def reject_profile_suggestion(
+    profile_name: str,
+    suggestion_id: int,
+    request: SuggestionReviewRequest | None = Body(default=None),
+    reviewer: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> SuggestionResponse:
+    """Reject a pending alias suggestion without changing active aliases."""
+
+    request = request or SuggestionReviewRequest()
+    profile = _get_profile_or_404(session, profile_name)
+    suggestion = _get_suggestion_or_404(session, profile, suggestion_id)
+    _ensure_pending_suggestion(suggestion)
+
+    suggestion.status = "rejected"
+    suggestion.reviewed_by = reviewer.username
+    suggestion.review_comment = request.review_comment
+    suggestion.reviewed_at = utc_now()
+
+    session.commit()
+    session.refresh(suggestion)
+    return _suggestion_response(suggestion)
+
+
 @router.post(
     "/profiles/{profile_name}/snapshot/export",
     response_model=RuntimeSnapshotResponse,
@@ -500,6 +669,31 @@ def _get_alias_or_404(
     return alias
 
 
+def _get_suggestion_or_404(
+    session: Session, profile: TerminologyProfile, suggestion_id: int
+) -> GovernanceSuggestion:
+    suggestion = session.scalar(
+        select(GovernanceSuggestion).where(
+            GovernanceSuggestion.id == suggestion_id,
+            GovernanceSuggestion.profile_id == profile.id,
+        )
+    )
+    if suggestion is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Suggestion not found for profile {profile.name!r}: {suggestion_id}",
+        )
+    return suggestion
+
+
+def _ensure_pending_suggestion(suggestion: GovernanceSuggestion) -> None:
+    if suggestion.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Suggestion is not pending: {suggestion.status}",
+        )
+
+
 def _validate_status(value: str, allowed: tuple[str, ...], entity_name: str) -> None:
     if value not in allowed:
         allowed_values = ", ".join(allowed)
@@ -538,6 +732,29 @@ def _term_response(term: CanonicalTerm) -> TermResponse:
         aliases=[_alias_response(alias) for alias in term.aliases],
         created_at=term.created_at,
         updated_at=term.updated_at,
+    )
+
+
+def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse:
+    return SuggestionResponse(
+        id=suggestion.id,
+        profile_id=suggestion.profile_id,
+        alias_id=suggestion.alias_id,
+        canonical_value=suggestion.canonical_value,
+        normalized_canonical=suggestion.normalized_canonical,
+        alias_value=suggestion.alias_value,
+        normalized_alias=suggestion.normalized_alias,
+        slot=suggestion.slot,
+        confidence=suggestion.confidence,
+        source=suggestion.source,
+        context=suggestion.context,
+        status=suggestion.status,
+        created_by=suggestion.created_by,
+        reviewed_by=suggestion.reviewed_by,
+        review_comment=suggestion.review_comment,
+        reviewed_at=suggestion.reviewed_at,
+        created_at=suggestion.created_at,
+        updated_at=suggestion.updated_at,
     )
 
 

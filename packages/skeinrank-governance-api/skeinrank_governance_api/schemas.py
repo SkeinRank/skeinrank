@@ -119,6 +119,46 @@ class TermResponse(BaseModel):
     updated_at: datetime
 
 
+class SuggestionCreateRequest(BaseModel):
+    """Request body for proposing an alias for later review."""
+
+    canonical_value: str = Field(..., min_length=1, max_length=256)
+    alias_value: str = Field(..., min_length=1, max_length=256)
+    slot: str = Field(..., min_length=1, max_length=64)
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    source: str = "manual"
+    context: str | None = None
+
+
+class SuggestionReviewRequest(BaseModel):
+    """Request body for approving or rejecting a suggestion."""
+
+    review_comment: str | None = None
+
+
+class SuggestionResponse(BaseModel):
+    """Suggestion response used by approval workflow clients."""
+
+    id: int
+    profile_id: int
+    alias_id: int | None = None
+    canonical_value: str
+    normalized_canonical: str
+    alias_value: str
+    normalized_alias: str
+    slot: str
+    confidence: float
+    source: str
+    context: str | None = None
+    status: str
+    created_by: str | None = None
+    reviewed_by: str | None = None
+    review_comment: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class SnapshotExportRequest(BaseModel):
     """Request body for building a runtime snapshot from a profile."""
 

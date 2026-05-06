@@ -221,3 +221,67 @@ def test_auth_disabled_returns_local_dev_me(tmp_path):
     assert response.status_code == 200
     assert response.json()["username"] == "local_dev"
     assert response.json()["role"] == "admin"
+
+
+def test_contributor_can_create_suggestion_but_not_approve(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+    client.post(
+        "/v1/auth/users",
+        json={"username": "mod", "password": "mod-secret", "role": "moderator"},
+        headers=_auth(admin_token),
+    )
+    client.post(
+        "/v1/auth/users",
+        json={
+            "username": "contrib",
+            "password": "contrib-secret",
+            "role": "contributor",
+        },
+        headers=_auth(admin_token),
+    )
+    mod_token = _login(client, "mod", "mod-secret")
+    contributor_token = _login(client, "contrib", "contrib-secret")
+
+    client.post(
+        "/v1/governance/profiles",
+        json={"name": "default_it"},
+        headers=_auth(admin_token),
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+        headers=_auth(mod_token),
+    )
+
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "TOOL",
+            "context": "Contributor saw this query in support tickets.",
+        },
+        headers=_auth(contributor_token),
+    )
+    assert suggestion_response.status_code == 201
+    assert suggestion_response.json()["created_by"] == "contrib"
+
+    suggestion_id = suggestion_response.json()["id"]
+    approve_path = (
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion_id}/approve"
+    )
+    forbidden = client.post(
+        approve_path,
+        headers=_auth(contributor_token),
+    )
+    assert forbidden.status_code == 403
+
+    approved = client.post(
+        approve_path,
+        json={"review_comment": "Approved by moderator."},
+        headers=_auth(mod_token),
+    )
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "approved"
+    assert approved.json()["reviewed_by"] == "mod"

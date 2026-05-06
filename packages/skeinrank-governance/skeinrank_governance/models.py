@@ -40,6 +40,8 @@ ALIAS_STATUSES = (
     "rejected",
 )
 SNAPSHOT_STATUSES = ("draft", "published", "archived")
+SUGGESTION_STATUSES = ("pending", "approved", "rejected")
+SUGGESTION_SOURCES = ("manual", "discovery", "import")
 USER_ROLES = ("admin", "moderator", "contributor")
 
 
@@ -103,6 +105,11 @@ class TerminologyProfile(TimestampMixin, Base):
         passive_deletes=True,
     )
     snapshots: Mapped[list[ProfileSnapshot]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    suggestions: Mapped[list[GovernanceSuggestion]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -268,6 +275,71 @@ class GovernanceAuthToken(TimestampMixin, Base):
         return f"GovernanceAuthToken(user_id={self.user_id!r}, prefix={self.token_prefix!r})"
 
 
+class GovernanceSuggestion(TimestampMixin, Base):
+    """A proposed alias awaiting governance review.
+
+    Suggestions are intentionally separate from active aliases. Contributors,
+    future discovery jobs, or import tools can create suggestions without
+    mutating the runtime terminology profile. Moderators/Admins approve or
+    reject them later.
+    """
+
+    __tablename__ = "governance_suggestions"
+    __table_args__ = (
+        CheckConstraint(
+            f"status IN {SUGGESTION_STATUSES!r}",
+            name="governance_suggestion_status",
+        ),
+        CheckConstraint(
+            f"source IN {SUGGESTION_SOURCES!r}",
+            name="governance_suggestion_source",
+        ),
+        CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0",
+            name="governance_suggestion_confidence_range",
+        ),
+        Index("ix_governance_suggestions_profile_status", "profile_id", "status"),
+        Index(
+            "ix_governance_suggestions_profile_alias",
+            "profile_id",
+            "normalized_alias",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    alias_id: Mapped[int | None] = mapped_column(
+        ForeignKey("term_aliases.id", ondelete="SET NULL"), nullable=True
+    )
+    canonical_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_canonical: Mapped[str] = mapped_column(String(256), nullable=False)
+    alias_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    slot: Mapped[str] = mapped_column(String(64), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
+    context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    profile: Mapped[TerminologyProfile] = relationship(back_populates="suggestions")
+    alias: Mapped[TermAlias | None] = relationship()
+
+    def __repr__(self) -> str:
+        return (
+            "GovernanceSuggestion("
+            f"alias={self.alias_value!r}, canonical={self.canonical_value!r}, "
+            f"status={self.status!r})"
+        )
+
+
 class ProfileSnapshot(TimestampMixin, Base):
     """A versioned runtime snapshot exported from governance data."""
 
@@ -357,6 +429,15 @@ def _fill_normalized_user(mapper: Any, connection: Any, target: GovernanceUser) 
     target.normalized_username = normalize_profile_name(target.username)
 
 
+def _fill_normalized_suggestion(
+    mapper: Any, connection: Any, target: GovernanceSuggestion
+) -> None:
+    del mapper, connection
+    target.normalized_canonical = normalize_value(target.canonical_value)
+    target.normalized_alias = normalize_value(target.alias_value)
+    target.slot = target.slot.strip().upper()
+
+
 event.listen(TerminologyProfile, "before_insert", _fill_normalized_profile)
 event.listen(TerminologyProfile, "before_update", _fill_normalized_profile)
 event.listen(CanonicalTerm, "before_insert", _fill_normalized_term)
@@ -366,3 +447,5 @@ event.listen(TermAlias, "before_update", _fill_normalized_alias)
 
 event.listen(GovernanceUser, "before_insert", _fill_normalized_user)
 event.listen(GovernanceUser, "before_update", _fill_normalized_user)
+event.listen(GovernanceSuggestion, "before_insert", _fill_normalized_suggestion)
+event.listen(GovernanceSuggestion, "before_update", _fill_normalized_suggestion)

@@ -475,3 +475,188 @@ def test_delete_alias_missing_alias_returns_404(tmp_path):
 
     assert response.status_code == 404
     assert "Alias not found" in response.json()["detail"]
+
+
+def test_suggestion_lifecycle_approves_into_active_alias(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "tool"},
+    )
+
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "tool",
+            "confidence": 0.82,
+            "source": "manual",
+            "context": "People search for kube in incident runbooks.",
+        },
+    )
+    assert suggestion_response.status_code == 201
+    suggestion = suggestion_response.json()
+    assert suggestion["status"] == "pending"
+    assert suggestion["normalized_canonical"] == "kubernetes"
+    assert suggestion["normalized_alias"] == "kube"
+    assert suggestion["slot"] == "TOOL"
+    assert suggestion["created_by"] == "local_dev"
+
+    list_response = client.get(
+        "/v1/governance/profiles/default_it/suggestions?status=pending"
+    )
+    assert list_response.status_code == 200
+    assert [item["alias_value"] for item in list_response.json()] == ["kube"]
+
+    approve_response = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion['id']}/approve",
+        json={"review_comment": "Looks good."},
+    )
+    assert approve_response.status_code == 200
+    approved = approve_response.json()
+    assert approved["status"] == "approved"
+    assert approved["alias_id"] is not None
+    assert approved["reviewed_by"] == "local_dev"
+    assert approved["review_comment"] == "Looks good."
+
+    terms_response = client.get("/v1/governance/profiles/default_it/terms")
+    assert terms_response.status_code == 200
+    aliases = terms_response.json()[0]["aliases"]
+    assert aliases[0]["alias_value"] == "kube"
+    assert aliases[0]["confidence"] == 0.82
+    assert aliases[0]["status"] == "active"
+    assert aliases[0]["notes"] == "People search for kube in incident runbooks."
+
+
+def test_suggestion_reject_does_not_create_alias(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "bad-kube",
+            "slot": "TOOL",
+        },
+    )
+    suggestion_id = suggestion_response.json()["id"]
+
+    reject_response = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion_id}/reject",
+        json={"review_comment": "Not used by this corpus."},
+    )
+
+    assert reject_response.status_code == 200
+    rejected = reject_response.json()
+    assert rejected["status"] == "rejected"
+    assert rejected["review_comment"] == "Not used by this corpus."
+
+    terms_response = client.get("/v1/governance/profiles/default_it/terms")
+    assert terms_response.status_code == 200
+    assert terms_response.json()[0]["aliases"] == []
+
+
+def test_approving_suggestion_requires_existing_canonical_term(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "TOOL",
+        },
+    )
+
+    response = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion_response.json()['id']}/approve"
+    )
+
+    assert response.status_code == 404
+    assert "Canonical term not found" in response.json()["detail"]
+
+
+def test_approving_suggestion_rejects_duplicate_alias(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "kube"},
+    )
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "Kube",
+            "slot": "TOOL",
+        },
+    )
+
+    response = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion_response.json()['id']}/approve"
+    )
+
+    assert response.status_code == 409
+    assert "Alias already exists" in response.json()["detail"]
+
+
+def test_suggestion_cannot_be_reviewed_twice(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "TOOL",
+        },
+    )
+    suggestion_id = suggestion_response.json()["id"]
+
+    first = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion_id}/reject"
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion_id}/approve"
+    )
+    assert second.status_code == 409
+    assert "Suggestion is not pending" in second.json()["detail"]
+
+
+def test_suggestion_rejects_invalid_source_and_status_filter(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    invalid_source = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "TOOL",
+            "source": "crawler",
+        },
+    )
+    assert invalid_source.status_code == 422
+    assert "Invalid suggestion source status" in invalid_source.json()["detail"]
+
+    invalid_status = client.get(
+        "/v1/governance/profiles/default_it/suggestions?status=merged"
+    )
+    assert invalid_status.status_code == 422
+    assert "Invalid suggestion status" in invalid_status.json()["detail"]
