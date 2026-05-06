@@ -31,6 +31,16 @@ export type CanonicalTerm = {
 };
 
 
+export type ProfileCreateRequest = {
+  name: string;
+  description?: string | null;
+};
+
+export type ProfileUpdateRequest = {
+  name?: string | null;
+  description?: string | null;
+};
+
 export type TermCreateRequest = {
   canonical_value: string;
   slot: string;
@@ -38,10 +48,24 @@ export type TermCreateRequest = {
   status?: string;
 };
 
+export type TermUpdateRequest = {
+  canonical_value?: string | null;
+  slot?: string | null;
+  description?: string | null;
+  status?: string | null;
+};
+
 export type AliasCreateRequest = {
   alias_value: string;
   confidence?: number;
   status?: string;
+  notes?: string | null;
+};
+
+export type AliasUpdateRequest = {
+  alias_value?: string | null;
+  confidence?: number | null;
+  status?: string | null;
   notes?: string | null;
 };
 
