@@ -100,6 +100,46 @@ export SKEINRANK_GOVERNANCE_API_CORS_ORIGINS='http://127.0.0.1:5173,http://local
 
 Production-like deployments should run Alembic migrations before starting the API.
 
+## Auth, users, and roles
+
+Auth is disabled by default so existing local UI workflows keep working while the auth UI is still being built. Enable it explicitly when testing protected routes:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_AUTH_ENABLED=true
+export SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN=true
+export SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME=admin
+export SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD='change-me'
+```
+
+The bootstrap user is created only when the users table is empty. Passwords are stored as PBKDF2-SHA256 hashes and bearer tokens are stored hashed in the database.
+
+Roles:
+
+- `admin` — full control, including profiles, terms, aliases, snapshots, and users.
+- `moderator` — terminology editor: terms, aliases, and snapshot export. No user management or profile management.
+- `contributor` — read-only terminology access for now. Future suggestions workflow will let contributors submit changes for approval.
+
+Login and inspect the current user:
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:8010/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"change-me"}' | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+curl http://127.0.0.1:8010/v1/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Create a user as admin:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/auth/users \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"moderator","password":"moderator-secret","role":"moderator","display_name":"Moderator"}'
+```
+
+
 ## Database migrations
 
 `skeinrank-governance` owns the SQLAlchemy models and canonical Alembic revision files. The API package exposes a configuration-aware migration wrapper that uses the same database URL resolution as the HTTP service.
@@ -141,7 +181,7 @@ If deployments need a custom migration directory, set:
 export SKEINRANK_GOVERNANCE_API_ALEMBIC_SCRIPT_LOCATION=/path/to/alembic
 ```
 
-`SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true` remains available for lightweight demos/tests, but Alembic is the preferred operational path before adding users, roles, suggestions, snapshot history, and bindings.
+`SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true` remains available for lightweight demos/tests, but Alembic is the preferred operational path for users, roles, suggestions, snapshot history, and bindings.
 
 ## Current scope
 
@@ -153,6 +193,9 @@ This package currently provides:
 - `/healthz` endpoint
 - governance REST endpoints for profiles, terms, aliases, and snapshot export
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
+- local auth endpoints for login/logout/current user
+- admin-only user management endpoints
+- role-aware API permissions for Admin, Moderator, and Contributor
 - Uvicorn launcher command
 - Alembic migration wrapper for the API database URL
 - tests for app creation, health checks, DB dependency wiring, migrations, and governance routes
@@ -216,4 +259,4 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
 
 The response is a runtime-compatible profile snapshot that can be passed to `skeinrank-core` through `--profile-file` or `load_attribute_profile(...)`.
 
-Future patches will add snapshot publishing lifecycle, suggestions, approval flow, authentication, users, and roles.
+Future patches will add snapshot publishing lifecycle, suggestions, approval flow, and a role-aware UI login/users screen.

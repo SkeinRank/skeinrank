@@ -157,3 +157,53 @@ class ErrorResponse(BaseModel):
     """User-facing error response."""
 
     detail: str
+
+
+class LoginRequest(BaseModel):
+    """Request body for local governance API login."""
+
+    username: str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=512)
+
+
+class UserCreateRequest(BaseModel):
+    """Request body for creating a governance API user."""
+
+    username: str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=512)
+    display_name: str | None = Field(default=None, max_length=256)
+    role: str
+    is_active: bool = True
+
+
+class UserUpdateRequest(BaseModel):
+    """Request body for updating a governance API user."""
+
+    username: str | None = Field(default=None, min_length=1, max_length=128)
+    password: str | None = Field(default=None, min_length=1, max_length=512)
+    display_name: str | None = Field(default=None, max_length=256)
+    role: str | None = None
+    is_active: bool | None = None
+
+
+class UserResponse(BaseModel):
+    """Governance API user response without password material."""
+
+    id: int
+    username: str
+    normalized_username: str
+    display_name: str | None = None
+    role: str
+    is_active: bool
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    last_login_at: datetime | None = None
+
+
+class AuthTokenResponse(BaseModel):
+    """Login response containing the bearer token and current user."""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_at: datetime
+    user: UserResponse

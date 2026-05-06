@@ -35,3 +35,21 @@ def test_config_parses_cors_origins_from_env(monkeypatch):
         "http://127.0.0.1:5173",
         "http://localhost:5173",
     )
+
+
+def test_config_parses_auth_env(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_AUTH_ENABLED", "true")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN", "1")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME", "root")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD", "secret")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ADMIN_DISPLAY_NAME", "Root User")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_TOKEN_TTL_HOURS", "12")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.auth_enabled is True
+    assert config.bootstrap_admin is True
+    assert config.admin_username == "root"
+    assert config.admin_password == "secret"
+    assert config.admin_display_name == "Root User"
+    assert config.token_ttl_hours == 12

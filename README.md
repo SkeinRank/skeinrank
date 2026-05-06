@@ -24,7 +24,7 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 - `packages/skeinrank-server` — FastAPI service wrapper
 - `packages/skeinrank-provider-elasticsearch` — optional Elasticsearch retrieval provider and enrichment CLI
 - `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation and admin CLI for Postgres terminology governance
-- `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, and future governance UI
+- `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, auth/users/roles, and future governance workflows
 - `packages/skeinrank-ui` — React/TypeScript governance console for terms, aliases, and snapshots
 - `examples/demo/` — small demo corpus, demo queries, and usage notes
 
@@ -159,6 +159,16 @@ cd packages/skeinrank-governance-api
 poetry run python -m skeinrank_governance_api.migrations upgrade head
 poetry run skeinrank-governance-api --reload
 ```
+
+Optional local auth bootstrap for protected API testing:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_AUTH_ENABLED=true
+export SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN=true
+export SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME=admin
+export SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD='change-me'
+```
+
 
 For a quick throwaway demo database, you can still use:
 
@@ -330,7 +340,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the first HTTP layer for that control plane. It currently exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, and runtime-compatible snapshot export. Future patches will add UI controls for update/delete flows, snapshot publishing lifecycle, suggestions, approval flow, and authentication.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add UI login/users controls, snapshot publishing lifecycle, suggestions, and approval flow.
 
 The intended architecture is:
 

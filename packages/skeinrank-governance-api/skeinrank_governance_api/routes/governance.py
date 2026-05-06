@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
 from ..schemas import (
     AliasCreateRequest,
@@ -44,7 +45,12 @@ router = APIRouter(prefix="/v1/governance", tags=["governance"])
 
 
 @router.get("/profiles", response_model=list[ProfileResponse])
-def list_profiles(session: Session = Depends(get_session)) -> list[ProfileResponse]:
+def list_profiles(
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[ProfileResponse]:
     """List terminology profiles."""
 
     profiles = list(
@@ -62,6 +68,7 @@ def list_profiles(session: Session = Depends(get_session)) -> list[ProfileRespon
 )
 def create_profile_endpoint(
     request: ProfileCreateRequest,
+    _admin: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> ProfileResponse:
     """Create a terminology profile."""
@@ -91,6 +98,7 @@ def create_profile_endpoint(
 def update_profile_endpoint(
     profile_name: str,
     request: ProfileUpdateRequest,
+    _admin: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> ProfileResponse:
     """Update a terminology profile name or description."""
@@ -131,6 +139,7 @@ def update_profile_endpoint(
 )
 def delete_profile_endpoint(
     profile_name: str,
+    _admin: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> Response:
     """Delete a terminology profile and its child terms/aliases."""
@@ -147,6 +156,9 @@ def delete_profile_endpoint(
 )
 def list_profile_terms(
     profile_name: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
     session: Session = Depends(get_session),
 ) -> list[TermResponse]:
     """List canonical terms and aliases for a terminology profile."""
@@ -172,6 +184,7 @@ def list_profile_terms(
 def add_profile_term(
     profile_name: str,
     request: TermCreateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
     session: Session = Depends(get_session),
 ) -> TermResponse:
     """Add a canonical term to a terminology profile."""
@@ -210,6 +223,9 @@ def add_profile_term(
 def get_profile_term(
     profile_name: str,
     canonical_value: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
     session: Session = Depends(get_session),
 ) -> TermResponse:
     """Return a canonical term and its aliases."""
@@ -231,6 +247,7 @@ def update_profile_term(
     profile_name: str,
     canonical_value: str,
     request: TermUpdateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
     session: Session = Depends(get_session),
 ) -> TermResponse:
     """Update a canonical term inside a terminology profile."""
@@ -289,6 +306,7 @@ def update_profile_term(
 def delete_profile_term(
     profile_name: str,
     canonical_value: str,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
     session: Session = Depends(get_session),
 ) -> Response:
     """Delete a canonical term and its aliases."""
@@ -312,6 +330,7 @@ def add_term_alias(
     profile_name: str,
     canonical_value: str,
     request: AliasCreateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
     session: Session = Depends(get_session),
 ) -> AliasResponse:
     """Add an alias to a canonical term."""
@@ -354,6 +373,7 @@ def update_term_alias(
     canonical_value: str,
     alias_id: int,
     request: AliasUpdateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
     session: Session = Depends(get_session),
 ) -> AliasResponse:
     """Update an alias attached to a canonical term."""
@@ -410,6 +430,7 @@ def delete_term_alias(
     profile_name: str,
     canonical_value: str,
     alias_id: int,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
     session: Session = Depends(get_session),
 ) -> Response:
     """Delete an alias attached to a canonical term."""
@@ -432,6 +453,7 @@ def delete_term_alias(
 def export_profile_snapshot(
     profile_name: str,
     request: SnapshotExportRequest | None = Body(default=None),
+    _publisher: AuthContext = Depends(require_roles("admin", "moderator")),
     session: Session = Depends(get_session),
 ) -> dict:
     """Build and return a runtime-compatible snapshot for a profile.
