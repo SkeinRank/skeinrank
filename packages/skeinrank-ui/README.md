@@ -50,17 +50,17 @@ export VITE_SKEINRANK_GOVERNANCE_API_URL=http://127.0.0.1:8010
 The governance console currently includes:
 
 - app shell
-- profile selector
+- profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
-- term details panel
-- create canonical term form
-- create alias form with manual confidence hidden
+- create, edit, and delete canonical terms
+- term details panel with lifecycle status controls
+- create, edit, and delete aliases with manual confidence hidden
 - aliases display
 - draft snapshot export and JSON download panel
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-Manual aliases are sent as approved entries with `confidence = 1.0`; model confidence will be shown later in the suggestions/approval workflow. The UI intentionally does not yet implement edit/delete actions, profile creation, authentication, approval flow, or realtime collaboration.
+Manual aliases are sent as approved entries with `confidence = 1.0`; model confidence will be shown later in the suggestions/approval workflow. The UI now supports CRUD for profiles, canonical terms, and aliases through the governance API. Authentication, approval flow, publish/rollback, Elasticsearch bindings, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Checks
 

@@ -171,17 +171,17 @@ http://127.0.0.1:5173
 Current UI scope:
 
 - app shell
-- profile selector
+- profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
-- term details panel
-- create canonical term form
-- create alias form with manual confidence hidden
+- create, edit, and delete canonical terms
+- term details panel with lifecycle status controls
+- create, edit, and delete aliases with manual confidence hidden
 - aliases display
 - draft snapshot export and JSON download panel
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-Edit/delete actions, profile creation, authentication, approval flow, and realtime collaboration are intentionally left for follow-up patches.
+Authentication, suggestions approval, publish/rollback, Elasticsearch bindings, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
