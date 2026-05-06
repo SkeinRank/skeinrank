@@ -473,7 +473,15 @@ describe("App", () => {
     const editAliasInput = await screen.findByLabelText("Edit alias");
     fireEvent.change(editAliasInput, { target: { value: "kube" } });
     fireEvent.change(screen.getByLabelText("Edit alias notes"), { target: { value: "Short Kubernetes alias" } });
-    fireEvent.change(screen.getByLabelText("Alias status"), { target: { value: "deprecated" } });
+
+    const aliasStatusSelect = screen.getByLabelText("Alias status") as HTMLSelectElement;
+    const aliasStatusOptions = Array.from(aliasStatusSelect.options).map((option) => option.value);
+    expect(aliasStatusOptions).toEqual(["active", "deprecated", "disabled"]);
+    expect(aliasStatusOptions).not.toContain("ambiguous");
+    expect(aliasStatusOptions).not.toContain("pending");
+    expect(aliasStatusOptions).not.toContain("rejected");
+
+    fireEvent.change(aliasStatusSelect, { target: { value: "deprecated" } });
     fireEvent.click(screen.getByRole("button", { name: "Save alias" }));
 
     await waitFor(() => {
