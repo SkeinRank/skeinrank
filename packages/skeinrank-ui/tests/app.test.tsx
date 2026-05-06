@@ -2,7 +2,38 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
-import type { CanonicalTerm, Profile, TermAlias } from "../src/types";
+import type { AuthUser, CanonicalTerm, Profile, TermAlias } from "../src/types";
+
+
+const adminUser: AuthUser = {
+  id: 1,
+  username: "admin",
+  normalized_username: "admin",
+  display_name: "Admin User",
+  role: "admin",
+  is_active: true,
+  created_at: "2026-05-05T00:00:00Z",
+  updated_at: "2026-05-05T00:00:00Z",
+  last_login_at: "2026-05-05T00:00:00Z",
+};
+
+const moderatorUser: AuthUser = {
+  ...adminUser,
+  id: 2,
+  username: "moderator",
+  normalized_username: "moderator",
+  display_name: "Moderator User",
+  role: "moderator",
+};
+
+const contributorUser: AuthUser = {
+  ...adminUser,
+  id: 3,
+  username: "contributor",
+  normalized_username: "contributor",
+  display_name: "Contributor User",
+  role: "contributor",
+};
 
 const profiles: Profile[] = [
   {
@@ -41,6 +72,8 @@ const terms: CanonicalTerm[] = [
 ];
 
 type StubOptions = {
+  authRequired?: boolean;
+  currentUser?: AuthUser;
   duplicateTerm?: boolean;
 };
 
@@ -54,6 +87,8 @@ function cloneTerms() {
 
 function stubGovernanceApi(options: StubOptions = {}) {
   let currentProfiles = cloneProfiles();
+  let currentUser = options.currentUser ?? adminUser;
+  let currentUsers: AuthUser[] = [adminUser, moderatorUser, contributorUser];
   let currentTerms = cloneTerms();
   let nextProfileId = 10;
   let nextTermId = 10;
@@ -62,6 +97,77 @@ function stubGovernanceApi(options: StubOptions = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = input.toString();
     const method = init?.method ?? "GET";
+    const headers = new Headers(init?.headers);
+
+    if (url.endsWith("/v1/auth/me") && method === "GET") {
+      if (options.authRequired && headers.get("Authorization") !== "Bearer test-token") {
+        return Response.json({ detail: "Missing bearer token" }, { status: 401 });
+      }
+      return Response.json(currentUser);
+    }
+
+    if (url.endsWith("/v1/auth/login") && method === "POST") {
+      const payload = JSON.parse(init?.body?.toString() ?? "{}") as { username: string; password: string };
+      if (payload.username !== "admin" || payload.password !== "change-me") {
+        return Response.json({ detail: "Invalid username or password" }, { status: 401 });
+      }
+      currentUser = adminUser;
+      return Response.json({
+        access_token: "test-token",
+        token_type: "bearer",
+        expires_at: "2026-05-06T00:00:00Z",
+        user: adminUser,
+      });
+    }
+
+    if (url.endsWith("/v1/auth/logout") && method === "POST") {
+      return new Response(null, { status: 204 });
+    }
+
+    if (url.endsWith("/v1/auth/users") && method === "GET") {
+      return Response.json(currentUsers);
+    }
+
+    if (url.endsWith("/v1/auth/users") && method === "POST") {
+      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+        display_name?: string | null;
+        role: AuthUser["role"];
+        username: string;
+      };
+      const user: AuthUser = {
+        id: 20,
+        username: payload.username,
+        normalized_username: payload.username.toLowerCase(),
+        display_name: payload.display_name ?? null,
+        role: payload.role,
+        is_active: true,
+        created_at: "2026-05-05T00:00:00Z",
+        updated_at: "2026-05-05T00:00:00Z",
+        last_login_at: null,
+      };
+      currentUsers = [...currentUsers, user];
+      return Response.json(user, { status: 201 });
+    }
+
+    if (url.endsWith("/v1/auth/users/contributor") && method === "PATCH") {
+      const payload = JSON.parse(init?.body?.toString() ?? "{}") as Partial<AuthUser> & { password?: string | null };
+      const updated: AuthUser = {
+        ...contributorUser,
+        username: payload.username ?? contributorUser.username,
+        normalized_username: (payload.username ?? contributorUser.username).toLowerCase(),
+        display_name: payload.display_name ?? null,
+        role: payload.role ?? contributorUser.role,
+        is_active: payload.is_active ?? contributorUser.is_active,
+        updated_at: "2026-05-06T00:00:00Z",
+      };
+      currentUsers = currentUsers.map((user) => (user.username === "contributor" ? updated : user));
+      return Response.json(updated);
+    }
+
+    if (url.endsWith("/v1/auth/users/contributor") && method === "DELETE") {
+      currentUsers = currentUsers.filter((user) => user.username !== "contributor");
+      return new Response(null, { status: 204 });
+    }
 
     if (url.endsWith("/v1/governance/profiles") && method === "GET") {
       return Response.json(currentProfiles);
@@ -255,7 +361,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByText("Terminology control plane")).toBeInTheDocument();
+    expect(await screen.findByText("Terminology control plane")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getAllByText("default_it").length).toBeGreaterThan(0);
@@ -275,7 +381,7 @@ describe("App", () => {
 
     render(<App />);
 
-    const themeButton = screen.getByRole("button", { name: /switch theme/i });
+    const themeButton = await screen.findByRole("button", { name: /switch theme/i });
     expect(themeButton).toHaveTextContent("System");
 
     fireEvent.click(themeButton);
@@ -341,8 +447,8 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("default_it");
-    fireEvent.click(screen.getByRole("button", { name: "Delete profile" }));
+    fireEvent.click(await screen.findByRole("button", { name: "default_it" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete profile" }));
 
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "default_it" })).not.toBeInTheDocument();
@@ -558,6 +664,108 @@ describe("App", () => {
     expect(clickAnchor).toHaveBeenCalledTimes(1);
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:skeinrank-snapshot");
   });
+
+
+  it("signs in when auth is enabled and sends bearer tokens", async () => {
+    const fetchMock = stubGovernanceApi({ authRequired: true });
+
+    render(<App />);
+
+    expect(await screen.findByText("SkeinRank sign in")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "admin" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "change-me" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await screen.findByText("Terminology control plane");
+    await screen.findByText("default_it");
+
+    const profileRequest = fetchMock.mock.calls.find(([url]) => url.toString().endsWith("/v1/governance/profiles"));
+    expect(profileRequest).toBeTruthy();
+    expect(new Headers(profileRequest?.[1]?.headers).get("Authorization")).toBe("Bearer test-token");
+    expect(window.localStorage.getItem("skeinrank-ui-auth-token")).toBe("test-token");
+  });
+
+  it("lets admins manage users from the Users page", async () => {
+    const fetchMock = stubGovernanceApi();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+
+    expect(await screen.findByText("Users and roles")).toBeInTheDocument();
+    expect(await screen.findByText("Admin User")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("New username"), { target: { value: "alex" } });
+    fireEvent.change(screen.getByLabelText("New display name"), { target: { value: "Alex Kim" } });
+    fireEvent.change(screen.getByLabelText("Temporary password"), { target: { value: "temporary-password" } });
+    fireEvent.change(screen.getByLabelText("New user role"), { target: { value: "moderator" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create user" }));
+
+    await screen.findByText("Alex Kim");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8010/v1/auth/users",
+      expect.objectContaining({
+        body: JSON.stringify({
+          username: "alex",
+          password: "temporary-password",
+          display_name: "Alex Kim",
+          role: "moderator",
+          is_active: true,
+        }),
+        method: "POST",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /contributor/i }));
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Term Contributor" } });
+    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "moderator" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save user" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/users/contributor",
+        expect.objectContaining({
+          body: JSON.stringify({
+            username: "contributor",
+            display_name: "Term Contributor",
+            password: null,
+            role: "moderator",
+            is_active: true,
+          }),
+          method: "PATCH",
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete user" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/users/contributor",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("keeps contributor users in read-only governance mode", async () => {
+    stubGovernanceApi({ currentUser: contributorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    await screen.findByText("default_it");
+    await screen.findByText("kubernetes");
+
+    expect(screen.queryByRole("button", { name: "Users" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add term" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create profile" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Export draft snapshot" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Edit alias" })).not.toBeInTheDocument();
+    expect(screen.getByText("Your role has read-only access to this terminology profile. Suggestions will be available in the approval workflow.")).toBeInTheDocument();
+  });
+
 
   it("shows governance API conflicts when a canonical term cannot be added", async () => {
     stubGovernanceApi({ duplicateTerm: true });

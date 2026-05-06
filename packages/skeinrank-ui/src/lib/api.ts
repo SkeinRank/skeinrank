@@ -1,7 +1,10 @@
 import type {
   AliasCreateRequest,
   AliasUpdateRequest,
+  AuthTokenResponse,
+  AuthUser,
   CanonicalTerm,
+  LoginRequest,
   Profile,
   ProfileCreateRequest,
   ProfileUpdateRequest,
@@ -10,12 +13,17 @@ import type {
   TermAlias,
   TermCreateRequest,
   TermUpdateRequest,
+  UserCreateRequest,
+  UserUpdateRequest,
 } from "../types";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:8010";
+const AUTH_TOKEN_STORAGE_KEY = "skeinrank-ui-auth-token";
 
 export const governanceApiBaseUrl =
   import.meta.env.VITE_SKEINRANK_GOVERNANCE_API_URL ?? DEFAULT_API_BASE_URL;
+
+let inMemoryAuthToken: string | null = readStoredAuthToken();
 
 export class GovernanceApiError extends Error {
   constructor(
@@ -27,10 +35,31 @@ export class GovernanceApiError extends Error {
   }
 }
 
+export function getAuthToken() {
+  return inMemoryAuthToken;
+}
+
+export function setAuthToken(token: string) {
+  inMemoryAuthToken = token;
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  }
+}
+
+export function clearAuthToken() {
+  inMemoryAuthToken = null;
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  }
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
+  }
+  if (inMemoryAuthToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${inMemoryAuthToken}`);
   }
 
   const response = await fetch(`${governanceApiBaseUrl}${path}`, {
@@ -61,6 +90,54 @@ async function safeErrorDetail(response: Response) {
 
 function encodePathSegment(value: string) {
   return encodeURIComponent(value);
+}
+
+function readStoredAuthToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+}
+
+export function login(payload: LoginRequest) {
+  return requestJson<AuthTokenResponse>("/v1/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function logout() {
+  return requestJson<void>("/v1/auth/logout", {
+    method: "POST",
+  });
+}
+
+export function getCurrentUser() {
+  return requestJson<AuthUser>("/v1/auth/me");
+}
+
+export function listUsers() {
+  return requestJson<AuthUser[]>("/v1/auth/users");
+}
+
+export function createUser(payload: UserCreateRequest) {
+  return requestJson<AuthUser>("/v1/auth/users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateUser(username: string, payload: UserUpdateRequest) {
+  return requestJson<AuthUser>(`/v1/auth/users/${encodePathSegment(username)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteUser(username: string) {
+  return requestJson<void>(`/v1/auth/users/${encodePathSegment(username)}`, {
+    method: "DELETE",
+  });
 }
 
 export function listProfiles() {

@@ -22,6 +22,7 @@ import {
   updateProfile,
   updateTerm,
 } from "../lib/api";
+import { permissionsForUser } from "../permissions";
 import type {
   AliasCreateRequest,
   AliasUpdateRequest,
@@ -32,9 +33,11 @@ import type {
   TermAlias,
   TermCreateRequest,
   TermUpdateRequest,
+  AuthUser,
 } from "../types";
 
-export function GovernanceDashboard() {
+export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) {
+  const permissions = permissionsForUser(currentUser);
   const queryClient = useQueryClient();
   const profilesQuery = useQuery({
     queryKey: ["profiles"],
@@ -352,6 +355,8 @@ export function GovernanceDashboard() {
             isUpdating={updateProfileMutation.isPending}
             loading={profilesQuery.isLoading}
             loadErrorMessage={profilesQuery.isError ? profilesQuery.error.message : null}
+            disabled={!permissions.canManageProfiles}
+            readOnlyMessage={permissions.canManageProfiles ? null : "Only admins can create, rename, or delete terminology profiles."}
             onCreateProfile={handleCreateProfile}
             onDeleteProfile={handleDeleteProfile}
             onSelectProfile={handleProfileSelect}
@@ -362,9 +367,10 @@ export function GovernanceDashboard() {
           />
 
           <AddTermForm
-            disabled={!selectedProfile}
+            disabled={!selectedProfile || !permissions.canManageTerms}
             errorMessage={errorMessage(createTermMutation.error)}
             isSubmitting={createTermMutation.isPending}
+            readOnlyMessage={permissions.canManageTerms ? null : "Your role can inspect terms, but cannot create canonical terms."}
             onSubmit={handleCreateTerm}
           />
 
@@ -390,6 +396,8 @@ export function GovernanceDashboard() {
             isDeletingTerm={deleteTermMutation.isPending}
             isUpdatingAlias={updateAliasMutation.isPending}
             isUpdatingTerm={updateTermMutation.isPending}
+            canManageAliases={permissions.canManageAliases}
+            canManageTerm={permissions.canManageTerms}
             onAddAlias={handleCreateAlias}
             onDeleteAlias={handleDeleteAlias}
             onDeleteTerm={handleDeleteTerm}
@@ -398,7 +406,7 @@ export function GovernanceDashboard() {
             term={selectedTerm}
             termErrorMessage={errorMessage(updateTermMutation.error) ?? errorMessage(deleteTermMutation.error)}
           />
-          <SnapshotPanel profileName={selectedProfile} />
+          <SnapshotPanel disabled={!permissions.canExportSnapshots} profileName={selectedProfile} readOnlyMessage={permissions.canExportSnapshots ? null : "Snapshot export requires an admin or moderator role."} />
         </div>
       </section>
     </div>

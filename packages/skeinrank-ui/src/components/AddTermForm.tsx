@@ -9,10 +9,11 @@ type AddTermFormProps = {
   disabled?: boolean;
   errorMessage?: string | null;
   isSubmitting?: boolean;
+  readOnlyMessage?: string | null;
   onSubmit: (payload: TermCreateRequest) => Promise<void> | void;
 };
 
-export function AddTermForm({ disabled = false, errorMessage, isSubmitting = false, onSubmit }: AddTermFormProps) {
+export function AddTermForm({ disabled = false, errorMessage, isSubmitting = false, readOnlyMessage, onSubmit }: AddTermFormProps) {
   const [canonicalValue, setCanonicalValue] = useState("");
   const [slot, setSlot] = useState("");
   const [description, setDescription] = useState("");
@@ -79,6 +80,11 @@ export function AddTermForm({ disabled = false, errorMessage, isSubmitting = fal
               {isSubmitting ? "Adding..." : "Add term"}
             </Button>
           </div>
+          {readOnlyMessage ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 lg:col-span-2">
+              {readOnlyMessage}
+            </div>
+          ) : null}
           {errorMessage ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 lg:col-span-2">
               {errorMessage}

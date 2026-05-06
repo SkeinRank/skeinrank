@@ -6,7 +6,7 @@ import type { RuntimeSnapshot } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 
-export function SnapshotPanel({ profileName }: { profileName: string | null }) {
+export function SnapshotPanel({ disabled = false, profileName, readOnlyMessage }: { disabled?: boolean; profileName: string | null; readOnlyMessage?: string | null }) {
   const mutation = useMutation<RuntimeSnapshot>({
     mutationFn: () => {
       if (!profileName) {
@@ -46,15 +46,21 @@ export function SnapshotPanel({ profileName }: { profileName: string | null }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button disabled={!profileName || mutation.isPending} onClick={() => mutation.mutate()} type="button">
+          <Button disabled={disabled || !profileName || mutation.isPending} onClick={() => mutation.mutate()} type="button">
             <ClipboardCheck className="mr-2 h-4 w-4" />
             {mutation.isPending ? "Exporting..." : "Export draft snapshot"}
           </Button>
-          <Button disabled={!mutation.data || !profileName} onClick={handleDownloadSnapshot} type="button" variant="secondary">
+          <Button disabled={disabled || !mutation.data || !profileName} onClick={handleDownloadSnapshot} type="button" variant="secondary">
             <Download className="mr-2 h-4 w-4" />
             Download JSON
           </Button>
         </div>
+
+        {readOnlyMessage ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+            {readOnlyMessage}
+          </div>
+        ) : null}
 
         {mutation.isError ? <p className="text-sm text-red-600 dark:text-red-300">{mutation.error.message}</p> : null}
 

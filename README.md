@@ -25,7 +25,7 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 - `packages/skeinrank-provider-elasticsearch` — optional Elasticsearch retrieval provider and enrichment CLI
 - `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation and admin CLI for Postgres terminology governance
 - `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, auth/users/roles, and future governance workflows
-- `packages/skeinrank-ui` — React/TypeScript governance console for terms, aliases, and snapshots
+- `packages/skeinrank-ui` — React/TypeScript governance console for terms, aliases, users, roles, and snapshots
 - `examples/demo/` — small demo corpus, demo queries, and usage notes
 
 ## Quickstart
@@ -193,7 +193,10 @@ http://127.0.0.1:5173
 
 Current UI scope:
 
-- app shell
+- app shell with local login/logout session controls
+- current user and role display in the top bar
+- admin-only Users page for local user CRUD and role assignment
+- role-aware controls for Admin, Moderator, and Contributor users
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms
@@ -205,7 +208,7 @@ Current UI scope:
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-Authentication, suggestions approval, publish/rollback, Elasticsearch bindings, and realtime collaboration are intentionally left for follow-up patches.
+The UI supports local login, logout, admin user management, and role-aware controls for Admin, Moderator, and Contributor users. Suggestions approval, publish/rollback, Elasticsearch bindings, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -340,7 +343,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add UI login/users controls, snapshot publishing lifecycle, suggestions, and approval flow.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, suggestions, and approval flow.
 
 The intended architecture is:
 
