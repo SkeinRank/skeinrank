@@ -2,7 +2,7 @@
 
 SkeinRank Governance Console UI.
 
-This package is the first frontend layer for the governance platform. It reads users, profiles, terms, aliases, and runtime snapshots from `packages/skeinrank-governance-api`, and provides MVP workflows for manual terminology governance with local auth and roles.
+This package is the first frontend layer for the governance platform. It reads users, profiles, terms, aliases, suggestions, and runtime snapshots from `packages/skeinrank-governance-api`, and provides MVP workflows for manual terminology governance with local auth and roles.
 
 ## Stack
 
@@ -60,6 +60,7 @@ The governance console currently includes:
 - current user and role display
 - admin-only Users page for local user CRUD and role assignment
 - role-aware controls for Admin, Moderator, and Contributor users
+- Suggestions page for creating, filtering, approving, and rejecting alias proposals
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms
@@ -71,7 +72,7 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-Manual aliases are sent as approved entries with `confidence = 1.0`; model confidence will be shown later in the suggestions/approval workflow. The UI now supports CRUD for users, profiles, canonical terms, and aliases through the governance API. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Approval flow, publish/rollback, Elasticsearch bindings, and realtime collaboration are intentionally left for follow-up patches.
+Manual aliases are sent as approved entries with `confidence = 1.0`. Suggestions can carry confidence, source, and context metadata before a moderator/admin approves them into active aliases. The UI now supports CRUD for users, profiles, canonical terms, aliases, and suggestions through the governance API. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, Elasticsearch bindings, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Checks
 

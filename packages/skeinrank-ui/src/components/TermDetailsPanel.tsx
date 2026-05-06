@@ -175,7 +175,7 @@ export function TermDetailsPanel({
       <CardContent className="space-y-5">
         {!canManageTerm || !canManageAliases ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-            Your role has read-only access to this terminology profile. Suggestions will be available in the approval workflow.
+            Your role has read-only access to this terminology profile. Use the Suggestions tab to propose changes for review.
           </div>
         ) : null}
 
