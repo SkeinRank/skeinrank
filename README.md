@@ -139,17 +139,30 @@ Health check:
 curl http://127.0.0.1:8010/healthz
 ```
 
-The API reads `SKEINRANK_GOVERNANCE_DATABASE_URL` or `SKEINRANK_GOVERNANCE_API_DATABASE_URL`. For local demos only, set `SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true`; production deployments should use Alembic migrations from `packages/skeinrank-governance`.
+The API reads `SKEINRANK_GOVERNANCE_API_DATABASE_URL` first and falls back to `SKEINRANK_GOVERNANCE_DATABASE_URL`. Before running the service in a production-like setup, upgrade the governance schema with Alembic:
+
+```bash
+poetry run python -m skeinrank_governance_api.migrations upgrade head
+```
+
+For local demos/tests only, set `SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true` to create tables at startup.
 
 
 ## Governance UI preview
 
 The UI package is the first frontend for the SkeinRank governance console. It uses React, TypeScript, Vite, shadcn-style local components, TanStack Query, and TanStack Table.
 
-Start the governance API first:
+Start the governance API first. For a production-like local run, apply migrations before starting the API:
 
 ```bash
 cd packages/skeinrank-governance-api
+poetry run python -m skeinrank_governance_api.migrations upgrade head
+poetry run skeinrank-governance-api --reload
+```
+
+For a quick throwaway demo database, you can still use:
+
+```bash
 export SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true
 poetry run skeinrank-governance-api --reload
 ```

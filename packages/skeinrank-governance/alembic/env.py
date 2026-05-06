@@ -20,9 +20,10 @@ target_metadata = Base.metadata
 
 
 def _database_url() -> str:
-    return os.getenv(
-        "SKEINRANK_GOVERNANCE_DATABASE_URL",
-        config.get_main_option("sqlalchemy.url"),
+    return (
+        os.getenv("SKEINRANK_GOVERNANCE_API_DATABASE_URL")
+        or os.getenv("SKEINRANK_GOVERNANCE_DATABASE_URL")
+        or config.get_main_option("sqlalchemy.url")
     )
 
 

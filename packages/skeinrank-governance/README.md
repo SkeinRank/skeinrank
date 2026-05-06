@@ -54,6 +54,8 @@ export SKEINRANK_GOVERNANCE_DATABASE_URL='postgresql+psycopg://user:password@loc
 poetry run alembic upgrade head
 ```
 
+When migrations are run through the governance API wrapper, `SKEINRANK_GOVERNANCE_API_DATABASE_URL` takes precedence over `SKEINRANK_GOVERNANCE_DATABASE_URL` so the migration target matches the HTTP service configuration.
+
 A PostgreSQL driver is intentionally not pinned in this first package skeleton. Add `psycopg` or another driver in the deployment environment where the governance store is used.
 
 ## Minimal Python usage
