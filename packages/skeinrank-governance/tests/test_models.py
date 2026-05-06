@@ -6,6 +6,7 @@ from skeinrank_governance import (
     Base,
     CanonicalTerm,
     GovernanceAuthToken,
+    GovernanceSuggestion,
     GovernanceUser,
     ProfileSnapshot,
     TermAlias,
@@ -38,6 +39,7 @@ def test_metadata_contains_expected_tables():
         "audit_events",
         "governance_users",
         "governance_auth_tokens",
+        "governance_suggestions",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -62,6 +64,16 @@ def test_create_governance_rows_and_normalized_values(session):
         version="default_it@v1",
         artifact_path="snapshots/default_it.json",
     )
+    suggestion = GovernanceSuggestion(
+        profile=profile,
+        canonical_value="Kubernetes",
+        alias_value="Kube",
+        slot="tool",
+        confidence=0.72,
+        source="manual",
+        context="People search for kube",
+        created_by="tester",
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -70,7 +82,7 @@ def test_create_governance_rows_and_normalized_values(session):
         payload_json={"alias": "K8S"},
     )
 
-    session.add_all([profile, term, alias, snapshot, audit])
+    session.add_all([profile, term, alias, snapshot, suggestion, audit])
     session.commit()
 
     assert profile.normalized_name == "default_it"
@@ -78,6 +90,10 @@ def test_create_governance_rows_and_normalized_values(session):
     assert term.slot == "TOOL"
     assert alias.normalized_alias == "k8s"
     assert snapshot.status == "draft"
+    assert suggestion.normalized_canonical == "kubernetes"
+    assert suggestion.normalized_alias == "kube"
+    assert suggestion.slot == "TOOL"
+    assert suggestion.status == "pending"
     assert audit.payload_json == {"alias": "K8S"}
 
 
@@ -136,6 +152,7 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "term_aliases" in table_names
     assert "governance_users" in table_names
     assert "governance_auth_tokens" in table_names
+    assert "governance_suggestions" in table_names
 
 
 def test_normalize_value_collapses_case_and_whitespace():
@@ -194,3 +211,33 @@ def test_governance_auth_token_is_linked_to_user(session):
     session.commit()
 
     assert token.user.username == "admin"
+
+
+def test_invalid_governance_suggestion_status_is_rejected(session):
+    profile = TerminologyProfile(name="default_it")
+    suggestion = GovernanceSuggestion(
+        profile=profile,
+        canonical_value="kubernetes",
+        alias_value="k8s",
+        slot="TOOL",
+        status="merged",
+    )
+    session.add_all([profile, suggestion])
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_invalid_governance_suggestion_confidence_is_rejected(session):
+    profile = TerminologyProfile(name="default_it")
+    suggestion = GovernanceSuggestion(
+        profile=profile,
+        canonical_value="kubernetes",
+        alias_value="k8s",
+        slot="TOOL",
+        confidence=1.5,
+    )
+    session.add_all([profile, suggestion])
+
+    with pytest.raises(IntegrityError):
+        session.commit()

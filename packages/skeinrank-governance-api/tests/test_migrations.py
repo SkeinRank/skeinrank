@@ -46,12 +46,13 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "audit_events",
         "governance_users",
         "governance_auth_tokens",
+        "governance_suggestions",
     }.issubset(set(inspector.get_table_names()))
     with engine.connect() as connection:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260505_0002"
+    assert revision == "20260506_0003"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

@@ -2,7 +2,7 @@
 
 Postgres-ready terminology governance foundation for SkeinRank.
 
-This package contains SQLAlchemy models and Alembic migrations for the control-plane layer where teams manage canonical terms, aliases, snapshots, audit history, users, auth tokens, and roles.
+This package contains SQLAlchemy models and Alembic migrations for the control-plane layer where teams manage canonical terms, aliases, suggestions, snapshots, audit history, users, auth tokens, and roles.
 
 ## Role in the architecture
 
@@ -25,6 +25,7 @@ Initial tables:
 - `audit_events`
 - `governance_users`
 - `governance_auth_tokens`
+- `governance_suggestions`
 
 Important constraints:
 
@@ -35,6 +36,7 @@ Important constraints:
 - term, alias, and snapshot statuses are constrained
 - governance user roles are constrained to `admin`, `moderator`, and `contributor`
 - auth tokens are stored as hashes, not plaintext bearer tokens
+- suggestions are constrained to `pending`, `approved`, and `rejected` review states
 
 ## Local development
 
@@ -128,7 +130,8 @@ export SKEINRANK_GOVERNANCE_DATABASE_URL='postgresql+psycopg://user:password@loc
 
 This is a platform-foundation package. It now includes basic admin CLI commands for local terminology editing and snapshot export. It does not yet include:
 
-- approval workflows
+- suggestions UI
+- full approval discussion threads
 - UI
 - background enrichment jobs
 - snapshot publish/archive lifecycle beyond JSON export
