@@ -19,6 +19,7 @@ type ProfileManagerProps = {
   onSelectProfile: (profileName: string) => void;
   onUpdateProfile: (profileName: string, payload: ProfileUpdateRequest) => Promise<void> | void;
   profiles: Profile[];
+  readOnlyMessage?: string | null;
   selectedProfileName: string | null;
   updateErrorMessage?: string | null;
 };
@@ -37,6 +38,7 @@ export function ProfileManager({
   onSelectProfile,
   onUpdateProfile,
   profiles,
+  readOnlyMessage,
   selectedProfileName,
   updateErrorMessage,
 }: ProfileManagerProps) {
@@ -144,6 +146,12 @@ export function ProfileManager({
             No profiles found. Create a terminology profile to start adding canonical terms and aliases.
           </p>
         )}
+
+        {readOnlyMessage ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+            {readOnlyMessage}
+          </div>
+        ) : null}
 
         <form className="space-y-3 rounded-xl border border-slate-100 p-4 dark:border-slate-800" onSubmit={handleCreate}>
           <div>

@@ -2,7 +2,7 @@
 
 SkeinRank Governance Console UI.
 
-This package is the first frontend layer for the governance platform. It reads profiles, terms, aliases, and runtime snapshots from `packages/skeinrank-governance-api`, and provides MVP workflows for manual terminology governance.
+This package is the first frontend layer for the governance platform. It reads users, profiles, terms, aliases, and runtime snapshots from `packages/skeinrank-governance-api`, and provides MVP workflows for manual terminology governance with local auth and roles.
 
 ## Stack
 
@@ -21,7 +21,14 @@ Start the governance API first:
 
 ```bash
 cd packages/skeinrank-governance-api
-export SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true
+poetry run python -m skeinrank_governance_api.migrations upgrade head
+
+# Optional protected local run:
+export SKEINRANK_GOVERNANCE_API_AUTH_ENABLED=true
+export SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN=true
+export SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME=admin
+export SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD='change-me'
+
 poetry run skeinrank-governance-api --reload
 ```
 
@@ -49,7 +56,10 @@ export VITE_SKEINRANK_GOVERNANCE_API_URL=http://127.0.0.1:8010
 
 The governance console currently includes:
 
-- app shell
+- app shell with local login/logout session controls
+- current user and role display
+- admin-only Users page for local user CRUD and role assignment
+- role-aware controls for Admin, Moderator, and Contributor users
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms
@@ -61,7 +71,7 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-Manual aliases are sent as approved entries with `confidence = 1.0`; model confidence will be shown later in the suggestions/approval workflow. The UI now supports CRUD for profiles, canonical terms, and aliases through the governance API. Authentication, approval flow, publish/rollback, Elasticsearch bindings, and realtime collaboration are intentionally left for follow-up patches.
+Manual aliases are sent as approved entries with `confidence = 1.0`; model confidence will be shown later in the suggestions/approval workflow. The UI now supports CRUD for users, profiles, canonical terms, and aliases through the governance API. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Approval flow, publish/rollback, Elasticsearch bindings, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Checks
 

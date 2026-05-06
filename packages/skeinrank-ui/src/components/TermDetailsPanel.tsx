@@ -13,6 +13,8 @@ const ALIAS_STATUSES = ["active", "deprecated", "disabled"];
 
 type TermDetailsPanelProps = {
   aliasErrorMessage?: string | null;
+  canManageAliases?: boolean;
+  canManageTerm?: boolean;
   errorMessage?: string | null;
   isAddingAlias?: boolean;
   isDeletingAlias?: boolean;
@@ -30,6 +32,8 @@ type TermDetailsPanelProps = {
 
 export function TermDetailsPanel({
   aliasErrorMessage,
+  canManageAliases = true,
+  canManageTerm = true,
   errorMessage,
   isAddingAlias = false,
   isDeletingAlias = false,
@@ -78,8 +82,8 @@ export function TermDetailsPanel({
   }
 
   const currentTerm = term;
-  const canUpdateTerm = canonicalValue.trim().length > 0 && slot.trim().length > 0 && !isUpdatingTerm && !isDeletingTerm;
-  const canUpdateAlias = aliasValue.trim().length > 0 && !isUpdatingAlias && !isDeletingAlias;
+  const canUpdateTerm = canManageTerm && canonicalValue.trim().length > 0 && slot.trim().length > 0 && !isUpdatingTerm && !isDeletingTerm;
+  const canUpdateAlias = canManageAliases && aliasValue.trim().length > 0 && !isUpdatingAlias && !isDeletingAlias;
 
   async function handleUpdateTerm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,6 +104,9 @@ export function TermDetailsPanel({
   }
 
   async function handleDeleteTerm() {
+    if (!canManageTerm) {
+      return;
+    }
     const confirmed = window.confirm(`Delete canonical term "${currentTerm.canonical_value}" and all of its aliases?`);
     if (!confirmed) {
       return;
@@ -116,7 +123,7 @@ export function TermDetailsPanel({
     setEditingAliasId(alias.id);
     setAliasValue(alias.alias_value);
     setAliasNotes(alias.notes ?? "");
-    setAliasStatus(alias.status);
+    setAliasStatus(ALIAS_STATUSES.includes(alias.status) ? alias.status : "active");
   }
 
   async function handleUpdateAlias(event: FormEvent<HTMLFormElement>, alias: TermAlias) {
@@ -139,6 +146,9 @@ export function TermDetailsPanel({
   }
 
   async function handleDeleteAlias(alias: TermAlias) {
+    if (!canManageAliases) {
+      return;
+    }
     const confirmed = window.confirm(`Delete alias "${alias.alias_value}"?`);
     if (!confirmed) {
       return;
@@ -163,6 +173,12 @@ export function TermDetailsPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
+        {!canManageTerm || !canManageAliases ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+            Your role has read-only access to this terminology profile. Suggestions will be available in the approval workflow.
+          </div>
+        ) : null}
+
         <form className="space-y-3 rounded-xl border border-slate-100 p-4 dark:border-slate-800" onSubmit={handleUpdateTerm}>
           <div>
             <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-50">Edit canonical term</h3>
@@ -173,19 +189,19 @@ export function TermDetailsPanel({
           <label className="space-y-1.5">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit canonical value</span>
             <Input
-              disabled={isUpdatingTerm || isDeletingTerm}
+              disabled={!canManageTerm || isUpdatingTerm || isDeletingTerm}
               onChange={(event) => setCanonicalValue(event.target.value)}
               value={canonicalValue}
             />
           </label>
           <label className="space-y-1.5">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit slot</span>
-            <Input disabled={isUpdatingTerm || isDeletingTerm} onChange={(event) => setSlot(event.target.value)} value={slot} />
+            <Input disabled={!canManageTerm || isUpdatingTerm || isDeletingTerm} onChange={(event) => setSlot(event.target.value)} value={slot} />
           </label>
           <label className="space-y-1.5">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit description</span>
             <Input
-              disabled={isUpdatingTerm || isDeletingTerm}
+              disabled={!canManageTerm || isUpdatingTerm || isDeletingTerm}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Optional term description"
               value={description}
@@ -195,7 +211,7 @@ export function TermDetailsPanel({
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Term status</span>
             <select
               className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
-              disabled={isUpdatingTerm || isDeletingTerm}
+              disabled={!canManageTerm || isUpdatingTerm || isDeletingTerm}
               onChange={(event) => setStatus(event.target.value)}
               value={status}
             >
@@ -207,14 +223,16 @@ export function TermDetailsPanel({
             </select>
           </label>
           {termErrorMessage ? <InlineError message={termErrorMessage} /> : null}
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={!canUpdateTerm} type="submit">
-              {isUpdatingTerm ? "Saving..." : "Save term"}
-            </Button>
-            <Button disabled={isUpdatingTerm || isDeletingTerm} onClick={handleDeleteTerm} type="button" variant="secondary">
-              {isDeletingTerm ? "Deleting..." : "Delete term"}
-            </Button>
-          </div>
+          {canManageTerm ? (
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={!canUpdateTerm} type="submit">
+                {isUpdatingTerm ? "Saving..." : "Save term"}
+              </Button>
+              <Button disabled={isUpdatingTerm || isDeletingTerm} onClick={handleDeleteTerm} type="button" variant="secondary">
+                {isDeletingTerm ? "Deleting..." : "Delete term"}
+              </Button>
+            </div>
+          ) : null}
         </form>
 
         <div className="space-y-3">
@@ -227,7 +245,7 @@ export function TermDetailsPanel({
             <div className="space-y-2">
               {term.aliases.map((alias) => (
                 <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800" key={alias.id}>
-                  {editingAliasId === alias.id ? (
+                  {editingAliasId === alias.id && canManageAliases ? (
                     <form className="space-y-3" onSubmit={(event) => handleUpdateAlias(event, alias)}>
                       <label className="space-y-1.5">
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit alias</span>
@@ -265,26 +283,28 @@ export function TermDetailsPanel({
                         <Button disabled={!canUpdateAlias} type="submit">
                           {isUpdatingAlias ? "Saving..." : "Save alias"}
                         </Button>
-                        <Button disabled={isUpdatingAlias || isDeletingAlias} onClick={() => setEditingAliasId(null)} type="button" variant="ghost">
+                        <Button disabled={isUpdatingAlias || isDeletingAlias} onClick={() => setEditingAliasId(null)} type="button" variant="secondary">
                           Cancel
                         </Button>
                       </div>
                     </form>
                   ) : (
                     <>
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-slate-950 dark:text-slate-50">{alias.alias_value}</span>
-                        <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">{alias.status}</Badge>
+                        <Badge>{alias.status}</Badge>
                       </div>
                       {alias.notes ? <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{alias.notes}</p> : null}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button disabled={isUpdatingAlias || isDeletingAlias} onClick={() => startAliasEdit(alias)} type="button" variant="secondary">
-                          Edit alias
-                        </Button>
-                        <Button disabled={isUpdatingAlias || isDeletingAlias} onClick={() => handleDeleteAlias(alias)} type="button" variant="ghost">
-                          {isDeletingAlias ? "Deleting..." : "Delete alias"}
-                        </Button>
-                      </div>
+                      {canManageAliases ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button disabled={isUpdatingAlias || isDeletingAlias} onClick={() => startAliasEdit(alias)} type="button" variant="secondary">
+                            Edit alias
+                          </Button>
+                          <Button disabled={isUpdatingAlias || isDeletingAlias} onClick={() => handleDeleteAlias(alias)} type="button" variant="ghost">
+                            {isDeletingAlias ? "Deleting..." : "Delete alias"}
+                          </Button>
+                        </div>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -297,13 +317,15 @@ export function TermDetailsPanel({
           )}
         </div>
 
-        <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-slate-50">
-            <PlusCircle className="h-4 w-4" />
-            Add alias
+        {canManageAliases ? (
+          <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-slate-50">
+              <PlusCircle className="h-4 w-4" />
+              Add alias
+            </div>
+            <AddAliasForm errorMessage={errorMessage} isSubmitting={isAddingAlias} onSubmit={onAddAlias} />
           </div>
-          <AddAliasForm errorMessage={errorMessage} isSubmitting={isAddingAlias} onSubmit={onAddAlias} />
-        </div>
+        ) : null}
       </CardContent>
     </Card>
   );

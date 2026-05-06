@@ -30,6 +30,47 @@ export type CanonicalTerm = {
   updated_at: string;
 };
 
+export type UserRole = "admin" | "moderator" | "contributor";
+
+export type AuthUser = {
+  id: number;
+  username: string;
+  normalized_username: string;
+  display_name: string | null;
+  role: UserRole;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  last_login_at?: string | null;
+};
+
+export type LoginRequest = {
+  username: string;
+  password: string;
+};
+
+export type AuthTokenResponse = {
+  access_token: string;
+  token_type: "bearer";
+  expires_at: string;
+  user: AuthUser;
+};
+
+export type UserCreateRequest = {
+  username: string;
+  password: string;
+  display_name?: string | null;
+  role: UserRole;
+  is_active?: boolean;
+};
+
+export type UserUpdateRequest = {
+  username?: string | null;
+  password?: string | null;
+  display_name?: string | null;
+  role?: UserRole | null;
+  is_active?: boolean | null;
+};
 
 export type ProfileCreateRequest = {
   name: string;
