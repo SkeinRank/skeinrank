@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
-import type { AuthUser, CanonicalTerm, Profile, TermAlias } from "../src/types";
+import type { AuthUser, CanonicalTerm, GovernanceSuggestion, Profile, TermAlias } from "../src/types";
 
 
 const adminUser: AuthUser = {
@@ -71,6 +71,30 @@ const terms: CanonicalTerm[] = [
   },
 ];
 
+
+const suggestions: GovernanceSuggestion[] = [
+  {
+    id: 1,
+    profile_id: 1,
+    alias_id: null,
+    canonical_value: "kubernetes",
+    normalized_canonical: "kubernetes",
+    alias_value: "kube",
+    normalized_alias: "kube",
+    slot: "TOOL",
+    confidence: 0.82,
+    source: "manual",
+    context: "People search for kube in incident docs.",
+    status: "pending",
+    created_by: "contributor",
+    reviewed_by: null,
+    review_comment: null,
+    reviewed_at: null,
+    created_at: "2026-05-06T00:00:00Z",
+    updated_at: "2026-05-06T00:00:00Z",
+  },
+];
+
 type StubOptions = {
   authRequired?: boolean;
   currentUser?: AuthUser;
@@ -85,14 +109,20 @@ function cloneTerms() {
   return JSON.parse(JSON.stringify(terms)) as CanonicalTerm[];
 }
 
+function cloneSuggestions() {
+  return JSON.parse(JSON.stringify(suggestions)) as GovernanceSuggestion[];
+}
+
 function stubGovernanceApi(options: StubOptions = {}) {
   let currentProfiles = cloneProfiles();
   let currentUser = options.currentUser ?? adminUser;
   let currentUsers: AuthUser[] = [adminUser, moderatorUser, contributorUser];
   let currentTerms = cloneTerms();
+  let currentSuggestions = cloneSuggestions();
   let nextProfileId = 10;
   let nextTermId = 10;
   let nextAliasId = 20;
+  let nextSuggestionId = 10;
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = input.toString();
@@ -316,6 +346,89 @@ function stubGovernanceApi(options: StubOptions = {}) {
     if (url.endsWith("/v1/governance/profiles/default_it/terms/kubernetes/aliases/1") && method === "DELETE") {
       currentTerms = currentTerms.map((term) => ({ ...term, aliases: term.aliases.filter((alias) => alias.id !== 1) }));
       return new Response(null, { status: 204 });
+    }
+
+    if (url.includes("/v1/governance/profiles/default_it/suggestions") && method === "GET") {
+      const status = new URL(url).searchParams.get("status");
+      const visibleSuggestions = status
+        ? currentSuggestions.filter((suggestion) => suggestion.status === status)
+        : currentSuggestions;
+      return Response.json(visibleSuggestions);
+    }
+
+    if (url.endsWith("/v1/governance/profiles/default_it/suggestions") && method === "POST") {
+      const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+        alias_value: string;
+        canonical_value: string;
+        confidence?: number;
+        context?: string | null;
+        slot: string;
+        source?: GovernanceSuggestion["source"];
+      };
+      const suggestion: GovernanceSuggestion = {
+        id: nextSuggestionId++,
+        profile_id: 1,
+        alias_id: null,
+        canonical_value: payload.canonical_value,
+        normalized_canonical: payload.canonical_value.toLowerCase(),
+        alias_value: payload.alias_value,
+        normalized_alias: payload.alias_value.toLowerCase(),
+        slot: payload.slot,
+        confidence: payload.confidence ?? 1,
+        source: payload.source ?? "manual",
+        context: payload.context ?? null,
+        status: "pending",
+        created_by: currentUser.username,
+        reviewed_by: null,
+        review_comment: null,
+        reviewed_at: null,
+        created_at: "2026-05-06T00:00:00Z",
+        updated_at: "2026-05-06T00:00:00Z",
+      };
+      currentSuggestions = [suggestion, ...currentSuggestions];
+      return Response.json(suggestion, { status: 201 });
+    }
+
+    if (url.endsWith("/v1/governance/profiles/default_it/suggestions/1/approve") && method === "POST") {
+      const payload = JSON.parse(init?.body?.toString() ?? "{}") as { review_comment?: string | null };
+      const newAlias: TermAlias = {
+        id: nextAliasId++,
+        alias_value: currentSuggestions[0].alias_value,
+        normalized_alias: currentSuggestions[0].normalized_alias,
+        status: "active",
+        confidence: currentSuggestions[0].confidence,
+        notes: currentSuggestions[0].context,
+        created_at: "2026-05-06T00:00:00Z",
+        updated_at: "2026-05-06T00:00:00Z",
+      };
+      currentTerms = currentTerms.map((term) =>
+        term.canonical_value === "kubernetes" ? { ...term, aliases: [...term.aliases, newAlias] } : term,
+      );
+      const updatedSuggestion: GovernanceSuggestion = {
+        ...currentSuggestions[0],
+        alias_id: newAlias.id,
+        status: "approved",
+        reviewed_by: currentUser.username,
+        review_comment: payload.review_comment ?? null,
+        reviewed_at: "2026-05-06T00:00:00Z",
+        updated_at: "2026-05-06T00:00:00Z",
+      };
+      currentSuggestions = currentSuggestions.map((suggestion) => (suggestion.id === 1 ? updatedSuggestion : suggestion));
+      return Response.json(updatedSuggestion);
+    }
+
+    if (url.endsWith("/v1/governance/profiles/default_it/suggestions/1/reject") && method === "POST") {
+      const payload = JSON.parse(init?.body?.toString() ?? "{}") as { review_comment?: string | null };
+      const updatedSuggestion: GovernanceSuggestion = {
+        ...currentSuggestions[0],
+        status: "rejected",
+        reviewed_by: currentUser.username,
+        review_comment: payload.review_comment ?? null,
+        reviewed_at: "2026-05-06T00:00:00Z",
+        updated_at: "2026-05-06T00:00:00Z",
+      };
+      currentSuggestions = currentSuggestions.map((suggestion) => (suggestion.id === 1 ? updatedSuggestion : suggestion));
+      return Response.json(updatedSuggestion);
     }
 
     if (url.endsWith("/v1/governance/profiles/default_it/snapshot/export") && method === "POST") {
@@ -763,9 +876,101 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Create profile" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Export draft snapshot" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Edit alias" })).not.toBeInTheDocument();
-    expect(screen.getByText("Your role has read-only access to this terminology profile. Suggestions will be available in the approval workflow.")).toBeInTheDocument();
+    expect(screen.getByText("Your role has read-only access to this terminology profile. Use the Suggestions tab to propose changes for review.")).toBeInTheDocument();
   });
 
+
+  it("lets contributors create suggestions without review actions", async () => {
+    const fetchMock = stubGovernanceApi({ currentUser: contributorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
+
+    expect(await screen.findByText("Suggestions and approvals")).toBeInTheDocument();
+    expect(await screen.findByText("People search for kube in incident docs.")).toBeInTheDocument();
+    expect(screen.getByText("Contributors can create suggestions, but only admins and moderators can approve or reject them.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Approve suggestion/ })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Canonical term"), { target: { value: "kubernetes" } });
+    fireEvent.change(screen.getByLabelText("Suggested alias"), { target: { value: "k8s-prod" } });
+    fireEvent.change(screen.getByLabelText("Slot"), { target: { value: "TOOL" } });
+    fireEvent.change(screen.getByLabelText("Confidence"), { target: { value: "0.9" } });
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "manual" } });
+    fireEvent.change(screen.getByLabelText("Context"), { target: { value: "Support tickets mention k8s-prod." } });
+    fireEvent.click(screen.getByRole("button", { name: "Create suggestion" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions",
+        expect.objectContaining({
+          body: JSON.stringify({
+            canonical_value: "kubernetes",
+            alias_value: "k8s-prod",
+            slot: "TOOL",
+            confidence: 0.9,
+            source: "manual",
+            context: "Support tickets mention k8s-prod.",
+          }),
+          method: "POST",
+        }),
+      );
+    });
+  });
+
+  it("lets moderators approve suggestions into active aliases", async () => {
+    const fetchMock = stubGovernanceApi({ currentUser: moderatorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
+
+    expect(await screen.findByText("Suggestions and approvals")).toBeInTheDocument();
+    expect(await screen.findByText("People search for kube in incident docs.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Review comment"), { target: { value: "Looks valid for Kubernetes docs." } });
+    fireEvent.click(screen.getByRole("button", { name: /Approve suggestion/ }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions/1/approve",
+        expect.objectContaining({
+          body: JSON.stringify({ review_comment: "Looks valid for Kubernetes docs." }),
+          method: "POST",
+        }),
+      );
+    });
+
+    expect(await screen.findByText("This suggestion has already been reviewed.")).toBeInTheDocument();
+  });
+
+  it("lets admins reject suggestions with a review comment", async () => {
+    const fetchMock = stubGovernanceApi();
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
+
+    expect(await screen.findByText("Suggestions and approvals")).toBeInTheDocument();
+    expect(await screen.findByText("People search for kube in incident docs.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Review comment"), { target: { value: "Too ambiguous for the default profile." } });
+    fireEvent.click(screen.getByRole("button", { name: /Reject suggestion/ }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions/1/reject",
+        expect.objectContaining({
+          body: JSON.stringify({ review_comment: "Too ambiguous for the default profile." }),
+          method: "POST",
+        }),
+      );
+    });
+
+    expect(await screen.findByText("This suggestion has already been reviewed.")).toBeInTheDocument();
+  });
 
   it("shows governance API conflicts when a canonical term cannot be added", async () => {
     stubGovernanceApi({ duplicateTerm: true });

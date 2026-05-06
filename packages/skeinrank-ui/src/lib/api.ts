@@ -5,11 +5,15 @@ import type {
   AuthUser,
   CanonicalTerm,
   LoginRequest,
+  GovernanceSuggestion,
   Profile,
   ProfileCreateRequest,
   ProfileUpdateRequest,
   RuntimeSnapshot,
   SnapshotExportRequest,
+  SuggestionCreateRequest,
+  SuggestionReviewRequest,
+  SuggestionStatus,
   TermAlias,
   TermCreateRequest,
   TermUpdateRequest,
@@ -216,6 +220,38 @@ export function deleteAlias(profileName: string, canonicalValue: string, aliasId
     `/v1/governance/profiles/${encodePathSegment(profileName)}/terms/${encodePathSegment(canonicalValue)}/aliases/${aliasId}`,
     {
       method: "DELETE",
+    },
+  );
+}
+
+export function listSuggestions(profileName: string, status?: SuggestionStatus | "all") {
+  const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
+  return requestJson<GovernanceSuggestion[]>(`/v1/governance/profiles/${encodePathSegment(profileName)}/suggestions${query}`);
+}
+
+export function createSuggestion(profileName: string, payload: SuggestionCreateRequest) {
+  return requestJson<GovernanceSuggestion>(`/v1/governance/profiles/${encodePathSegment(profileName)}/suggestions`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approveSuggestion(profileName: string, suggestionId: number, payload: SuggestionReviewRequest = {}) {
+  return requestJson<GovernanceSuggestion>(
+    `/v1/governance/profiles/${encodePathSegment(profileName)}/suggestions/${suggestionId}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function rejectSuggestion(profileName: string, suggestionId: number, payload: SuggestionReviewRequest = {}) {
+  return requestJson<GovernanceSuggestion>(
+    `/v1/governance/profiles/${encodePathSegment(profileName)}/suggestions/${suggestionId}/reject`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
     },
   );
 }

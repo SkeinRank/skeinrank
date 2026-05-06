@@ -30,6 +30,45 @@ export type CanonicalTerm = {
   updated_at: string;
 };
 
+
+export type SuggestionStatus = "pending" | "approved" | "rejected";
+
+export type SuggestionSource = "manual" | "discovery" | "import";
+
+export type GovernanceSuggestion = {
+  id: number;
+  profile_id: number;
+  alias_id: number | null;
+  canonical_value: string;
+  normalized_canonical: string;
+  alias_value: string;
+  normalized_alias: string;
+  slot: string;
+  confidence: number;
+  source: SuggestionSource;
+  context: string | null;
+  status: SuggestionStatus;
+  created_by: string | null;
+  reviewed_by: string | null;
+  review_comment: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SuggestionCreateRequest = {
+  canonical_value: string;
+  alias_value: string;
+  slot: string;
+  confidence?: number;
+  source?: SuggestionSource;
+  context?: string | null;
+};
+
+export type SuggestionReviewRequest = {
+  review_comment?: string | null;
+};
+
 export type UserRole = "admin" | "moderator" | "contributor";
 
 export type AuthUser = {

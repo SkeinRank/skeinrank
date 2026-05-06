@@ -6,6 +6,8 @@ export type GovernancePermissions = {
   canManageTerms: boolean;
   canManageAliases: boolean;
   canExportSnapshots: boolean;
+  canCreateSuggestions: boolean;
+  canReviewSuggestions: boolean;
 };
 
 export function permissionsForUser(user: AuthUser): GovernancePermissions {
@@ -18,5 +20,7 @@ export function permissionsForUser(user: AuthUser): GovernancePermissions {
     canManageTerms: isAdmin || isModerator,
     canManageAliases: isAdmin || isModerator,
     canExportSnapshots: isAdmin || isModerator,
+    canCreateSuggestions: isAdmin || isModerator || user.role === "contributor",
+    canReviewSuggestions: isAdmin || isModerator,
   };
 }
