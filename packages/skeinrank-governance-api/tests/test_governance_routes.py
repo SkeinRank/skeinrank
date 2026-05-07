@@ -966,3 +966,170 @@ def test_stop_list_blocks_canonical_terms_and_canonical_suggestions(tmp_path):
         "Canonical term suggestion is blocked by stop list"
         in suggestion.json()["detail"]
     )
+
+
+def test_elasticsearch_binding_crud_workflow(tmp_path):
+    client = _client(tmp_path)
+    client.post(
+        "/v1/governance/profiles",
+        json={"name": "infra_incidents", "description": "Infra incidents"},
+    )
+    client.post("/v1/governance/profiles", json={"name": "security_docs"})
+
+    create_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "infra_incidents",
+            "description": "Apply infra terminology to docs.",
+            "index_name": "docs",
+            "text_fields": ["title", "body", "body", ""],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "dry_run",
+        },
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["name"] == "infra docs"
+    assert created["normalized_name"] == "infra_docs"
+    assert created["profile_name"] == "infra_incidents"
+    assert created["provider"] == "elasticsearch"
+    assert created["text_fields"] == ["title", "body"]
+    assert created["target_field"] == "skeinrank"
+    assert created["filter_field"] == "team"
+    assert created["filter_value"] == "infra"
+    assert created["mode"] == "dry_run"
+    assert created["is_enabled"] is True
+
+    list_response = client.get("/v1/governance/elasticsearch/bindings")
+    assert list_response.status_code == 200
+    assert [item["name"] for item in list_response.json()] == ["infra docs"]
+
+    profile_filtered = client.get(
+        "/v1/governance/elasticsearch/bindings?profile_name=infra_incidents"
+    )
+    assert profile_filtered.status_code == 200
+    assert [item["name"] for item in profile_filtered.json()] == ["infra docs"]
+
+    update_response = client.patch(
+        f"/v1/governance/elasticsearch/bindings/{created['id']}",
+        json={
+            "name": "security docs",
+            "profile_name": "security_docs",
+            "index_name": "docs-security",
+            "text_fields": ["content"],
+            "target_field": "skeinrank.security",
+            "filter_field": None,
+            "filter_value": None,
+            "mode": "write",
+            "is_enabled": False,
+        },
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["name"] == "security docs"
+    assert updated["profile_name"] == "security_docs"
+    assert updated["index_name"] == "docs-security"
+    assert updated["text_fields"] == ["content"]
+    assert updated["target_field"] == "skeinrank.security"
+    assert updated["filter_field"] is None
+    assert updated["filter_value"] is None
+    assert updated["mode"] == "write"
+    assert updated["is_enabled"] is False
+
+    delete_response = client.delete(
+        f"/v1/governance/elasticsearch/bindings/{created['id']}"
+    )
+    assert delete_response.status_code == 204
+    assert client.get("/v1/governance/elasticsearch/bindings").json() == []
+
+
+def test_elasticsearch_binding_rejects_invalid_config_and_duplicates(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    missing_text_fields = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["", "  "],
+            "target_field": "skeinrank",
+        },
+    )
+    assert missing_text_fields.status_code == 422
+    assert "at least one text field" in missing_text_fields.json()["detail"]
+
+    partial_filter = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+        },
+    )
+    assert partial_filter.status_code == 422
+    assert "both filter_field and filter_value" in partial_filter.json()["detail"]
+
+    invalid_mode = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+            "mode": "unsafe",
+        },
+    )
+    assert invalid_mode.status_code == 422
+    assert "Invalid Elasticsearch binding mode" in invalid_mode.json()["detail"]
+
+    first = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+        },
+    )
+    assert first.status_code == 201
+
+    duplicate = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "Docs",
+            "profile_name": "default_it",
+            "index_name": "docs-2",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+        },
+    )
+    assert duplicate.status_code == 409
+    assert "Elasticsearch binding already exists" in duplicate.json()["detail"]
+
+
+def test_elasticsearch_binding_requires_existing_profile(tmp_path):
+    client = _client(tmp_path)
+
+    response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "missing",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+        },
+    )
+
+    assert response.status_code == 404
+    assert "Profile not found" in response.json()["detail"]

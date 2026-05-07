@@ -5,6 +5,7 @@ from skeinrank_governance import (
     AuditEvent,
     Base,
     CanonicalTerm,
+    ElasticsearchBinding,
     GovernanceAuthToken,
     GovernanceStopListEntry,
     GovernanceSuggestion,
@@ -42,6 +43,7 @@ def test_metadata_contains_expected_tables():
         "governance_auth_tokens",
         "governance_suggestions",
         "governance_stop_list_entries",
+        "elasticsearch_bindings",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -82,6 +84,16 @@ def test_create_governance_rows_and_normalized_values(session):
         target="alias",
         reason="Too generic for this profile",
     )
+    binding = ElasticsearchBinding(
+        profile=profile,
+        name="Infra Docs",
+        description="Apply infra profile to documentation.",
+        index_name="docs",
+        text_fields=["title", "body", "body"],
+        target_field="skeinrank",
+        filter_field="team",
+        filter_value="infra",
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -91,7 +103,7 @@ def test_create_governance_rows_and_normalized_values(session):
     )
 
     session.add_all(
-        [profile, term, alias, snapshot, suggestion, stop_list_entry, audit]
+        [profile, term, alias, snapshot, suggestion, stop_list_entry, binding, audit]
     )
     session.commit()
 
@@ -108,6 +120,10 @@ def test_create_governance_rows_and_normalized_values(session):
     assert stop_list_entry.normalized_value == "service"
     assert stop_list_entry.target == "alias"
     assert stop_list_entry.is_active is True
+    assert binding.normalized_name == "infra_docs"
+    assert binding.provider == "elasticsearch"
+    assert binding.text_fields == ["title", "body", "body"]
+    assert binding.mode == "dry_run"
     assert audit.payload_json == {"alias": "K8S"}
 
 
@@ -168,6 +184,7 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "governance_auth_tokens" in table_names
     assert "governance_suggestions" in table_names
     assert "governance_stop_list_entries" in table_names
+    assert "elasticsearch_bindings" in table_names
 
 
 def test_normalize_value_collapses_case_and_whitespace():
@@ -311,6 +328,22 @@ def test_stop_list_entry_uniqueness_is_profile_target_scoped(session):
     first = GovernanceStopListEntry(profile=profile, value="Service", target="alias")
     second = GovernanceStopListEntry(profile=profile, value=" service ", target="alias")
     session.add_all([profile, first, second])
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_invalid_elasticsearch_binding_mode_is_rejected(session):
+    profile = TerminologyProfile(name="default_it")
+    binding = ElasticsearchBinding(
+        profile=profile,
+        name="docs",
+        index_name="docs",
+        text_fields=["body"],
+        target_field="skeinrank",
+        mode="unsafe",
+    )
+    session.add(binding)
 
     with pytest.raises(IntegrityError):
         session.commit()

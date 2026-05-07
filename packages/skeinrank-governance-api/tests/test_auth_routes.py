@@ -392,3 +392,69 @@ def test_stop_list_permissions_with_roles(tmp_path):
         headers=_auth(contributor_token),
     )
     assert forbidden_create.status_code == 403
+
+
+def test_elasticsearch_binding_permissions_with_roles(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+    client.post(
+        "/v1/auth/users",
+        json={"username": "mod", "password": "mod-secret", "role": "moderator"},
+        headers=_auth(admin_token),
+    )
+    client.post(
+        "/v1/auth/users",
+        json={
+            "username": "contrib",
+            "password": "contrib-secret",
+            "role": "contributor",
+        },
+        headers=_auth(admin_token),
+    )
+    mod_token = _login(client, "mod", "mod-secret")
+    contributor_token = _login(client, "contrib", "contrib-secret")
+
+    client.post(
+        "/v1/governance/profiles",
+        json={"name": "default_it"},
+        headers=_auth(admin_token),
+    )
+
+    create_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+        },
+        headers=_auth(mod_token),
+    )
+    assert create_response.status_code == 201
+
+    read_response = client.get(
+        "/v1/governance/elasticsearch/bindings",
+        headers=_auth(contributor_token),
+    )
+    assert read_response.status_code == 200
+    assert read_response.json()[0]["name"] == "docs"
+
+    forbidden_create = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "tickets",
+            "profile_name": "default_it",
+            "index_name": "tickets",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+        },
+        headers=_auth(contributor_token),
+    )
+    assert forbidden_create.status_code == 403
+
+    forbidden_delete = client.delete(
+        f"/v1/governance/elasticsearch/bindings/{create_response.json()['id']}",
+        headers=_auth(contributor_token),
+    )
+    assert forbidden_delete.status_code == 403

@@ -14,12 +14,15 @@ from skeinrank_governance.cli import (
 )
 from skeinrank_governance.models import (
     ALIAS_STATUSES,
+    ELASTICSEARCH_BINDING_MODES,
+    ELASTICSEARCH_BINDING_PROVIDERS,
     STOP_LIST_TARGETS,
     SUGGESTION_SOURCES,
     SUGGESTION_STATUSES,
     SUGGESTION_TYPES,
     TERM_STATUSES,
     CanonicalTerm,
+    ElasticsearchBinding,
     GovernanceStopListEntry,
     GovernanceSuggestion,
     TermAlias,
@@ -38,6 +41,9 @@ from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
     AliasUpdateRequest,
+    ElasticsearchBindingCreateRequest,
+    ElasticsearchBindingResponse,
+    ElasticsearchBindingUpdateRequest,
     ProfileCreateRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -299,6 +305,163 @@ def delete_profile_stop_list_entry(
     profile = _get_profile_or_404(session, profile_name)
     entry = _get_stop_list_entry_or_404(session, profile, entry_id)
     session.delete(entry)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/elasticsearch/bindings",
+    response_model=list[ElasticsearchBindingResponse],
+)
+def list_elasticsearch_bindings(
+    profile_name: str | None = Query(default=None),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[ElasticsearchBindingResponse]:
+    """List saved Elasticsearch enrichment bindings."""
+
+    query = select(ElasticsearchBinding).join(TerminologyProfile)
+    if profile_name is not None:
+        profile = _get_profile_or_404(session, profile_name)
+        query = query.where(ElasticsearchBinding.profile_id == profile.id)
+    bindings = list(
+        session.scalars(
+            query.order_by(
+                ElasticsearchBinding.is_enabled.desc(),
+                ElasticsearchBinding.normalized_name,
+            )
+        )
+    )
+    return [_elasticsearch_binding_response(binding) for binding in bindings]
+
+
+@router.post(
+    "/elasticsearch/bindings",
+    response_model=ElasticsearchBindingResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_elasticsearch_binding(
+    request: ElasticsearchBindingCreateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ElasticsearchBindingResponse:
+    """Create a saved Elasticsearch enrichment binding."""
+
+    profile = _get_profile_or_404(session, request.profile_name)
+    _validate_elasticsearch_binding_mode(request.mode)
+    _validate_elasticsearch_binding_provider("elasticsearch")
+    text_fields = _normalize_text_fields(request.text_fields)
+    filter_field, filter_value = _normalize_optional_filter(
+        request.filter_field, request.filter_value
+    )
+    _ensure_elasticsearch_binding_name_unique(
+        session,
+        normalized_name=normalize_profile_name(request.name),
+    )
+
+    binding = ElasticsearchBinding(
+        profile=profile,
+        name=request.name,
+        description=request.description,
+        provider="elasticsearch",
+        index_name=request.index_name,
+        text_fields=text_fields,
+        target_field=request.target_field,
+        filter_field=filter_field,
+        filter_value=filter_value,
+        mode=request.mode,
+        is_enabled=request.is_enabled,
+    )
+    session.add(binding)
+    try:
+        session.commit()
+        session.refresh(binding)
+        return _elasticsearch_binding_response(binding)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.patch(
+    "/elasticsearch/bindings/{binding_id}",
+    response_model=ElasticsearchBindingResponse,
+)
+def update_elasticsearch_binding(
+    binding_id: int,
+    request: ElasticsearchBindingUpdateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ElasticsearchBindingResponse:
+    """Update a saved Elasticsearch enrichment binding."""
+
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    fields = request.model_fields_set
+
+    if "profile_name" in fields and request.profile_name is not None:
+        binding.profile = _get_profile_or_404(session, request.profile_name)
+
+    if "name" in fields and request.name is not None:
+        _ensure_elasticsearch_binding_name_unique(
+            session,
+            normalized_name=normalize_profile_name(request.name),
+            exclude_id=binding.id,
+        )
+        binding.name = request.name
+
+    if "description" in fields:
+        binding.description = request.description
+
+    if "index_name" in fields and request.index_name is not None:
+        binding.index_name = request.index_name
+
+    if "text_fields" in fields and request.text_fields is not None:
+        binding.text_fields = _normalize_text_fields(request.text_fields)
+
+    if "target_field" in fields and request.target_field is not None:
+        binding.target_field = request.target_field
+
+    next_filter_field = (
+        request.filter_field if "filter_field" in fields else binding.filter_field
+    )
+    next_filter_value = (
+        request.filter_value if "filter_value" in fields else binding.filter_value
+    )
+    if "filter_field" in fields or "filter_value" in fields:
+        binding.filter_field, binding.filter_value = _normalize_optional_filter(
+            next_filter_field, next_filter_value
+        )
+
+    if "mode" in fields and request.mode is not None:
+        _validate_elasticsearch_binding_mode(request.mode)
+        binding.mode = request.mode
+
+    if "is_enabled" in fields and request.is_enabled is not None:
+        binding.is_enabled = request.is_enabled
+
+    try:
+        session.commit()
+        session.refresh(binding)
+        return _elasticsearch_binding_response(binding)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.delete(
+    "/elasticsearch/bindings/{binding_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_elasticsearch_binding(
+    binding_id: int,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> Response:
+    """Delete a saved Elasticsearch enrichment binding."""
+
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    session.delete(binding)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -848,6 +1011,91 @@ def export_profile_snapshot(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
+def _get_elasticsearch_binding_or_404(
+    session: Session, binding_id: int
+) -> ElasticsearchBinding:
+    binding = session.scalar(
+        select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
+    )
+    if binding is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Elasticsearch binding not found: {binding_id}",
+        )
+    return binding
+
+
+def _validate_elasticsearch_binding_provider(provider: str) -> None:
+    if provider not in ELASTICSEARCH_BINDING_PROVIDERS:
+        allowed_values = ", ".join(ELASTICSEARCH_BINDING_PROVIDERS)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Invalid Elasticsearch binding provider: {provider}. Allowed values: {allowed_values}",
+        )
+
+
+def _validate_elasticsearch_binding_mode(mode: str) -> None:
+    if mode not in ELASTICSEARCH_BINDING_MODES:
+        allowed_values = ", ".join(ELASTICSEARCH_BINDING_MODES)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Invalid Elasticsearch binding mode: {mode}. Allowed values: {allowed_values}",
+        )
+
+
+def _normalize_text_fields(text_fields: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for field in text_fields:
+        value = field.strip()
+        if not value:
+            continue
+        if value in seen:
+            continue
+        normalized.append(value)
+        seen.add(value)
+    if not normalized:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Elasticsearch binding requires at least one text field.",
+        )
+    return normalized
+
+
+def _normalize_optional_filter(
+    filter_field: str | None, filter_value: str | None
+) -> tuple[str | None, str | None]:
+    field = filter_field.strip() if filter_field is not None else None
+    value = filter_value.strip() if filter_value is not None else None
+    field = field or None
+    value = value or None
+    if (field is None) != (value is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Elasticsearch binding filter requires both filter_field and filter_value.",
+        )
+    return field, value
+
+
+def _ensure_elasticsearch_binding_name_unique(
+    session: Session,
+    *,
+    normalized_name: str,
+    exclude_id: int | None = None,
+) -> None:
+    query = select(ElasticsearchBinding).where(
+        ElasticsearchBinding.normalized_name == normalized_name
+    )
+    if exclude_id is not None:
+        query = query.where(ElasticsearchBinding.id != exclude_id)
+    existing = session.scalar(query)
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Elasticsearch binding already exists: {existing.name}",
+        )
+
+
 def _get_stop_list_entry_or_404(
     session: Session, profile: TerminologyProfile, entry_id: int
 ) -> GovernanceStopListEntry:
@@ -1149,6 +1397,29 @@ def _stop_list_response(entry: GovernanceStopListEntry) -> StopListEntryResponse
         is_active=entry.is_active,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
+    )
+
+
+def _elasticsearch_binding_response(
+    binding: ElasticsearchBinding,
+) -> ElasticsearchBindingResponse:
+    return ElasticsearchBindingResponse(
+        id=binding.id,
+        profile_id=binding.profile_id,
+        profile_name=binding.profile.name,
+        name=binding.name,
+        normalized_name=binding.normalized_name,
+        description=binding.description,
+        provider=binding.provider,
+        index_name=binding.index_name,
+        text_fields=list(binding.text_fields),
+        target_field=binding.target_field,
+        filter_field=binding.filter_field,
+        filter_value=binding.filter_value,
+        mode=binding.mode,
+        is_enabled=binding.is_enabled,
+        created_at=binding.created_at,
+        updated_at=binding.updated_at,
     )
 
 

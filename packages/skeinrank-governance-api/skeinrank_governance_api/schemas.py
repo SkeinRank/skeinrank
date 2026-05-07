@@ -151,6 +151,57 @@ class StopListEntryResponse(BaseModel):
     updated_at: datetime
 
 
+class ElasticsearchBindingCreateRequest(BaseModel):
+    """Request body for creating an Elasticsearch enrichment binding."""
+
+    name: str = Field(..., min_length=1, max_length=128)
+    profile_name: str = Field(..., min_length=1, max_length=128)
+    description: str | None = None
+    index_name: str = Field(..., min_length=1, max_length=256)
+    text_fields: list[str] = Field(..., min_length=1)
+    target_field: str = Field(..., min_length=1, max_length=256)
+    filter_field: str | None = Field(default=None, max_length=256)
+    filter_value: str | None = Field(default=None, max_length=512)
+    mode: str = "dry_run"
+    is_enabled: bool = True
+
+
+class ElasticsearchBindingUpdateRequest(BaseModel):
+    """Request body for updating an Elasticsearch enrichment binding."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    profile_name: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = None
+    index_name: str | None = Field(default=None, min_length=1, max_length=256)
+    text_fields: list[str] | None = Field(default=None, min_length=1)
+    target_field: str | None = Field(default=None, min_length=1, max_length=256)
+    filter_field: str | None = Field(default=None, max_length=256)
+    filter_value: str | None = Field(default=None, max_length=512)
+    mode: str | None = None
+    is_enabled: bool | None = None
+
+
+class ElasticsearchBindingResponse(BaseModel):
+    """Saved Elasticsearch enrichment binding response."""
+
+    id: int
+    profile_id: int
+    profile_name: str
+    name: str
+    normalized_name: str
+    description: str | None = None
+    provider: str
+    index_name: str
+    text_fields: list[str]
+    target_field: str
+    filter_field: str | None = None
+    filter_value: str | None = None
+    mode: str
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
 class SuggestionCreateRequest(BaseModel):
     """Request body for proposing a terminology change for later review."""
 
