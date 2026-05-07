@@ -270,6 +270,27 @@ curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list
 
 Stop-list targets are `alias`, `canonical`, and `both`. Active stop-list entries block matching direct CRUD mutations, suggestion creation, and suggestion approval.
 
+Elasticsearch bindings:
+
+```bash
+# Create a manual binding config. This stores where a profile should be applied later.
+curl -X POST http://127.0.0.1:8010/v1/governance/elasticsearch/bindings \
+  -H "Content-Type: application/json" \
+  -d '{"name":"infra docs","profile_name":"default_it","index_name":"docs","text_fields":["title","body"],"target_field":"skeinrank","filter_field":"team","filter_value":"infra","mode":"dry_run"}'
+
+curl http://127.0.0.1:8010/v1/governance/elasticsearch/bindings
+curl http://127.0.0.1:8010/v1/governance/elasticsearch/bindings?profile_name=default_it
+
+# Replace 1 with the binding id returned by the create response.
+curl -X PATCH http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1 \
+  -H "Content-Type: application/json" \
+  -d '{"index_name":"docs-v2","text_fields":["body"],"mode":"write","is_enabled":false}'
+
+curl -X DELETE http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1
+```
+
+Bindings are configuration-only in this API patch. They support the three core deployment shapes: one profile to one index, one profile to multiple indices through multiple bindings, and multiple profiles to one index when each binding has an explicit metadata filter such as `team = infra`.
+
 Suggestions:
 
 ```bash
@@ -307,4 +328,4 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
 
 The response is a runtime-compatible profile snapshot that can be passed to `skeinrank-core` through `--profile-file` or `load_attribute_profile(...)`.
 
-Future patches will add snapshot publishing lifecycle, Elasticsearch bindings, discovery ingestion, and richer review/audit workflows.
+Future patches will add snapshot publishing lifecycle, Elasticsearch binding UI/dry-run jobs, discovery ingestion, and richer review/audit workflows.

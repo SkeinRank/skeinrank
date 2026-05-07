@@ -145,3 +145,10 @@ Those pieces are planned for later platform patches.
 The governance schema includes profile-scoped stop-list entries for terminology guardrails. A stop-list entry can block aliases, canonical terms, or both. This is intentionally profile-scoped for the MVP because a value that is too generic in one corpus can be valid in another.
 
 Stop lists are used by the governance API to reject blocked direct edits, blocked suggestions, and approvals that became blocked after the suggestion was created.
+
+
+## Elasticsearch bindings
+
+The governance schema includes saved Elasticsearch enrichment bindings. A binding is a configuration object that connects one terminology profile to one Elasticsearch index or index pattern, the source text fields to inspect, an enrichment target field, and an optional metadata filter such as `team = infra`.
+
+Bindings are configuration-only in this patch. They do not open an Elasticsearch connection or write to an index yet; future provider/job patches can read these saved bindings to run dry-run or write-mode enrichment jobs.

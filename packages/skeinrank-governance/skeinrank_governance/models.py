@@ -44,6 +44,8 @@ SUGGESTION_STATUSES = ("pending", "approved", "rejected")
 SUGGESTION_TYPES = ("alias", "canonical_term")
 SUGGESTION_SOURCES = ("manual", "discovery", "import")
 STOP_LIST_TARGETS = ("alias", "canonical", "both")
+ELASTICSEARCH_BINDING_MODES = ("dry_run", "write")
+ELASTICSEARCH_BINDING_PROVIDERS = ("elasticsearch",)
 USER_ROLES = ("admin", "moderator", "contributor")
 
 
@@ -117,6 +119,11 @@ class TerminologyProfile(TimestampMixin, Base):
         passive_deletes=True,
     )
     stop_list_entries: Mapped[list[GovernanceStopListEntry]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    elasticsearch_bindings: Mapped[list[ElasticsearchBinding]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -409,6 +416,62 @@ class GovernanceStopListEntry(TimestampMixin, Base):
         )
 
 
+class ElasticsearchBinding(TimestampMixin, Base):
+    """A saved enrichment target that binds a profile to Elasticsearch documents.
+
+    Bindings are configuration-only in the first API patch. They describe where
+    a terminology profile should be applied later by enrichment jobs, without
+    opening an Elasticsearch connection or writing to an index yet.
+    """
+
+    __tablename__ = "elasticsearch_bindings"
+    __table_args__ = (
+        UniqueConstraint(
+            "normalized_name",
+            name="uq_elasticsearch_bindings_normalized_name",
+        ),
+        CheckConstraint(
+            "provider IN ('elasticsearch')",
+            name="elasticsearch_binding_provider",
+        ),
+        CheckConstraint(
+            f"mode IN {ELASTICSEARCH_BINDING_MODES!r}",
+            name="elasticsearch_binding_mode",
+        ),
+        Index("ix_elasticsearch_bindings_profile_enabled", "profile_id", "is_enabled"),
+        Index("ix_elasticsearch_bindings_index", "index_name"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider: Mapped[str] = mapped_column(
+        String(32), default="elasticsearch", nullable=False
+    )
+    index_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    text_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    target_field: Mapped[str] = mapped_column(String(256), nullable=False)
+    filter_field: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    filter_value: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    mode: Mapped[str] = mapped_column(String(32), default="dry_run", nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    profile: Mapped[TerminologyProfile] = relationship(
+        back_populates="elasticsearch_bindings"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "ElasticsearchBinding("
+            f"name={self.name!r}, profile_id={self.profile_id!r}, "
+            f"index={self.index_name!r}, mode={self.mode!r})"
+        )
+
+
 class ProfileSnapshot(TimestampMixin, Base):
     """A versioned runtime snapshot exported from governance data."""
 
@@ -516,6 +579,24 @@ def _fill_normalized_stop_list_entry(
     target.normalized_value = normalize_value(target.value)
 
 
+def _fill_normalized_elasticsearch_binding(
+    mapper: Any, connection: Any, target: ElasticsearchBinding
+) -> None:
+    del mapper, connection
+    target.normalized_name = normalize_profile_name(target.name)
+    target.provider = (target.provider or "elasticsearch").strip().lower()
+    target.index_name = target.index_name.strip()
+    target.text_fields = [
+        field.strip()
+        for field in (target.text_fields or [])
+        if isinstance(field, str) and field.strip()
+    ]
+    target.target_field = target.target_field.strip()
+    target.filter_field = target.filter_field.strip() if target.filter_field else None
+    target.filter_value = target.filter_value.strip() if target.filter_value else None
+    target.mode = (target.mode or "dry_run").strip().lower()
+
+
 event.listen(TerminologyProfile, "before_insert", _fill_normalized_profile)
 event.listen(TerminologyProfile, "before_update", _fill_normalized_profile)
 event.listen(CanonicalTerm, "before_insert", _fill_normalized_term)
@@ -529,3 +610,9 @@ event.listen(GovernanceSuggestion, "before_insert", _fill_normalized_suggestion)
 event.listen(GovernanceSuggestion, "before_update", _fill_normalized_suggestion)
 event.listen(GovernanceStopListEntry, "before_insert", _fill_normalized_stop_list_entry)
 event.listen(GovernanceStopListEntry, "before_update", _fill_normalized_stop_list_entry)
+event.listen(
+    ElasticsearchBinding, "before_insert", _fill_normalized_elasticsearch_binding
+)
+event.listen(
+    ElasticsearchBinding, "before_update", _fill_normalized_elasticsearch_binding
+)
