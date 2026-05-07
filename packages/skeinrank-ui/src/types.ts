@@ -60,6 +60,54 @@ export type StopListUpdateRequest = {
   is_active?: boolean | null;
 };
 
+
+export type ElasticsearchBindingMode = "dry_run" | "write";
+
+export type ElasticsearchBinding = {
+  id: number;
+  profile_id: number;
+  profile_name: string;
+  name: string;
+  normalized_name: string;
+  description: string | null;
+  provider: string;
+  index_name: string;
+  text_fields: string[];
+  target_field: string;
+  filter_field: string | null;
+  filter_value: string | null;
+  mode: ElasticsearchBindingMode;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ElasticsearchBindingCreateRequest = {
+  name: string;
+  profile_name: string;
+  description?: string | null;
+  index_name: string;
+  text_fields: string[];
+  target_field: string;
+  filter_field?: string | null;
+  filter_value?: string | null;
+  mode?: ElasticsearchBindingMode;
+  is_enabled?: boolean;
+};
+
+export type ElasticsearchBindingUpdateRequest = {
+  name?: string | null;
+  profile_name?: string | null;
+  description?: string | null;
+  index_name?: string | null;
+  text_fields?: string[] | null;
+  target_field?: string | null;
+  filter_field?: string | null;
+  filter_value?: string | null;
+  mode?: ElasticsearchBindingMode | null;
+  is_enabled?: boolean | null;
+};
+
 export type SuggestionStatus = "pending" | "approved" | "rejected";
 
 export type SuggestionSource = "manual" | "discovery" | "import";

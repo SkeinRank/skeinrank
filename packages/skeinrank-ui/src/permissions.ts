@@ -10,6 +10,8 @@ export type GovernancePermissions = {
   canReviewSuggestions: boolean;
   canReadStopLists: boolean;
   canManageStopLists: boolean;
+  canReadBindings: boolean;
+  canManageBindings: boolean;
 };
 
 export function permissionsForUser(user: AuthUser): GovernancePermissions {
@@ -26,5 +28,7 @@ export function permissionsForUser(user: AuthUser): GovernancePermissions {
     canReviewSuggestions: isAdmin || isModerator,
     canReadStopLists: true,
     canManageStopLists: isAdmin || isModerator,
+    canReadBindings: true,
+    canManageBindings: isAdmin || isModerator,
   };
 }

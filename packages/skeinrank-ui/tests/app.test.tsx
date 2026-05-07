@@ -5,6 +5,7 @@ import { App } from "../src/App";
 import type {
   AuthUser,
   CanonicalTerm,
+  ElasticsearchBinding,
   GovernanceSuggestion,
   Profile,
   StopListEntry,
@@ -92,6 +93,27 @@ const stopListEntries: StopListEntry[] = [
   },
 ];
 
+const elasticsearchBindings: ElasticsearchBinding[] = [
+  {
+    id: 1,
+    profile_id: 1,
+    profile_name: "default_it",
+    name: "infra docs",
+    normalized_name: "infra_docs",
+    description: "Apply default IT terms to docs.",
+    provider: "elasticsearch",
+    index_name: "docs",
+    text_fields: ["title", "body"],
+    target_field: "skeinrank",
+    filter_field: "team",
+    filter_value: "infra",
+    mode: "dry_run",
+    is_enabled: true,
+    created_at: "2026-05-07T00:00:00Z",
+    updated_at: "2026-05-07T00:00:00Z",
+  },
+];
+
 const suggestions: GovernanceSuggestion[] = [
   {
     id: 1,
@@ -140,6 +162,10 @@ function cloneStopListEntries() {
   return JSON.parse(JSON.stringify(stopListEntries)) as StopListEntry[];
 }
 
+function cloneElasticsearchBindings() {
+  return JSON.parse(JSON.stringify(elasticsearchBindings)) as ElasticsearchBinding[];
+}
+
 function stubGovernanceApi(options: StubOptions = {}) {
   let currentProfiles = cloneProfiles();
   let currentUser = options.currentUser ?? adminUser;
@@ -147,11 +173,13 @@ function stubGovernanceApi(options: StubOptions = {}) {
   let currentTerms = cloneTerms();
   let currentSuggestions = cloneSuggestions();
   let currentStopListEntries = cloneStopListEntries();
+  let currentElasticsearchBindings = cloneElasticsearchBindings();
   let nextProfileId = 10;
   let nextTermId = 10;
   let nextAliasId = 20;
   let nextSuggestionId = 10;
   let nextStopListEntryId = 10;
+  let nextElasticsearchBindingId = 10;
 
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -368,6 +396,79 @@ function stubGovernanceApi(options: StubOptions = {}) {
         method === "DELETE"
       ) {
         currentStopListEntries = currentStopListEntries.filter((entry) => entry.id !== 1);
+        return new Response(null, { status: 204 });
+      }
+
+      if (url.includes("/v1/governance/elasticsearch/bindings") && method === "GET") {
+        const profileName = new URL(url).searchParams.get("profile_name");
+        const visibleBindings = profileName
+          ? currentElasticsearchBindings.filter((binding) => binding.profile_name === profileName)
+          : currentElasticsearchBindings;
+        return Response.json(visibleBindings);
+      }
+
+      if (url.endsWith("/v1/governance/elasticsearch/bindings") && method === "POST") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          description?: string | null;
+          filter_field?: string | null;
+          filter_value?: string | null;
+          index_name: string;
+          is_enabled?: boolean;
+          mode?: ElasticsearchBinding["mode"];
+          name: string;
+          profile_name: string;
+          target_field: string;
+          text_fields: string[];
+        };
+        const binding: ElasticsearchBinding = {
+          id: nextElasticsearchBindingId++,
+          profile_id: 1,
+          profile_name: payload.profile_name,
+          name: payload.name,
+          normalized_name: payload.name.toLowerCase().replace(/\s+/g, "_"),
+          description: payload.description ?? null,
+          provider: "elasticsearch",
+          index_name: payload.index_name,
+          text_fields: payload.text_fields,
+          target_field: payload.target_field,
+          filter_field: payload.filter_field ?? null,
+          filter_value: payload.filter_value ?? null,
+          mode: payload.mode ?? "dry_run",
+          is_enabled: payload.is_enabled ?? true,
+          created_at: "2026-05-07T00:00:00Z",
+          updated_at: "2026-05-07T00:00:00Z",
+        };
+        currentElasticsearchBindings = [binding, ...currentElasticsearchBindings];
+        return Response.json(binding, { status: 201 });
+      }
+
+      if (url.endsWith("/v1/governance/elasticsearch/bindings/1") && method === "PATCH") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as Partial<ElasticsearchBinding> & { profile_name?: string | null; text_fields?: string[] | null };
+        const existingBinding = currentElasticsearchBindings.find((binding) => binding.id === 1);
+        if (!existingBinding) {
+          return Response.json({ detail: "not found" }, { status: 404 });
+        }
+        const updatedBinding: ElasticsearchBinding = {
+          ...existingBinding,
+          name: payload.name ?? existingBinding.name,
+          normalized_name: (payload.name ?? existingBinding.name).toLowerCase().replace(/\s+/g, "_"),
+          profile_name: payload.profile_name ?? existingBinding.profile_name,
+          description: payload.description ?? null,
+          index_name: payload.index_name ?? existingBinding.index_name,
+          text_fields: payload.text_fields ?? existingBinding.text_fields,
+          target_field: payload.target_field ?? existingBinding.target_field,
+          filter_field: payload.filter_field ?? null,
+          filter_value: payload.filter_value ?? null,
+          mode: payload.mode ?? existingBinding.mode,
+          is_enabled: payload.is_enabled ?? existingBinding.is_enabled,
+          updated_at: "2026-05-07T00:00:00Z",
+        };
+        currentElasticsearchBindings = currentElasticsearchBindings.map((binding) => binding.id === 1 ? updatedBinding : binding);
+        return Response.json(updatedBinding);
+      }
+
+      if (url.endsWith("/v1/governance/elasticsearch/bindings/1") && method === "DELETE") {
+        currentElasticsearchBindings = currentElasticsearchBindings.filter((binding) => binding.id !== 1);
         return new Response(null, { status: 204 });
       }
 
@@ -1043,12 +1144,12 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByText("default_it");
+    await screen.findByText("kubernetes");
 
-    const exportButton = screen.getByRole("button", {
-      name: "Export draft snapshot",
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Export draft snapshot" })).not.toBeDisabled();
     });
-    await waitFor(() => expect(exportButton).not.toBeDisabled());
-    fireEvent.click(exportButton);
+    fireEvent.click(screen.getByRole("button", { name: "Export draft snapshot" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1285,6 +1386,114 @@ describe("App", () => {
     expect(screen.getByText("Contributors can inspect stop lists, but only admins and moderators can update guardrails.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save stop-list entry" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Delete stop-list entry" })).toBeDisabled();
+  });
+
+  it("lets admins manage Elasticsearch enrichment bindings", async () => {
+    const fetchMock = stubGovernanceApi();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
+
+    expect(await screen.findByText("Elasticsearch bindings")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
+    });
+    fireEvent.click(screen.getAllByText("infra docs")[0]);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Edit description")).toHaveValue("Apply default IT terms to docs.");
+    });
+
+    fireEvent.change(screen.getByLabelText("Binding name"), { target: { value: "runbook docs" } });
+    fireEvent.change(screen.getByLabelText("Index"), { target: { value: "runbooks" } });
+    fireEvent.change(screen.getByLabelText(/Text fields/), { target: { value: "title, body, summary" } });
+    fireEvent.change(screen.getByLabelText("Target field"), { target: { value: "skeinrank" } });
+    fireEvent.change(screen.getByLabelText("Filter field"), { target: { value: "team" } });
+    fireEvent.change(screen.getByLabelText("Filter value"), { target: { value: "infra" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/bindings",
+        expect.objectContaining({
+          body: JSON.stringify({
+            name: "runbook docs",
+            profile_name: "default_it",
+            description: null,
+            index_name: "runbooks",
+            text_fields: ["title", "body", "summary"],
+            target_field: "skeinrank",
+            filter_field: "team",
+            filter_value: "infra",
+            mode: "dry_run",
+            is_enabled: true,
+          }),
+          method: "POST",
+        }),
+      );
+    });
+    expect((await screen.findAllByText("runbook docs")).length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.click(screen.getAllByText("infra docs")[0]);
+    fireEvent.change(screen.getByLabelText("Edit binding name"), { target: { value: "infra docs v2" } });
+    fireEvent.change(screen.getByLabelText("Edit index"), { target: { value: "docs-v2" } });
+    fireEvent.change(screen.getByLabelText("Edit text fields"), { target: { value: "title\nbody" } });
+    fireEvent.change(screen.getByLabelText("Edit target field"), { target: { value: "skeinrank_attrs" } });
+    fireEvent.change(screen.getByLabelText("Edit filter field"), { target: { value: "space" } });
+    fireEvent.change(screen.getByLabelText("Edit filter value"), { target: { value: "infra" } });
+    fireEvent.change(screen.getByLabelText("Edit mode"), { target: { value: "write" } });
+    fireEvent.click(screen.getByLabelText("Enabled binding"));
+    fireEvent.click(screen.getByRole("button", { name: "Save binding" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1",
+        expect.objectContaining({
+          body: JSON.stringify({
+            name: "infra docs v2",
+            profile_name: "default_it",
+            description: "Apply default IT terms to docs.",
+            index_name: "docs-v2",
+            text_fields: ["title", "body"],
+            target_field: "skeinrank_attrs",
+            filter_field: "space",
+            filter_value: "infra",
+            mode: "write",
+            is_enabled: false,
+          }),
+          method: "PATCH",
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete binding" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("keeps contributor users in read-only integrations mode", async () => {
+    stubGovernanceApi({ currentUser: contributorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole("button", { name: "Create binding" })).toBeDisabled();
+    expect(screen.getByText("Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations.")).toBeInTheDocument();
+    expect(screen.getByText("Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save binding" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete binding" })).toBeDisabled();
   });
 
   it("keeps contributor users in read-only governance mode", async () => {

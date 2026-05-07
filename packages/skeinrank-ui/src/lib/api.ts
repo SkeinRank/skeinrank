@@ -3,6 +3,9 @@ import type {
   AliasUpdateRequest,
   AuthTokenResponse,
   AuthUser,
+  ElasticsearchBinding,
+  ElasticsearchBindingCreateRequest,
+  ElasticsearchBindingUpdateRequest,
   CanonicalTerm,
   LoginRequest,
   GovernanceSuggestion,
@@ -248,6 +251,31 @@ export function updateStopListEntry(profileName: string, entryId: number, payloa
 
 export function deleteStopListEntry(profileName: string, entryId: number) {
   return requestJson<void>(`/v1/governance/profiles/${encodePathSegment(profileName)}/stop-list/${entryId}`, {
+    method: "DELETE",
+  });
+}
+
+export function listElasticsearchBindings(profileName?: string) {
+  const query = profileName ? `?profile_name=${encodeURIComponent(profileName)}` : "";
+  return requestJson<ElasticsearchBinding[]>(`/v1/governance/elasticsearch/bindings${query}`);
+}
+
+export function createElasticsearchBinding(payload: ElasticsearchBindingCreateRequest) {
+  return requestJson<ElasticsearchBinding>("/v1/governance/elasticsearch/bindings", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateElasticsearchBinding(bindingId: number, payload: ElasticsearchBindingUpdateRequest) {
+  return requestJson<ElasticsearchBinding>(`/v1/governance/elasticsearch/bindings/${bindingId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteElasticsearchBinding(bindingId: number) {
+  return requestJson<void>(`/v1/governance/elasticsearch/bindings/${bindingId}`, {
     method: "DELETE",
   });
 }

@@ -199,8 +199,10 @@ Current UI scope:
 - current user and role display in the top bar
 - admin-only Users page for local user CRUD and role assignment
 - role-aware controls for Admin, Moderator, and Contributor users
-- Suggestions page for creating, filtering, approving, and rejecting alias proposals
+- Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
 - searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
+- Guardrails page for profile-scoped stop-list management
+- Integrations page for manual Elasticsearch binding configs
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms
@@ -212,7 +214,7 @@ Current UI scope:
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-The API and UI now include the suggestions/approval workflow. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. Publish/rollback, Elasticsearch binding UI/dry-run jobs, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, optional metadata filter, dry-run/write mode, and enabled state. Publish/rollback, Elasticsearch connection tests/dry-run jobs, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -347,7 +349,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, stop lists, suggestions/approval, Elasticsearch binding configs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, Elasticsearch binding UI/dry-run jobs, and model-based discovery ingestion.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, stop lists, suggestions/approval, Elasticsearch binding configs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, Elasticsearch connection tests/dry-run jobs, and model-based discovery ingestion.
 
 The intended architecture is:
 
@@ -357,7 +359,7 @@ Postgres governance store -> governance API/UI -> published snapshot JSON -> run
 
 The hot extraction path still uses exported snapshots; it does not query Postgres or the governance API per request.
 
-Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional metadata filter, dry-run/write mode, and enabled state. They are configuration-only until the follow-up UI/job patches connect them to real Elasticsearch dry-runs and enrichment jobs.
+Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional metadata filter, dry-run/write mode, and enabled state. The UI can manage these configs manually through the Integrations page. They are still configuration-only until follow-up connection-test/dry-run job patches connect them to real Elasticsearch clusters and enrichment jobs.
 
 Local smoke tests:
 
