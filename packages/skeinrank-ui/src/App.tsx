@@ -7,6 +7,7 @@ import { UsersManager } from "./components/UsersManager";
 import { clearAuthToken, createUser, deleteUser, getAuthToken, getCurrentUser, GovernanceApiError, listUsers, login, logout, setAuthToken, updateUser } from "./lib/api";
 import { GovernanceDashboard } from "./pages/GovernanceDashboard";
 import { GuardrailsPage } from "./pages/GuardrailsPage";
+import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { SuggestionsPage } from "./pages/SuggestionsPage";
 import { permissionsForUser } from "./permissions";
 import { ThemeProvider } from "./theme";
@@ -107,6 +108,8 @@ function AuthGate() {
         <SuggestionsPage currentUser={currentUser} />
       ) : safeActiveSection === "guardrails" ? (
         <GuardrailsPage currentUser={currentUser} />
+      ) : safeActiveSection === "integrations" ? (
+        <IntegrationsPage currentUser={currentUser} />
       ) : (
         <GovernanceDashboard currentUser={currentUser} />
       )}
