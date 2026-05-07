@@ -6,6 +6,7 @@ from skeinrank_governance import (
     Base,
     CanonicalTerm,
     GovernanceAuthToken,
+    GovernanceStopListEntry,
     GovernanceSuggestion,
     GovernanceUser,
     ProfileSnapshot,
@@ -40,6 +41,7 @@ def test_metadata_contains_expected_tables():
         "governance_users",
         "governance_auth_tokens",
         "governance_suggestions",
+        "governance_stop_list_entries",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -74,6 +76,12 @@ def test_create_governance_rows_and_normalized_values(session):
         context="People search for kube",
         created_by="tester",
     )
+    stop_list_entry = GovernanceStopListEntry(
+        profile=profile,
+        value="Service",
+        target="alias",
+        reason="Too generic for this profile",
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -82,7 +90,9 @@ def test_create_governance_rows_and_normalized_values(session):
         payload_json={"alias": "K8S"},
     )
 
-    session.add_all([profile, term, alias, snapshot, suggestion, audit])
+    session.add_all(
+        [profile, term, alias, snapshot, suggestion, stop_list_entry, audit]
+    )
     session.commit()
 
     assert profile.normalized_name == "default_it"
@@ -95,6 +105,9 @@ def test_create_governance_rows_and_normalized_values(session):
     assert suggestion.normalized_alias == "kube"
     assert suggestion.slot == "TOOL"
     assert suggestion.status == "pending"
+    assert stop_list_entry.normalized_value == "service"
+    assert stop_list_entry.target == "alias"
+    assert stop_list_entry.is_active is True
     assert audit.payload_json == {"alias": "K8S"}
 
 
@@ -154,6 +167,7 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "governance_users" in table_names
     assert "governance_auth_tokens" in table_names
     assert "governance_suggestions" in table_names
+    assert "governance_stop_list_entries" in table_names
 
 
 def test_normalize_value_collapses_case_and_whitespace():
@@ -274,6 +288,29 @@ def test_invalid_governance_suggestion_confidence_is_rejected(session):
         confidence=1.5,
     )
     session.add_all([profile, suggestion])
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_stop_list_entry_target_is_validated(session):
+    profile = TerminologyProfile(name="default_it")
+    entry = GovernanceStopListEntry(
+        profile=profile,
+        value="service",
+        target="unknown",
+    )
+    session.add_all([profile, entry])
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_stop_list_entry_uniqueness_is_profile_target_scoped(session):
+    profile = TerminologyProfile(name="default_it")
+    first = GovernanceStopListEntry(profile=profile, value="Service", target="alias")
+    second = GovernanceStopListEntry(profile=profile, value=" service ", target="alias")
+    session.add_all([profile, first, second])
 
     with pytest.raises(IntegrityError):
         session.commit()

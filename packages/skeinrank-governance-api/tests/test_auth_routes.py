@@ -344,3 +344,51 @@ def test_contributor_can_create_canonical_term_suggestion_but_not_approve(tmp_pa
     assert approved.json()["status"] == "approved"
     assert approved.json()["term_id"] is not None
     assert approved.json()["reviewed_by"] == "mod"
+
+
+def test_stop_list_permissions_with_roles(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+    client.post(
+        "/v1/auth/users",
+        json={"username": "mod", "password": "mod-secret", "role": "moderator"},
+        headers=_auth(admin_token),
+    )
+    client.post(
+        "/v1/auth/users",
+        json={
+            "username": "contrib",
+            "password": "contrib-secret",
+            "role": "contributor",
+        },
+        headers=_auth(admin_token),
+    )
+    mod_token = _login(client, "mod", "mod-secret")
+    contributor_token = _login(client, "contrib", "contrib-secret")
+
+    client.post(
+        "/v1/governance/profiles",
+        json={"name": "default_it"},
+        headers=_auth(admin_token),
+    )
+
+    create_response = client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={"value": "service", "target": "alias"},
+        headers=_auth(mod_token),
+    )
+    assert create_response.status_code == 201
+
+    read_response = client.get(
+        "/v1/governance/profiles/default_it/stop-list",
+        headers=_auth(contributor_token),
+    )
+    assert read_response.status_code == 200
+    assert read_response.json()[0]["normalized_value"] == "service"
+
+    forbidden_create = client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={"value": "app", "target": "alias"},
+        headers=_auth(contributor_token),
+    )
+    assert forbidden_create.status_code == 403

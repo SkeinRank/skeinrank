@@ -138,3 +138,10 @@ This is a platform-foundation package. It now includes basic admin CLI commands 
 - snapshot publish/archive lifecycle beyond JSON export
 
 Those pieces are planned for later platform patches.
+
+
+## Governance stop lists
+
+The governance schema includes profile-scoped stop-list entries for terminology guardrails. A stop-list entry can block aliases, canonical terms, or both. This is intentionally profile-scoped for the MVP because a value that is too generic in one corpus can be valid in another.
+
+Stop lists are used by the governance API to reject blocked direct edits, blocked suggestions, and approvals that became blocked after the suggestion was created.

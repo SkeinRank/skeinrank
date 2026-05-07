@@ -191,7 +191,7 @@ This package currently provides:
 - environment-based configuration
 - SQLAlchemy session dependency
 - `/healthz` endpoint
-- governance REST endpoints for profiles, terms, aliases, suggestions, and snapshot export
+- governance REST endpoints for profiles, terms, aliases, suggestions, stop lists, and snapshot export
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
 - local auth endpoints for login/logout/current user
 - admin-only user management endpoints
@@ -249,6 +249,26 @@ curl -X PATCH http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kube
 curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kubernetes/aliases/1
 ```
 
+
+
+Stop lists:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list \
+  -H "Content-Type: application/json" \
+  -d '{"value":"service","target":"alias","reason":"Too generic for this profile."}'
+
+curl http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list
+
+# Replace 1 with the stop-list entry id returned by the create response.
+curl -X PATCH http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list/1 \
+  -H "Content-Type: application/json" \
+  -d '{"value":"app","target":"both","is_active":false}'
+
+curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list/1
+```
+
+Stop-list targets are `alias`, `canonical`, and `both`. Active stop-list entries block matching direct CRUD mutations, suggestion creation, and suggestion approval.
 
 Suggestions:
 

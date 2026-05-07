@@ -379,7 +379,7 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
   -d '{"snapshot_version":"default_it@v1"}'
 ```
 
-The initial schema includes profiles, canonical terms, aliases, profile snapshots, and audit events.
+The initial schema includes profiles, canonical terms, aliases, profile snapshots, suggestions, stop-list guardrails, users, and audit events.
 
 ## Notes and current limitations
 

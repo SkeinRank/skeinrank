@@ -43,6 +43,7 @@ SNAPSHOT_STATUSES = ("draft", "published", "archived")
 SUGGESTION_STATUSES = ("pending", "approved", "rejected")
 SUGGESTION_TYPES = ("alias", "canonical_term")
 SUGGESTION_SOURCES = ("manual", "discovery", "import")
+STOP_LIST_TARGETS = ("alias", "canonical", "both")
 USER_ROLES = ("admin", "moderator", "contributor")
 
 
@@ -111,6 +112,11 @@ class TerminologyProfile(TimestampMixin, Base):
         passive_deletes=True,
     )
     suggestions: Mapped[list[GovernanceSuggestion]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    stop_list_entries: Mapped[list[GovernanceStopListEntry]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -353,6 +359,56 @@ class GovernanceSuggestion(TimestampMixin, Base):
         )
 
 
+class GovernanceStopListEntry(TimestampMixin, Base):
+    """A profile-level guardrail that blocks noisy or unsafe terminology values.
+
+    Stop-list entries are profile-scoped by default because a value that is too
+    generic in one corpus can be a valid term in another. They protect manual
+    edits, suggestions, and future discovery/import jobs from introducing known
+    bad aliases or canonical terms.
+    """
+
+    __tablename__ = "governance_stop_list_entries"
+    __table_args__ = (
+        UniqueConstraint(
+            "profile_id",
+            "target",
+            "normalized_value",
+            name="uq_governance_stop_list_profile_target_value",
+        ),
+        CheckConstraint(
+            f"target IN {STOP_LIST_TARGETS!r}",
+            name="governance_stop_list_target",
+        ),
+        Index(
+            "ix_governance_stop_list_profile_target_active",
+            "profile_id",
+            "target",
+            "is_active",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    value: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    target: Mapped[str] = mapped_column(String(32), default="both", nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    profile: Mapped[TerminologyProfile] = relationship(
+        back_populates="stop_list_entries"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "GovernanceStopListEntry("
+            f"value={self.value!r}, target={self.target!r}, active={self.is_active!r})"
+        )
+
+
 class ProfileSnapshot(TimestampMixin, Base):
     """A versioned runtime snapshot exported from governance data."""
 
@@ -453,6 +509,13 @@ def _fill_normalized_suggestion(
     target.slot = target.slot.strip().upper()
 
 
+def _fill_normalized_stop_list_entry(
+    mapper: Any, connection: Any, target: GovernanceStopListEntry
+) -> None:
+    del mapper, connection
+    target.normalized_value = normalize_value(target.value)
+
+
 event.listen(TerminologyProfile, "before_insert", _fill_normalized_profile)
 event.listen(TerminologyProfile, "before_update", _fill_normalized_profile)
 event.listen(CanonicalTerm, "before_insert", _fill_normalized_term)
@@ -464,3 +527,5 @@ event.listen(GovernanceUser, "before_insert", _fill_normalized_user)
 event.listen(GovernanceUser, "before_update", _fill_normalized_user)
 event.listen(GovernanceSuggestion, "before_insert", _fill_normalized_suggestion)
 event.listen(GovernanceSuggestion, "before_update", _fill_normalized_suggestion)
+event.listen(GovernanceStopListEntry, "before_insert", _fill_normalized_stop_list_entry)
+event.listen(GovernanceStopListEntry, "before_update", _fill_normalized_stop_list_entry)
