@@ -24,8 +24,8 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 - `packages/skeinrank-server` — FastAPI service wrapper
 - `packages/skeinrank-provider-elasticsearch` — optional Elasticsearch retrieval provider and enrichment CLI
 - `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation and admin CLI for Postgres terminology governance
-- `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, suggestions/approval, auth/users/roles, and future governance workflows
-- `packages/skeinrank-ui` — React/TypeScript governance console for terms, aliases, suggestions, users, roles, and snapshots
+- `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, stop lists, suggestions/approval, auth/users/roles, and future governance workflows
+- `packages/skeinrank-ui` — React/TypeScript governance console for terms, aliases, suggestions, guardrails, users, roles, and snapshots
 - `examples/demo/` — small demo corpus, demo queries, and usage notes
 
 ## Quickstart
@@ -347,7 +347,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, suggestions/approval, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, Elasticsearch bindings, and model-based discovery ingestion.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, stop lists, suggestions/approval, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, Elasticsearch bindings, and model-based discovery ingestion.
 
 The intended architecture is:
 

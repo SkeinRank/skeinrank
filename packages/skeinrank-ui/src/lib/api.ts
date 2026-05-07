@@ -11,6 +11,9 @@ import type {
   ProfileUpdateRequest,
   RuntimeSnapshot,
   SnapshotExportRequest,
+  StopListCreateRequest,
+  StopListEntry,
+  StopListUpdateRequest,
   SuggestionCreateRequest,
   SuggestionReviewRequest,
   SuggestionStatus,
@@ -222,6 +225,31 @@ export function deleteAlias(profileName: string, canonicalValue: string, aliasId
       method: "DELETE",
     },
   );
+}
+
+
+export function listStopList(profileName: string) {
+  return requestJson<StopListEntry[]>(`/v1/governance/profiles/${encodePathSegment(profileName)}/stop-list`);
+}
+
+export function createStopListEntry(profileName: string, payload: StopListCreateRequest) {
+  return requestJson<StopListEntry>(`/v1/governance/profiles/${encodePathSegment(profileName)}/stop-list`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateStopListEntry(profileName: string, entryId: number, payload: StopListUpdateRequest) {
+  return requestJson<StopListEntry>(`/v1/governance/profiles/${encodePathSegment(profileName)}/stop-list/${entryId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteStopListEntry(profileName: string, entryId: number) {
+  return requestJson<void>(`/v1/governance/profiles/${encodePathSegment(profileName)}/stop-list/${entryId}`, {
+    method: "DELETE",
+  });
 }
 
 export function listSuggestions(profileName: string, status?: SuggestionStatus | "all") {

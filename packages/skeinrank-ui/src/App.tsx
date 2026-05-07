@@ -6,6 +6,7 @@ import { AppSection, AppShell } from "./components/layout/AppShell";
 import { UsersManager } from "./components/UsersManager";
 import { clearAuthToken, createUser, deleteUser, getAuthToken, getCurrentUser, GovernanceApiError, listUsers, login, logout, setAuthToken, updateUser } from "./lib/api";
 import { GovernanceDashboard } from "./pages/GovernanceDashboard";
+import { GuardrailsPage } from "./pages/GuardrailsPage";
 import { SuggestionsPage } from "./pages/SuggestionsPage";
 import { permissionsForUser } from "./permissions";
 import { ThemeProvider } from "./theme";
@@ -104,6 +105,8 @@ function AuthGate() {
         <UsersPage currentUser={currentUser} />
       ) : safeActiveSection === "suggestions" ? (
         <SuggestionsPage currentUser={currentUser} />
+      ) : safeActiveSection === "guardrails" ? (
+        <GuardrailsPage currentUser={currentUser} />
       ) : (
         <GovernanceDashboard currentUser={currentUser} />
       )}

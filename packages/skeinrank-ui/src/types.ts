@@ -31,6 +31,35 @@ export type CanonicalTerm = {
 };
 
 
+
+export type StopListTarget = "alias" | "canonical" | "both";
+
+export type StopListEntry = {
+  id: number;
+  profile_id: number;
+  value: string;
+  normalized_value: string;
+  target: StopListTarget;
+  reason: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StopListCreateRequest = {
+  value: string;
+  target: StopListTarget;
+  reason?: string | null;
+  is_active?: boolean;
+};
+
+export type StopListUpdateRequest = {
+  value?: string | null;
+  target?: StopListTarget | null;
+  reason?: string | null;
+  is_active?: boolean | null;
+};
+
 export type SuggestionStatus = "pending" | "approved" | "rejected";
 
 export type SuggestionSource = "manual" | "discovery" | "import";
