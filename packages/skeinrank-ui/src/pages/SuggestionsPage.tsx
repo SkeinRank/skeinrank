@@ -29,6 +29,7 @@ import type {
   SuggestionCreateRequest,
   SuggestionReviewRequest,
   SuggestionStatus,
+  SuggestionType,
 } from "../types";
 
 const statusFilters: Array<SuggestionStatus | "all"> = [
@@ -221,7 +222,7 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Badge>Suggestion → Approval → Alias</Badge>
+            <Badge>Suggestion → Approval → Term/Alias</Badge>
           </CardContent>
         </Card>
       </section>
@@ -342,7 +343,7 @@ function SuggestionsToolbar({
       <CardHeader>
         <CardTitle>Suggestions queue</CardTitle>
         <CardDescription>
-          Review proposed aliases before they mutate active runtime terminology.
+          Review proposed aliases and new canonical terms before they mutate active runtime terminology.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -377,7 +378,7 @@ function SuggestionsToolbar({
         ) : (
           <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
             No profiles found. Create a terminology profile before collecting
-            alias suggestions.
+            suggestions.
           </p>
         )}
 
@@ -423,23 +424,21 @@ function CreateSuggestionForm({
   termsErrorMessage?: string | null;
   termsLoading?: boolean;
 }) {
+  const [suggestionType, setSuggestionType] = useState<SuggestionType>("alias");
   const [termSearch, setTermSearch] = useState("");
   const [selectedCanonicalValue, setSelectedCanonicalValue] = useState("");
   const [aliasValue, setAliasValue] = useState("");
+  const [newCanonicalValue, setNewCanonicalValue] = useState("");
+  const [newSlot, setNewSlot] = useState("");
+  const [description, setDescription] = useState("");
   const [context, setContext] = useState("");
 
   const selectedTerm = useMemo(() => {
-    return (
-      terms.find((term) => term.canonical_value === selectedCanonicalValue) ??
-      null
-    );
+    return terms.find((term) => term.canonical_value === selectedCanonicalValue) ?? null;
   }, [selectedCanonicalValue, terms]);
 
   useEffect(() => {
-    if (
-      selectedCanonicalValue &&
-      !terms.some((term) => term.canonical_value === selectedCanonicalValue)
-    ) {
+    if (selectedCanonicalValue && !terms.some((term) => term.canonical_value === selectedCanonicalValue)) {
       setSelectedCanonicalValue("");
       setTermSearch("");
     }
@@ -451,57 +450,90 @@ function CreateSuggestionForm({
       return terms.slice(0, 8);
     }
     return terms
-      .filter((term) => {
-        return (
-          term.canonical_value.toLowerCase().includes(normalizedSearch) ||
-          term.slot.toLowerCase().includes(normalizedSearch) ||
-          term.aliases.some((alias) =>
-            alias.alias_value.toLowerCase().includes(normalizedSearch),
-          )
-        );
-      })
+      .filter((term) =>
+        term.canonical_value.toLowerCase().includes(normalizedSearch) ||
+        term.slot.toLowerCase().includes(normalizedSearch) ||
+        term.aliases.some((alias) => alias.alias_value.toLowerCase().includes(normalizedSearch)),
+      )
       .slice(0, 8);
   }, [termSearch, terms]);
 
   const normalizedSuggestedAlias = aliasValue.trim().toLowerCase();
   const duplicateAlias = Boolean(
     selectedTerm &&
-    normalizedSuggestedAlias &&
-    selectedTerm.aliases.some((alias) => {
-      return (
-        alias.normalized_alias === normalizedSuggestedAlias ||
-        alias.alias_value.toLowerCase() === normalizedSuggestedAlias
-      );
-    }),
+      normalizedSuggestedAlias &&
+      selectedTerm.aliases.some(
+        (alias) => alias.normalized_alias === normalizedSuggestedAlias || alias.alias_value.toLowerCase() === normalizedSuggestedAlias,
+      ),
   );
-  const canSubmit =
-    !disabled &&
-    Boolean(selectedTerm) &&
-    aliasValue.trim().length > 0 &&
-    !duplicateAlias &&
-    !isSubmitting;
+  const normalizedNewCanonical = newCanonicalValue.trim().toLowerCase();
+  const duplicateCanonical = Boolean(
+    normalizedNewCanonical &&
+      terms.some((term) => term.normalized_value === normalizedNewCanonical || term.canonical_value.toLowerCase() === normalizedNewCanonical),
+  );
+
+  const canSubmitAlias =
+    !disabled && suggestionType === "alias" && Boolean(selectedTerm) && aliasValue.trim().length > 0 && !duplicateAlias && !isSubmitting;
+  const canSubmitCanonical =
+    !disabled && suggestionType === "canonical_term" && newCanonicalValue.trim().length > 0 && newSlot.trim().length > 0 && !duplicateCanonical && !isSubmitting;
+  const canSubmit = canSubmitAlias || canSubmitCanonical;
 
   function handleSelectTerm(term: CanonicalTerm) {
     setSelectedCanonicalValue(term.canonical_value);
     setTermSearch(term.canonical_value);
   }
 
+  function handleSetSuggestionType(nextType: SuggestionType) {
+    setSuggestionType(nextType);
+    setAliasValue("");
+    setNewCanonicalValue("");
+    setNewSlot("");
+    setDescription("");
+    setContext("");
+    if (nextType === "canonical_term") {
+      setSelectedCanonicalValue("");
+      setTermSearch("");
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit || !selectedTerm) {
+    if (!canSubmit) {
       return;
     }
 
     try {
+      if (suggestionType === "alias") {
+        if (!selectedTerm) {
+          return;
+        }
+        await onSubmit({
+          suggestion_type: "alias",
+          canonical_value: selectedTerm.canonical_value,
+          alias_value: aliasValue.trim(),
+          slot: selectedTerm.slot,
+          confidence: 1,
+          source: "manual",
+          context: context.trim() || null,
+        });
+        setAliasValue("");
+        setContext("");
+        return;
+      }
+
       await onSubmit({
-        canonical_value: selectedTerm.canonical_value,
-        alias_value: aliasValue.trim(),
-        slot: selectedTerm.slot,
+        suggestion_type: "canonical_term",
+        canonical_value: newCanonicalValue.trim(),
+        alias_value: null,
+        slot: newSlot.trim(),
+        description: description.trim() || null,
         confidence: 1,
         source: "manual",
         context: context.trim() || null,
       });
-      setAliasValue("");
+      setNewCanonicalValue("");
+      setNewSlot("");
+      setDescription("");
       setContext("");
     } catch {
       // Parent mutation owns user-facing error rendering.
@@ -513,8 +545,7 @@ function CreateSuggestionForm({
       <CardHeader>
         <CardTitle>Create suggestion</CardTitle>
         <CardDescription>
-          Propose an alias for an existing canonical term without changing active
-          terminology. New canonical term proposals will use a separate workflow.
+          Propose an alias for an existing canonical term or suggest a new canonical term for moderator review.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -524,151 +555,120 @@ function CreateSuggestionForm({
           </div>
         ) : null}
         {termsErrorMessage ? (
-          <div className="mb-4">
-            <InlineError message={termsErrorMessage} />
-          </div>
+          <div className="mb-4"><InlineError message={termsErrorMessage} /></div>
         ) : null}
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Canonical term
-                </span>
-                <Input
-                  disabled={disabled || isSubmitting || termsLoading}
-                  onChange={(event) => {
-                    setTermSearch(event.target.value);
-                    if (event.target.value !== selectedTerm?.canonical_value) {
-                      setSelectedCanonicalValue("");
-                    }
-                  }}
-                  placeholder="Search canonical terms or existing aliases..."
-                  value={termSearch}
-                />
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-slate-700 dark:text-slate-200">Suggestion type</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button className={suggestionTypeButtonClass(suggestionType === "alias")} disabled={disabled || isSubmitting} onClick={() => handleSetSuggestionType("alias")} type="button">
+                <span className="block text-sm font-semibold">Alias for existing term</span>
+                <span className="mt-1 block text-xs opacity-75">Propose slang, abbreviation, or jargon.</span>
+              </button>
+              <button className={suggestionTypeButtonClass(suggestionType === "canonical_term")} disabled={disabled || isSubmitting} onClick={() => handleSetSuggestionType("canonical_term")} type="button">
+                <span className="block text-sm font-semibold">New canonical term</span>
+                <span className="mt-1 block text-xs opacity-75">Propose a new approved term.</span>
+              </button>
+            </div>
+          </fieldset>
+
+          {suggestionType === "alias" ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <label className="space-y-1.5">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Canonical term</span>
+                    <Input disabled={disabled || isSubmitting || termsLoading} onChange={(event) => {
+                      setTermSearch(event.target.value);
+                      if (event.target.value !== selectedTerm?.canonical_value) {
+                        setSelectedCanonicalValue("");
+                      }
+                    }} placeholder="Search canonical terms or existing aliases..." value={termSearch} />
+                  </label>
+                  {termsLoading ? <p className="text-sm text-slate-500 dark:text-slate-400">Loading canonical terms...</p> : null}
+                  {!termsLoading && terms.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                      No canonical terms found. Suggest a new canonical term instead.
+                    </p>
+                  ) : null}
+                  {!termsLoading && filteredTerms.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {filteredTerms.map((term) => (
+                        <button className={`rounded-xl border px-3 py-2 text-left transition-colors ${selectedCanonicalValue === term.canonical_value ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"}`} disabled={disabled || isSubmitting} key={term.id} onClick={() => handleSelectTerm(term)} type="button">
+                          <span className="block text-sm font-semibold">{term.canonical_value}</span>
+                          <span className="mt-1 block text-xs opacity-75">{term.slot} · {term.aliases.length} aliases</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Suggested alias</span>
+                  <Input disabled={disabled || isSubmitting || !selectedTerm} onChange={(event) => setAliasValue(event.target.value)} placeholder="kube" value={aliasValue} />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Slot</span>
+                  <Input disabled placeholder="Select a canonical term" readOnly value={selectedTerm?.slot ?? ""} />
+                </label>
+              </div>
+
+              {selectedTerm ? (
+                <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">Selected canonical term</div>
+                      <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{selectedTerm.canonical_value} · {selectedTerm.slot}</div>
+                    </div>
+                    <Badge>{selectedTerm.status}</Badge>
+                  </div>
+                  <div className="mt-4">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Existing aliases</div>
+                    {selectedTerm.aliases.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {selectedTerm.aliases.map((alias) => <Badge className="bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-200" key={alias.id}>{alias.alias_value}</Badge>)}
+                      </div>
+                    ) : <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No aliases yet.</p>}
+                  </div>
+                </div>
+              ) : null}
+
+              {duplicateAlias ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">This alias already exists for {selectedTerm?.canonical_value}. Choose a different alias or review the active terminology first.</div> : null}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New canonical term</span>
+                  <Input disabled={disabled || isSubmitting} onChange={(event) => setNewCanonicalValue(event.target.value)} placeholder="vector database" value={newCanonicalValue} />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Slot</span>
+                  <Input disabled={disabled || isSubmitting} onChange={(event) => setNewSlot(event.target.value)} placeholder="TOOL" value={newSlot} />
+                </label>
+              </div>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Description</span>
+                <Input disabled={disabled || isSubmitting} onChange={(event) => setDescription(event.target.value)} placeholder="Optional note for moderators and future snapshots" value={description} />
               </label>
-              {termsLoading ? (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Loading canonical terms...
-                </p>
-              ) : null}
-              {!termsLoading && terms.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  No canonical terms found. Create the canonical term on the
-                  Terms page before suggesting aliases.
-                </p>
-              ) : null}
-              {!termsLoading && filteredTerms.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredTerms.map((term) => (
-                    <button
-                      className={`rounded-xl border px-3 py-2 text-left transition-colors ${
-                        selectedCanonicalValue === term.canonical_value
-                          ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
-                      }`}
-                      disabled={disabled || isSubmitting}
-                      key={term.id}
-                      onClick={() => handleSelectTerm(term)}
-                      type="button"
-                    >
-                      <span className="block text-sm font-semibold">
-                        {term.canonical_value}
-                      </span>
-                      <span className="mt-1 block text-xs opacity-75">
-                        {term.slot} · {term.aliases.length} aliases
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+              {duplicateCanonical ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">This canonical term already exists. Switch to alias suggestion if you want to propose slang or abbreviations for it.</div> : null}
             </div>
-
-            <label className="space-y-1.5">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                Suggested alias
-              </span>
-              <Input
-                disabled={disabled || isSubmitting || !selectedTerm}
-                onChange={(event) => setAliasValue(event.target.value)}
-                placeholder="kube"
-                value={aliasValue}
-              />
-            </label>
-            <label className="space-y-1.5">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                Slot
-              </span>
-              <Input
-                disabled
-                placeholder="Select a canonical term"
-                readOnly
-                value={selectedTerm?.slot ?? ""}
-              />
-            </label>
-          </div>
-
-          {selectedTerm ? (
-            <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">
-                    Selected canonical term
-                  </div>
-                  <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    {selectedTerm.canonical_value} · {selectedTerm.slot}
-                  </div>
-                </div>
-                <Badge>{selectedTerm.status}</Badge>
-              </div>
-              <div className="mt-4">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Existing aliases
-                </div>
-                {selectedTerm.aliases.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {selectedTerm.aliases.map((alias) => (
-                      <Badge className="bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-200" key={alias.id}>
-                        {alias.alias_value}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    No aliases yet.
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : null}
-
-          {duplicateAlias ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-              This alias already exists for {selectedTerm?.canonical_value}.
-              Choose a different alias or review the active terminology first.
-            </div>
-          ) : null}
+          )}
 
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Context
-            </span>
-            <textarea
-              className="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-slate-500 dark:focus:ring-slate-800"
-              disabled={disabled || isSubmitting}
-              onChange={(event) => setContext(event.target.value)}
-              placeholder="Why should this alias be reviewed? Add source snippet, ticket, or discovery context."
-              value={context}
-            />
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Context</span>
+            <textarea className="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-slate-500 dark:focus:ring-slate-800" disabled={disabled || isSubmitting} onChange={(event) => setContext(event.target.value)} placeholder="Why should this suggestion be reviewed? Add source snippet, ticket, or discovery context." value={context} />
           </label>
           {errorMessage ? <InlineError message={errorMessage} /> : null}
-          <Button disabled={!canSubmit} type="submit">
-            {isSubmitting ? "Creating..." : "Create suggestion"}
-          </Button>
+          <Button disabled={!canSubmit} type="submit">{isSubmitting ? "Creating..." : "Create suggestion"}</Button>
         </form>
       </CardContent>
     </Card>
   );
+}
+
+function suggestionTypeButtonClass(isActive: boolean) {
+  return `rounded-xl border px-3 py-2 text-left transition-colors ${isActive ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"}`;
 }
 
 function SuggestionsTable({
@@ -689,77 +689,39 @@ function SuggestionsTable({
       <CardHeader>
         <CardTitle>Review queue</CardTitle>
         <CardDescription>
-          Pending, approved, and rejected suggestions for the selected profile.
+          Pending, approved, and rejected alias/canonical term suggestions for the selected profile.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         {loadErrorMessage ? (
-          <div className="p-5">
-            <InlineError message={loadErrorMessage} />
-          </div>
+          <div className="p-5"><InlineError message={loadErrorMessage} /></div>
         ) : null}
-        {isLoading ? (
-          <p className="p-5 text-sm text-slate-500 dark:text-slate-400">
-            Loading suggestions...
-          </p>
-        ) : null}
+        {isLoading ? <p className="p-5 text-sm text-slate-500 dark:text-slate-400">Loading suggestions...</p> : null}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
               <tr>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Alias
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Canonical
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Status
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Source
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Confidence
-                </th>
+                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Type</th>
+                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Suggestion</th>
+                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Slot</th>
+                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Status</th>
+                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Source</th>
               </tr>
             </thead>
             <tbody>
               {suggestions.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400"
-                    colSpan={5}
-                  >
-                    No suggestions found for this filter.
-                  </td>
-                </tr>
+                <tr><td className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={5}>No suggestions found for this filter.</td></tr>
               ) : (
                 suggestions.map((suggestion) => (
-                  <tr
-                    className={`cursor-pointer transition-colors ${
-                      selectedSuggestionId === suggestion.id
-                        ? "bg-slate-100 dark:bg-slate-800/70"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-900"
-                    }`}
-                    key={suggestion.id}
-                    onClick={() => onSelectSuggestion(suggestion)}
-                  >
-                    <td className="border-b border-slate-100 px-5 py-4 font-medium text-slate-950 dark:border-slate-800 dark:text-slate-50">
-                      {suggestion.alias_value}
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">
-                      {suggestion.canonical_value}
-                    </td>
+                  <tr className={`cursor-pointer transition-colors ${selectedSuggestionId === suggestion.id ? "bg-slate-100 dark:bg-slate-800/70" : "hover:bg-slate-50 dark:hover:bg-slate-900"}`} key={suggestion.id} onClick={() => onSelectSuggestion(suggestion)}>
+                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><Badge>{suggestionTypeLabel(suggestion.suggestion_type)}</Badge></td>
                     <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      <StatusBadge status={suggestion.status} />
+                      <div className="font-medium text-slate-950 dark:text-slate-50">{suggestionDisplayValue(suggestion)}</div>
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{suggestionSubtitle(suggestion)}</div>
                     </td>
-                    <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">
-                      {suggestion.source}
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">
-                      {formatConfidence(suggestion.confidence)}
-                    </td>
+                    <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">{suggestion.slot}</td>
+                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><StatusBadge status={suggestion.status} /></td>
+                    <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">{suggestion.source}</td>
                   </tr>
                 ))
               )}
@@ -783,14 +745,8 @@ function SuggestionDetailsPanel({
   canReview: boolean;
   isApproving?: boolean;
   isRejecting?: boolean;
-  onApprove: (
-    suggestion: GovernanceSuggestion,
-    payload: SuggestionReviewRequest,
-  ) => Promise<void> | void;
-  onReject: (
-    suggestion: GovernanceSuggestion,
-    payload: SuggestionReviewRequest,
-  ) => Promise<void> | void;
+  onApprove: (suggestion: GovernanceSuggestion, payload: SuggestionReviewRequest) => Promise<void> | void;
+  onReject: (suggestion: GovernanceSuggestion, payload: SuggestionReviewRequest) => Promise<void> | void;
   reviewErrorMessage?: string | null;
   suggestion: GovernanceSuggestion | null;
 }) {
@@ -805,15 +761,9 @@ function SuggestionDetailsPanel({
       <Card>
         <CardHeader>
           <CardTitle>Suggestion details</CardTitle>
-          <CardDescription>
-            Select a suggestion to inspect context and review actions.
-          </CardDescription>
+          <CardDescription>Select a suggestion to inspect context and review actions.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No suggestion selected.
-          </p>
-        </CardContent>
+        <CardContent><p className="text-sm text-slate-500 dark:text-slate-400">No suggestion selected.</p></CardContent>
       </Card>
     );
   }
@@ -821,21 +771,13 @@ function SuggestionDetailsPanel({
   const canReviewPending = canReview && suggestion.status === "pending";
 
   async function handleApprove() {
-    if (!suggestion || !canReviewPending) {
-      return;
-    }
-    await onApprove(suggestion, {
-      review_comment: reviewComment.trim() || null,
-    });
+    if (!suggestion || !canReviewPending) return;
+    await onApprove(suggestion, { review_comment: reviewComment.trim() || null });
   }
 
   async function handleReject() {
-    if (!suggestion || !canReviewPending) {
-      return;
-    }
-    await onReject(suggestion, {
-      review_comment: reviewComment.trim() || null,
-    });
+    if (!suggestion || !canReviewPending) return;
+    await onReject(suggestion, { review_comment: reviewComment.trim() || null });
   }
 
   return (
@@ -843,98 +785,51 @@ function SuggestionDetailsPanel({
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle>{suggestion.alias_value}</CardTitle>
-            <CardDescription>
-              Proposed alias for {suggestion.canonical_value}
-            </CardDescription>
+            <CardTitle>{suggestionDisplayValue(suggestion)}</CardTitle>
+            <CardDescription>{suggestionSubtitle(suggestion)}</CardDescription>
           </div>
           <StatusBadge status={suggestion.status} />
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
         <dl className="grid gap-3 text-sm">
-          <DetailRow
-            label="Canonical term"
-            value={suggestion.canonical_value}
-          />
+          <DetailRow label="Type" value={suggestionTypeLabel(suggestion.suggestion_type)} />
+          <DetailRow label="Canonical term" value={suggestion.canonical_value} />
+          {suggestion.suggestion_type === "alias" ? <DetailRow label="Suggested alias" value={suggestion.alias_value ?? "—"} /> : null}
           <DetailRow label="Slot" value={suggestion.slot} />
+          {suggestion.description ? <DetailRow label="Description" value={suggestion.description} /> : null}
           <DetailRow label="Source" value={suggestion.source} />
-          <DetailRow
-            label="Confidence"
-            value={formatConfidence(suggestion.confidence)}
-          />
-          <DetailRow
-            label="Created by"
-            value={suggestion.created_by ?? "Unknown"}
-          />
-          {suggestion.reviewed_by ? (
-            <DetailRow label="Reviewed by" value={suggestion.reviewed_by} />
-          ) : null}
-          {suggestion.review_comment ? (
-            <DetailRow
-              label="Review comment"
-              value={suggestion.review_comment}
-            />
-          ) : null}
+          <DetailRow label="Confidence" value={formatConfidence(suggestion.confidence)} />
+          <DetailRow label="Created by" value={suggestion.created_by ?? "Unknown"} />
+          {suggestion.reviewed_by ? <DetailRow label="Reviewed by" value={suggestion.reviewed_by} /> : null}
+          {suggestion.review_comment ? <DetailRow label="Review comment" value={suggestion.review_comment} /> : null}
         </dl>
 
         <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
-          <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">
-            Context
-          </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">
-            {suggestion.context || "No context provided."}
-          </p>
+          <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">Context</div>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">{suggestion.context || "No context provided."}</p>
         </div>
 
         {!canReview ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-            Contributors can create suggestions, but only admins and moderators
-            can approve or reject them.
+            Contributors can create suggestions, but only admins and moderators can approve or reject them.
           </div>
         ) : null}
 
         {suggestion.status !== "pending" ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-            This suggestion has already been reviewed.
-          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">This suggestion has already been reviewed.</div>
         ) : null}
 
-        {reviewErrorMessage ? (
-          <InlineError message={reviewErrorMessage} />
-        ) : null}
+        {reviewErrorMessage ? <InlineError message={reviewErrorMessage} /> : null}
 
         <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-            Review comment
-          </span>
-          <textarea
-            className="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-900 dark:focus:border-slate-500 dark:focus:ring-slate-800"
-            disabled={!canReviewPending || isApproving || isRejecting}
-            onChange={(event) => setReviewComment(event.target.value)}
-            placeholder="Optional reason for approve/reject."
-            value={reviewComment}
-          />
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Review comment</span>
+          <textarea className="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-900 dark:focus:border-slate-500 dark:focus:ring-slate-800" disabled={!canReviewPending || isApproving || isRejecting} onChange={(event) => setReviewComment(event.target.value)} placeholder="Optional reason for approve/reject." value={reviewComment} />
         </label>
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={!canReviewPending || isApproving || isRejecting}
-            onClick={handleApprove}
-            type="button"
-          >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            {isApproving ? "Approving..." : "Approve suggestion"}
-          </Button>
-          <Button
-            disabled={!canReviewPending || isApproving || isRejecting}
-            onClick={handleReject}
-            type="button"
-            variant="secondary"
-          >
-            <XCircle className="mr-2 h-4 w-4" />
-            {isRejecting ? "Rejecting..." : "Reject suggestion"}
-          </Button>
+          <Button disabled={!canReviewPending || isApproving || isRejecting} onClick={handleApprove} type="button"><CheckCircle className="mr-2 h-4 w-4" />{isApproving ? "Approving..." : "Approve suggestion"}</Button>
+          <Button disabled={!canReviewPending || isApproving || isRejecting} onClick={handleReject} type="button" variant="secondary"><XCircle className="mr-2 h-4 w-4" />{isRejecting ? "Rejecting..." : "Reject suggestion"}</Button>
         </div>
       </CardContent>
     </Card>
@@ -983,6 +878,23 @@ function errorMessage(error: unknown) {
 
 function formatConfidence(confidence: number) {
   return confidence.toFixed(2);
+}
+
+
+function suggestionTypeLabel(type: SuggestionType) {
+  return type === "canonical_term" ? "Canonical term" : "Alias";
+}
+
+function suggestionDisplayValue(suggestion: GovernanceSuggestion) {
+  return suggestion.suggestion_type === "canonical_term"
+    ? suggestion.canonical_value
+    : suggestion.alias_value ?? "—";
+}
+
+function suggestionSubtitle(suggestion: GovernanceSuggestion) {
+  return suggestion.suggestion_type === "canonical_term"
+    ? "Proposed new canonical term"
+    : `Proposed alias for ${suggestion.canonical_value}`;
 }
 
 function upsertSuggestion(

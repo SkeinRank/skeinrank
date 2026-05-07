@@ -35,15 +35,20 @@ export type SuggestionStatus = "pending" | "approved" | "rejected";
 
 export type SuggestionSource = "manual" | "discovery" | "import";
 
+export type SuggestionType = "alias" | "canonical_term";
+
 export type GovernanceSuggestion = {
   id: number;
   profile_id: number;
+  term_id: number | null;
   alias_id: number | null;
+  suggestion_type: SuggestionType;
   canonical_value: string;
   normalized_canonical: string;
-  alias_value: string;
-  normalized_alias: string;
+  alias_value: string | null;
+  normalized_alias: string | null;
   slot: string;
+  description: string | null;
   confidence: number;
   source: SuggestionSource;
   context: string | null;
@@ -57,9 +62,11 @@ export type GovernanceSuggestion = {
 };
 
 export type SuggestionCreateRequest = {
+  suggestion_type?: SuggestionType;
   canonical_value: string;
-  alias_value: string;
+  alias_value?: string | null;
   slot: string;
+  description?: string | null;
   confidence?: number;
   source?: SuggestionSource;
   context?: string | null;
