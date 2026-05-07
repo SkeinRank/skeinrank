@@ -660,3 +660,148 @@ def test_suggestion_rejects_invalid_source_and_status_filter(tmp_path):
     )
     assert invalid_status.status_code == 422
     assert "Invalid suggestion status" in invalid_status.json()["detail"]
+
+
+def test_canonical_term_suggestion_lifecycle_approves_into_active_term(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "suggestion_type": "canonical_term",
+            "canonical_value": "vector database",
+            "slot": "tool",
+            "description": "Storage system optimized for vector search.",
+            "context": "No canonical term exists for vector databases yet.",
+        },
+    )
+    assert suggestion_response.status_code == 201
+    suggestion = suggestion_response.json()
+    assert suggestion["suggestion_type"] == "canonical_term"
+    assert suggestion["alias_value"] is None
+    assert suggestion["normalized_alias"] is None
+    assert suggestion["term_id"] is None
+    assert suggestion["description"] == "Storage system optimized for vector search."
+    assert suggestion["slot"] == "TOOL"
+
+    approve_response = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion['id']}/approve",
+        json={"review_comment": "Canonical term is useful."},
+    )
+    assert approve_response.status_code == 200
+    approved = approve_response.json()
+    assert approved["status"] == "approved"
+    assert approved["term_id"] is not None
+    assert approved["alias_id"] is None
+    assert approved["review_comment"] == "Canonical term is useful."
+
+    terms_response = client.get("/v1/governance/profiles/default_it/terms")
+    assert terms_response.status_code == 200
+    terms = terms_response.json()
+    assert len(terms) == 1
+    assert terms[0]["canonical_value"] == "vector database"
+    assert terms[0]["normalized_value"] == "vector database"
+    assert terms[0]["slot"] == "TOOL"
+    assert terms[0]["description"] == "Storage system optimized for vector search."
+    assert terms[0]["status"] == "active"
+    assert terms[0]["aliases"] == []
+
+
+def test_canonical_term_suggestion_create_rejects_existing_term(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "suggestion_type": "canonical_term",
+            "canonical_value": "Kubernetes",
+            "slot": "TOOL",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "Canonical term already exists" in response.json()["detail"]
+
+
+def test_canonical_term_suggestion_approve_rejects_existing_term(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "suggestion_type": "canonical_term",
+            "canonical_value": "kubernetes",
+            "slot": "TOOL",
+        },
+    )
+    assert suggestion_response.status_code == 201
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "Kubernetes", "slot": "TOOL"},
+    )
+
+    response = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion_response.json()['id']}/approve"
+    )
+
+    assert response.status_code == 409
+    assert "Canonical term already exists" in response.json()["detail"]
+
+
+def test_alias_suggestion_requires_alias_value(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "suggestion_type": "alias",
+            "canonical_value": "kubernetes",
+            "slot": "TOOL",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Alias suggestions require alias_value" in response.json()["detail"]
+
+
+def test_canonical_term_suggestion_rejects_alias_value(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "suggestion_type": "canonical_term",
+            "canonical_value": "vector database",
+            "alias_value": "vectordb",
+            "slot": "TOOL",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "must not include alias_value" in response.json()["detail"]
+
+
+def test_suggestion_rejects_invalid_type(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "suggestion_type": "rename",
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "TOOL",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Invalid suggestion type status" in response.json()["detail"]

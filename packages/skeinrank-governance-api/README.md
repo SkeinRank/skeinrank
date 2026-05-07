@@ -117,7 +117,7 @@ Roles:
 
 - `admin` — full control, including profiles, terms, aliases, snapshots, and users.
 - `moderator` — terminology editor: terms, aliases, and snapshot export. No user management or profile management.
-- `contributor` — read-only terminology access for now. Future suggestions workflow will let contributors submit changes for approval.
+- `contributor` — read terminology and submit suggestions for moderator/admin approval.
 
 Login and inspect the current user:
 
@@ -191,7 +191,7 @@ This package currently provides:
 - environment-based configuration
 - SQLAlchemy session dependency
 - `/healthz` endpoint
-- governance REST endpoints for profiles, terms, aliases, and snapshot export
+- governance REST endpoints for profiles, terms, aliases, suggestions, and snapshot export
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
 - local auth endpoints for login/logout/current user
 - admin-only user management endpoints
@@ -249,6 +249,34 @@ curl -X PATCH http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kube
 curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kubernetes/aliases/1
 ```
 
+
+Suggestions:
+
+```bash
+# Alias suggestion for an existing canonical term.
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions \
+  -H "Content-Type: application/json" \
+  -d '{"suggestion_type":"alias","canonical_value":"kubernetes","alias_value":"kube","slot":"TOOL","context":"People search for kube in incident docs."}'
+
+# Canonical term suggestion for moderator/admin review.
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions \
+  -H "Content-Type: application/json" \
+  -d '{"suggestion_type":"canonical_term","canonical_value":"vector database","slot":"TOOL","description":"Storage system optimized for vector similarity search.","context":"No canonical term exists for vector databases yet."}'
+
+curl http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions?status=pending
+
+# Replace 1 with the suggestion id returned by the create response.
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions/1/approve \
+  -H "Content-Type: application/json" \
+  -d '{"review_comment":"Approved."}'
+
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions/1/reject \
+  -H "Content-Type: application/json" \
+  -d '{"review_comment":"Not used by this corpus."}'
+```
+
+Approved alias suggestions create active aliases. Approved canonical term suggestions create active canonical terms.
+
 Snapshot export:
 
 ```bash
@@ -259,4 +287,4 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
 
 The response is a runtime-compatible profile snapshot that can be passed to `skeinrank-core` through `--profile-file` or `load_attribute_profile(...)`.
 
-Future patches will add snapshot publishing lifecycle, suggestions, approval flow, and a role-aware UI login/users screen.
+Future patches will add snapshot publishing lifecycle, Elasticsearch bindings, discovery ingestion, and richer review/audit workflows.

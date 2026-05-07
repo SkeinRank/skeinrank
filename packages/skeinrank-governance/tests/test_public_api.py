@@ -14,6 +14,7 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.GovernanceSuggestion.__tablename__ == "governance_suggestions"
     assert governance.USER_ROLES == ("admin", "moderator", "contributor")
     assert governance.SUGGESTION_STATUSES == ("pending", "approved", "rejected")
+    assert governance.SUGGESTION_TYPES == ("alias", "canonical_term")
     assert governance.normalize_value(" K8S ") == "k8s"
     assert governance.normalize_profile_name("Default IT") == "default_it"
     assert governance.create_profile is not None

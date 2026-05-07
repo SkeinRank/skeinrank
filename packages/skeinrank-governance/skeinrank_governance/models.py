@@ -41,6 +41,7 @@ ALIAS_STATUSES = (
 )
 SNAPSHOT_STATUSES = ("draft", "published", "archived")
 SUGGESTION_STATUSES = ("pending", "approved", "rejected")
+SUGGESTION_TYPES = ("alias", "canonical_term")
 SUGGESTION_SOURCES = ("manual", "discovery", "import")
 USER_ROLES = ("admin", "moderator", "contributor")
 
@@ -291,6 +292,10 @@ class GovernanceSuggestion(TimestampMixin, Base):
             name="governance_suggestion_status",
         ),
         CheckConstraint(
+            f"suggestion_type IN {SUGGESTION_TYPES!r}",
+            name="governance_suggestion_type",
+        ),
+        CheckConstraint(
             f"source IN {SUGGESTION_SOURCES!r}",
             name="governance_suggestion_source",
         ),
@@ -310,14 +315,21 @@ class GovernanceSuggestion(TimestampMixin, Base):
     profile_id: Mapped[int] = mapped_column(
         ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=False
     )
+    term_id: Mapped[int | None] = mapped_column(
+        ForeignKey("canonical_terms.id", ondelete="SET NULL"), nullable=True
+    )
     alias_id: Mapped[int | None] = mapped_column(
         ForeignKey("term_aliases.id", ondelete="SET NULL"), nullable=True
     )
+    suggestion_type: Mapped[str] = mapped_column(
+        String(32), default="alias", nullable=False
+    )
     canonical_value: Mapped[str] = mapped_column(String(256), nullable=False)
     normalized_canonical: Mapped[str] = mapped_column(String(256), nullable=False)
-    alias_value: Mapped[str] = mapped_column(String(256), nullable=False)
-    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    alias_value: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_alias: Mapped[str | None] = mapped_column(String(256), nullable=True)
     slot: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
     context: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -330,13 +342,14 @@ class GovernanceSuggestion(TimestampMixin, Base):
     )
 
     profile: Mapped[TerminologyProfile] = relationship(back_populates="suggestions")
+    term: Mapped[CanonicalTerm | None] = relationship()
     alias: Mapped[TermAlias | None] = relationship()
 
     def __repr__(self) -> str:
         return (
             "GovernanceSuggestion("
-            f"alias={self.alias_value!r}, canonical={self.canonical_value!r}, "
-            f"status={self.status!r})"
+            f"type={self.suggestion_type!r}, canonical={self.canonical_value!r}, "
+            f"alias={self.alias_value!r}, status={self.status!r})"
         )
 
 
@@ -434,7 +447,9 @@ def _fill_normalized_suggestion(
 ) -> None:
     del mapper, connection
     target.normalized_canonical = normalize_value(target.canonical_value)
-    target.normalized_alias = normalize_value(target.alias_value)
+    target.normalized_alias = (
+        normalize_value(target.alias_value) if target.alias_value is not None else None
+    )
     target.slot = target.slot.strip().upper()
 
 
