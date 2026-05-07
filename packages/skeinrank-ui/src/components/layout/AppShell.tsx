@@ -6,7 +6,7 @@ import type { AuthUser } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
-export type AppSection = "terms" | "suggestions" | "users";
+export type AppSection = "terms" | "suggestions" | "guardrails" | "users";
 
 type AppShellProps = {
   activeSection: AppSection;
@@ -36,6 +36,7 @@ export function AppShell({ activeSection, canManageUsers = false, children, curr
   const navigation = [
     { label: "Terms", icon: Database, section: "terms" as const, available: true },
     { label: "Suggestions", icon: Search, section: "suggestions" as const, available: true },
+    { label: "Guardrails", icon: ShieldCheck, section: "guardrails" as const, available: true },
     { label: "Users", icon: Users, section: "users" as const, available: canManageUsers },
   ];
 
@@ -66,7 +67,6 @@ export function AppShell({ activeSection, canManageUsers = false, children, curr
               </button>
             ))}
           <DisabledNavItem icon={GitBranch} label="Snapshots" />
-          <DisabledNavItem icon={ShieldCheck} label="Governance" />
         </nav>
       </aside>
 
@@ -75,14 +75,16 @@ export function AppShell({ activeSection, canManageUsers = false, children, curr
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">
-                {activeSection === "users" ? "Users and roles" : activeSection === "suggestions" ? "Suggestions and approvals" : "Terminology control plane"}
+                {activeSection === "users" ? "Users and roles" : activeSection === "suggestions" ? "Suggestions and approvals" : activeSection === "guardrails" ? "Guardrails" : "Terminology control plane"}
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {activeSection === "users"
                   ? "Manage local users, roles, and access to governance workflows."
                   : activeSection === "suggestions"
                     ? "Propose aliases, review pending changes, and approve terminology updates."
-                    : "Manage canonical terms, aliases, slots, and runtime snapshots."}
+                    : activeSection === "guardrails"
+                      ? "Manage stop lists that block noisy or unsafe terminology changes."
+                      : "Manage canonical terms, aliases, slots, and runtime snapshots."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

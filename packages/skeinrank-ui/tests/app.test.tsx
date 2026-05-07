@@ -7,6 +7,7 @@ import type {
   CanonicalTerm,
   GovernanceSuggestion,
   Profile,
+  StopListEntry,
   TermAlias,
 } from "../src/types";
 
@@ -76,6 +77,21 @@ const terms: CanonicalTerm[] = [
   },
 ];
 
+
+const stopListEntries: StopListEntry[] = [
+  {
+    id: 1,
+    profile_id: 1,
+    value: "service",
+    normalized_value: "service",
+    target: "alias",
+    reason: "Too generic for incident search",
+    is_active: true,
+    created_at: "2026-05-07T00:00:00Z",
+    updated_at: "2026-05-07T00:00:00Z",
+  },
+];
+
 const suggestions: GovernanceSuggestion[] = [
   {
     id: 1,
@@ -120,16 +136,22 @@ function cloneSuggestions() {
   return JSON.parse(JSON.stringify(suggestions)) as GovernanceSuggestion[];
 }
 
+function cloneStopListEntries() {
+  return JSON.parse(JSON.stringify(stopListEntries)) as StopListEntry[];
+}
+
 function stubGovernanceApi(options: StubOptions = {}) {
   let currentProfiles = cloneProfiles();
   let currentUser = options.currentUser ?? adminUser;
   let currentUsers: AuthUser[] = [adminUser, moderatorUser, contributorUser];
   let currentTerms = cloneTerms();
   let currentSuggestions = cloneSuggestions();
+  let currentStopListEntries = cloneStopListEntries();
   let nextProfileId = 10;
   let nextTermId = 10;
   let nextAliasId = 20;
   let nextSuggestionId = 10;
+  let nextStopListEntryId = 10;
 
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -277,6 +299,75 @@ function stubGovernanceApi(options: StubOptions = {}) {
           (profile) => profile.name !== "default_it",
         );
         currentTerms = [];
+        return new Response(null, { status: 204 });
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/stop-list") &&
+        method === "GET"
+      ) {
+        return Response.json(currentStopListEntries);
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/stop-list") &&
+        method === "POST"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          is_active?: boolean;
+          reason?: string | null;
+          target: StopListEntry["target"];
+          value: string;
+        };
+        const entry: StopListEntry = {
+          id: nextStopListEntryId++,
+          profile_id: 1,
+          value: payload.value,
+          normalized_value: payload.value.toLowerCase(),
+          target: payload.target,
+          reason: payload.reason ?? null,
+          is_active: payload.is_active ?? true,
+          created_at: "2026-05-07T00:00:00Z",
+          updated_at: "2026-05-07T00:00:00Z",
+        };
+        currentStopListEntries = [entry, ...currentStopListEntries];
+        return Response.json(entry, { status: 201 });
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/stop-list/1") &&
+        method === "PATCH"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          is_active?: boolean | null;
+          reason?: string | null;
+          target?: StopListEntry["target"] | null;
+          value?: string | null;
+        };
+        const existingEntry = currentStopListEntries.find((entry) => entry.id === 1);
+        if (!existingEntry) {
+          return Response.json({ detail: "not found" }, { status: 404 });
+        }
+        const updatedEntry: StopListEntry = {
+          ...existingEntry,
+          value: payload.value ?? existingEntry.value,
+          normalized_value: (payload.value ?? existingEntry.value).toLowerCase(),
+          target: payload.target ?? existingEntry.target,
+          reason: payload.reason ?? null,
+          is_active: payload.is_active ?? existingEntry.is_active,
+          updated_at: "2026-05-07T00:00:00Z",
+        };
+        currentStopListEntries = currentStopListEntries.map((entry) =>
+          entry.id === 1 ? updatedEntry : entry,
+        );
+        return Response.json(updatedEntry);
+      }
+
+      if (
+        url.endsWith("/v1/governance/profiles/default_it/stop-list/1") &&
+        method === "DELETE"
+      ) {
+        currentStopListEntries = currentStopListEntries.filter((entry) => entry.id !== 1);
         return new Response(null, { status: 204 });
       }
 
@@ -1095,6 +1186,105 @@ describe("App", () => {
         expect.objectContaining({ method: "DELETE" }),
       );
     });
+  });
+
+
+  it("lets admins manage profile stop-list guardrails", async () => {
+    const fetchMock = stubGovernanceApi();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+
+    expect(await screen.findByText("Manage stop lists that block noisy or unsafe terminology changes.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("service").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText("Too generic for incident search")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Blocked value"), {
+      target: { value: "app" },
+    });
+    fireEvent.change(screen.getByLabelText("Target"), {
+      target: { value: "both" },
+    });
+    fireEvent.change(screen.getByLabelText("Reason"), {
+      target: { value: "Too broad for runtime matching" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add to stop list" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list",
+        expect.objectContaining({
+          body: JSON.stringify({
+            value: "app",
+            target: "both",
+            reason: "Too broad for runtime matching",
+            is_active: true,
+          }),
+          method: "POST",
+        }),
+      );
+    });
+    expect((await screen.findAllByText("app")).length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.click(screen.getAllByText("service")[0]);
+    fireEvent.change(screen.getByLabelText("Edit blocked value"), {
+      target: { value: "svc" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit target"), {
+      target: { value: "canonical" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit reason"), {
+      target: { value: "Reserved internal abbreviation" },
+    });
+    fireEvent.click(screen.getByLabelText("Active guardrail"));
+    fireEvent.click(screen.getByRole("button", { name: "Save stop-list entry" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list/1",
+        expect.objectContaining({
+          body: JSON.stringify({
+            value: "svc",
+            target: "canonical",
+            reason: "Reserved internal abbreviation",
+            is_active: false,
+          }),
+          method: "PATCH",
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete stop-list entry" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list/1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("keeps contributor users in read-only guardrails mode", async () => {
+    stubGovernanceApi({ currentUser: contributorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("service").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole("button", { name: "Add to stop list" })).toBeDisabled();
+    expect(screen.getByText("Your role can inspect guardrails, but only admins and moderators can update stop lists.")).toBeInTheDocument();
+    expect(screen.getByText("Contributors can inspect stop lists, but only admins and moderators can update guardrails.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save stop-list entry" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete stop-list entry" })).toBeDisabled();
   });
 
   it("keeps contributor users in read-only governance mode", async () => {

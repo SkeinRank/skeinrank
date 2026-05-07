@@ -8,6 +8,8 @@ export type GovernancePermissions = {
   canExportSnapshots: boolean;
   canCreateSuggestions: boolean;
   canReviewSuggestions: boolean;
+  canReadStopLists: boolean;
+  canManageStopLists: boolean;
 };
 
 export function permissionsForUser(user: AuthUser): GovernancePermissions {
@@ -22,5 +24,7 @@ export function permissionsForUser(user: AuthUser): GovernancePermissions {
     canExportSnapshots: isAdmin || isModerator,
     canCreateSuggestions: isAdmin || isModerator || user.role === "contributor",
     canReviewSuggestions: isAdmin || isModerator,
+    canReadStopLists: true,
+    canManageStopLists: isAdmin || isModerator,
   };
 }
