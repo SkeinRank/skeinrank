@@ -80,12 +80,15 @@ const suggestions: GovernanceSuggestion[] = [
   {
     id: 1,
     profile_id: 1,
+    term_id: 1,
     alias_id: null,
+    suggestion_type: "alias",
     canonical_value: "kubernetes",
     normalized_canonical: "kubernetes",
     alias_value: "kube",
     normalized_alias: "kube",
     slot: "TOOL",
+    description: null,
     confidence: 0.82,
     source: "manual",
     context: "People search for kube in incident docs.",
@@ -450,22 +453,33 @@ function stubGovernanceApi(options: StubOptions = {}) {
         method === "POST"
       ) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
-          alias_value: string;
+          alias_value?: string | null;
           canonical_value: string;
           confidence?: number;
           context?: string | null;
+          description?: string | null;
           slot: string;
           source?: GovernanceSuggestion["source"];
+          suggestion_type?: GovernanceSuggestion["suggestion_type"];
         };
+        const suggestionType = payload.suggestion_type ?? "alias";
         const suggestion: GovernanceSuggestion = {
           id: nextSuggestionId++,
           profile_id: 1,
+          term_id:
+            suggestionType === "alias"
+              ? currentTerms.find(
+                  (term) => term.canonical_value === payload.canonical_value,
+                )?.id ?? null
+              : null,
           alias_id: null,
+          suggestion_type: suggestionType,
           canonical_value: payload.canonical_value,
           normalized_canonical: payload.canonical_value.toLowerCase(),
-          alias_value: payload.alias_value,
-          normalized_alias: payload.alias_value.toLowerCase(),
+          alias_value: payload.alias_value ?? null,
+          normalized_alias: payload.alias_value?.toLowerCase() ?? null,
           slot: payload.slot,
+          description: payload.description ?? null,
           confidence: payload.confidence ?? 1,
           source: payload.source ?? "manual",
           context: payload.context ?? null,
@@ -482,32 +496,55 @@ function stubGovernanceApi(options: StubOptions = {}) {
       }
 
       if (
-        url.endsWith(
-          "/v1/governance/profiles/default_it/suggestions/1/approve",
-        ) &&
+        url.includes("/v1/governance/profiles/default_it/suggestions/") &&
+        url.endsWith("/approve") &&
         method === "POST"
       ) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           review_comment?: string | null;
         };
-        const newAlias: TermAlias = {
-          id: nextAliasId++,
-          alias_value: currentSuggestions[0].alias_value,
-          normalized_alias: currentSuggestions[0].normalized_alias,
-          status: "active",
-          confidence: currentSuggestions[0].confidence,
-          notes: currentSuggestions[0].context,
-          created_at: "2026-05-06T00:00:00Z",
-          updated_at: "2026-05-06T00:00:00Z",
-        };
-        currentTerms = currentTerms.map((term) =>
-          term.canonical_value === "kubernetes"
-            ? { ...term, aliases: [...term.aliases, newAlias] }
-            : term,
-        );
+        const suggestionId = Number(url.match(/suggestions\/(\d+)\/approve/)?.[1] ?? "0");
+        const currentSuggestion =
+          currentSuggestions.find((suggestion) => suggestion.id === suggestionId) ??
+          currentSuggestions[0];
+        let aliasId = currentSuggestion.alias_id;
+        let termId = currentSuggestion.term_id;
+        if (currentSuggestion.suggestion_type === "alias") {
+          const newAlias: TermAlias = {
+            id: nextAliasId++,
+            alias_value: currentSuggestion.alias_value ?? "",
+            normalized_alias: currentSuggestion.normalized_alias ?? "",
+            status: "active",
+            confidence: currentSuggestion.confidence,
+            notes: currentSuggestion.context,
+            created_at: "2026-05-06T00:00:00Z",
+            updated_at: "2026-05-06T00:00:00Z",
+          };
+          aliasId = newAlias.id;
+          currentTerms = currentTerms.map((term) =>
+            term.canonical_value === currentSuggestion.canonical_value
+              ? { ...term, aliases: [...term.aliases, newAlias] }
+              : term,
+          );
+        } else {
+          const newTerm: CanonicalTerm = {
+            id: nextTermId++,
+            canonical_value: currentSuggestion.canonical_value,
+            normalized_value: currentSuggestion.normalized_canonical,
+            slot: currentSuggestion.slot,
+            status: "active",
+            description: currentSuggestion.description,
+            aliases: [],
+            created_at: "2026-05-06T00:00:00Z",
+            updated_at: "2026-05-06T00:00:00Z",
+          };
+          termId = newTerm.id;
+          currentTerms = [...currentTerms, newTerm];
+        }
         const updatedSuggestion: GovernanceSuggestion = {
-          ...currentSuggestions[0],
-          alias_id: newAlias.id,
+          ...currentSuggestion,
+          alias_id: aliasId,
+          term_id: termId,
           status: "approved",
           reviewed_by: currentUser.username,
           review_comment: payload.review_comment ?? null,
@@ -515,22 +552,25 @@ function stubGovernanceApi(options: StubOptions = {}) {
           updated_at: "2026-05-06T00:00:00Z",
         };
         currentSuggestions = currentSuggestions.map((suggestion) =>
-          suggestion.id === 1 ? updatedSuggestion : suggestion,
+          suggestion.id === currentSuggestion.id ? updatedSuggestion : suggestion,
         );
         return Response.json(updatedSuggestion);
       }
 
       if (
-        url.endsWith(
-          "/v1/governance/profiles/default_it/suggestions/1/reject",
-        ) &&
+        url.includes("/v1/governance/profiles/default_it/suggestions/") &&
+        url.endsWith("/reject") &&
         method === "POST"
       ) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           review_comment?: string | null;
         };
+        const suggestionId = Number(url.match(/suggestions\/(\d+)\/reject/)?.[1] ?? "0");
+        const currentSuggestion =
+          currentSuggestions.find((suggestion) => suggestion.id === suggestionId) ??
+          currentSuggestions[0];
         const updatedSuggestion: GovernanceSuggestion = {
-          ...currentSuggestions[0],
+          ...currentSuggestion,
           status: "rejected",
           reviewed_by: currentUser.username,
           review_comment: payload.review_comment ?? null,
@@ -538,7 +578,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
           updated_at: "2026-05-06T00:00:00Z",
         };
         currentSuggestions = currentSuggestions.map((suggestion) =>
-          suggestion.id === 1 ? updatedSuggestion : suggestion,
+          suggestion.id === currentSuggestion.id ? updatedSuggestion : suggestion,
         );
         return Response.json(updatedSuggestion);
       }
@@ -1135,6 +1175,7 @@ describe("App", () => {
         "http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions",
         expect.objectContaining({
           body: JSON.stringify({
+            suggestion_type: "alias",
             canonical_value: "kubernetes",
             alias_value: "k8s-prod",
             slot: "TOOL",
@@ -1171,6 +1212,84 @@ describe("App", () => {
 
     expect(
       await screen.findByText(/This alias already exists for kubernetes/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create suggestion" }),
+    ).toBeDisabled();
+  });
+
+  it("lets contributors suggest new canonical terms", async () => {
+    const fetchMock = stubGovernanceApi({ currentUser: contributorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
+
+    expect(
+      await screen.findByText("Suggestions and approvals"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /New canonical term/ }));
+    fireEvent.change(screen.getByLabelText("New canonical term"), {
+      target: { value: "vector database" },
+    });
+    fireEvent.change(screen.getByLabelText("Slot"), {
+      target: { value: "TOOL" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Storage optimized for vector similarity search." },
+    });
+    fireEvent.change(screen.getByLabelText("Context"), {
+      target: { value: "No canonical term exists for vectordb searches." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create suggestion" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions",
+        expect.objectContaining({
+          body: JSON.stringify({
+            suggestion_type: "canonical_term",
+            canonical_value: "vector database",
+            alias_value: null,
+            slot: "TOOL",
+            description: "Storage optimized for vector similarity search.",
+            confidence: 1,
+            source: "manual",
+            context: "No canonical term exists for vectordb searches.",
+          }),
+          method: "POST",
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("vector database").length).toBeGreaterThan(0);
+    });
+    expect(screen.getAllByText("Proposed new canonical term").length).toBeGreaterThan(0);
+  });
+
+  it("blocks duplicate canonical term suggestions", async () => {
+    stubGovernanceApi({ currentUser: contributorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
+
+    expect(
+      await screen.findByText("Suggestions and approvals"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /New canonical term/ }));
+    fireEvent.change(screen.getByLabelText("New canonical term"), {
+      target: { value: "kubernetes" },
+    });
+    fireEvent.change(screen.getByLabelText("Slot"), {
+      target: { value: "TOOL" },
+    });
+
+    expect(
+      await screen.findByText(/This canonical term already exists/),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Create suggestion" }),
