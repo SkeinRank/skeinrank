@@ -805,3 +805,164 @@ def test_suggestion_rejects_invalid_type(tmp_path):
 
     assert response.status_code == 422
     assert "Invalid suggestion type status" in response.json()["detail"]
+
+
+def test_stop_list_crud_workflow(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    create_response = client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={
+            "value": "Service",
+            "target": "alias",
+            "reason": "Too generic for this profile.",
+        },
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["value"] == "Service"
+    assert created["normalized_value"] == "service"
+    assert created["target"] == "alias"
+    assert created["is_active"] is True
+
+    list_response = client.get("/v1/governance/profiles/default_it/stop-list")
+    assert list_response.status_code == 200
+    assert [entry["normalized_value"] for entry in list_response.json()] == ["service"]
+
+    update_response = client.patch(
+        f"/v1/governance/profiles/default_it/stop-list/{created['id']}",
+        json={"value": "Application", "target": "both", "is_active": False},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["normalized_value"] == "application"
+    assert updated["target"] == "both"
+    assert updated["is_active"] is False
+
+    delete_response = client.delete(
+        f"/v1/governance/profiles/default_it/stop-list/{created['id']}"
+    )
+    assert delete_response.status_code == 204
+    assert client.get("/v1/governance/profiles/default_it/stop-list").json() == []
+
+
+def test_stop_list_rejects_invalid_target_and_duplicate_overlap(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    invalid = client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={"value": "service", "target": "unknown"},
+    )
+    assert invalid.status_code == 422
+    assert "Invalid stop-list target" in invalid.json()["detail"]
+
+    first = client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={"value": "service", "target": "both"},
+    )
+    assert first.status_code == 201
+
+    overlap = client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={"value": " Service ", "target": "alias"},
+    )
+    assert overlap.status_code == 409
+    assert "Stop-list entry already exists" in overlap.json()["detail"]
+
+
+def test_stop_list_blocks_direct_alias_and_alias_suggestions(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={
+            "value": "kube",
+            "target": "alias",
+            "reason": "Use k8s for this profile.",
+        },
+    )
+
+    direct_alias = client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "kube"},
+    )
+    assert direct_alias.status_code == 409
+    assert "Alias is blocked by stop list" in direct_alias.json()["detail"]
+    assert "Use k8s" in direct_alias.json()["detail"]
+
+    suggestion = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "TOOL",
+        },
+    )
+    assert suggestion.status_code == 409
+    assert "Alias suggestion is blocked by stop list" in suggestion.json()["detail"]
+
+
+def test_stop_list_rechecks_alias_on_approve(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "TOOL",
+        },
+    )
+    assert suggestion_response.status_code == 201
+    client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={"value": "kube", "target": "alias"},
+    )
+
+    approve_response = client.post(
+        f"/v1/governance/profiles/default_it/suggestions/{suggestion_response.json()['id']}/approve"
+    )
+    assert approve_response.status_code == 409
+    assert (
+        "Alias suggestion is blocked by stop list" in approve_response.json()["detail"]
+    )
+
+
+def test_stop_list_blocks_canonical_terms_and_canonical_suggestions(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={"value": "service", "target": "canonical"},
+    )
+
+    direct_term = client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "service", "slot": "SERVICE"},
+    )
+    assert direct_term.status_code == 409
+    assert "Canonical term is blocked by stop list" in direct_term.json()["detail"]
+
+    suggestion = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "suggestion_type": "canonical_term",
+            "canonical_value": "service",
+            "slot": "SERVICE",
+        },
+    )
+    assert suggestion.status_code == 409
+    assert (
+        "Canonical term suggestion is blocked by stop list"
+        in suggestion.json()["detail"]
+    )

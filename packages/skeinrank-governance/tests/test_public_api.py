@@ -12,9 +12,14 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.GovernanceUser.__tablename__ == "governance_users"
     assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"
     assert governance.GovernanceSuggestion.__tablename__ == "governance_suggestions"
+    assert (
+        governance.GovernanceStopListEntry.__tablename__
+        == "governance_stop_list_entries"
+    )
     assert governance.USER_ROLES == ("admin", "moderator", "contributor")
     assert governance.SUGGESTION_STATUSES == ("pending", "approved", "rejected")
     assert governance.SUGGESTION_TYPES == ("alias", "canonical_term")
+    assert governance.STOP_LIST_TARGETS == ("alias", "canonical", "both")
     assert governance.normalize_value(" K8S ") == "k8s"
     assert governance.normalize_profile_name("Default IT") == "default_it"
     assert governance.create_profile is not None

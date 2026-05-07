@@ -14,11 +14,13 @@ from skeinrank_governance.cli import (
 )
 from skeinrank_governance.models import (
     ALIAS_STATUSES,
+    STOP_LIST_TARGETS,
     SUGGESTION_SOURCES,
     SUGGESTION_STATUSES,
     SUGGESTION_TYPES,
     TERM_STATUSES,
     CanonicalTerm,
+    GovernanceStopListEntry,
     GovernanceSuggestion,
     TermAlias,
     TerminologyProfile,
@@ -41,6 +43,9 @@ from ..schemas import (
     ProfileUpdateRequest,
     RuntimeSnapshotResponse,
     SnapshotExportRequest,
+    StopListCreateRequest,
+    StopListEntryResponse,
+    StopListUpdateRequest,
     SuggestionCreateRequest,
     SuggestionResponse,
     SuggestionReviewRequest,
@@ -159,6 +164,146 @@ def delete_profile_endpoint(
 
 
 @router.get(
+    "/profiles/{profile_name}/stop-list",
+    response_model=list[StopListEntryResponse],
+)
+def list_profile_stop_list(
+    profile_name: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[StopListEntryResponse]:
+    """List profile-scoped stop-list guardrails."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    entries = list(
+        session.scalars(
+            select(GovernanceStopListEntry)
+            .where(GovernanceStopListEntry.profile_id == profile.id)
+            .order_by(
+                GovernanceStopListEntry.target,
+                GovernanceStopListEntry.normalized_value,
+            )
+        )
+    )
+    return [_stop_list_response(entry) for entry in entries]
+
+
+@router.post(
+    "/profiles/{profile_name}/stop-list",
+    response_model=StopListEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_profile_stop_list_entry(
+    profile_name: str,
+    request: StopListCreateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> StopListEntryResponse:
+    """Create a profile-scoped stop-list entry."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    _validate_stop_list_target(request.target)
+    normalized_value = normalize_value(request.value)
+    _ensure_stop_list_entry_unique(
+        session,
+        profile,
+        normalized_value=normalized_value,
+        target=request.target,
+    )
+
+    entry = GovernanceStopListEntry(
+        profile=profile,
+        value=request.value,
+        target=request.target,
+        reason=request.reason,
+        is_active=request.is_active,
+    )
+    session.add(entry)
+    try:
+        session.commit()
+        session.refresh(entry)
+        return _stop_list_response(entry)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.patch(
+    "/profiles/{profile_name}/stop-list/{entry_id}",
+    response_model=StopListEntryResponse,
+)
+def update_profile_stop_list_entry(
+    profile_name: str,
+    entry_id: int,
+    request: StopListUpdateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> StopListEntryResponse:
+    """Update a profile-scoped stop-list entry."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    entry = _get_stop_list_entry_or_404(session, profile, entry_id)
+    fields = request.model_fields_set
+
+    next_value = (
+        request.value
+        if "value" in fields and request.value is not None
+        else entry.value
+    )
+    next_target = (
+        request.target
+        if "target" in fields and request.target is not None
+        else entry.target
+    )
+    _validate_stop_list_target(next_target)
+
+    if next_value != entry.value or next_target != entry.target:
+        _ensure_stop_list_entry_unique(
+            session,
+            profile,
+            normalized_value=normalize_value(next_value),
+            target=next_target,
+            exclude_id=entry.id,
+        )
+        entry.value = next_value
+        entry.target = next_target
+
+    if "reason" in fields:
+        entry.reason = request.reason
+    if "is_active" in fields and request.is_active is not None:
+        entry.is_active = request.is_active
+
+    try:
+        session.commit()
+        session.refresh(entry)
+        return _stop_list_response(entry)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.delete(
+    "/profiles/{profile_name}/stop-list/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_profile_stop_list_entry(
+    profile_name: str,
+    entry_id: int,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> Response:
+    """Delete a profile-scoped stop-list entry."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    entry = _get_stop_list_entry_or_404(session, profile, entry_id)
+    session.delete(entry)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
     "/profiles/{profile_name}/terms",
     response_model=list[TermResponse],
 )
@@ -196,6 +341,15 @@ def add_profile_term(
     session: Session = Depends(get_session),
 ) -> TermResponse:
     """Add a canonical term to a terminology profile."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    _ensure_not_stoplisted(
+        session,
+        profile,
+        value=request.canonical_value,
+        target="canonical",
+        entity_name="Canonical term",
+    )
 
     try:
         term = add_term(
@@ -273,6 +427,13 @@ def update_profile_term(
         term.status = request.status
 
     if "canonical_value" in fields and request.canonical_value is not None:
+        _ensure_not_stoplisted(
+            session,
+            profile,
+            value=request.canonical_value,
+            target="canonical",
+            entity_name="Canonical term",
+        )
         normalized_value = normalize_value(request.canonical_value)
         existing = session.scalar(
             select(CanonicalTerm).where(
@@ -343,6 +504,15 @@ def add_term_alias(
 ) -> AliasResponse:
     """Add an alias to a canonical term."""
 
+    profile = _get_profile_or_404(session, profile_name)
+    _ensure_not_stoplisted(
+        session,
+        profile,
+        value=request.alias_value,
+        target="alias",
+        entity_name="Alias",
+    )
+
     try:
         alias = add_alias(
             session,
@@ -400,6 +570,13 @@ def update_term_alias(
         alias.status = request.status
 
     if "alias_value" in fields and request.alias_value is not None:
+        _ensure_not_stoplisted(
+            session,
+            profile,
+            value=request.alias_value,
+            target="alias",
+            entity_name="Alias",
+        )
         normalized_alias = normalize_value(request.alias_value)
         existing = session.scalar(
             select(TermAlias).where(
@@ -466,7 +643,7 @@ def list_profile_suggestions(
     ),
     session: Session = Depends(get_session),
 ) -> list[SuggestionResponse]:
-    """List alias suggestions for a terminology profile."""
+    """List governance suggestions for a terminology profile."""
 
     profile = _get_profile_or_404(session, profile_name)
     if status_filter is not None:
@@ -501,7 +678,7 @@ def create_profile_suggestion(
     ),
     session: Session = Depends(get_session),
 ) -> SuggestionResponse:
-    """Create a pending alias suggestion without mutating active aliases."""
+    """Create a pending governance suggestion without mutating active terms."""
 
     profile = _get_profile_or_404(session, profile_name)
     _validate_status(request.source, SUGGESTION_SOURCES, "suggestion source")
@@ -513,7 +690,21 @@ def create_profile_suggestion(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Alias suggestions require alias_value.",
             )
+        _ensure_not_stoplisted(
+            session,
+            profile,
+            value=request.alias_value,
+            target="alias",
+            entity_name="Alias suggestion",
+        )
     elif request.suggestion_type == "canonical_term":
+        _ensure_not_stoplisted(
+            session,
+            profile,
+            value=request.canonical_value,
+            target="canonical",
+            entity_name="Canonical term suggestion",
+        )
         if request.alias_value is not None and request.alias_value.strip():
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -657,6 +848,94 @@ def export_profile_snapshot(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
+def _get_stop_list_entry_or_404(
+    session: Session, profile: TerminologyProfile, entry_id: int
+) -> GovernanceStopListEntry:
+    entry = session.scalar(
+        select(GovernanceStopListEntry).where(
+            GovernanceStopListEntry.id == entry_id,
+            GovernanceStopListEntry.profile_id == profile.id,
+        )
+    )
+    if entry is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Stop-list entry not found for profile {profile.name!r}: {entry_id}",
+        )
+    return entry
+
+
+def _validate_stop_list_target(target: str) -> None:
+    if target not in STOP_LIST_TARGETS:
+        allowed_values = ", ".join(STOP_LIST_TARGETS)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Invalid stop-list target: {target}. Allowed values: {allowed_values}",
+        )
+
+
+def _ensure_stop_list_entry_unique(
+    session: Session,
+    profile: TerminologyProfile,
+    *,
+    normalized_value: str,
+    target: str,
+    exclude_id: int | None = None,
+) -> None:
+    query = select(GovernanceStopListEntry).where(
+        GovernanceStopListEntry.profile_id == profile.id,
+        GovernanceStopListEntry.normalized_value == normalized_value,
+    )
+    if exclude_id is not None:
+        query = query.where(GovernanceStopListEntry.id != exclude_id)
+    candidates = list(session.scalars(query))
+    for entry in candidates:
+        if entry.target == target or entry.target == "both" or target == "both":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Stop-list entry already exists in profile {profile.name!r}: "
+                    f"{entry.value} ({entry.target})"
+                ),
+            )
+
+
+def _stop_list_targets_for(target: str) -> tuple[str, ...]:
+    if target == "alias":
+        return ("alias", "both")
+    if target == "canonical":
+        return ("canonical", "both")
+    return STOP_LIST_TARGETS
+
+
+def _ensure_not_stoplisted(
+    session: Session,
+    profile: TerminologyProfile,
+    *,
+    value: str,
+    target: str,
+    entity_name: str,
+) -> None:
+    normalized_value = normalize_value(value)
+    entry = session.scalar(
+        select(GovernanceStopListEntry).where(
+            GovernanceStopListEntry.profile_id == profile.id,
+            GovernanceStopListEntry.normalized_value == normalized_value,
+            GovernanceStopListEntry.target.in_(_stop_list_targets_for(target)),
+            GovernanceStopListEntry.is_active.is_(True),
+        )
+    )
+    if entry is None:
+        return
+    detail = (
+        f"{entity_name} is blocked by stop list for profile {profile.name!r}: "
+        f"{value}"
+    )
+    if entry.reason:
+        detail = f"{detail}. Reason: {entry.reason}"
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+
 def _get_profile_or_404(session: Session, profile_name: str) -> TerminologyProfile:
     try:
         return get_profile(session, profile_name)
@@ -708,6 +987,14 @@ def _approve_alias_suggestion(
             detail="Alias suggestion is missing alias_value.",
         )
 
+    _ensure_not_stoplisted(
+        session,
+        profile,
+        value=suggestion.alias_value,
+        target="alias",
+        entity_name="Alias suggestion",
+    )
+
     try:
         term = get_term(session, profile, suggestion.canonical_value)
     except GovernanceCliError as exc:
@@ -741,6 +1028,14 @@ def _approve_alias_suggestion(
 def _approve_canonical_term_suggestion(
     session: Session, profile: TerminologyProfile, suggestion: GovernanceSuggestion
 ) -> None:
+    _ensure_not_stoplisted(
+        session,
+        profile,
+        value=suggestion.canonical_value,
+        target="canonical",
+        entity_name="Canonical term suggestion",
+    )
+
     existing_term = session.scalar(
         select(CanonicalTerm).where(
             CanonicalTerm.profile_id == profile.id,
@@ -840,6 +1135,20 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         reviewed_at=suggestion.reviewed_at,
         created_at=suggestion.created_at,
         updated_at=suggestion.updated_at,
+    )
+
+
+def _stop_list_response(entry: GovernanceStopListEntry) -> StopListEntryResponse:
+    return StopListEntryResponse(
+        id=entry.id,
+        profile_id=entry.profile_id,
+        value=entry.value,
+        normalized_value=entry.normalized_value,
+        target=entry.target,
+        reason=entry.reason,
+        is_active=entry.is_active,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
     )
 
 

@@ -119,6 +119,38 @@ class TermResponse(BaseModel):
     updated_at: datetime
 
 
+class StopListCreateRequest(BaseModel):
+    """Request body for creating a profile stop-list entry."""
+
+    value: str = Field(..., min_length=1, max_length=256)
+    target: str = "both"
+    reason: str | None = None
+    is_active: bool = True
+
+
+class StopListUpdateRequest(BaseModel):
+    """Request body for updating a profile stop-list entry."""
+
+    value: str | None = Field(default=None, min_length=1, max_length=256)
+    target: str | None = None
+    reason: str | None = None
+    is_active: bool | None = None
+
+
+class StopListEntryResponse(BaseModel):
+    """Profile stop-list entry response."""
+
+    id: int
+    profile_id: int
+    value: str
+    normalized_value: str
+    target: str
+    reason: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
 class SuggestionCreateRequest(BaseModel):
     """Request body for proposing a terminology change for later review."""
 
