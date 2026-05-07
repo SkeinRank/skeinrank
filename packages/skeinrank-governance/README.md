@@ -37,6 +37,7 @@ Important constraints:
 - governance user roles are constrained to `admin`, `moderator`, and `contributor`
 - auth tokens are stored as hashes, not plaintext bearer tokens
 - suggestions are constrained to `pending`, `approved`, and `rejected` review states
+- suggestion types are constrained to `alias` and `canonical_term`
 
 ## Local development
 

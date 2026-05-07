@@ -120,11 +120,13 @@ class TermResponse(BaseModel):
 
 
 class SuggestionCreateRequest(BaseModel):
-    """Request body for proposing an alias for later review."""
+    """Request body for proposing a terminology change for later review."""
 
+    suggestion_type: str = "alias"
     canonical_value: str = Field(..., min_length=1, max_length=256)
-    alias_value: str = Field(..., min_length=1, max_length=256)
+    alias_value: str | None = Field(default=None, min_length=1, max_length=256)
     slot: str = Field(..., min_length=1, max_length=64)
+    description: str | None = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     source: str = "manual"
     context: str | None = None
@@ -141,12 +143,15 @@ class SuggestionResponse(BaseModel):
 
     id: int
     profile_id: int
+    term_id: int | None = None
     alias_id: int | None = None
+    suggestion_type: str
     canonical_value: str
     normalized_canonical: str
-    alias_value: str
-    normalized_alias: str
+    alias_value: str | None = None
+    normalized_alias: str | None = None
     slot: str
+    description: str | None = None
     confidence: float
     source: str
     context: str | None = None

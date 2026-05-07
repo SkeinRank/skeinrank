@@ -90,6 +90,7 @@ def test_create_governance_rows_and_normalized_values(session):
     assert term.slot == "TOOL"
     assert alias.normalized_alias == "k8s"
     assert snapshot.status == "draft"
+    assert suggestion.suggestion_type == "alias"
     assert suggestion.normalized_canonical == "kubernetes"
     assert suggestion.normalized_alias == "kube"
     assert suggestion.slot == "TOOL"
@@ -211,6 +212,41 @@ def test_governance_auth_token_is_linked_to_user(session):
     session.commit()
 
     assert token.user.username == "admin"
+
+
+def test_canonical_term_suggestion_normalizes_without_alias(session):
+    profile = TerminologyProfile(name="default_it")
+    suggestion = GovernanceSuggestion(
+        profile=profile,
+        suggestion_type="canonical_term",
+        canonical_value="Vector Database",
+        alias_value=None,
+        slot="tool",
+        description="Vector search storage system",
+        context="No canonical term exists for vector databases yet.",
+    )
+    session.add_all([profile, suggestion])
+    session.commit()
+
+    assert suggestion.normalized_canonical == "vector database"
+    assert suggestion.normalized_alias is None
+    assert suggestion.slot == "TOOL"
+    assert suggestion.description == "Vector search storage system"
+
+
+def test_invalid_governance_suggestion_type_is_rejected(session):
+    profile = TerminologyProfile(name="default_it")
+    suggestion = GovernanceSuggestion(
+        profile=profile,
+        suggestion_type="rename",
+        canonical_value="kubernetes",
+        alias_value="k8s",
+        slot="TOOL",
+    )
+    session.add_all([profile, suggestion])
+
+    with pytest.raises(IntegrityError):
+        session.commit()
 
 
 def test_invalid_governance_suggestion_status_is_rejected(session):

@@ -147,7 +147,7 @@ poetry run python -m skeinrank_governance_api.migrations upgrade head
 
 For local demos/tests only, set `SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true` to create tables at startup.
 
-Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions, while moderators/admins can approve or reject them. Approved suggestions create active aliases; rejected suggestions remain as review history.
+Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
 
 
 ## Governance UI preview
@@ -212,7 +212,7 @@ Current UI scope:
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-The API and UI now include the suggestions/approval workflow. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. New canonical term proposals are intentionally left for a separate workflow. Publish/rollback, Elasticsearch bindings, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The API and UI now include the suggestions/approval workflow. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The API also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review. Publish/rollback, Elasticsearch bindings, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 

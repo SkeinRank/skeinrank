@@ -16,6 +16,7 @@ from skeinrank_governance.models import (
     ALIAS_STATUSES,
     SUGGESTION_SOURCES,
     SUGGESTION_STATUSES,
+    SUGGESTION_TYPES,
     TERM_STATUSES,
     CanonicalTerm,
     GovernanceSuggestion,
@@ -504,12 +505,43 @@ def create_profile_suggestion(
 
     profile = _get_profile_or_404(session, profile_name)
     _validate_status(request.source, SUGGESTION_SOURCES, "suggestion source")
+    _validate_status(request.suggestion_type, SUGGESTION_TYPES, "suggestion type")
+
+    if request.suggestion_type == "alias":
+        if request.alias_value is None or not request.alias_value.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Alias suggestions require alias_value.",
+            )
+    elif request.suggestion_type == "canonical_term":
+        if request.alias_value is not None and request.alias_value.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Canonical term suggestions must not include alias_value.",
+            )
+        existing = session.scalar(
+            select(CanonicalTerm).where(
+                CanonicalTerm.profile_id == profile.id,
+                CanonicalTerm.normalized_value
+                == normalize_value(request.canonical_value),
+            )
+        )
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Canonical term already exists in profile {profile.name!r}: "
+                    f"{request.canonical_value}"
+                ),
+            )
 
     suggestion = GovernanceSuggestion(
         profile=profile,
+        suggestion_type=request.suggestion_type,
         canonical_value=request.canonical_value,
         alias_value=request.alias_value,
         slot=request.slot,
+        description=request.description,
         confidence=request.confidence,
         source=request.source,
         context=request.context,
@@ -544,35 +576,16 @@ def approve_profile_suggestion(
     suggestion = _get_suggestion_or_404(session, profile, suggestion_id)
     _ensure_pending_suggestion(suggestion)
 
-    try:
-        term = get_term(session, profile, suggestion.canonical_value)
-    except GovernanceCliError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-
-    existing_alias = session.scalar(
-        select(TermAlias).where(
-            TermAlias.profile_id == profile.id,
-            TermAlias.normalized_alias == suggestion.normalized_alias,
-        )
-    )
-    if existing_alias is not None:
+    if suggestion.suggestion_type == "alias":
+        _approve_alias_suggestion(session, profile, suggestion)
+    elif suggestion.suggestion_type == "canonical_term":
+        _approve_canonical_term_suggestion(session, profile, suggestion)
+    else:  # pragma: no cover - guarded by database/API validation
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Alias already exists in profile {profile.name!r}: {suggestion.alias_value}",
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Invalid suggestion type: {suggestion.suggestion_type}",
         )
 
-    alias = TermAlias(
-        profile=profile,
-        term=term,
-        alias_value=suggestion.alias_value,
-        confidence=suggestion.confidence,
-        status="active",
-        notes=suggestion.context,
-    )
-    session.add(alias)
-    session.flush()
-
-    suggestion.alias_id = alias.id
     suggestion.status = "approved"
     suggestion.reviewed_by = reviewer.username
     suggestion.review_comment = request.review_comment
@@ -686,6 +699,75 @@ def _get_suggestion_or_404(
     return suggestion
 
 
+def _approve_alias_suggestion(
+    session: Session, profile: TerminologyProfile, suggestion: GovernanceSuggestion
+) -> None:
+    if suggestion.alias_value is None or suggestion.normalized_alias is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Alias suggestion is missing alias_value.",
+        )
+
+    try:
+        term = get_term(session, profile, suggestion.canonical_value)
+    except GovernanceCliError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    existing_alias = session.scalar(
+        select(TermAlias).where(
+            TermAlias.profile_id == profile.id,
+            TermAlias.normalized_alias == suggestion.normalized_alias,
+        )
+    )
+    if existing_alias is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Alias already exists in profile {profile.name!r}: {suggestion.alias_value}",
+        )
+
+    alias = TermAlias(
+        profile=profile,
+        term=term,
+        alias_value=suggestion.alias_value,
+        confidence=suggestion.confidence,
+        status="active",
+        notes=suggestion.context,
+    )
+    session.add(alias)
+    session.flush()
+    suggestion.alias_id = alias.id
+
+
+def _approve_canonical_term_suggestion(
+    session: Session, profile: TerminologyProfile, suggestion: GovernanceSuggestion
+) -> None:
+    existing_term = session.scalar(
+        select(CanonicalTerm).where(
+            CanonicalTerm.profile_id == profile.id,
+            CanonicalTerm.normalized_value == suggestion.normalized_canonical,
+        )
+    )
+    if existing_term is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Canonical term already exists in profile {profile.name!r}: "
+                f"{suggestion.canonical_value}"
+            ),
+        )
+
+    term = CanonicalTerm(
+        profile=profile,
+        canonical_value=suggestion.canonical_value,
+        slot=suggestion.slot,
+        description=suggestion.description,
+        status="active",
+    )
+    session.add(term)
+    session.flush()
+    suggestion.term_id = term.id
+
+
 def _ensure_pending_suggestion(suggestion: GovernanceSuggestion) -> None:
     if suggestion.status != "pending":
         raise HTTPException(
@@ -739,12 +821,15 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
     return SuggestionResponse(
         id=suggestion.id,
         profile_id=suggestion.profile_id,
+        term_id=suggestion.term_id,
         alias_id=suggestion.alias_id,
+        suggestion_type=suggestion.suggestion_type,
         canonical_value=suggestion.canonical_value,
         normalized_canonical=suggestion.normalized_canonical,
         alias_value=suggestion.alias_value,
         normalized_alias=suggestion.normalized_alias,
         slot=suggestion.slot,
+        description=suggestion.description,
         confidence=suggestion.confidence,
         source=suggestion.source,
         context=suggestion.context,
