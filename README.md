@@ -492,3 +492,21 @@ Example request:
 ```
 
 Dry-run never writes to Elasticsearch. It is intended to validate profile/index/text-field/discriminator configuration before any future write strategy or reindex/alias-swap job is introduced.
+### Patch 25g — reindex + alias swap jobs
+
+Patch 25g adds the backend job contract for Elasticsearch enrichment writes. A
+binding can now start a synchronous MVP enrichment job through:
+
+```bash
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+```
+
+The job record stores status, write strategy, source index, target index, alias
+name, counters, result JSON, and error message. The default production-oriented
+write strategy is `reindex_alias_swap`; `in_place` remains available for
+sandbox/dev use cases.
+
+This patch intentionally does not add Celery/RabbitMQ yet. The API executes the
+MVP job inline and records a durable job row so a future worker implementation
+can reuse the same contract.
+

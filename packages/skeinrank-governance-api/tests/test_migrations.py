@@ -49,6 +49,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "governance_suggestions",
         "governance_stop_list_entries",
         "elasticsearch_bindings",
+        "elasticsearch_enrichment_jobs",
     }.issubset(set(inspector.get_table_names()))
     suggestion_columns = {
         column["name"] for column in inspector.get_columns("governance_suggestions")
@@ -89,11 +90,29 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "is_enabled",
     }.issubset(binding_columns)
 
+    job_columns = {
+        column["name"]
+        for column in inspector.get_columns("elasticsearch_enrichment_jobs")
+    }
+    assert {
+        "binding_id",
+        "profile_id",
+        "status",
+        "write_strategy",
+        "source_index",
+        "target_index",
+        "alias_name",
+        "documents_seen",
+        "documents_enriched",
+        "documents_failed",
+        "result_json",
+    }.issubset(job_columns)
+
     with engine.connect() as connection:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260508_0007"
+    assert revision == "20260508_0008"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

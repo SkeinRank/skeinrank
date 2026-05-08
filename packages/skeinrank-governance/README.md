@@ -152,3 +152,21 @@ Stop lists are used by the governance API to reject blocked direct edits, blocke
 The governance schema includes saved Elasticsearch enrichment bindings. A binding is a configuration object that connects one terminology profile to one Elasticsearch index or index pattern, the source text fields to inspect, an enrichment target field, an optional metadata filter such as `team = infra`, and an enrichment write strategy.
 
 Bindings are configuration-only in this package. They do not open an Elasticsearch connection or write to an index. Future provider/job patches can read these saved bindings to run dry-run or write-mode enrichment jobs. The default write strategy is `reindex_alias_swap`, which is safer for production workflows than mutating the live index directly.
+### Patch 25g — reindex + alias swap jobs
+
+Patch 25g adds the backend job contract for Elasticsearch enrichment writes. A
+binding can now start a synchronous MVP enrichment job through:
+
+```bash
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+```
+
+The job record stores status, write strategy, source index, target index, alias
+name, counters, result JSON, and error message. The default production-oriented
+write strategy is `reindex_alias_swap`; `in_place` remains available for
+sandbox/dev use cases.
+
+This patch intentionally does not add Celery/RabbitMQ yet. The API executes the
+MVP job inline and records a durable job row so a future worker implementation
+can reuse the same contract.
+

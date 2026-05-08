@@ -147,6 +147,88 @@ class ElasticsearchDiscoveryClient:
             )
         return hits
 
+    def create_reindex_target_index(
+        self, *, source_index: str, target_index: str
+    ) -> dict[str, Any]:
+        """Create a target index for a reindex+alias-swap enrichment job.
+
+        The MVP implementation copies the source mapping when available. It is
+        intentionally small and dependency-free; companies can still manage
+        templates/settings externally for production clusters.
+        """
+
+        mapping_payload = self._get_json(f"/{quote(source_index, safe='')}/_mapping")
+        mapping_root = _mapping_root(mapping_payload, index_name=source_index)
+        body: dict[str, Any] = {}
+        if mapping_root:
+            body["mappings"] = mapping_root
+        return self._put_json(f"/{quote(target_index, safe='')}", body)
+
+    def reindex_documents(
+        self,
+        *,
+        source_index: str,
+        target_index: str,
+        filter_field: str | None = None,
+        filter_value: str | None = None,
+    ) -> dict[str, Any]:
+        """Run an Elasticsearch _reindex request and wait for completion."""
+
+        source: dict[str, Any] = {"index": source_index}
+        if filter_field and filter_value:
+            source["query"] = {"term": {filter_field: filter_value}}
+        return self._post_json(
+            "/_reindex?wait_for_completion=true&refresh=true",
+            {"source": source, "dest": {"index": target_index}},
+        )
+
+    def bulk_update_documents(
+        self, *, index_name: str, updates: list[tuple[str, dict[str, Any]]]
+    ) -> dict[str, Any]:
+        """Bulk update documents with partial docs. Returns an empty result for no-ops."""
+
+        if not updates:
+            return {"errors": False, "items": []}
+
+        lines: list[str] = []
+        for document_id, document in updates:
+            lines.append(
+                json.dumps(
+                    {
+                        "update": {
+                            "_index": index_name,
+                            "_id": document_id,
+                        }
+                    }
+                )
+            )
+            lines.append(json.dumps({"doc": document}))
+        payload = "\n".join(lines) + "\n"
+        return self._post_ndjson("/_bulk?refresh=true", payload)
+
+    def swap_alias(self, *, alias_name: str, target_index: str) -> dict[str, Any]:
+        """Point an Elasticsearch alias at the target index.
+
+        The remove action uses must_exist=false to keep first-time alias swaps
+        safe in clusters where the alias does not exist yet.
+        """
+
+        return self._post_json(
+            "/_aliases",
+            {
+                "actions": [
+                    {
+                        "remove": {
+                            "index": "*",
+                            "alias": alias_name,
+                            "must_exist": False,
+                        }
+                    },
+                    {"add": {"index": target_index, "alias": alias_name}},
+                ]
+            },
+        )
+
     def _get_json(self, path: str) -> Any:
         if not self.url:
             raise ElasticsearchDiscoveryError("Elasticsearch URL is not configured")
@@ -182,6 +264,62 @@ class ElasticsearchDiscoveryClient:
         try:
             with urlopen(request, timeout=self.timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = _read_error_body(exc)
+            raise ElasticsearchDiscoveryError(
+                detail or f"Elasticsearch request failed with HTTP {exc.code}"
+            ) from exc
+        except (URLError, TimeoutError, socket.timeout) as exc:
+            raise ElasticsearchDiscoveryError(
+                f"Elasticsearch request failed: {exc}"
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise ElasticsearchDiscoveryError(
+                "Elasticsearch returned invalid JSON"
+            ) from exc
+
+    def _put_json(self, path: str, payload: dict[str, Any]) -> Any:
+        if not self.url:
+            raise ElasticsearchDiscoveryError("Elasticsearch URL is not configured")
+
+        body = json.dumps(payload).encode("utf-8")
+        headers = self._headers()
+        headers["Content-Type"] = "application/json"
+        request = Request(f"{self.url}{path}", data=body, headers=headers, method="PUT")
+        try:
+            with urlopen(request, timeout=self.timeout_seconds) as response:
+                response_body = response.read().decode("utf-8")
+                return json.loads(response_body) if response_body else {}
+        except HTTPError as exc:
+            detail = _read_error_body(exc)
+            raise ElasticsearchDiscoveryError(
+                detail or f"Elasticsearch request failed with HTTP {exc.code}"
+            ) from exc
+        except (URLError, TimeoutError, socket.timeout) as exc:
+            raise ElasticsearchDiscoveryError(
+                f"Elasticsearch request failed: {exc}"
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise ElasticsearchDiscoveryError(
+                "Elasticsearch returned invalid JSON"
+            ) from exc
+
+    def _post_ndjson(self, path: str, payload: str) -> Any:
+        if not self.url:
+            raise ElasticsearchDiscoveryError("Elasticsearch URL is not configured")
+
+        headers = self._headers()
+        headers["Content-Type"] = "application/x-ndjson"
+        request = Request(
+            f"{self.url}{path}",
+            data=payload.encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.timeout_seconds) as response:
+                response_body = response.read().decode("utf-8")
+                return json.loads(response_body) if response_body else {}
         except HTTPError as exc:
             detail = _read_error_body(exc)
             raise ElasticsearchDiscoveryError(

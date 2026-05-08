@@ -46,6 +46,7 @@ SUGGESTION_SOURCES = ("manual", "discovery", "import")
 STOP_LIST_TARGETS = ("alias", "canonical", "both")
 ELASTICSEARCH_BINDING_MODES = ("dry_run", "write")
 ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
+ELASTICSEARCH_ENRICHMENT_JOB_STATUSES = ("queued", "running", "succeeded", "failed")
 ELASTICSEARCH_BINDING_PROVIDERS = ("elasticsearch",)
 USER_ROLES = ("admin", "moderator", "contributor")
 
@@ -128,6 +129,13 @@ class TerminologyProfile(TimestampMixin, Base):
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    elasticsearch_enrichment_jobs: Mapped[list[ElasticsearchEnrichmentJob]] = (
+        relationship(
+            back_populates="profile",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
     )
     audit_events: Mapped[list[AuditEvent]] = relationship(
         back_populates="profile",
@@ -471,12 +479,85 @@ class ElasticsearchBinding(TimestampMixin, Base):
     profile: Mapped[TerminologyProfile] = relationship(
         back_populates="elasticsearch_bindings"
     )
+    enrichment_jobs: Mapped[list[ElasticsearchEnrichmentJob]] = relationship(
+        back_populates="binding",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
             "ElasticsearchBinding("
             f"name={self.name!r}, profile_id={self.profile_id!r}, "
             f"index={self.index_name!r}, mode={self.mode!r}, "
+            f"write_strategy={self.write_strategy!r})"
+        )
+
+
+class ElasticsearchEnrichmentJob(TimestampMixin, Base):
+    """A synchronous MVP control-plane record for Elasticsearch enrichment jobs.
+
+    The first job implementation runs inside the API process and records the
+    result in the database. Celery/RabbitMQ workers can later execute the same
+    job contract asynchronously without changing the stored API shape.
+    """
+
+    __tablename__ = "elasticsearch_enrichment_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            f"status IN {ELASTICSEARCH_ENRICHMENT_JOB_STATUSES!r}",
+            name="elasticsearch_enrichment_job_status",
+        ),
+        CheckConstraint(
+            f"write_strategy IN {ELASTICSEARCH_BINDING_WRITE_STRATEGIES!r}",
+            name="elasticsearch_enrichment_job_write_strategy",
+        ),
+        Index(
+            "ix_elasticsearch_enrichment_jobs_binding_created",
+            "binding_id",
+            "created_at",
+        ),
+        Index("ix_elasticsearch_enrichment_jobs_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    binding_id: Mapped[int] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="CASCADE"), nullable=False
+    )
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
+    write_strategy: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_index: Mapped[str] = mapped_column(String(256), nullable=False)
+    target_index: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    alias_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    requested_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    documents_seen: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    documents_enriched: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    documents_failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    result_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    binding: Mapped[ElasticsearchBinding] = relationship(
+        back_populates="enrichment_jobs"
+    )
+    profile: Mapped[TerminologyProfile] = relationship(
+        back_populates="elasticsearch_enrichment_jobs"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "ElasticsearchEnrichmentJob("
+            f"binding_id={self.binding_id!r}, status={self.status!r}, "
             f"write_strategy={self.write_strategy!r})"
         )
 

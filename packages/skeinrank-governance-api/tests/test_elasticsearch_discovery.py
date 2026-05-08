@@ -61,7 +61,11 @@ class FakeElasticsearchClient:
         self, *, index_name, text_fields, limit, filter_field=None, filter_value=None
     ):
         del filter_field, filter_value
-        assert index_name == "docs"
+        assert (
+            index_name == "docs"
+            or index_name.startswith("docs__skeinrank_job_")
+            or index_name == "docs_v2"
+        )
         assert text_fields == ["title", "body"]
         assert limit == 2
         from skeinrank_governance_api.elasticsearch import ElasticsearchSearchHit
@@ -82,6 +86,33 @@ class FakeElasticsearchClient:
                 source={"title": "Postgres note", "body": "No match"},
             ),
         ]
+
+    def create_reindex_target_index(self, *, source_index, target_index):
+        assert source_index == "docs"
+        assert (
+            target_index.startswith("docs__skeinrank_job_") or target_index == "docs_v2"
+        )
+        self.created_target_index = target_index
+        return {"acknowledged": True, "index": target_index}
+
+    def reindex_documents(
+        self, *, source_index, target_index, filter_field=None, filter_value=None
+    ):
+        assert source_index == "docs"
+        assert filter_field == "team"
+        assert filter_value == "infra"
+        self.reindexed_target_index = target_index
+        return {"created": 2, "updated": 0, "failures": []}
+
+    def bulk_update_documents(self, *, index_name, updates):
+        self.bulk_index_name = index_name
+        self.bulk_updates = updates
+        return {"errors": False, "items": []}
+
+    def swap_alias(self, *, alias_name, target_index):
+        self.swapped_alias = alias_name
+        self.swapped_target_index = target_index
+        return {"acknowledged": True}
 
 
 def test_elasticsearch_status_reports_unconfigured(tmp_path):
@@ -220,3 +251,89 @@ def test_elasticsearch_binding_dry_run_requires_connection(tmp_path):
 
     assert response.status_code == 503
     assert "not configured" in response.json()["detail"]
+
+
+def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 0.97},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    assert binding_response.status_code == 201
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 2},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["status"] == "succeeded"
+    assert payload["write_strategy"] == "reindex_alias_swap"
+    assert payload["source_index"] == "docs"
+    assert payload["target_index"].startswith("docs__skeinrank_job_")
+    assert payload["alias_name"] == "docs"
+    assert payload["documents_seen"] == 2
+    assert payload["documents_enriched"] == 1
+    assert payload["result_json"]["updated_document_ids"] == ["1"]
+
+    list_response = client.get("/v1/governance/elasticsearch/jobs")
+    assert list_response.status_code == 200
+    assert [item["id"] for item in list_response.json()] == [payload["id"]]
+
+    detail_response = client.get(f"/v1/governance/elasticsearch/jobs/{payload['id']}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["status"] == "succeeded"
+
+
+def test_elasticsearch_enrichment_job_requires_write_mode(monkeypatch, tmp_path):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+            "mode": "dry_run",
+        },
+    )
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs"
+    )
+
+    assert response.status_code == 409
+    assert "write mode" in response.json()["detail"]

@@ -6,6 +6,7 @@ from skeinrank_governance import (
     Base,
     CanonicalTerm,
     ElasticsearchBinding,
+    ElasticsearchEnrichmentJob,
     GovernanceAuthToken,
     GovernanceStopListEntry,
     GovernanceSuggestion,
@@ -44,6 +45,7 @@ def test_metadata_contains_expected_tables():
         "governance_suggestions",
         "governance_stop_list_entries",
         "elasticsearch_bindings",
+        "elasticsearch_enrichment_jobs",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -94,6 +96,16 @@ def test_create_governance_rows_and_normalized_values(session):
         filter_field="team",
         filter_value="infra",
     )
+    job = ElasticsearchEnrichmentJob(
+        binding=binding,
+        profile=profile,
+        status="queued",
+        write_strategy="reindex_alias_swap",
+        source_index="docs",
+        target_index="docs__skeinrank_job_1",
+        alias_name="docs_current",
+        requested_by="tester",
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -103,7 +115,17 @@ def test_create_governance_rows_and_normalized_values(session):
     )
 
     session.add_all(
-        [profile, term, alias, snapshot, suggestion, stop_list_entry, binding, audit]
+        [
+            profile,
+            term,
+            alias,
+            snapshot,
+            suggestion,
+            stop_list_entry,
+            binding,
+            job,
+            audit,
+        ]
     )
     session.commit()
 
@@ -125,6 +147,9 @@ def test_create_governance_rows_and_normalized_values(session):
     assert binding.text_fields == ["title", "body", "body"]
     assert binding.mode == "dry_run"
     assert binding.write_strategy == "reindex_alias_swap"
+    assert job.status == "queued"
+    assert job.write_strategy == "reindex_alias_swap"
+    assert job.documents_seen == 0
     assert audit.payload_json == {"alias": "K8S"}
 
 
@@ -186,6 +211,7 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "governance_suggestions" in table_names
     assert "governance_stop_list_entries" in table_names
     assert "elasticsearch_bindings" in table_names
+    assert "elasticsearch_enrichment_jobs" in table_names
 
 
 def test_normalize_value_collapses_case_and_whitespace():
@@ -361,6 +387,28 @@ def test_invalid_elasticsearch_binding_write_strategy_is_rejected(session):
         write_strategy="unsafe",
     )
     session.add(binding)
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_invalid_elasticsearch_enrichment_job_status_is_rejected(session):
+    profile = TerminologyProfile(name="default_it")
+    binding = ElasticsearchBinding(
+        profile=profile,
+        name="docs",
+        index_name="docs",
+        text_fields=["body"],
+        target_field="skeinrank",
+    )
+    job = ElasticsearchEnrichmentJob(
+        binding=binding,
+        profile=profile,
+        status="paused",
+        write_strategy="reindex_alias_swap",
+        source_index="docs",
+    )
+    session.add(job)
 
     with pytest.raises(IntegrityError):
         session.commit()
