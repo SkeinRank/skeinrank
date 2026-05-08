@@ -390,3 +390,21 @@ reindex_alias_swap
 `reindex_alias_swap` is the default because it is the safer production path: future enrichment jobs can create a new enriched index, validate the result, and swap an alias instead of writing directly into a live index. `in_place` is available for sandbox/dev workflows or small indexes where direct bulk partial updates are acceptable.
 
 This API patch only stores and validates the strategy. It does not perform writes, reindexing, alias swaps, or background jobs.
+### Patch 25g — reindex + alias swap jobs
+
+Patch 25g adds the backend job contract for Elasticsearch enrichment writes. A
+binding can now start a synchronous MVP enrichment job through:
+
+```bash
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+```
+
+The job record stores status, write strategy, source index, target index, alias
+name, counters, result JSON, and error message. The default production-oriented
+write strategy is `reindex_alias_swap`; `in_place` remains available for
+sandbox/dev use cases.
+
+This patch intentionally does not add Celery/RabbitMQ yet. The API executes the
+MVP job inline and records a durable job row so a future worker implementation
+can reuse the same contract.
+

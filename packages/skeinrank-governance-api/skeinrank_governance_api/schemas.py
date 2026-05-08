@@ -274,7 +274,40 @@ class ElasticsearchBindingDryRunResponse(BaseModel):
     binding: ElasticsearchBindingResponse
     limit: int
     documents: list[ElasticsearchBindingDryRunDocument]
-    warnings: list[str] = []
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
+    """Request body for starting a synchronous enrichment job."""
+
+    target_index_name: str | None = Field(default=None, min_length=1, max_length=256)
+    alias_name: str | None = Field(default=None, min_length=1, max_length=256)
+    max_documents: int = Field(default=1000, ge=1, le=10000)
+
+
+class ElasticsearchEnrichmentJobResponse(BaseModel):
+    """Elasticsearch enrichment job status response."""
+
+    id: int
+    binding_id: int
+    profile_id: int
+    binding_name: str
+    profile_name: str
+    status: str
+    write_strategy: str
+    source_index: str
+    target_index: str | None = None
+    alias_name: str | None = None
+    requested_by: str | None = None
+    documents_seen: int
+    documents_enriched: int
+    documents_failed: int
+    result_json: dict[str, Any]
+    error_message: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class SuggestionCreateRequest(BaseModel):

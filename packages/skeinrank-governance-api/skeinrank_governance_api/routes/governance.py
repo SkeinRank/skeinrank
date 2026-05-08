@@ -33,6 +33,7 @@ from skeinrank_governance.models import (
     TERM_STATUSES,
     CanonicalTerm,
     ElasticsearchBinding,
+    ElasticsearchEnrichmentJob,
     GovernanceStopListEntry,
     GovernanceSuggestion,
     TermAlias,
@@ -65,6 +66,8 @@ from ..schemas import (
     ElasticsearchBindingUpdateRequest,
     ElasticsearchConnectionStatusResponse,
     ElasticsearchDryRunMatchedAlias,
+    ElasticsearchEnrichmentJobCreateRequest,
+    ElasticsearchEnrichmentJobResponse,
     ElasticsearchIndexMappingResponse,
     ElasticsearchIndexResponse,
     ElasticsearchMappingFieldResponse,
@@ -679,6 +682,135 @@ def dry_run_elasticsearch_binding(
         documents=documents,
         warnings=warnings,
     )
+
+
+@router.post(
+    "/elasticsearch/bindings/{binding_id}/jobs",
+    response_model=ElasticsearchEnrichmentJobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def start_elasticsearch_enrichment_job(
+    binding_id: int,
+    request: Request,
+    request_body: ElasticsearchEnrichmentJobCreateRequest | None = Body(default=None),
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ElasticsearchEnrichmentJobResponse:
+    """Start a synchronous MVP enrichment job for one Elasticsearch binding."""
+
+    request_body = request_body or ElasticsearchEnrichmentJobCreateRequest()
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    if not binding.is_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Elasticsearch binding is disabled.",
+        )
+    if binding.mode != "write":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Elasticsearch binding must be in write mode before starting an enrichment job.",
+        )
+
+    client = ElasticsearchDiscoveryClient(request.app.state.config)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Elasticsearch URL is not configured.",
+        )
+
+    job = ElasticsearchEnrichmentJob(
+        binding=binding,
+        profile=binding.profile,
+        status="queued",
+        write_strategy=binding.write_strategy,
+        source_index=binding.index_name,
+        target_index=_job_target_index(binding, request_body.target_index_name),
+        alias_name=_job_alias_name(binding, request_body.alias_name),
+        requested_by=current_user.username,
+        result_json={},
+    )
+    session.add(job)
+    session.flush()
+    if (
+        binding.write_strategy == "reindex_alias_swap"
+        and not request_body.target_index_name
+    ):
+        job.target_index = _default_reindex_target_name(binding, job.id)
+
+    job.status = "running"
+    job.started_at = utc_now()
+    session.commit()
+    session.refresh(job)
+
+    try:
+        result = _execute_elasticsearch_enrichment_job(
+            client=client,
+            session=session,
+            binding=binding,
+            job=job,
+            max_documents=request_body.max_documents,
+        )
+    except ElasticsearchDiscoveryError as exc:
+        job.status = "failed"
+        job.error_message = str(exc)
+        job.finished_at = utc_now()
+        session.commit()
+        session.refresh(job)
+        return _elasticsearch_enrichment_job_response(job)
+
+    job.status = "succeeded"
+    job.documents_seen = result["documents_seen"]
+    job.documents_enriched = result["documents_enriched"]
+    job.documents_failed = result.get("documents_failed", 0)
+    job.result_json = result
+    job.finished_at = utc_now()
+    session.commit()
+    session.refresh(job)
+    return _elasticsearch_enrichment_job_response(job)
+
+
+@router.get(
+    "/elasticsearch/jobs",
+    response_model=list[ElasticsearchEnrichmentJobResponse],
+)
+def list_elasticsearch_enrichment_jobs(
+    binding_id: int | None = Query(default=None),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[ElasticsearchEnrichmentJobResponse]:
+    """List Elasticsearch enrichment jobs."""
+
+    query = select(ElasticsearchEnrichmentJob).join(ElasticsearchBinding)
+    if binding_id is not None:
+        query = query.where(ElasticsearchEnrichmentJob.binding_id == binding_id)
+    jobs = list(
+        session.scalars(
+            query.order_by(
+                ElasticsearchEnrichmentJob.created_at.desc(),
+                ElasticsearchEnrichmentJob.id.desc(),
+            )
+        )
+    )
+    return [_elasticsearch_enrichment_job_response(job) for job in jobs]
+
+
+@router.get(
+    "/elasticsearch/jobs/{job_id}",
+    response_model=ElasticsearchEnrichmentJobResponse,
+)
+def get_elasticsearch_enrichment_job(
+    job_id: int,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> ElasticsearchEnrichmentJobResponse:
+    """Return one Elasticsearch enrichment job."""
+
+    job = _get_elasticsearch_enrichment_job_or_404(session, job_id)
+    return _elasticsearch_enrichment_job_response(job)
 
 
 @router.get(
@@ -1336,6 +1468,178 @@ def _dry_run_payload(
             for value, aliases in sorted(matched_aliases_by_value.items())
         },
     }
+
+
+def _job_target_index(
+    binding: ElasticsearchBinding, target_index_name: str | None
+) -> str | None:
+    """Return the target index recorded for a new enrichment job."""
+
+    if binding.write_strategy == "in_place":
+        return binding.index_name
+    if target_index_name:
+        return target_index_name.strip()
+    return None
+
+
+def _job_alias_name(
+    binding: ElasticsearchBinding, alias_name: str | None
+) -> str | None:
+    """Return the alias name used by reindex+alias-swap jobs."""
+
+    if binding.write_strategy != "reindex_alias_swap":
+        return None
+    if alias_name:
+        return alias_name.strip()
+    return binding.index_name
+
+
+def _default_reindex_target_name(binding: ElasticsearchBinding, job_id: int) -> str:
+    """Build a deterministic target index name for MVP reindex jobs."""
+
+    safe_source_index = binding.index_name.strip().lower().replace(" ", "_")
+    return f"{safe_source_index}__skeinrank_job_{job_id}"
+
+
+def _execute_elasticsearch_enrichment_job(
+    *,
+    client: ElasticsearchDiscoveryClient,
+    session: Session,
+    binding: ElasticsearchBinding,
+    job: ElasticsearchEnrichmentJob,
+    max_documents: int,
+) -> dict[str, object]:
+    """Execute one synchronous MVP Elasticsearch enrichment job."""
+
+    if binding.write_strategy == "reindex_alias_swap":
+        if not job.target_index:
+            raise ElasticsearchDiscoveryError(
+                "Target index is required for reindex jobs"
+            )
+        client.create_reindex_target_index(
+            source_index=binding.index_name,
+            target_index=job.target_index,
+        )
+        reindex_result = client.reindex_documents(
+            source_index=binding.index_name,
+            target_index=job.target_index,
+            filter_field=binding.filter_field,
+            filter_value=binding.filter_value,
+        )
+        update_index = job.target_index
+    elif binding.write_strategy == "in_place":
+        reindex_result = None
+        update_index = binding.index_name
+    else:  # pragma: no cover - guarded by API/model validation
+        raise ElasticsearchDiscoveryError(
+            f"Unsupported write strategy: {binding.write_strategy}"
+        )
+
+    alias_entries = _active_alias_entries_for_profile(session, binding.profile)
+    hits = client.search_documents(
+        index_name=update_index,
+        text_fields=list(binding.text_fields),
+        limit=max_documents,
+        filter_field=binding.filter_field,
+        filter_value=binding.filter_value,
+    )
+
+    updates: list[tuple[str, dict[str, object]]] = []
+    matched_documents: list[dict[str, object]] = []
+    for hit in hits:
+        text = compose_source_text(hit.source, list(binding.text_fields))
+        matched_aliases = _match_alias_entries(text, alias_entries)
+        if not matched_aliases:
+            continue
+        would_write_payload = _dry_run_payload(binding, matched_aliases)
+        updates.append((hit.id, {binding.target_field: would_write_payload}))
+        matched_documents.append(
+            {
+                "document_id": hit.id,
+                "index_name": hit.index,
+                "matched_aliases": [
+                    {
+                        "alias_value": match.alias_value,
+                        "canonical_value": match.canonical_value,
+                        "slot": match.slot,
+                        "matched_text": match.matched_text,
+                        "confidence": match.confidence,
+                    }
+                    for match in matched_aliases
+                ],
+                "would_write": {binding.target_field: would_write_payload},
+            }
+        )
+
+    bulk_result = client.bulk_update_documents(index_name=update_index, updates=updates)
+    alias_result = None
+    if binding.write_strategy == "reindex_alias_swap":
+        if not job.alias_name:
+            raise ElasticsearchDiscoveryError(
+                "Alias name is required for alias-swap jobs"
+            )
+        alias_result = client.swap_alias(
+            alias_name=job.alias_name,
+            target_index=update_index,
+        )
+
+    return {
+        "write_strategy": binding.write_strategy,
+        "source_index": binding.index_name,
+        "target_index": update_index,
+        "alias_name": job.alias_name,
+        "documents_seen": len(hits),
+        "documents_enriched": len(updates),
+        "documents_failed": 0,
+        "updated_document_ids": [document_id for document_id, _document in updates],
+        "matched_documents": matched_documents,
+        "reindex_result": reindex_result,
+        "bulk_result": bulk_result,
+        "alias_result": alias_result,
+    }
+
+
+def _get_elasticsearch_enrichment_job_or_404(
+    session: Session, job_id: int
+) -> ElasticsearchEnrichmentJob:
+    job = session.scalar(
+        select(ElasticsearchEnrichmentJob).where(
+            ElasticsearchEnrichmentJob.id == job_id
+        )
+    )
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Elasticsearch enrichment job not found: {job_id}",
+        )
+    return job
+
+
+def _elasticsearch_enrichment_job_response(
+    job: ElasticsearchEnrichmentJob,
+) -> ElasticsearchEnrichmentJobResponse:
+    return ElasticsearchEnrichmentJobResponse(
+        id=job.id,
+        binding_id=job.binding_id,
+        profile_id=job.profile_id,
+        binding_name=job.binding.name,
+        profile_name=job.profile.name,
+        status=job.status,
+        write_strategy=job.write_strategy,
+        source_index=job.source_index,
+        target_index=job.target_index,
+        alias_name=job.alias_name,
+        requested_by=job.requested_by,
+        documents_seen=job.documents_seen,
+        documents_enriched=job.documents_enriched,
+        documents_failed=job.documents_failed,
+        result_json=job.result_json or {},
+        error_message=job.error_message,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+    )
 
 
 def _get_elasticsearch_binding_or_404(

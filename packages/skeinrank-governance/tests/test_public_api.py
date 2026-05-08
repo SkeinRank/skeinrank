@@ -12,6 +12,10 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.GovernanceUser.__tablename__ == "governance_users"
     assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"
     assert governance.ElasticsearchBinding.__tablename__ == "elasticsearch_bindings"
+    assert (
+        governance.ElasticsearchEnrichmentJob.__tablename__
+        == "elasticsearch_enrichment_jobs"
+    )
     assert governance.GovernanceSuggestion.__tablename__ == "governance_suggestions"
     assert (
         governance.GovernanceStopListEntry.__tablename__
@@ -25,6 +29,12 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.ELASTICSEARCH_BINDING_WRITE_STRATEGIES == (
         "in_place",
         "reindex_alias_swap",
+    )
+    assert governance.ELASTICSEARCH_ENRICHMENT_JOB_STATUSES == (
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
     )
     assert governance.ELASTICSEARCH_BINDING_PROVIDERS == ("elasticsearch",)
     assert governance.normalize_value(" K8S ") == "k8s"
