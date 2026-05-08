@@ -84,3 +84,14 @@ npm run typecheck
 npm test -- --run
 npm run build
 ```
+
+## Elasticsearch discovery in Integrations
+
+The Integrations page now supports optional Elasticsearch discovery. When the governance API has an Elasticsearch URL configured, the UI can:
+
+- test the connection;
+- show discovered indices;
+- load mapping fields for the selected index;
+- suggest text fields and discriminator fields while creating or editing bindings.
+
+If Elasticsearch is not configured or unavailable, the page still works in manual mode and users can type index names and field names by hand.

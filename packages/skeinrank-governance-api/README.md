@@ -329,3 +329,35 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
 The response is a runtime-compatible profile snapshot that can be passed to `skeinrank-core` through `--profile-file` or `load_attribute_profile(...)`.
 
 Future patches will add snapshot publishing lifecycle, Elasticsearch binding UI/dry-run jobs, discovery ingestion, and richer review/audit workflows.
+
+## Elasticsearch discovery
+
+Elasticsearch discovery is optional and read-only. It is used by the governance UI to test connectivity, list indices, and inspect index mappings while creating enrichment bindings.
+
+```bash
+export SKEINRANK_ELASTICSEARCH_URL=http://localhost:9200
+# optional basic auth
+export SKEINRANK_ELASTICSEARCH_USERNAME=elastic
+export SKEINRANK_ELASTICSEARCH_PASSWORD=...
+# optional API key auth
+export SKEINRANK_ELASTICSEARCH_API_KEY=...
+```
+
+API-specific names are also supported and take precedence:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=http://localhost:9200
+export SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME=elastic
+export SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD=...
+export SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY=...
+```
+
+Discovery endpoints:
+
+```text
+GET /v1/governance/elasticsearch/connection/status
+GET /v1/governance/elasticsearch/indices
+GET /v1/governance/elasticsearch/indices/{index_name}/mapping
+```
+
+These endpoints do not update documents and do not execute enrichment jobs.

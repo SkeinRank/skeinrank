@@ -6,6 +6,9 @@ import type {
   ElasticsearchBinding,
   ElasticsearchBindingCreateRequest,
   ElasticsearchBindingUpdateRequest,
+  ElasticsearchConnectionStatus,
+  ElasticsearchIndex,
+  ElasticsearchIndexMapping,
   CanonicalTerm,
   LoginRequest,
   GovernanceSuggestion,
@@ -253,6 +256,21 @@ export function deleteStopListEntry(profileName: string, entryId: number) {
   return requestJson<void>(`/v1/governance/profiles/${encodePathSegment(profileName)}/stop-list/${entryId}`, {
     method: "DELETE",
   });
+}
+
+
+export function getElasticsearchConnectionStatus() {
+  return requestJson<ElasticsearchConnectionStatus>("/v1/governance/elasticsearch/connection/status");
+}
+
+export function listElasticsearchIndices() {
+  return requestJson<ElasticsearchIndex[]>("/v1/governance/elasticsearch/indices");
+}
+
+export function getElasticsearchIndexMapping(indexName: string) {
+  return requestJson<ElasticsearchIndexMapping>(
+    `/v1/governance/elasticsearch/indices/${encodePathSegment(indexName)}/mapping`,
+  );
 }
 
 export function listElasticsearchBindings(profileName?: string) {

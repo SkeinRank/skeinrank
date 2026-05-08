@@ -8,7 +8,10 @@ import { Input } from "../components/ui/input";
 import {
   createElasticsearchBinding,
   deleteElasticsearchBinding,
+  getElasticsearchConnectionStatus,
+  getElasticsearchIndexMapping,
   listElasticsearchBindings,
+  listElasticsearchIndices,
   listProfiles,
   updateElasticsearchBinding,
 } from "../lib/api";
@@ -19,6 +22,9 @@ import type {
   ElasticsearchBindingCreateRequest,
   ElasticsearchBindingMode,
   ElasticsearchBindingUpdateRequest,
+  ElasticsearchConnectionStatus,
+  ElasticsearchIndex,
+  ElasticsearchMappingField,
   Profile,
 } from "../types";
 
@@ -58,6 +64,18 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
       setSelectedBindingId(null);
     }
   }, [profilesQuery.data, selectedProfile]);
+
+  const connectionQuery = useQuery({
+    queryKey: ["elasticsearch", "connection-status"],
+    queryFn: getElasticsearchConnectionStatus,
+    enabled: permissions.canReadBindings,
+  });
+
+  const indicesQuery = useQuery({
+    queryKey: ["elasticsearch", "indices"],
+    queryFn: listElasticsearchIndices,
+    enabled: permissions.canReadBindings && Boolean(connectionQuery.data?.ok),
+  });
 
   const allBindingsQuery = useQuery({
     queryKey: ["elasticsearch-bindings", "all"],
@@ -135,6 +153,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
   }
 
   const allBindings = allBindingsQuery.data ?? [];
+  const indices = indicesQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -151,6 +170,18 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
           </CardContent>
         </Card>
       </section>
+
+      <ElasticsearchDiscoveryPanel
+        connection={connectionQuery.data ?? null}
+        indices={indices}
+        isLoadingConnection={connectionQuery.isLoading}
+        isLoadingIndices={indicesQuery.isLoading}
+        errorMessage={getErrorMessage(connectionQuery.error) ?? getErrorMessage(indicesQuery.error)}
+        onRefresh={() => {
+          void connectionQuery.refetch();
+          void indicesQuery.refetch();
+        }}
+      />
 
       <BindingPatternsHelp />
 
@@ -172,8 +203,10 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
 
           <CreateBindingForm
             allBindings={allBindings}
+            discoveredIndices={indices}
+            discoveryEnabled={Boolean(connectionQuery.data?.ok)}
             disabled={!selectedProfile || !permissions.canManageBindings}
-            errorMessage={errorMessage(createMutation.error)}
+            errorMessage={getErrorMessage(createMutation.error)}
             isSubmitting={createMutation.isPending}
             onSubmit={handleCreateBinding}
             profiles={profilesQuery.data ?? []}
@@ -202,13 +235,15 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
           allBindings={allBindings}
           binding={selectedBinding}
           canManage={permissions.canManageBindings}
-          deleteErrorMessage={errorMessage(deleteMutation.error)}
+          deleteErrorMessage={getErrorMessage(deleteMutation.error)}
+          discoveredIndices={indices}
+          discoveryEnabled={Boolean(connectionQuery.data?.ok)}
           isDeleting={deleteMutation.isPending}
           isUpdating={updateMutation.isPending}
           onDelete={handleDeleteBinding}
           onUpdate={handleUpdateBinding}
           profiles={profilesQuery.data ?? []}
-          updateErrorMessage={errorMessage(updateMutation.error)}
+          updateErrorMessage={getErrorMessage(updateMutation.error)}
         />
       </section>
     </div>
@@ -224,6 +259,74 @@ function StatCard({ description, title, value }: { description: string; title: s
       </CardHeader>
       <CardContent>
         <div className="text-3xl font-semibold">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ElasticsearchDiscoveryPanel({
+  connection,
+  errorMessage,
+  indices,
+  isLoadingConnection,
+  isLoadingIndices,
+  onRefresh,
+}: {
+  connection: ElasticsearchConnectionStatus | null;
+  errorMessage?: string | null;
+  indices: ElasticsearchIndex[];
+  isLoadingConnection: boolean;
+  isLoadingIndices: boolean;
+  onRefresh: () => void;
+}) {
+  const statusText = isLoadingConnection
+    ? "Checking..."
+    : connection?.ok
+      ? "Connected"
+      : connection?.configured
+        ? "Connection failed"
+        : "Manual mode";
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>Elasticsearch discovery</CardTitle>
+            <CardDescription>Test the configured connection, list indices, and use mapping fields as input suggestions. Manual config still works without a connection.</CardDescription>
+          </div>
+          <Button onClick={onRefresh} type="button" variant="secondary">
+            Test connection
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {errorMessage ? <InlineError message={errorMessage} /> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className={connection?.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200" : undefined}>{statusText}</Badge>
+          {connection?.url ? <span className="text-slate-500 dark:text-slate-400">{connection.url}</span> : null}
+          {connection?.cluster_name ? <span className="text-slate-500 dark:text-slate-400">{connection.cluster_name}</span> : null}
+          {connection?.cluster_version ? <span className="text-slate-500 dark:text-slate-400">v{connection.cluster_version}</span> : null}
+        </div>
+        {connection?.error ? <p className="text-sm text-slate-500 dark:text-slate-400">{connection.error}</p> : null}
+        {connection?.ok ? (
+          <div>
+            <div className="font-medium text-slate-700 dark:text-slate-200">Discovered indices</div>
+            {isLoadingIndices ? (
+              <p className="mt-1 text-slate-500 dark:text-slate-400">Loading indices...</p>
+            ) : indices.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {indices.map((index) => (
+                  <Badge key={index.name} className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    {index.name}{index.docs_count !== null ? ` · ${index.docs_count} docs` : ""}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-slate-500 dark:text-slate-400">No indices returned by Elasticsearch.</p>
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -310,6 +413,8 @@ function IntegrationsToolbar({
 
 function CreateBindingForm({
   allBindings,
+  discoveredIndices,
+  discoveryEnabled,
   disabled = false,
   errorMessage,
   isSubmitting = false,
@@ -319,6 +424,8 @@ function CreateBindingForm({
   selectedProfile,
 }: {
   allBindings: ElasticsearchBinding[];
+  discoveredIndices: ElasticsearchIndex[];
+  discoveryEnabled: boolean;
   disabled?: boolean;
   errorMessage?: string | null;
   isSubmitting?: boolean;
@@ -341,6 +448,15 @@ function CreateBindingForm({
   useEffect(() => {
     setProfileName(selectedProfile ?? "");
   }, [selectedProfile]);
+
+  const mappingQuery = useQuery({
+    queryKey: ["elasticsearch", "mapping", indexName.trim()],
+    queryFn: () => getElasticsearchIndexMapping(indexName.trim()),
+    enabled: discoveryEnabled && indexName.trim().length > 0,
+  });
+  const mappingFields = mappingQuery.data?.fields ?? [];
+  const textCandidates = mappingFields.filter((field) => field.is_text_candidate);
+  const discriminatorCandidates = mappingFields.filter((field) => field.is_discriminator_candidate);
 
   const parsedTextFields = parseTextFields(textFields);
   const validation = validateBindingDraft(allBindings, {
@@ -420,16 +536,19 @@ function CreateBindingForm({
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-1.5">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Index</span>
-              <Input disabled={disabled || isSubmitting} onChange={(event) => setIndexName(event.target.value)} placeholder="docs" value={indexName} />
+              <Input disabled={disabled || isSubmitting} list="create-es-indices" onChange={(event) => setIndexName(event.target.value)} placeholder="docs" value={indexName} />
+              <IndexDatalist id="create-es-indices" indices={discoveredIndices} />
             </label>
             <label className="space-y-1.5">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Target field</span>
-              <Input disabled={disabled || isSubmitting} onChange={(event) => setTargetField(event.target.value)} placeholder="skeinrank" value={targetField} />
+              <Input disabled={disabled || isSubmitting} list="create-es-target-fields" onChange={(event) => setTargetField(event.target.value)} placeholder="skeinrank" value={targetField} />
+              <FieldsDatalist id="create-es-target-fields" fields={mappingFields} />
             </label>
           </div>
           <label className="space-y-1.5">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Text fields</span>
             <textarea
+              aria-label="Text fields"
               className={textareaClassName}
               disabled={disabled || isSubmitting}
               onChange={(event) => setTextFields(event.target.value)}
@@ -438,16 +557,29 @@ function CreateBindingForm({
             />
             <span className="text-xs text-slate-500 dark:text-slate-400">Use commas or new lines. These fields are read by enrichment jobs.</span>
           </label>
+          <MappingFieldSuggestions
+            isLoading={mappingQuery.isLoading}
+            errorMessage={getErrorMessage(mappingQuery.error)}
+            fields={textCandidates}
+            label="Discovered text fields"
+            onUseFields={(fields) => setTextFields(mergeTextFields(textFields, fields))}
+          />
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-1.5">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Document discriminator field</span>
-              <Input disabled={disabled || isSubmitting} onChange={(event) => setDiscriminatorField(event.target.value)} placeholder="team" value={discriminatorField} />
+              <Input disabled={disabled || isSubmitting} list="create-es-discriminator-fields" onChange={(event) => setDiscriminatorField(event.target.value)} placeholder="team" value={discriminatorField} />
+              <FieldsDatalist id="create-es-discriminator-fields" fields={discriminatorCandidates} />
             </label>
             <label className="space-y-1.5">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Value for this profile</span>
               <Input disabled={disabled || isSubmitting} onChange={(event) => setDiscriminatorValue(event.target.value)} placeholder="infra" value={discriminatorValue} />
             </label>
           </div>
+          <MappingFieldSuggestions
+            fields={discriminatorCandidates}
+            label="Discovered discriminator fields"
+            onUseFields={(fields) => setDiscriminatorField(fields[0] ?? discriminatorField)}
+          />
           <BindingValidationMessages validation={validation} />
           <div className="flex flex-wrap items-center gap-4">
             <label className="space-y-1.5">
@@ -458,7 +590,7 @@ function CreateBindingForm({
             </label>
             <label className="mt-6 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
               <input checked={isEnabled} disabled={disabled || isSubmitting} onChange={(event) => setIsEnabled(event.target.checked)} type="checkbox" />
-              Enabled
+              Enabled binding
             </label>
           </div>
           {errorMessage ? <InlineError message={errorMessage} /> : null}
@@ -486,42 +618,41 @@ function BindingsTable({
     <Card>
       <CardHeader>
         <CardTitle>Saved bindings</CardTitle>
-        <CardDescription>Manual configs for future Elasticsearch enrichment jobs. These do not connect to Elasticsearch yet.</CardDescription>
+        <CardDescription>Each row describes one profile-to-index enrichment rule.</CardDescription>
       </CardHeader>
-      <CardContent className="p-0">
-        {loadErrorMessage ? <div className="p-5"><InlineError message={loadErrorMessage} /></div> : null}
-        {isLoading ? <p className="p-5 text-sm text-slate-500 dark:text-slate-400">Loading Elasticsearch bindings...</p> : null}
-        <div className="overflow-x-auto">
+      <CardContent>
+        {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
+        {isLoading ? <p className="text-sm text-slate-500 dark:text-slate-400">Loading bindings...</p> : null}
+        <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
               <tr>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Name</th>
+                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Binding</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Profile</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Index</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Discriminator</th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Text fields</th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Mode</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Status</th>
               </tr>
             </thead>
             <tbody>
-              {bindings.length === 0 ? (
-                <tr><td className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={7}>No Elasticsearch bindings yet.</td></tr>
-              ) : bindings.map((binding) => (
+              {bindings.map((binding) => (
                 <tr
-                  className={`cursor-pointer transition-colors ${selectedBindingId === binding.id ? "bg-slate-100 dark:bg-slate-800/70" : "hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                  className={`cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-900 ${selectedBindingId === binding.id ? "bg-slate-50 dark:bg-slate-900" : ""}`}
                   key={binding.id}
                   onClick={() => onSelectBinding(binding)}
                 >
-                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><div className="font-medium text-slate-950 dark:text-slate-50">{binding.name}</div></td>
-                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><Badge>{binding.profile_name}</Badge></td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><span className="font-medium text-slate-950 dark:text-slate-50">{binding.name}</span></td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">{binding.profile_name}</td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><code>{binding.index_name}</code></td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">{formatDiscriminator(binding)}</td>
-                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">{binding.text_fields.join(", ")}</td>
-                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><Badge>{binding.mode}</Badge></td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><BindingStatusBadge isEnabled={binding.is_enabled} /></td>
                 </tr>
               ))}
+              {bindings.length === 0 ? (
+                <tr>
+                  <td className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={5}>No bindings found for this profile.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -535,6 +666,8 @@ function BindingDetailsPanel({
   binding,
   canManage,
   deleteErrorMessage,
+  discoveredIndices,
+  discoveryEnabled,
   isDeleting,
   isUpdating,
   onDelete,
@@ -546,6 +679,8 @@ function BindingDetailsPanel({
   binding: ElasticsearchBinding | null;
   canManage: boolean;
   deleteErrorMessage?: string | null;
+  discoveredIndices: ElasticsearchIndex[];
+  discoveryEnabled: boolean;
   isDeleting: boolean;
   isUpdating: boolean;
   onDelete: (bindingId: number) => Promise<void> | void;
@@ -565,26 +700,38 @@ function BindingDetailsPanel({
   const [isEnabled, setIsEnabled] = useState(true);
 
   useEffect(() => {
-    setName(binding?.name ?? "");
-    setProfileName(binding?.profile_name ?? "");
-    setDescription(binding?.description ?? "");
-    setIndexName(binding?.index_name ?? "");
-    setTextFields(binding?.text_fields.join(", ") ?? "");
-    setTargetField(binding?.target_field ?? "");
-    setDiscriminatorField(binding?.filter_field ?? "");
-    setDiscriminatorValue(binding?.filter_value ?? "");
-    setMode(binding?.mode ?? "dry_run");
-    setIsEnabled(binding?.is_enabled ?? true);
+    if (!binding) return;
+    setName(binding.name);
+    setProfileName(binding.profile_name);
+    setDescription(binding.description ?? "");
+    setIndexName(binding.index_name);
+    setTextFields(binding.text_fields.join(", "));
+    setTargetField(binding.target_field);
+    setDiscriminatorField(binding.filter_field ?? "");
+    setDiscriminatorValue(binding.filter_value ?? "");
+    setMode(binding.mode);
+    setIsEnabled(binding.is_enabled);
   }, [binding]);
+
+  const mappingQuery = useQuery({
+    queryKey: ["elasticsearch", "mapping", indexName.trim()],
+    queryFn: () => getElasticsearchIndexMapping(indexName.trim()),
+    enabled: discoveryEnabled && Boolean(binding) && indexName.trim().length > 0,
+  });
+  const mappingFields = mappingQuery.data?.fields ?? [];
+  const textCandidates = mappingFields.filter((field) => field.is_text_candidate);
+  const discriminatorCandidates = mappingFields.filter((field) => field.is_discriminator_candidate);
 
   if (!binding) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Binding details</CardTitle>
-          <CardDescription>Select a binding to inspect or update its enrichment configuration.</CardDescription>
+          <CardDescription>Select a binding to inspect or edit its Elasticsearch configuration.</CardDescription>
         </CardHeader>
-        <CardContent><p className="text-sm text-slate-500 dark:text-slate-400">No Elasticsearch binding selected.</p></CardContent>
+        <CardContent>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No binding selected.</p>
+        </CardContent>
       </Card>
     );
   }
@@ -598,17 +745,7 @@ function BindingDetailsPanel({
     filterField: discriminatorField,
     filterValue: discriminatorValue,
   });
-  const canSave =
-    canManage &&
-    !isUpdating &&
-    !isDeleting &&
-    name.trim().length > 0 &&
-    profileName.trim().length > 0 &&
-    indexName.trim().length > 0 &&
-    targetField.trim().length > 0 &&
-    parsedTextFields.length > 0 &&
-    !validation.hasPartialFilter &&
-    !validation.missingDiscriminator;
+  const canSave = canManage && !isUpdating && !isDeleting && name.trim().length > 0 && profileName.trim().length > 0 && indexName.trim().length > 0 && targetField.trim().length > 0 && parsedTextFields.length > 0 && !validation.hasPartialFilter && !validation.missingDiscriminator;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -654,16 +791,81 @@ function BindingDetailsPanel({
           <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit binding name</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setName(event.target.value)} value={name} /></label>
           <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit profile</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting || profiles.length === 0} onChange={(event) => setProfileName(event.target.value)} value={profileName}>{profiles.map((profile) => <option key={profile.id} value={profile.name}>{profile.name}</option>)}</select></label>
           <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit description</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setDescription(event.target.value)} placeholder="Optional binding note" value={description} /></label>
-          <div className="grid gap-4 md:grid-cols-2"><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit index</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setIndexName(event.target.value)} value={indexName} /></label><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit target field</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setTargetField(event.target.value)} value={targetField} /></label></div>
-          <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit text fields</span><textarea className={textareaClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setTextFields(event.target.value)} value={textFields} /></label>
-          <div className="grid gap-4 md:grid-cols-2"><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit document discriminator field</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setDiscriminatorField(event.target.value)} placeholder="Optional" value={discriminatorField} /></label><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit value for this profile</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setDiscriminatorValue(event.target.value)} placeholder="Optional" value={discriminatorValue} /></label></div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit index</span><Input disabled={!canManage || isUpdating || isDeleting} list="edit-es-indices" onChange={(event) => setIndexName(event.target.value)} value={indexName} /><IndexDatalist id="edit-es-indices" indices={discoveredIndices} /></label>
+            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit target field</span><Input disabled={!canManage || isUpdating || isDeleting} list="edit-es-target-fields" onChange={(event) => setTargetField(event.target.value)} value={targetField} /><FieldsDatalist id="edit-es-target-fields" fields={mappingFields} /></label>
+          </div>
+          <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit text fields</span><textarea aria-label="Edit text fields" className={textareaClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setTextFields(event.target.value)} value={textFields} /></label>
+          <MappingFieldSuggestions isLoading={mappingQuery.isLoading} errorMessage={getErrorMessage(mappingQuery.error)} fields={textCandidates} label="Discovered text fields" onUseFields={(fields) => setTextFields(mergeTextFields(textFields, fields))} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit document discriminator field</span><Input disabled={!canManage || isUpdating || isDeleting} list="edit-es-discriminator-fields" onChange={(event) => setDiscriminatorField(event.target.value)} placeholder="Optional" value={discriminatorField} /><FieldsDatalist id="edit-es-discriminator-fields" fields={discriminatorCandidates} /></label>
+            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit value for this profile</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setDiscriminatorValue(event.target.value)} placeholder="Optional" value={discriminatorValue} /></label>
+          </div>
+          <MappingFieldSuggestions fields={discriminatorCandidates} label="Discovered discriminator fields" onUseFields={(fields) => setDiscriminatorField(fields[0] ?? discriminatorField)} />
           <BindingValidationMessages validation={validation} />
-          <div className="flex flex-wrap items-center gap-4"><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit mode</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setMode(event.target.value as ElasticsearchBindingMode)} value={mode}>{bindingModes.map((bindingMode) => <option key={bindingMode} value={bindingMode}>{bindingMode}</option>)}</select></label><label className="mt-6 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input checked={isEnabled} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setIsEnabled(event.target.checked)} type="checkbox" />Enabled binding</label></div>
+          <div className="flex flex-wrap items-center gap-4"><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit mode</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setMode(event.target.value as ElasticsearchBindingMode)} value={mode}>{bindingModes.map((bindingMode) => <option key={bindingMode} value={bindingMode}>{bindingMode}</option>)}</select></label><label className="mt-6 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input checked={isEnabled} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setIsEnabled(event.target.checked)} type="checkbox" />Edit enabled binding</label></div>
           {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}{deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
           <div className="flex flex-wrap gap-2"><Button disabled={!canSave} type="submit">{isUpdating ? "Saving..." : "Save binding"}</Button><Button disabled={!canManage || isUpdating || isDeleting} onClick={handleDelete} type="button" variant="secondary">{isDeleting ? "Deleting..." : "Delete binding"}</Button></div>
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function MappingFieldSuggestions({
+  errorMessage,
+  fields,
+  isLoading = false,
+  label,
+  onUseFields,
+}: {
+  errorMessage?: string | null;
+  fields: ElasticsearchMappingField[];
+  isLoading?: boolean;
+  label: string;
+  onUseFields: (fields: string[]) => void;
+}) {
+  if (errorMessage) {
+    return <InlineError message={errorMessage} />;
+  }
+  if (isLoading) {
+    return <p className="text-xs text-slate-500 dark:text-slate-400">Loading mapping fields...</p>;
+  }
+  if (fields.length === 0) {
+    return null;
+  }
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="flex flex-wrap gap-2">
+        {fields.map((field) => (
+          <button
+            className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
+            key={`${label}-${field.name}`}
+            onClick={() => onUseFields([field.name])}
+            type="button"
+          >
+            {field.name} · {field.type}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IndexDatalist({ id, indices }: { id: string; indices: ElasticsearchIndex[] }) {
+  return (
+    <datalist id={id}>
+      {indices.map((index) => <option key={index.name} value={index.name} />)}
+    </datalist>
+  );
+}
+
+function FieldsDatalist({ id, fields }: { id: string; fields: ElasticsearchMappingField[] }) {
+  return (
+    <datalist id={id}>
+      {fields.map((field) => <option key={field.name} value={field.name} />)}
+    </datalist>
   );
 }
 
@@ -695,7 +897,7 @@ function InlineError({ message }: { message: string }) {
   return <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">{message}</div>;
 }
 
-function errorMessage(error: unknown) {
+function getErrorMessage(error: unknown) {
   if (!error) return null;
   return error instanceof Error ? error.message : "Request failed. Check the governance API and try again.";
 }
@@ -703,6 +905,10 @@ function errorMessage(error: unknown) {
 function parseTextFields(value: string) {
   const fields = value.split(/[\n,]/).map((field) => field.trim()).filter(Boolean);
   return Array.from(new Set(fields));
+}
+
+function mergeTextFields(currentValue: string, nextFields: string[]) {
+  return Array.from(new Set([...parseTextFields(currentValue), ...nextFields])).join(", ");
 }
 
 function formatDiscriminator(binding: ElasticsearchBinding) {

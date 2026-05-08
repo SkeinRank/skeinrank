@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from skeinrank_governance.cli import (
     GovernanceCliError,
     add_alias,
@@ -37,6 +46,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
+from ..elasticsearch import ElasticsearchDiscoveryClient, ElasticsearchDiscoveryError
 from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
@@ -44,6 +54,10 @@ from ..schemas import (
     ElasticsearchBindingCreateRequest,
     ElasticsearchBindingResponse,
     ElasticsearchBindingUpdateRequest,
+    ElasticsearchConnectionStatusResponse,
+    ElasticsearchIndexMappingResponse,
+    ElasticsearchIndexResponse,
+    ElasticsearchMappingFieldResponse,
     ProfileCreateRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -307,6 +321,111 @@ def delete_profile_stop_list_entry(
     session.delete(entry)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/elasticsearch/connection/status",
+    response_model=ElasticsearchConnectionStatusResponse,
+)
+def get_elasticsearch_connection_status(
+    request: Request,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+) -> ElasticsearchConnectionStatusResponse:
+    """Test whether the configured Elasticsearch endpoint is reachable."""
+
+    client = ElasticsearchDiscoveryClient(request.app.state.config)
+    if not client.is_configured:
+        return ElasticsearchConnectionStatusResponse(
+            configured=False,
+            ok=False,
+            error="Elasticsearch URL is not configured.",
+        )
+
+    try:
+        info = client.cluster_info()
+    except ElasticsearchDiscoveryError as exc:
+        return ElasticsearchConnectionStatusResponse(
+            configured=True,
+            ok=False,
+            url=client.url,
+            error=str(exc),
+        )
+
+    version = info.get("version") if isinstance(info, dict) else None
+    version_number = version.get("number") if isinstance(version, dict) else None
+    return ElasticsearchConnectionStatusResponse(
+        configured=True,
+        ok=True,
+        url=client.url,
+        cluster_name=str(info.get("cluster_name"))
+        if isinstance(info, dict) and info.get("cluster_name")
+        else None,
+        cluster_version=str(version_number) if version_number else None,
+    )
+
+
+@router.get(
+    "/elasticsearch/indices",
+    response_model=list[ElasticsearchIndexResponse],
+)
+def list_elasticsearch_indices(
+    request: Request,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+) -> list[ElasticsearchIndexResponse]:
+    """List Elasticsearch indices when a connection is configured."""
+
+    client = ElasticsearchDiscoveryClient(request.app.state.config)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Elasticsearch URL is not configured.",
+        )
+    try:
+        indices = client.list_indices()
+    except ElasticsearchDiscoveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    return [ElasticsearchIndexResponse(**item) for item in indices]
+
+
+@router.get(
+    "/elasticsearch/indices/{index_name}/mapping",
+    response_model=ElasticsearchIndexMappingResponse,
+)
+def get_elasticsearch_index_mapping(
+    index_name: str,
+    request: Request,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+) -> ElasticsearchIndexMappingResponse:
+    """Return flattened mapping fields for one Elasticsearch index."""
+
+    client = ElasticsearchDiscoveryClient(request.app.state.config)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Elasticsearch URL is not configured.",
+        )
+    try:
+        fields = client.index_fields(index_name)
+    except ElasticsearchDiscoveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    return ElasticsearchIndexMappingResponse(
+        index_name=index_name,
+        fields=[
+            ElasticsearchMappingFieldResponse(**field.__dict__) for field in fields
+        ],
+    )
 
 
 @router.get(
