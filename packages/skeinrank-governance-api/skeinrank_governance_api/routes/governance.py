@@ -46,15 +46,24 @@ from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
-from ..elasticsearch import ElasticsearchDiscoveryClient, ElasticsearchDiscoveryError
+from ..elasticsearch import (
+    ElasticsearchDiscoveryClient,
+    ElasticsearchDiscoveryError,
+    compose_source_text,
+    source_preview,
+)
 from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
     AliasUpdateRequest,
     ElasticsearchBindingCreateRequest,
+    ElasticsearchBindingDryRunDocument,
+    ElasticsearchBindingDryRunRequest,
+    ElasticsearchBindingDryRunResponse,
     ElasticsearchBindingResponse,
     ElasticsearchBindingUpdateRequest,
     ElasticsearchConnectionStatusResponse,
+    ElasticsearchDryRunMatchedAlias,
     ElasticsearchIndexMappingResponse,
     ElasticsearchIndexResponse,
     ElasticsearchMappingFieldResponse,
@@ -583,6 +592,86 @@ def delete_elasticsearch_binding(
     session.delete(binding)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/elasticsearch/bindings/{binding_id}/dry-run",
+    response_model=ElasticsearchBindingDryRunResponse,
+)
+def dry_run_elasticsearch_binding(
+    binding_id: int,
+    request: Request,
+    request_body: ElasticsearchBindingDryRunRequest | None = Body(default=None),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> ElasticsearchBindingDryRunResponse:
+    """Preview enrichment for a binding without writing to Elasticsearch."""
+
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    if not binding.is_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Elasticsearch binding is disabled.",
+        )
+
+    limit = (request_body or ElasticsearchBindingDryRunRequest()).limit
+    client = ElasticsearchDiscoveryClient(request.app.state.config)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Elasticsearch URL is not configured.",
+        )
+
+    try:
+        hits = client.search_documents(
+            index_name=binding.index_name,
+            text_fields=list(binding.text_fields),
+            limit=limit,
+            filter_field=binding.filter_field,
+            filter_value=binding.filter_value,
+        )
+    except ElasticsearchDiscoveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    alias_entries = _active_alias_entries_for_profile(session, binding.profile)
+    documents: list[ElasticsearchBindingDryRunDocument] = []
+    for hit in hits:
+        text = compose_source_text(hit.source, list(binding.text_fields))
+        matched_aliases = _match_alias_entries(text, alias_entries)
+        would_write_payload = _dry_run_payload(binding, matched_aliases)
+        preview_fields = list(binding.text_fields)
+        if binding.filter_field:
+            preview_fields = [*preview_fields, binding.filter_field]
+        documents.append(
+            ElasticsearchBindingDryRunDocument(
+                document_id=hit.id,
+                index_name=hit.index,
+                text_preview=text[:500],
+                source_preview=source_preview(hit.source, preview_fields),
+                matched_aliases=matched_aliases,
+                would_write={binding.target_field: would_write_payload},
+            )
+        )
+
+    warnings: list[str] = []
+    if not hits:
+        warnings.append("No sample documents matched this binding.")
+    if binding.mode == "write":
+        warnings.append(
+            "Dry-run is read-only even though this binding is configured for write mode."
+        )
+
+    return ElasticsearchBindingDryRunResponse(
+        binding=_elasticsearch_binding_response(binding),
+        limit=limit,
+        documents=documents,
+        warnings=warnings,
+    )
 
 
 @router.get(
@@ -1128,6 +1217,118 @@ def export_profile_snapshot(
         )
     except GovernanceCliError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+def _active_alias_entries_for_profile(
+    session: Session, profile: TerminologyProfile
+) -> list[tuple[str, str, str, float]]:
+    """Return active alias rows not blocked by profile stop-list entries."""
+
+    blocked_alias_values = _active_stop_values_for_target(
+        session, profile, targets=("alias", "both")
+    )
+    blocked_canonical_values = _active_stop_values_for_target(
+        session, profile, targets=("canonical", "both")
+    )
+    aliases = list(
+        session.scalars(
+            select(TermAlias)
+            .join(CanonicalTerm)
+            .where(
+                TermAlias.profile_id == profile.id,
+                TermAlias.status == "active",
+                CanonicalTerm.status == "active",
+            )
+            .order_by(TermAlias.normalized_alias)
+        )
+    )
+    entries: list[tuple[str, str, str, float]] = []
+    for alias in aliases:
+        if alias.normalized_alias in blocked_alias_values:
+            continue
+        if alias.term.normalized_value in blocked_canonical_values:
+            continue
+        entries.append(
+            (
+                alias.normalized_alias,
+                alias.term.canonical_value,
+                alias.term.slot,
+                alias.confidence,
+            )
+        )
+    return entries
+
+
+def _active_stop_values_for_target(
+    session: Session, profile: TerminologyProfile, *, targets: tuple[str, ...]
+) -> set[str]:
+    values = session.scalars(
+        select(GovernanceStopListEntry.normalized_value).where(
+            GovernanceStopListEntry.profile_id == profile.id,
+            GovernanceStopListEntry.is_active.is_(True),
+            GovernanceStopListEntry.target.in_(targets),
+        )
+    )
+    return set(values)
+
+
+def _match_alias_entries(
+    text: str, alias_entries: list[tuple[str, str, str, float]]
+) -> list[ElasticsearchDryRunMatchedAlias]:
+    normalized_text = normalize_value(text)
+    matches: list[ElasticsearchDryRunMatchedAlias] = []
+    seen: set[tuple[str, str, str]] = set()
+    for alias_value, canonical_value, slot, confidence in alias_entries:
+        if not alias_value or not _contains_alias(normalized_text, alias_value):
+            continue
+        key = (alias_value, canonical_value, slot)
+        if key in seen:
+            continue
+        seen.add(key)
+        matches.append(
+            ElasticsearchDryRunMatchedAlias(
+                alias_value=alias_value,
+                canonical_value=canonical_value,
+                slot=slot,
+                matched_text=alias_value,
+                confidence=confidence,
+            )
+        )
+    return matches
+
+
+def _contains_alias(normalized_text: str, normalized_alias: str) -> bool:
+    import re
+
+    return (
+        re.search(rf"(?<!\w){re.escape(normalized_alias)}(?!\w)", normalized_text)
+        is not None
+    )
+
+
+def _dry_run_payload(
+    binding: ElasticsearchBinding, matches: list[ElasticsearchDryRunMatchedAlias]
+) -> dict[str, object]:
+    canonical_values = sorted({match.canonical_value for match in matches})
+    slots: dict[str, set[str]] = {}
+    matched_aliases_by_value: dict[str, set[str]] = {}
+    for match in matches:
+        slots.setdefault(match.slot, set()).add(match.canonical_value)
+        matched_aliases_by_value.setdefault(match.canonical_value, set()).add(
+            match.alias_value
+        )
+    return {
+        "profile_id": binding.profile.name,
+        "binding_id": binding.id,
+        "binding_name": binding.name,
+        "canonical_values": canonical_values,
+        "slots": {slot: sorted(values) for slot, values in sorted(slots.items())},
+        "matched_aliases": sorted({match.alias_value for match in matches}),
+        "matched_aliases_by_value": {
+            value: sorted(aliases)
+            for value, aliases in sorted(matched_aliases_by_value.items())
+        },
+    }
 
 
 def _get_elasticsearch_binding_or_404(

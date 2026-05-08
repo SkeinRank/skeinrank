@@ -238,6 +238,42 @@ class ElasticsearchIndexMappingResponse(BaseModel):
     fields: list[ElasticsearchMappingFieldResponse]
 
 
+class ElasticsearchBindingDryRunRequest(BaseModel):
+    """Request body for previewing a binding without writing to Elasticsearch."""
+
+    limit: int = Field(default=3, ge=1, le=20)
+
+
+class ElasticsearchDryRunMatchedAlias(BaseModel):
+    """Alias match found in a sample Elasticsearch document."""
+
+    alias_value: str
+    canonical_value: str
+    slot: str
+    matched_text: str
+    confidence: float
+
+
+class ElasticsearchBindingDryRunDocument(BaseModel):
+    """Preview of one document that would be enriched by a binding."""
+
+    document_id: str
+    index_name: str
+    text_preview: str
+    source_preview: dict[str, list[str]]
+    matched_aliases: list[ElasticsearchDryRunMatchedAlias]
+    would_write: dict[str, Any]
+
+
+class ElasticsearchBindingDryRunResponse(BaseModel):
+    """Read-only dry-run result for one Elasticsearch binding."""
+
+    binding: ElasticsearchBindingResponse
+    limit: int
+    documents: list[ElasticsearchBindingDryRunDocument]
+    warnings: list[str] = []
+
+
 class SuggestionCreateRequest(BaseModel):
     """Request body for proposing a terminology change for later review."""
 

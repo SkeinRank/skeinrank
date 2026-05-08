@@ -214,7 +214,7 @@ Current UI scope:
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, dry-run/write mode, and enabled state. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, Elasticsearch connection tests/dry-run jobs, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, dry-run/write mode, and enabled state. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, Elasticsearch write jobs, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -349,7 +349,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, stop lists, suggestions/approval, Elasticsearch binding configs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, Elasticsearch connection tests/dry-run jobs, and model-based discovery ingestion.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, stop lists, suggestions/approval, Elasticsearch binding configs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, Elasticsearch write/reindex jobs, and model-based discovery ingestion.
 
 The intended architecture is:
 
@@ -359,7 +359,7 @@ Postgres governance store -> governance API/UI -> published snapshot JSON -> run
 
 The hot extraction path still uses exported snapshots; it does not query Postgres or the governance API per request.
 
-Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, dry-run/write mode, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They are still configuration-only until follow-up connection-test/dry-run job patches connect them to real Elasticsearch clusters and enrichment jobs.
+Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, dry-run/write mode, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They can now be tested with read-only connection/mapping discovery and binding dry-runs. Follow-up patches will add production write/reindex jobs.
 
 Local smoke tests:
 
@@ -476,3 +476,19 @@ GET /v1/governance/elasticsearch/indices/{index_name}/mapping
 ```
 
 The Integrations UI keeps manual binding configuration as a fallback, but when Elasticsearch is configured it can show connection status, discovered indices, and mapping field suggestions for text fields and document discriminator fields.
+
+### Patch 25e — Elasticsearch binding dry-run
+
+The governance API can run a read-only dry-run for a saved Elasticsearch binding. Dry-run reads a small sample of documents from the configured index, extracts text from the binding `text_fields`, matches active aliases from the selected terminology profile, and returns the payload that would be written to the binding `target_field`.
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/dry-run
+```
+
+Example request:
+
+```json
+{"limit": 3}
+```
+
+Dry-run never writes to Elasticsearch. It is intended to validate profile/index/text-field/discriminator configuration before any future write strategy or reindex/alias-swap job is introduced.

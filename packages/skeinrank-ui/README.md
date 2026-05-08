@@ -75,7 +75,7 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, profile stop-list guardrails, and Elasticsearch binding configs through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, Elasticsearch connection tests/dry-run jobs, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, profile stop-list guardrails, and Elasticsearch binding configs through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, Elasticsearch write/reindex jobs, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Checks
 
@@ -95,3 +95,9 @@ The Integrations page now supports optional Elasticsearch discovery. When the go
 - suggest text fields and discriminator fields while creating or editing bindings.
 
 If Elasticsearch is not configured or unavailable, the page still works in manual mode and users can type index names and field names by hand.
+
+## Elasticsearch binding dry-run
+
+The Integrations page can run a read-only dry-run for the selected binding. The preview shows sample documents, matched aliases, canonical values, and the JSON payload that would be written to the configured target field.
+
+Dry-run is safe for production validation because it does not write to Elasticsearch. It only calls the governance API dry-run endpoint and displays the returned preview.

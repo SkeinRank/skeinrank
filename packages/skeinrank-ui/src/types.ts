@@ -137,6 +137,36 @@ export type ElasticsearchBindingUpdateRequest = {
   is_enabled?: boolean | null;
 };
 
+
+
+export type ElasticsearchBindingDryRunRequest = {
+  limit?: number;
+};
+
+export type ElasticsearchDryRunMatchedAlias = {
+  alias_value: string;
+  canonical_value: string;
+  slot: string;
+  matched_text: string;
+  confidence: number;
+};
+
+export type ElasticsearchDryRunDocument = {
+  document_id: string;
+  index_name: string;
+  text_preview: string;
+  source_preview: Record<string, string[]>;
+  matched_aliases: ElasticsearchDryRunMatchedAlias[];
+  would_write: Record<string, unknown>;
+};
+
+export type ElasticsearchBindingDryRunResponse = {
+  binding: ElasticsearchBinding;
+  limit: number;
+  documents: ElasticsearchDryRunDocument[];
+  warnings: string[];
+};
+
 export type SuggestionStatus = "pending" | "approved" | "rejected";
 
 export type SuggestionSource = "manual" | "discovery" | "import";

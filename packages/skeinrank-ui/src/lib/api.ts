@@ -5,6 +5,8 @@ import type {
   AuthUser,
   ElasticsearchBinding,
   ElasticsearchBindingCreateRequest,
+  ElasticsearchBindingDryRunRequest,
+  ElasticsearchBindingDryRunResponse,
   ElasticsearchBindingUpdateRequest,
   ElasticsearchConnectionStatus,
   ElasticsearchIndex,
@@ -295,6 +297,13 @@ export function updateElasticsearchBinding(bindingId: number, payload: Elasticse
 export function deleteElasticsearchBinding(bindingId: number) {
   return requestJson<void>(`/v1/governance/elasticsearch/bindings/${bindingId}`, {
     method: "DELETE",
+  });
+}
+
+export function dryRunElasticsearchBinding(bindingId: number, payload: ElasticsearchBindingDryRunRequest = {}) {
+  return requestJson<ElasticsearchBindingDryRunResponse>(`/v1/governance/elasticsearch/bindings/${bindingId}/dry-run`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 

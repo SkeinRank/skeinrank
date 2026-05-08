@@ -6,6 +6,7 @@ import type {
   AuthUser,
   CanonicalTerm,
   ElasticsearchBinding,
+  ElasticsearchBindingDryRunResponse,
   ElasticsearchIndex,
   ElasticsearchIndexMapping,
   GovernanceSuggestion,
@@ -141,6 +142,34 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     updated_at: "2026-05-07T00:00:00Z",
   },
 ];
+
+const elasticsearchDryRunResponse: ElasticsearchBindingDryRunResponse = {
+  binding: elasticsearchBindings[0],
+  limit: 3,
+  warnings: [],
+  documents: [
+    {
+      document_id: "doc-1",
+      index_name: "docs",
+      text_preview: "K8s rollout failed in the infra namespace.",
+      source_preview: { title: ["K8s rollout failed"], body: ["Kube rollout failed"], team: ["infra"] },
+      matched_aliases: [
+        { alias_value: "k8s", canonical_value: "kubernetes", slot: "TOOL", matched_text: "k8s", confidence: 0.97 },
+      ],
+      would_write: {
+        skeinrank: {
+          profile_id: "default_it",
+          binding_id: 1,
+          binding_name: "infra docs",
+          canonical_values: ["kubernetes"],
+          slots: { TOOL: ["kubernetes"] },
+          matched_aliases: ["k8s"],
+          matched_aliases_by_value: { kubernetes: ["k8s"] },
+        },
+      },
+    },
+  ],
+};
 
 const elasticsearchIndices: ElasticsearchIndex[] = [
   { name: "docs", health: "green", status: "open", docs_count: 42 },
@@ -514,6 +543,10 @@ function stubGovernanceApi(options: StubOptions = {}) {
         };
         currentElasticsearchBindings = [binding, ...currentElasticsearchBindings];
         return Response.json(binding, { status: 201 });
+      }
+
+      if (url.endsWith("/v1/governance/elasticsearch/bindings/1/dry-run") && method === "POST") {
+        return Response.json(elasticsearchDryRunResponse);
       }
 
       if (url.endsWith("/v1/governance/elasticsearch/bindings/1") && method === "PATCH") {
@@ -1480,6 +1513,20 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Edit description")).toHaveValue("Apply default IT terms to docs.");
     });
+
+    fireEvent.click(screen.getByRole("button", { name: "Run dry-run" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1/dry-run",
+        expect.objectContaining({
+          body: JSON.stringify({ limit: 3 }),
+          method: "POST",
+        }),
+      );
+    });
+    expect(await screen.findByText("doc-1")).toBeInTheDocument();
+    expect(screen.getByText("k8s → kubernetes")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Binding name"), { target: { value: "runbook docs" } });
     fireEvent.change(screen.getByLabelText("Index"), { target: { value: "runbooks" } });
