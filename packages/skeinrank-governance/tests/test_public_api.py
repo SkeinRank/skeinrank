@@ -22,6 +22,10 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.SUGGESTION_TYPES == ("alias", "canonical_term")
     assert governance.STOP_LIST_TARGETS == ("alias", "canonical", "both")
     assert governance.ELASTICSEARCH_BINDING_MODES == ("dry_run", "write")
+    assert governance.ELASTICSEARCH_BINDING_WRITE_STRATEGIES == (
+        "in_place",
+        "reindex_alias_swap",
+    )
     assert governance.ELASTICSEARCH_BINDING_PROVIDERS == ("elasticsearch",)
     assert governance.normalize_value(" K8S ") == "k8s"
     assert governance.normalize_profile_name("Default IT") == "default_it"

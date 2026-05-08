@@ -276,7 +276,7 @@ Elasticsearch bindings:
 # Create a manual binding config. This stores where a profile should be applied later.
 curl -X POST http://127.0.0.1:8010/v1/governance/elasticsearch/bindings \
   -H "Content-Type: application/json" \
-  -d '{"name":"infra docs","profile_name":"default_it","index_name":"docs","text_fields":["title","body"],"target_field":"skeinrank","filter_field":"team","filter_value":"infra","mode":"dry_run"}'
+  -d '{"name":"infra docs","profile_name":"default_it","index_name":"docs","text_fields":["title","body"],"target_field":"skeinrank","filter_field":"team","filter_value":"infra","mode":"dry_run","write_strategy":"reindex_alias_swap"}'
 
 curl http://127.0.0.1:8010/v1/governance/elasticsearch/bindings
 curl http://127.0.0.1:8010/v1/governance/elasticsearch/bindings?profile_name=default_it
@@ -284,7 +284,7 @@ curl http://127.0.0.1:8010/v1/governance/elasticsearch/bindings?profile_name=def
 # Replace 1 with the binding id returned by the create response.
 curl -X PATCH http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1 \
   -H "Content-Type: application/json" \
-  -d '{"index_name":"docs-v2","text_fields":["body"],"mode":"write","is_enabled":false}'
+  -d '{"index_name":"docs-v2","text_fields":["body"],"mode":"write","write_strategy":"in_place","is_enabled":false}'
 
 curl -X DELETE http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1
 ```
@@ -377,3 +377,16 @@ Request body:
 ```
 
 The endpoint samples documents from the configured index, applies the binding discriminator filter when present, reads configured text fields, matches active profile aliases, and returns the `would_write` payload for the configured target field. It does not update documents and does not start background jobs.
+
+## Elasticsearch enrichment write strategy
+
+Elasticsearch bindings include `write_strategy` metadata for future write jobs:
+
+```text
+in_place
+reindex_alias_swap
+```
+
+`reindex_alias_swap` is the default because it is the safer production path: future enrichment jobs can create a new enriched index, validate the result, and swap an alias instead of writing directly into a live index. `in_place` is available for sandbox/dev workflows or small indexes where direct bulk partial updates are acceptable.
+
+This API patch only stores and validates the strategy. It does not perform writes, reindexing, alias swaps, or background jobs.

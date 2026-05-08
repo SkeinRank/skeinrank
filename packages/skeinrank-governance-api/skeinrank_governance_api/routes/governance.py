@@ -25,6 +25,7 @@ from skeinrank_governance.models import (
     ALIAS_STATUSES,
     ELASTICSEARCH_BINDING_MODES,
     ELASTICSEARCH_BINDING_PROVIDERS,
+    ELASTICSEARCH_BINDING_WRITE_STRATEGIES,
     STOP_LIST_TARGETS,
     SUGGESTION_SOURCES,
     SUGGESTION_STATUSES,
@@ -479,6 +480,7 @@ def create_elasticsearch_binding(
 
     profile = _get_profile_or_404(session, request.profile_name)
     _validate_elasticsearch_binding_mode(request.mode)
+    _validate_elasticsearch_binding_write_strategy(request.write_strategy)
     _validate_elasticsearch_binding_provider("elasticsearch")
     text_fields = _normalize_text_fields(request.text_fields)
     filter_field, filter_value = _normalize_optional_filter(
@@ -500,6 +502,7 @@ def create_elasticsearch_binding(
         filter_field=filter_field,
         filter_value=filter_value,
         mode=request.mode,
+        write_strategy=request.write_strategy,
         is_enabled=request.is_enabled,
     )
     session.add(binding)
@@ -564,6 +567,10 @@ def update_elasticsearch_binding(
     if "mode" in fields and request.mode is not None:
         _validate_elasticsearch_binding_mode(request.mode)
         binding.mode = request.mode
+
+    if "write_strategy" in fields and request.write_strategy is not None:
+        _validate_elasticsearch_binding_write_strategy(request.write_strategy)
+        binding.write_strategy = request.write_strategy
 
     if "is_enabled" in fields and request.is_enabled is not None:
         binding.is_enabled = request.is_enabled
@@ -1363,6 +1370,18 @@ def _validate_elasticsearch_binding_mode(mode: str) -> None:
         )
 
 
+def _validate_elasticsearch_binding_write_strategy(write_strategy: str) -> None:
+    if write_strategy not in ELASTICSEARCH_BINDING_WRITE_STRATEGIES:
+        allowed_values = ", ".join(ELASTICSEARCH_BINDING_WRITE_STRATEGIES)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Invalid Elasticsearch binding write strategy: {write_strategy}. "
+                f"Allowed values: {allowed_values}"
+            ),
+        )
+
+
 def _normalize_text_fields(text_fields: list[str]) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
@@ -1737,6 +1756,7 @@ def _elasticsearch_binding_response(
         filter_field=binding.filter_field,
         filter_value=binding.filter_value,
         mode=binding.mode,
+        write_strategy=binding.write_strategy,
         is_enabled=binding.is_enabled,
         created_at=binding.created_at,
         updated_at=binding.updated_at,

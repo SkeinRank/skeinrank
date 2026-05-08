@@ -124,6 +124,7 @@ def test_create_governance_rows_and_normalized_values(session):
     assert binding.provider == "elasticsearch"
     assert binding.text_fields == ["title", "body", "body"]
     assert binding.mode == "dry_run"
+    assert binding.write_strategy == "reindex_alias_swap"
     assert audit.payload_json == {"alias": "K8S"}
 
 
@@ -342,6 +343,22 @@ def test_invalid_elasticsearch_binding_mode_is_rejected(session):
         text_fields=["body"],
         target_field="skeinrank",
         mode="unsafe",
+    )
+    session.add(binding)
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_invalid_elasticsearch_binding_write_strategy_is_rejected(session):
+    profile = TerminologyProfile(name="default_it")
+    binding = ElasticsearchBinding(
+        profile=profile,
+        name="docs",
+        index_name="docs",
+        text_fields=["body"],
+        target_field="skeinrank",
+        write_strategy="unsafe",
     )
     session.add(binding)
 

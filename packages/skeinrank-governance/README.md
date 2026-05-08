@@ -149,6 +149,6 @@ Stop lists are used by the governance API to reject blocked direct edits, blocke
 
 ## Elasticsearch bindings
 
-The governance schema includes saved Elasticsearch enrichment bindings. A binding is a configuration object that connects one terminology profile to one Elasticsearch index or index pattern, the source text fields to inspect, an enrichment target field, and an optional metadata filter such as `team = infra`.
+The governance schema includes saved Elasticsearch enrichment bindings. A binding is a configuration object that connects one terminology profile to one Elasticsearch index or index pattern, the source text fields to inspect, an enrichment target field, an optional metadata filter such as `team = infra`, and an enrichment write strategy.
 
-Bindings are configuration-only in this patch. They do not open an Elasticsearch connection or write to an index yet; future provider/job patches can read these saved bindings to run dry-run or write-mode enrichment jobs.
+Bindings are configuration-only in this package. They do not open an Elasticsearch connection or write to an index. Future provider/job patches can read these saved bindings to run dry-run or write-mode enrichment jobs. The default write strategy is `reindex_alias_swap`, which is safer for production workflows than mutating the live index directly.

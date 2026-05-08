@@ -163,6 +163,7 @@ class ElasticsearchBindingCreateRequest(BaseModel):
     filter_field: str | None = Field(default=None, max_length=256)
     filter_value: str | None = Field(default=None, max_length=512)
     mode: str = "dry_run"
+    write_strategy: str = "reindex_alias_swap"
     is_enabled: bool = True
 
 
@@ -178,6 +179,7 @@ class ElasticsearchBindingUpdateRequest(BaseModel):
     filter_field: str | None = Field(default=None, max_length=256)
     filter_value: str | None = Field(default=None, max_length=512)
     mode: str | None = None
+    write_strategy: str | None = None
     is_enabled: bool | None = None
 
 
@@ -197,6 +199,7 @@ class ElasticsearchBindingResponse(BaseModel):
     filter_field: str | None = None
     filter_value: str | None = None
     mode: str
+    write_strategy: str
     is_enabled: bool
     created_at: datetime
     updated_at: datetime
