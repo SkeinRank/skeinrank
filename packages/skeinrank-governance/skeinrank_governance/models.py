@@ -45,6 +45,7 @@ SUGGESTION_TYPES = ("alias", "canonical_term")
 SUGGESTION_SOURCES = ("manual", "discovery", "import")
 STOP_LIST_TARGETS = ("alias", "canonical", "both")
 ELASTICSEARCH_BINDING_MODES = ("dry_run", "write")
+ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
 ELASTICSEARCH_BINDING_PROVIDERS = ("elasticsearch",)
 USER_ROLES = ("admin", "moderator", "contributor")
 
@@ -438,6 +439,10 @@ class ElasticsearchBinding(TimestampMixin, Base):
             f"mode IN {ELASTICSEARCH_BINDING_MODES!r}",
             name="elasticsearch_binding_mode",
         ),
+        CheckConstraint(
+            f"write_strategy IN {ELASTICSEARCH_BINDING_WRITE_STRATEGIES!r}",
+            name="elasticsearch_binding_write_strategy",
+        ),
         Index("ix_elasticsearch_bindings_profile_enabled", "profile_id", "is_enabled"),
         Index("ix_elasticsearch_bindings_index", "index_name"),
     )
@@ -458,6 +463,9 @@ class ElasticsearchBinding(TimestampMixin, Base):
     filter_field: Mapped[str | None] = mapped_column(String(256), nullable=True)
     filter_value: Mapped[str | None] = mapped_column(String(512), nullable=True)
     mode: Mapped[str] = mapped_column(String(32), default="dry_run", nullable=False)
+    write_strategy: Mapped[str] = mapped_column(
+        String(32), default="reindex_alias_swap", nullable=False
+    )
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     profile: Mapped[TerminologyProfile] = relationship(
@@ -468,7 +476,8 @@ class ElasticsearchBinding(TimestampMixin, Base):
         return (
             "ElasticsearchBinding("
             f"name={self.name!r}, profile_id={self.profile_id!r}, "
-            f"index={self.index_name!r}, mode={self.mode!r})"
+            f"index={self.index_name!r}, mode={self.mode!r}, "
+            f"write_strategy={self.write_strategy!r})"
         )
 
 
@@ -595,6 +604,9 @@ def _fill_normalized_elasticsearch_binding(
     target.filter_field = target.filter_field.strip() if target.filter_field else None
     target.filter_value = target.filter_value.strip() if target.filter_value else None
     target.mode = (target.mode or "dry_run").strip().lower()
+    target.write_strategy = (
+        (target.write_strategy or "reindex_alias_swap").strip().lower()
+    )
 
 
 event.listen(TerminologyProfile, "before_insert", _fill_normalized_profile)

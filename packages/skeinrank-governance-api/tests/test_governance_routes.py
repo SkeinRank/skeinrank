@@ -988,6 +988,7 @@ def test_elasticsearch_binding_crud_workflow(tmp_path):
             "filter_field": "team",
             "filter_value": "infra",
             "mode": "dry_run",
+            "write_strategy": "reindex_alias_swap",
         },
     )
     assert create_response.status_code == 201
@@ -1001,6 +1002,7 @@ def test_elasticsearch_binding_crud_workflow(tmp_path):
     assert created["filter_field"] == "team"
     assert created["filter_value"] == "infra"
     assert created["mode"] == "dry_run"
+    assert created["write_strategy"] == "reindex_alias_swap"
     assert created["is_enabled"] is True
 
     list_response = client.get("/v1/governance/elasticsearch/bindings")
@@ -1024,6 +1026,7 @@ def test_elasticsearch_binding_crud_workflow(tmp_path):
             "filter_field": None,
             "filter_value": None,
             "mode": "write",
+            "write_strategy": "in_place",
             "is_enabled": False,
         },
     )
@@ -1037,6 +1040,7 @@ def test_elasticsearch_binding_crud_workflow(tmp_path):
     assert updated["filter_field"] is None
     assert updated["filter_value"] is None
     assert updated["mode"] == "write"
+    assert updated["write_strategy"] == "in_place"
     assert updated["is_enabled"] is False
 
     delete_response = client.delete(
@@ -1090,6 +1094,23 @@ def test_elasticsearch_binding_rejects_invalid_config_and_duplicates(tmp_path):
     )
     assert invalid_mode.status_code == 422
     assert "Invalid Elasticsearch binding mode" in invalid_mode.json()["detail"]
+
+    invalid_write_strategy = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+            "write_strategy": "unsafe",
+        },
+    )
+    assert invalid_write_strategy.status_code == 422
+    assert (
+        "Invalid Elasticsearch binding write strategy"
+        in invalid_write_strategy.json()["detail"]
+    )
 
     first = client.post(
         "/v1/governance/elasticsearch/bindings",
