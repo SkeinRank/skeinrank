@@ -6,6 +6,8 @@ import type {
   AuthUser,
   CanonicalTerm,
   ElasticsearchBinding,
+  ElasticsearchIndex,
+  ElasticsearchIndexMapping,
   GovernanceSuggestion,
   Profile,
   StopListEntry,
@@ -140,6 +142,22 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
   },
 ];
 
+const elasticsearchIndices: ElasticsearchIndex[] = [
+  { name: "docs", health: "green", status: "open", docs_count: 42 },
+  { name: "runbooks", health: "yellow", status: "open", docs_count: 7 },
+];
+
+const elasticsearchMapping: ElasticsearchIndexMapping = {
+  index_name: "docs",
+  fields: [
+    { name: "title", type: "text", is_text_candidate: true, is_discriminator_candidate: false },
+    { name: "body", type: "text", is_text_candidate: true, is_discriminator_candidate: false },
+    { name: "summary", type: "text", is_text_candidate: true, is_discriminator_candidate: false },
+    { name: "team", type: "keyword", is_text_candidate: false, is_discriminator_candidate: true },
+    { name: "space", type: "keyword", is_text_candidate: false, is_discriminator_candidate: true },
+  ],
+};
+
 const suggestions: GovernanceSuggestion[] = [
   {
     id: 1,
@@ -190,6 +208,16 @@ function cloneStopListEntries() {
 
 function cloneElasticsearchBindings() {
   return JSON.parse(JSON.stringify(elasticsearchBindings)) as ElasticsearchBinding[];
+}
+
+function cloneElasticsearchIndices() {
+  return JSON.parse(JSON.stringify(elasticsearchIndices)) as ElasticsearchIndex[];
+}
+
+function cloneElasticsearchMapping(indexName = "docs") {
+  const mapping = JSON.parse(JSON.stringify(elasticsearchMapping)) as ElasticsearchIndexMapping;
+  mapping.index_name = indexName;
+  return mapping;
 }
 
 function stubGovernanceApi(options: StubOptions = {}) {
@@ -423,6 +451,26 @@ function stubGovernanceApi(options: StubOptions = {}) {
       ) {
         currentStopListEntries = currentStopListEntries.filter((entry) => entry.id !== 1);
         return new Response(null, { status: 204 });
+      }
+
+      if (url.endsWith("/v1/governance/elasticsearch/connection/status") && method === "GET") {
+        return Response.json({
+          configured: true,
+          ok: true,
+          url: "http://localhost:9200",
+          cluster_name: "skeinrank-dev",
+          cluster_version: "8.13.4",
+          error: null,
+        });
+      }
+
+      if (url.endsWith("/v1/governance/elasticsearch/indices") && method === "GET") {
+        return Response.json(cloneElasticsearchIndices());
+      }
+
+      if (url.includes("/v1/governance/elasticsearch/indices/") && url.endsWith("/mapping") && method === "GET") {
+        const indexName = decodeURIComponent(url.split("/v1/governance/elasticsearch/indices/")[1].replace("/mapping", ""));
+        return Response.json(cloneElasticsearchMapping(indexName));
       }
 
       if (url.includes("/v1/governance/elasticsearch/bindings") && method === "GET") {
@@ -1424,6 +1472,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
     expect(await screen.findByText("Elasticsearch bindings")).toBeInTheDocument();
+    expect(await screen.findByText("Connected")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });
@@ -1434,6 +1483,7 @@ describe("App", () => {
 
     fireEvent.change(screen.getByLabelText("Binding name"), { target: { value: "runbook docs" } });
     fireEvent.change(screen.getByLabelText("Index"), { target: { value: "runbooks" } });
+    expect(await screen.findByText("Discovered text fields")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Text fields/), { target: { value: "title, body, summary" } });
     fireEvent.change(screen.getByLabelText("Target field"), { target: { value: "skeinrank" } });
     fireEvent.change(screen.getByLabelText("Document discriminator field"), { target: { value: "team" } });
@@ -1470,7 +1520,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Edit document discriminator field"), { target: { value: "space" } });
     fireEvent.change(screen.getByLabelText("Edit value for this profile"), { target: { value: "infra" } });
     fireEvent.change(screen.getByLabelText("Edit mode"), { target: { value: "write" } });
-    fireEvent.click(screen.getByLabelText("Enabled binding"));
+    fireEvent.click(screen.getByLabelText("Edit enabled binding"));
     fireEvent.click(screen.getByRole("button", { name: "Save binding" }));
 
     await waitFor(() => {
@@ -1513,6 +1563,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
     expect(await screen.findByText("Elasticsearch bindings")).toBeInTheDocument();
+    expect(await screen.findByText("Connected")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "ml_platform" } });
     fireEvent.change(screen.getByLabelText("Binding name"), { target: { value: "ml docs without discriminator" } });
     fireEvent.change(screen.getByLabelText("Index"), { target: { value: "docs" } });

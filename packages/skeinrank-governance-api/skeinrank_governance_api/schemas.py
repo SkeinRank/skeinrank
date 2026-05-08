@@ -202,6 +202,42 @@ class ElasticsearchBindingResponse(BaseModel):
     updated_at: datetime
 
 
+class ElasticsearchConnectionStatusResponse(BaseModel):
+    """Elasticsearch connection discovery status."""
+
+    configured: bool
+    ok: bool
+    url: str | None = None
+    cluster_name: str | None = None
+    cluster_version: str | None = None
+    error: str | None = None
+
+
+class ElasticsearchIndexResponse(BaseModel):
+    """Elasticsearch index discovered from _cat/indices."""
+
+    name: str
+    health: str | None = None
+    status: str | None = None
+    docs_count: int | None = None
+
+
+class ElasticsearchMappingFieldResponse(BaseModel):
+    """Flattened Elasticsearch mapping field returned to the UI."""
+
+    name: str
+    type: str
+    is_text_candidate: bool
+    is_discriminator_candidate: bool
+
+
+class ElasticsearchIndexMappingResponse(BaseModel):
+    """Usable fields discovered from an Elasticsearch index mapping."""
+
+    index_name: str
+    fields: list[ElasticsearchMappingFieldResponse]
+
+
 class SuggestionCreateRequest(BaseModel):
     """Request body for proposing a terminology change for later review."""
 

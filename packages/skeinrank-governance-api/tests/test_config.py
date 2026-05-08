@@ -53,3 +53,17 @@ def test_config_parses_auth_env(monkeypatch):
     assert config.admin_password == "secret"
     assert config.admin_display_name == "Root User"
     assert config.token_ttl_hours == 12
+
+
+def test_config_parses_elasticsearch_env(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_ELASTICSEARCH_URL", "http://localhost:9200")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME", "elastic")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD", "secret")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_TIMEOUT_SECONDS", "9")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.elasticsearch_url == "http://localhost:9200"
+    assert config.elasticsearch_username == "elastic"
+    assert config.elasticsearch_password == "secret"
+    assert config.elasticsearch_timeout_seconds == 9

@@ -453,3 +453,26 @@ poetry run skeinrank-es-enrich \
 ```
 
 For safety, the CLI requires either `--dry-run` or `--write`; it never writes by default.
+
+### Patch 25d — Elasticsearch connection and mapping discovery
+
+The governance API can now use an optional Elasticsearch connection for discovery-only workflows. Configure it with environment variables:
+
+```bash
+export SKEINRANK_ELASTICSEARCH_URL=http://localhost:9200
+# optional:
+export SKEINRANK_ELASTICSEARCH_USERNAME=elastic
+export SKEINRANK_ELASTICSEARCH_PASSWORD=...
+# or:
+export SKEINRANK_ELASTICSEARCH_API_KEY=...
+```
+
+The discovery endpoints are read-only and do not run enrichment or write to Elasticsearch:
+
+```text
+GET /v1/governance/elasticsearch/connection/status
+GET /v1/governance/elasticsearch/indices
+GET /v1/governance/elasticsearch/indices/{index_name}/mapping
+```
+
+The Integrations UI keeps manual binding configuration as a fallback, but when Elasticsearch is configured it can show connection status, discovered indices, and mapping field suggestions for text fields and document discriminator fields.

@@ -16,8 +16,21 @@ ADMIN_USERNAME_ENV = "SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME"
 ADMIN_PASSWORD_ENV = "SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD"
 ADMIN_DISPLAY_NAME_ENV = "SKEINRANK_GOVERNANCE_API_ADMIN_DISPLAY_NAME"
 TOKEN_TTL_HOURS_ENV = "SKEINRANK_GOVERNANCE_API_TOKEN_TTL_HOURS"
+API_ELASTICSEARCH_URL_ENV = "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL"
+ELASTICSEARCH_URL_ENV = "SKEINRANK_ELASTICSEARCH_URL"
+API_ELASTICSEARCH_USERNAME_ENV = "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME"
+ELASTICSEARCH_USERNAME_ENV = "SKEINRANK_ELASTICSEARCH_USERNAME"
+API_ELASTICSEARCH_PASSWORD_ENV = "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD"
+ELASTICSEARCH_PASSWORD_ENV = "SKEINRANK_ELASTICSEARCH_PASSWORD"
+API_ELASTICSEARCH_API_KEY_ENV = "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY"
+ELASTICSEARCH_API_KEY_ENV = "SKEINRANK_ELASTICSEARCH_API_KEY"
+API_ELASTICSEARCH_TIMEOUT_SECONDS_ENV = (
+    "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_TIMEOUT_SECONDS"
+)
+ELASTICSEARCH_TIMEOUT_SECONDS_ENV = "SKEINRANK_ELASTICSEARCH_TIMEOUT_SECONDS"
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_TOKEN_TTL_HOURS = 24
+DEFAULT_ELASTICSEARCH_TIMEOUT_SECONDS = 5
 DEFAULT_DATABASE_URL = "sqlite:///skeinrank_governance.db"
 DEFAULT_CORS_ORIGINS = ("http://127.0.0.1:5173", "http://localhost:5173")
 SERVICE_NAME = "skeinrank-governance-api"
@@ -61,6 +74,11 @@ class GovernanceApiConfig:
     token_ttl_hours: int = DEFAULT_TOKEN_TTL_HOURS
     service_name: str = SERVICE_NAME
     service_version: str = "0.1.0"
+    elasticsearch_url: str | None = None
+    elasticsearch_username: str | None = None
+    elasticsearch_password: str | None = None
+    elasticsearch_api_key: str | None = None
+    elasticsearch_timeout_seconds: int = DEFAULT_ELASTICSEARCH_TIMEOUT_SECONDS
 
     @classmethod
     def from_env(cls) -> "GovernanceApiConfig":
@@ -88,6 +106,26 @@ class GovernanceApiConfig:
                 default=DEFAULT_TOKEN_TTL_HOURS,
             ),
             service_version=_package_version(),
+            elasticsearch_url=(
+                os.getenv(API_ELASTICSEARCH_URL_ENV) or os.getenv(ELASTICSEARCH_URL_ENV)
+            ),
+            elasticsearch_username=(
+                os.getenv(API_ELASTICSEARCH_USERNAME_ENV)
+                or os.getenv(ELASTICSEARCH_USERNAME_ENV)
+            ),
+            elasticsearch_password=(
+                os.getenv(API_ELASTICSEARCH_PASSWORD_ENV)
+                or os.getenv(ELASTICSEARCH_PASSWORD_ENV)
+            ),
+            elasticsearch_api_key=(
+                os.getenv(API_ELASTICSEARCH_API_KEY_ENV)
+                or os.getenv(ELASTICSEARCH_API_KEY_ENV)
+            ),
+            elasticsearch_timeout_seconds=_int_from_env(
+                os.getenv(API_ELASTICSEARCH_TIMEOUT_SECONDS_ENV)
+                or os.getenv(ELASTICSEARCH_TIMEOUT_SECONDS_ENV),
+                default=DEFAULT_ELASTICSEARCH_TIMEOUT_SECONDS,
+            ),
         )
 
 

@@ -61,6 +61,35 @@ export type StopListUpdateRequest = {
 };
 
 
+
+export type ElasticsearchConnectionStatus = {
+  configured: boolean;
+  ok: boolean;
+  url: string | null;
+  cluster_name: string | null;
+  cluster_version: string | null;
+  error: string | null;
+};
+
+export type ElasticsearchIndex = {
+  name: string;
+  health: string | null;
+  status: string | null;
+  docs_count: number | null;
+};
+
+export type ElasticsearchMappingField = {
+  name: string;
+  type: string;
+  is_text_candidate: boolean;
+  is_discriminator_candidate: boolean;
+};
+
+export type ElasticsearchIndexMapping = {
+  index_name: string;
+  fields: ElasticsearchMappingField[];
+};
+
 export type ElasticsearchBindingMode = "dry_run" | "write";
 
 export type ElasticsearchBinding = {
