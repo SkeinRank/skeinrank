@@ -8,6 +8,7 @@ import { Input } from "../components/ui/input";
 import {
   createElasticsearchBinding,
   deleteElasticsearchBinding,
+  dryRunElasticsearchBinding,
   getElasticsearchConnectionStatus,
   getElasticsearchIndexMapping,
   listElasticsearchBindings,
@@ -20,6 +21,7 @@ import type {
   AuthUser,
   ElasticsearchBinding,
   ElasticsearchBindingCreateRequest,
+  ElasticsearchBindingDryRunResponse,
   ElasticsearchBindingMode,
   ElasticsearchBindingUpdateRequest,
   ElasticsearchConnectionStatus,
@@ -140,6 +142,10 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
     },
   });
 
+  const dryRunMutation = useMutation({
+    mutationFn: (bindingId: number) => dryRunElasticsearchBinding(bindingId, { limit: 3 }),
+  });
+
   async function handleCreateBinding(payload: ElasticsearchBindingCreateRequest) {
     await createMutation.mutateAsync(payload);
   }
@@ -150,6 +156,10 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
 
   async function handleDeleteBinding(bindingId: number) {
     await deleteMutation.mutateAsync(bindingId);
+  }
+
+  async function handleDryRunBinding(bindingId: number) {
+    await dryRunMutation.mutateAsync(bindingId);
   }
 
   const allBindings = allBindingsQuery.data ?? [];
@@ -196,6 +206,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
               createMutation.reset();
               updateMutation.reset();
               deleteMutation.reset();
+              dryRunMutation.reset();
             }}
             profiles={profilesQuery.data ?? []}
             selectedProfile={selectedProfile}
@@ -226,6 +237,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
               setSelectedBindingId(binding.id);
               updateMutation.reset();
               deleteMutation.reset();
+              dryRunMutation.reset();
             }}
             selectedBindingId={selectedBindingId}
           />
@@ -238,9 +250,13 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
           deleteErrorMessage={getErrorMessage(deleteMutation.error)}
           discoveredIndices={indices}
           discoveryEnabled={Boolean(connectionQuery.data?.ok)}
+          dryRunErrorMessage={getErrorMessage(dryRunMutation.error)}
+          dryRunResult={dryRunMutation.data ?? null}
           isDeleting={deleteMutation.isPending}
+          isDryRunning={dryRunMutation.isPending}
           isUpdating={updateMutation.isPending}
           onDelete={handleDeleteBinding}
+          onDryRun={handleDryRunBinding}
           onUpdate={handleUpdateBinding}
           profiles={profilesQuery.data ?? []}
           updateErrorMessage={getErrorMessage(updateMutation.error)}
@@ -668,9 +684,13 @@ function BindingDetailsPanel({
   deleteErrorMessage,
   discoveredIndices,
   discoveryEnabled,
+  dryRunErrorMessage,
+  dryRunResult,
   isDeleting,
+  isDryRunning,
   isUpdating,
   onDelete,
+  onDryRun,
   onUpdate,
   profiles,
   updateErrorMessage,
@@ -681,9 +701,13 @@ function BindingDetailsPanel({
   deleteErrorMessage?: string | null;
   discoveredIndices: ElasticsearchIndex[];
   discoveryEnabled: boolean;
+  dryRunErrorMessage?: string | null;
+  dryRunResult: ElasticsearchBindingDryRunResponse | null;
   isDeleting: boolean;
+  isDryRunning: boolean;
   isUpdating: boolean;
   onDelete: (bindingId: number) => Promise<void> | void;
+  onDryRun: (bindingId: number) => Promise<void> | void;
   onUpdate: (bindingId: number, payload: ElasticsearchBindingUpdateRequest) => Promise<void> | void;
   profiles: Profile[];
   updateErrorMessage?: string | null;
@@ -770,6 +794,11 @@ function BindingDetailsPanel({
     await onDelete(selectedBinding.id);
   }
 
+  async function handleDryRun() {
+    if (isDryRunning) return;
+    await onDryRun(selectedBinding.id);
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -807,8 +836,52 @@ function BindingDetailsPanel({
           {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}{deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
           <div className="flex flex-wrap gap-2"><Button disabled={!canSave} type="submit">{isUpdating ? "Saving..." : "Save binding"}</Button><Button disabled={!canManage || isUpdating || isDeleting} onClick={handleDelete} type="button" variant="secondary">{isDeleting ? "Deleting..." : "Delete binding"}</Button></div>
         </form>
+
+        <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="font-medium text-slate-950 dark:text-slate-50">Dry-run preview</div>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Read sample documents, match active aliases, and preview the payload that would be written to the target field. No Elasticsearch writes are performed.</p>
+            </div>
+            <Button disabled={isDryRunning || !binding.is_enabled} onClick={handleDryRun} type="button" variant="secondary">{isDryRunning ? "Running..." : "Run dry-run"}</Button>
+          </div>
+          {dryRunErrorMessage ? <div className="mt-3"><InlineError message={dryRunErrorMessage} /></div> : null}
+          {dryRunResult && dryRunResult.binding.id === binding.id ? <DryRunPreview result={dryRunResult} /> : null}
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DryRunPreview({ result }: { result: ElasticsearchBindingDryRunResponse }) {
+  return (
+    <div className="mt-4 space-y-3">
+      {result.warnings.length > 0 ? (
+        <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          {result.warnings.map((warning) => <div key={warning}>{warning}</div>)}
+        </div>
+      ) : null}
+      {result.documents.length === 0 ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">No sample documents returned.</p>
+      ) : (
+        result.documents.map((document) => (
+          <div className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800" key={`${document.index_name}-${document.document_id}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge>{document.index_name}</Badge>
+              <span className="font-medium text-slate-950 dark:text-slate-50">{document.document_id}</span>
+              <span className="text-slate-500 dark:text-slate-400">→ {result.binding.target_field}</span>
+            </div>
+            <p className="mt-2 line-clamp-3 text-slate-600 dark:text-slate-300">{document.text_preview || "No text extracted from configured fields."}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {document.matched_aliases.length > 0 ? document.matched_aliases.map((match) => (
+                <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" key={`${document.document_id}-${match.alias_value}-${match.canonical_value}`}>{match.alias_value} → {match.canonical_value}</Badge>
+              )) : <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">No alias matches</Badge>}
+            </div>
+            <pre className="mt-3 max-h-56 overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(document.would_write, null, 2)}</pre>
+          </div>
+        ))
+      )}
+    </div>
   );
 }
 

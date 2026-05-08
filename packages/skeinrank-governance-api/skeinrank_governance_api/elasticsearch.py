@@ -34,6 +34,15 @@ class ElasticsearchDiscoveryError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class ElasticsearchSearchHit:
+    """Small Elasticsearch hit shape used by dry-run preview endpoints."""
+
+    id: str
+    index: str
+    source: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class ElasticsearchField:
     """Flattened Elasticsearch mapping field metadata."""
 
@@ -91,11 +100,85 @@ class ElasticsearchDiscoveryClient:
         payload = self._get_json(f"/{safe_index_name}/_mapping")
         return extract_mapping_fields(payload, index_name=index_name)
 
+    def search_documents(
+        self,
+        *,
+        index_name: str,
+        text_fields: list[str],
+        limit: int,
+        filter_field: str | None = None,
+        filter_value: str | None = None,
+    ) -> list[ElasticsearchSearchHit]:
+        """Return sample documents for a read-only enrichment dry-run."""
+
+        source_fields = sorted(
+            {field for field in [*text_fields, filter_field or ""] if field}
+        )
+        query: dict[str, Any] = {"match_all": {}}
+        if filter_field and filter_value:
+            query = {"term": {filter_field: filter_value}}
+
+        payload = self._post_json(
+            f"/{quote(index_name, safe='')}/_search",
+            {
+                "query": query,
+                "size": limit,
+                "sort": ["_doc"],
+                "_source": source_fields,
+            },
+        )
+        hits_payload = (payload or {}).get("hits", {}).get("hits", [])
+        if not isinstance(hits_payload, list):
+            raise ElasticsearchDiscoveryError(
+                "Unexpected Elasticsearch search response"
+            )
+
+        hits: list[ElasticsearchSearchHit] = []
+        for item in hits_payload:
+            if not isinstance(item, dict):
+                continue
+            source = item.get("_source")
+            hits.append(
+                ElasticsearchSearchHit(
+                    id=str(item.get("_id") or ""),
+                    index=str(item.get("_index") or index_name),
+                    source=source if isinstance(source, dict) else {},
+                )
+            )
+        return hits
+
     def _get_json(self, path: str) -> Any:
         if not self.url:
             raise ElasticsearchDiscoveryError("Elasticsearch URL is not configured")
 
         request = Request(f"{self.url}{path}", headers=self._headers())
+        try:
+            with urlopen(request, timeout=self.timeout_seconds) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = _read_error_body(exc)
+            raise ElasticsearchDiscoveryError(
+                detail or f"Elasticsearch request failed with HTTP {exc.code}"
+            ) from exc
+        except (URLError, TimeoutError, socket.timeout) as exc:
+            raise ElasticsearchDiscoveryError(
+                f"Elasticsearch request failed: {exc}"
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise ElasticsearchDiscoveryError(
+                "Elasticsearch returned invalid JSON"
+            ) from exc
+
+    def _post_json(self, path: str, payload: dict[str, Any]) -> Any:
+        if not self.url:
+            raise ElasticsearchDiscoveryError("Elasticsearch URL is not configured")
+
+        body = json.dumps(payload).encode("utf-8")
+        headers = self._headers()
+        headers["Content-Type"] = "application/json"
+        request = Request(
+            f"{self.url}{path}", data=body, headers=headers, method="POST"
+        )
         try:
             with urlopen(request, timeout=self.timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
@@ -135,6 +218,54 @@ def extract_mapping_fields(
     fields: list[ElasticsearchField] = []
     _collect_fields(properties, prefix="", output=fields)
     return sorted(fields, key=lambda field: field.name)
+
+
+def get_source_values(source: dict[str, Any], field: str) -> list[str]:
+    """Read a simple dotted field path from an Elasticsearch _source document."""
+
+    current: Any = source
+    for part in field.split("."):
+        if isinstance(current, dict):
+            current = current.get(part)
+        elif isinstance(current, list):
+            next_values: list[Any] = []
+            for item in current:
+                if isinstance(item, dict) and part in item:
+                    next_values.append(item[part])
+            current = next_values
+        else:
+            return []
+    return _flatten_source_value(current)
+
+
+def compose_source_text(source: dict[str, Any], text_fields: list[str]) -> str:
+    parts: list[str] = []
+    for field in text_fields:
+        parts.extend(get_source_values(source, field))
+    return "\n".join(part for part in parts if part).strip()
+
+
+def source_preview(source: dict[str, Any], fields: list[str]) -> dict[str, list[str]]:
+    return {field: get_source_values(source, field) for field in fields}
+
+
+def _flatten_source_value(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        out: list[str] = []
+        for item in value:
+            out.extend(_flatten_source_value(item))
+        return out
+    if isinstance(value, tuple):
+        out: list[str] = []
+        for item in value:
+            out.extend(_flatten_source_value(item))
+        return out
+    if isinstance(value, dict):
+        return []
+    text = str(value).strip()
+    return [text] if text else []
 
 
 def _mapping_root(payload: Any, *, index_name: str | None) -> dict[str, Any]:

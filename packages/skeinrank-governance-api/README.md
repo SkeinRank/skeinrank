@@ -328,7 +328,7 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
 
 The response is a runtime-compatible profile snapshot that can be passed to `skeinrank-core` through `--profile-file` or `load_attribute_profile(...)`.
 
-Future patches will add snapshot publishing lifecycle, Elasticsearch binding UI/dry-run jobs, discovery ingestion, and richer review/audit workflows.
+Future patches will add snapshot publishing lifecycle, Elasticsearch write/reindex jobs, discovery ingestion, and richer review/audit workflows.
 
 ## Elasticsearch discovery
 
@@ -361,3 +361,19 @@ GET /v1/governance/elasticsearch/indices/{index_name}/mapping
 ```
 
 These endpoints do not update documents and do not execute enrichment jobs.
+
+## Elasticsearch binding dry-run
+
+Saved Elasticsearch bindings can be previewed with a read-only dry-run endpoint:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/dry-run
+```
+
+Request body:
+
+```json
+{"limit": 3}
+```
+
+The endpoint samples documents from the configured index, applies the binding discriminator filter when present, reads configured text fields, matches active profile aliases, and returns the `would_write` payload for the configured target field. It does not update documents and does not start background jobs.
