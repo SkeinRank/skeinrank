@@ -51,6 +51,14 @@ const profiles: Profile[] = [
     created_at: "2026-05-04T00:00:00Z",
     updated_at: "2026-05-04T00:00:00Z",
   },
+  {
+    id: 2,
+    name: "ml_platform",
+    normalized_name: "ml_platform",
+    description: "ML platform terminology",
+    created_at: "2026-05-04T00:00:00Z",
+    updated_at: "2026-05-04T00:00:00Z",
+  },
 ];
 
 const terms: CanonicalTerm[] = [
@@ -107,6 +115,24 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     target_field: "skeinrank",
     filter_field: "team",
     filter_value: "infra",
+    mode: "dry_run",
+    is_enabled: true,
+    created_at: "2026-05-07T00:00:00Z",
+    updated_at: "2026-05-07T00:00:00Z",
+  },
+  {
+    id: 2,
+    profile_id: 2,
+    profile_name: "ml_platform",
+    name: "ml docs",
+    normalized_name: "ml_docs",
+    description: "Apply ML terms to docs.",
+    provider: "elasticsearch",
+    index_name: "docs",
+    text_fields: ["title", "body"],
+    target_field: "skeinrank",
+    filter_field: "team",
+    filter_value: "ml-platform",
     mode: "dry_run",
     is_enabled: true,
     created_at: "2026-05-07T00:00:00Z",
@@ -1410,8 +1436,8 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Index"), { target: { value: "runbooks" } });
     fireEvent.change(screen.getByLabelText(/Text fields/), { target: { value: "title, body, summary" } });
     fireEvent.change(screen.getByLabelText("Target field"), { target: { value: "skeinrank" } });
-    fireEvent.change(screen.getByLabelText("Filter field"), { target: { value: "team" } });
-    fireEvent.change(screen.getByLabelText("Filter value"), { target: { value: "infra" } });
+    fireEvent.change(screen.getByLabelText("Document discriminator field"), { target: { value: "team" } });
+    fireEvent.change(screen.getByLabelText("Value for this profile"), { target: { value: "infra" } });
     fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
 
     await waitFor(() => {
@@ -1441,8 +1467,8 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Edit index"), { target: { value: "docs-v2" } });
     fireEvent.change(screen.getByLabelText("Edit text fields"), { target: { value: "title\nbody" } });
     fireEvent.change(screen.getByLabelText("Edit target field"), { target: { value: "skeinrank_attrs" } });
-    fireEvent.change(screen.getByLabelText("Edit filter field"), { target: { value: "space" } });
-    fireEvent.change(screen.getByLabelText("Edit filter value"), { target: { value: "infra" } });
+    fireEvent.change(screen.getByLabelText("Edit document discriminator field"), { target: { value: "space" } });
+    fireEvent.change(screen.getByLabelText("Edit value for this profile"), { target: { value: "infra" } });
     fireEvent.change(screen.getByLabelText("Edit mode"), { target: { value: "write" } });
     fireEvent.click(screen.getByLabelText("Enabled binding"));
     fireEvent.click(screen.getByRole("button", { name: "Save binding" }));
@@ -1476,6 +1502,33 @@ describe("App", () => {
         expect.objectContaining({ method: "DELETE" }),
       );
     });
+  });
+
+  it("requires a discriminator when multiple profiles share one Elasticsearch index", async () => {
+    stubGovernanceApi();
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
+
+    expect(await screen.findByText("Elasticsearch bindings")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "ml_platform" } });
+    fireEvent.change(screen.getByLabelText("Binding name"), { target: { value: "ml docs without discriminator" } });
+    fireEvent.change(screen.getByLabelText("Index"), { target: { value: "docs" } });
+    fireEvent.change(screen.getByLabelText(/Text fields/), { target: { value: "title, body" } });
+    fireEvent.change(screen.getByLabelText("Target field"), { target: { value: "skeinrank" } });
+
+    expect(
+      await screen.findByText(/This index is already used by another profile/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create binding" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Document discriminator field"), { target: { value: "team" } });
+    fireEvent.change(screen.getByLabelText("Value for this profile"), { target: { value: "ml-platform" } });
+
+    expect((await screen.findAllByText(/The discriminator keeps this profile scoped/)).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Create binding" })).not.toBeDisabled();
   });
 
   it("keeps contributor users in read-only integrations mode", async () => {

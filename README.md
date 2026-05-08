@@ -202,7 +202,7 @@ Current UI scope:
 - Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
 - searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
 - Guardrails page for profile-scoped stop-list management
-- Integrations page for manual Elasticsearch binding configs
+- Integrations page for manual Elasticsearch binding configs with shared-index validation
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms
@@ -214,7 +214,7 @@ Current UI scope:
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, optional metadata filter, dry-run/write mode, and enabled state. Publish/rollback, Elasticsearch connection tests/dry-run jobs, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, dry-run/write mode, and enabled state. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, Elasticsearch connection tests/dry-run jobs, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -359,7 +359,7 @@ Postgres governance store -> governance API/UI -> published snapshot JSON -> run
 
 The hot extraction path still uses exported snapshots; it does not query Postgres or the governance API per request.
 
-Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional metadata filter, dry-run/write mode, and enabled state. The UI can manage these configs manually through the Integrations page. They are still configuration-only until follow-up connection-test/dry-run job patches connect them to real Elasticsearch clusters and enrichment jobs.
+Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, dry-run/write mode, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They are still configuration-only until follow-up connection-test/dry-run job patches connect them to real Elasticsearch clusters and enrichment jobs.
 
 Local smoke tests:
 
