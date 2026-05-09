@@ -7,6 +7,8 @@ import type {
   ElasticsearchBindingCreateRequest,
   ElasticsearchBindingDryRunRequest,
   ElasticsearchBindingDryRunResponse,
+  ElasticsearchEnrichmentJob,
+  ElasticsearchEnrichmentJobCreateRequest,
   ElasticsearchBindingUpdateRequest,
   ElasticsearchConnectionStatus,
   ElasticsearchIndex,
@@ -305,6 +307,22 @@ export function dryRunElasticsearchBinding(bindingId: number, payload: Elasticse
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function startElasticsearchEnrichmentJob(bindingId: number, payload: ElasticsearchEnrichmentJobCreateRequest = {}) {
+  return requestJson<ElasticsearchEnrichmentJob>(`/v1/governance/elasticsearch/bindings/${bindingId}/jobs`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listElasticsearchEnrichmentJobs(bindingId?: number) {
+  const query = bindingId !== undefined ? `?binding_id=${encodeURIComponent(String(bindingId))}` : "";
+  return requestJson<ElasticsearchEnrichmentJob[]>(`/v1/governance/elasticsearch/jobs${query}`);
+}
+
+export function getElasticsearchEnrichmentJob(jobId: number) {
+  return requestJson<ElasticsearchEnrichmentJob>(`/v1/governance/elasticsearch/jobs/${jobId}`);
 }
 
 export function listSuggestions(profileName: string, status?: SuggestionStatus | "all") {

@@ -92,6 +92,10 @@ export type ElasticsearchIndexMapping = {
 
 export type ElasticsearchBindingMode = "dry_run" | "write";
 
+export type ElasticsearchBindingWriteStrategy = "in_place" | "reindex_alias_swap";
+
+export type ElasticsearchEnrichmentJobStatus = "queued" | "running" | "succeeded" | "failed";
+
 export type ElasticsearchBinding = {
   id: number;
   profile_id: number;
@@ -106,6 +110,7 @@ export type ElasticsearchBinding = {
   filter_field: string | null;
   filter_value: string | null;
   mode: ElasticsearchBindingMode;
+  write_strategy: ElasticsearchBindingWriteStrategy;
   is_enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -121,6 +126,7 @@ export type ElasticsearchBindingCreateRequest = {
   filter_field?: string | null;
   filter_value?: string | null;
   mode?: ElasticsearchBindingMode;
+  write_strategy?: ElasticsearchBindingWriteStrategy;
   is_enabled?: boolean;
 };
 
@@ -134,6 +140,7 @@ export type ElasticsearchBindingUpdateRequest = {
   filter_field?: string | null;
   filter_value?: string | null;
   mode?: ElasticsearchBindingMode | null;
+  write_strategy?: ElasticsearchBindingWriteStrategy | null;
   is_enabled?: boolean | null;
 };
 
@@ -165,6 +172,37 @@ export type ElasticsearchBindingDryRunResponse = {
   limit: number;
   documents: ElasticsearchDryRunDocument[];
   warnings: string[];
+};
+
+
+
+export type ElasticsearchEnrichmentJobCreateRequest = {
+  target_index_name?: string | null;
+  alias_name?: string | null;
+  max_documents?: number;
+};
+
+export type ElasticsearchEnrichmentJob = {
+  id: number;
+  binding_id: number;
+  profile_id: number;
+  binding_name: string;
+  profile_name: string;
+  status: ElasticsearchEnrichmentJobStatus;
+  write_strategy: ElasticsearchBindingWriteStrategy;
+  source_index: string;
+  target_index: string | null;
+  alias_name: string | null;
+  requested_by: string | null;
+  documents_seen: number;
+  documents_enriched: number;
+  documents_failed: number;
+  result_json: Record<string, unknown>;
+  error_message: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type SuggestionStatus = "pending" | "approved" | "rejected";

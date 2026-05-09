@@ -7,6 +7,7 @@ import type {
   CanonicalTerm,
   ElasticsearchBinding,
   ElasticsearchBindingDryRunResponse,
+  ElasticsearchEnrichmentJob,
   ElasticsearchIndex,
   ElasticsearchIndexMapping,
   GovernanceSuggestion,
@@ -118,7 +119,8 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     target_field: "skeinrank",
     filter_field: "team",
     filter_value: "infra",
-    mode: "dry_run",
+    mode: "write",
+    write_strategy: "reindex_alias_swap",
     is_enabled: true,
     created_at: "2026-05-07T00:00:00Z",
     updated_at: "2026-05-07T00:00:00Z",
@@ -137,6 +139,7 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     filter_field: "team",
     filter_value: "ml-platform",
     mode: "dry_run",
+    write_strategy: "reindex_alias_swap",
     is_enabled: true,
     created_at: "2026-05-07T00:00:00Z",
     updated_at: "2026-05-07T00:00:00Z",
@@ -170,6 +173,32 @@ const elasticsearchDryRunResponse: ElasticsearchBindingDryRunResponse = {
     },
   ],
 };
+
+
+const elasticsearchJobs: ElasticsearchEnrichmentJob[] = [
+  {
+    id: 101,
+    binding_id: 1,
+    profile_id: 1,
+    binding_name: "infra docs",
+    profile_name: "default_it",
+    status: "succeeded",
+    write_strategy: "reindex_alias_swap",
+    source_index: "docs",
+    target_index: "docs__skeinrank_job_101",
+    alias_name: "docs",
+    requested_by: "admin",
+    documents_seen: 12,
+    documents_enriched: 10,
+    documents_failed: 2,
+    result_json: { updated_document_ids: ["doc-1"], errors: ["doc-2 failed"] },
+    error_message: null,
+    started_at: "2026-05-08T10:00:00Z",
+    finished_at: "2026-05-08T10:01:00Z",
+    created_at: "2026-05-08T10:00:00Z",
+    updated_at: "2026-05-08T10:01:00Z",
+  },
+];
 
 const elasticsearchIndices: ElasticsearchIndex[] = [
   { name: "docs", health: "green", status: "open", docs_count: 42 },
@@ -239,6 +268,10 @@ function cloneElasticsearchBindings() {
   return JSON.parse(JSON.stringify(elasticsearchBindings)) as ElasticsearchBinding[];
 }
 
+function cloneElasticsearchJobs() {
+  return JSON.parse(JSON.stringify(elasticsearchJobs)) as ElasticsearchEnrichmentJob[];
+}
+
 function cloneElasticsearchIndices() {
   return JSON.parse(JSON.stringify(elasticsearchIndices)) as ElasticsearchIndex[];
 }
@@ -257,12 +290,14 @@ function stubGovernanceApi(options: StubOptions = {}) {
   let currentSuggestions = cloneSuggestions();
   let currentStopListEntries = cloneStopListEntries();
   let currentElasticsearchBindings = cloneElasticsearchBindings();
+  let currentElasticsearchJobs = cloneElasticsearchJobs();
   let nextProfileId = 10;
   let nextTermId = 10;
   let nextAliasId = 20;
   let nextSuggestionId = 10;
   let nextStopListEntryId = 10;
   let nextElasticsearchBindingId = 10;
+  let nextElasticsearchJobId = 102;
 
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -518,6 +553,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
           index_name: string;
           is_enabled?: boolean;
           mode?: ElasticsearchBinding["mode"];
+          write_strategy?: ElasticsearchBinding["write_strategy"];
           name: string;
           profile_name: string;
           target_field: string;
@@ -537,12 +573,64 @@ function stubGovernanceApi(options: StubOptions = {}) {
           filter_field: payload.filter_field ?? null,
           filter_value: payload.filter_value ?? null,
           mode: payload.mode ?? "dry_run",
+          write_strategy: payload.write_strategy ?? "reindex_alias_swap",
           is_enabled: payload.is_enabled ?? true,
           created_at: "2026-05-07T00:00:00Z",
           updated_at: "2026-05-07T00:00:00Z",
         };
         currentElasticsearchBindings = [binding, ...currentElasticsearchBindings];
         return Response.json(binding, { status: 201 });
+      }
+
+
+      if (url.includes("/v1/governance/elasticsearch/jobs") && method === "GET") {
+        const jobIdMatch = url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)$/);
+        if (jobIdMatch) {
+          const job = currentElasticsearchJobs.find((currentJob) => currentJob.id === Number(jobIdMatch[1]));
+          return job ? Response.json(job) : Response.json({ detail: "not found" }, { status: 404 });
+        }
+        const bindingId = new URL(url).searchParams.get("binding_id");
+        const visibleJobs = bindingId
+          ? currentElasticsearchJobs.filter((job) => job.binding_id === Number(bindingId))
+          : currentElasticsearchJobs;
+        return Response.json(visibleJobs);
+      }
+
+      if (url.endsWith("/v1/governance/elasticsearch/bindings/1/jobs") && method === "POST") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          alias_name?: string | null;
+          max_documents?: number;
+          target_index_name?: string | null;
+        };
+        const existingBinding = currentElasticsearchBindings.find((binding) => binding.id === 1);
+        if (!existingBinding) {
+          return Response.json({ detail: "not found" }, { status: 404 });
+        }
+        const jobId = nextElasticsearchJobId++;
+        const job: ElasticsearchEnrichmentJob = {
+          id: jobId,
+          binding_id: existingBinding.id,
+          profile_id: existingBinding.profile_id,
+          binding_name: existingBinding.name,
+          profile_name: existingBinding.profile_name,
+          status: "succeeded",
+          write_strategy: existingBinding.write_strategy,
+          source_index: existingBinding.index_name,
+          target_index: payload.target_index_name ?? `${existingBinding.index_name}__skeinrank_job_${jobId}`,
+          alias_name: payload.alias_name ?? existingBinding.index_name,
+          requested_by: currentUser.username,
+          documents_seen: payload.max_documents ?? 1000,
+          documents_enriched: 3,
+          documents_failed: 0,
+          result_json: { updated_document_ids: ["doc-1", "doc-3"] },
+          error_message: null,
+          started_at: "2026-05-08T11:00:00Z",
+          finished_at: "2026-05-08T11:01:00Z",
+          created_at: "2026-05-08T11:00:00Z",
+          updated_at: "2026-05-08T11:01:00Z",
+        };
+        currentElasticsearchJobs = [job, ...currentElasticsearchJobs];
+        return Response.json(job, { status: 201 });
       }
 
       if (url.endsWith("/v1/governance/elasticsearch/bindings/1/dry-run") && method === "POST") {
@@ -567,6 +655,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
           filter_field: payload.filter_field ?? null,
           filter_value: payload.filter_value ?? null,
           mode: payload.mode ?? existingBinding.mode,
+          write_strategy: payload.write_strategy ?? existingBinding.write_strategy,
           is_enabled: payload.is_enabled ?? existingBinding.is_enabled,
           updated_at: "2026-05-07T00:00:00Z",
         };
@@ -1528,6 +1617,30 @@ describe("App", () => {
     expect(await screen.findByText("doc-1")).toBeInTheDocument();
     expect(screen.getByText("k8s → kubernetes")).toBeInTheDocument();
 
+    expect(await screen.findByText("Job history")).toBeInTheDocument();
+    expect(await screen.findByText("Job #101")).toBeInTheDocument();
+    expect(screen.getByText("10/12")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Job target index"), { target: { value: "docs__skeinrank_candidate" } });
+    fireEvent.change(screen.getByLabelText("Job alias name"), { target: { value: "docs" } });
+    fireEvent.change(screen.getByLabelText("Max documents"), { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Run enrichment job" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1/jobs",
+        expect.objectContaining({
+          body: JSON.stringify({
+            max_documents: 25,
+            target_index_name: "docs__skeinrank_candidate",
+            alias_name: "docs",
+          }),
+          method: "POST",
+        }),
+      );
+    });
+    expect(await screen.findByText("Job #102")).toBeInTheDocument();
+    expect(screen.getByText(/doc-3/)).toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText("Binding name"), { target: { value: "runbook docs" } });
     fireEvent.change(screen.getByLabelText("Index"), { target: { value: "runbooks" } });
     expect(await screen.findByText("Discovered text fields")).toBeInTheDocument();
@@ -1551,6 +1664,7 @@ describe("App", () => {
             filter_field: "team",
             filter_value: "infra",
             mode: "dry_run",
+            write_strategy: "reindex_alias_swap",
             is_enabled: true,
           }),
           method: "POST",
@@ -1584,6 +1698,7 @@ describe("App", () => {
             filter_field: "space",
             filter_value: "infra",
             mode: "write",
+            write_strategy: "reindex_alias_swap",
             is_enabled: false,
           }),
           method: "PATCH",
@@ -1641,6 +1756,7 @@ describe("App", () => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });
     expect(screen.getByRole("button", { name: "Create binding" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run enrichment job" })).toBeDisabled();
     expect(screen.getByText("Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations.")).toBeInTheDocument();
     expect(screen.getByText("Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save binding" })).toBeDisabled();
