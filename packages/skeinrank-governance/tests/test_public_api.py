@@ -11,6 +11,10 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.AuditEvent.__tablename__ == "audit_events"
     assert governance.GovernanceUser.__tablename__ == "governance_users"
     assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"
+    assert governance.GovernanceServiceAccount.__tablename__ == (
+        "governance_service_accounts"
+    )
+    assert governance.GovernanceApiToken.__tablename__ == "governance_api_tokens"
     assert governance.ElasticsearchBinding.__tablename__ == "elasticsearch_bindings"
     assert (
         governance.ElasticsearchEnrichmentJob.__tablename__
@@ -26,6 +30,7 @@ def test_public_api_exports_governance_models_and_helpers():
         == "governance_global_stop_list_entries"
     )
     assert governance.USER_ROLES == ("admin", "moderator", "contributor")
+    assert governance.API_TOKEN_OWNER_TYPES == ("personal", "service_account")
     assert governance.SUGGESTION_STATUSES == ("pending", "approved", "rejected")
     assert governance.SUGGESTION_TYPES == ("alias", "canonical_term")
     assert governance.STOP_LIST_TARGETS == ("alias", "canonical", "both")

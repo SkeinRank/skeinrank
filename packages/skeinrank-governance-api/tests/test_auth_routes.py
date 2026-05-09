@@ -458,3 +458,176 @@ def test_elasticsearch_binding_permissions_with_roles(tmp_path):
         headers=_auth(contributor_token),
     )
     assert forbidden_delete.status_code == 403
+
+
+def test_personal_api_token_can_authenticate_and_be_revoked(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+
+    create_response = client.post(
+        "/v1/auth/api-tokens",
+        json={
+            "name": "Jupyter migration token",
+            "scopes": ["migration:validate", "migration:export"],
+            "expires_in_days": 30,
+        },
+        headers=_auth(admin_token),
+    )
+    assert create_response.status_code == 201, create_response.text
+    payload = create_response.json()
+    assert payload["access_token"].startswith("sk_pat_")
+    assert payload["owner_type"] == "personal"
+    assert payload["owner_name"] == "admin"
+    assert payload["scopes"] == ["migration:export", "migration:validate"]
+
+    me_response = client.get("/v1/auth/me", headers=_auth(payload["access_token"]))
+    assert me_response.status_code == 200
+    assert me_response.json()["username"] == "admin"
+
+    list_response = client.get("/v1/auth/api-tokens", headers=_auth(admin_token))
+    assert list_response.status_code == 200
+    assert list_response.json()[0]["token_prefix"].startswith("sk_pat_")
+    assert "access_token" not in list_response.json()[0]
+
+    revoke_response = client.delete(
+        f"/v1/auth/api-tokens/{payload['id']}",
+        headers=_auth(admin_token),
+    )
+    assert revoke_response.status_code == 204
+
+    revoked_me = client.get("/v1/auth/me", headers=_auth(payload["access_token"]))
+    assert revoked_me.status_code == 401
+
+
+def test_service_account_token_can_use_console_api_with_scopes(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+
+    account_response = client.post(
+        "/v1/auth/service-accounts",
+        json={
+            "name": "migration-bot",
+            "display_name": "Migration Bot",
+            "description": "Loads dictionary migrations from CI.",
+            "role": "admin",
+        },
+        headers=_auth(admin_token),
+    )
+    assert account_response.status_code == 201, account_response.text
+    assert account_response.json()["normalized_name"] == "migration_bot"
+
+    token_response = client.post(
+        "/v1/auth/service-accounts/migration-bot/tokens",
+        json={
+            "name": "CI import token",
+            "scopes": ["migration:apply", "migration:export", "migration:validate"],
+            "expires_in_days": 30,
+        },
+        headers=_auth(admin_token),
+    )
+    assert token_response.status_code == 201, token_response.text
+    service_token = token_response.json()["access_token"]
+    assert service_token.startswith("sk_sat_")
+    assert token_response.json()["owner_type"] == "service_account"
+
+    validate_response = client.post(
+        "/v1/console/dictionary/validate",
+        json={
+            "profile_name": "infra_console_test",
+            "create_profile": True,
+            "mode": "upsert",
+            "terms": [
+                {
+                    "canonical_value": "kubernetes",
+                    "slot": "TOOL",
+                    "aliases": ["k8s"],
+                }
+            ],
+        },
+        headers=_auth(service_token),
+    )
+    assert validate_response.status_code == 200, validate_response.text
+
+    import_response = client.post(
+        "/v1/console/dictionary/import",
+        json={
+            "profile_name": "infra_console_test",
+            "create_profile": True,
+            "mode": "upsert",
+            "terms": [
+                {
+                    "canonical_value": "kubernetes",
+                    "slot": "TOOL",
+                    "aliases": ["k8s"],
+                }
+            ],
+        },
+        headers=_auth(service_token),
+    )
+    assert import_response.status_code == 200, import_response.text
+    assert import_response.json()["status"] == "applied"
+
+
+def test_api_token_scope_is_enforced_for_console_import(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+
+    create_response = client.post(
+        "/v1/auth/api-tokens",
+        json={
+            "name": "Validate only",
+            "scopes": ["migration:validate"],
+            "expires_in_days": 30,
+        },
+        headers=_auth(admin_token),
+    )
+    assert create_response.status_code == 201
+    limited_token = create_response.json()["access_token"]
+
+    validate_response = client.post(
+        "/v1/console/dictionary/validate",
+        json={"profile_name": "default_it", "terms": []},
+        headers=_auth(limited_token),
+    )
+    assert validate_response.status_code == 200
+
+    import_response = client.post(
+        "/v1/console/dictionary/import",
+        json={"profile_name": "default_it", "terms": []},
+        headers=_auth(limited_token),
+    )
+    assert import_response.status_code == 403
+    assert "migration:apply" in import_response.json()["detail"]
+
+
+def test_admin_can_disable_service_account_and_revoke_tokens(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+
+    client.post(
+        "/v1/auth/service-accounts",
+        json={"name": "sync-bot", "role": "contributor"},
+        headers=_auth(admin_token),
+    )
+    token_response = client.post(
+        "/v1/auth/service-accounts/sync-bot/tokens",
+        json={"name": "Sync token", "scopes": ["migration:validate"]},
+        headers=_auth(admin_token),
+    )
+    assert token_response.status_code == 201
+    service_token = token_response.json()["access_token"]
+
+    before_disable = client.get("/v1/auth/me", headers=_auth(service_token))
+    assert before_disable.status_code == 200
+    assert before_disable.json()["username"] == "sync-bot"
+
+    disable_response = client.patch(
+        "/v1/auth/service-accounts/sync-bot",
+        json={"is_active": False},
+        headers=_auth(admin_token),
+    )
+    assert disable_response.status_code == 200
+    assert disable_response.json()["is_active"] is False
+
+    after_disable = client.get("/v1/auth/me", headers=_auth(service_token))
+    assert after_disable.status_code == 401

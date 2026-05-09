@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..auth import AuthContext, require_roles
+from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
 from ..schemas import (
     ConsoleDictionaryAliasInput,
@@ -92,6 +92,7 @@ def validate_console_dictionary(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("migration:validate")),
     session: Session = Depends(get_session),
 ) -> ConsoleDictionaryReport:
     """Validate a dictionary migration payload without writing to the database."""
@@ -106,6 +107,7 @@ def validate_console_dictionary(
 def import_console_dictionary(
     request: ConsoleDictionaryPayload,
     current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    _scope: AuthContext = Depends(require_scopes("migration:apply")),
     session: Session = Depends(get_session),
 ) -> ConsoleDictionaryReport:
     """Validate and apply a dictionary migration payload in one transaction."""
@@ -147,6 +149,7 @@ def export_console_dictionary(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("migration:export")),
     session: Session = Depends(get_session),
 ) -> ConsoleDictionaryExportResponse:
     """Export a profile dictionary in the stable user-console import shape."""

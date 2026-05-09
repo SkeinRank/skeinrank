@@ -152,6 +152,8 @@ Patch 27 adds the User Console API for migration-friendly dictionary workflows. 
 
 Patch 28 adds `skeinrank-migrate`, a small dictionary migration CLI that talks to the User Console API. It can validate, apply, and export dictionary JSON files from notebooks, local shells, CI jobs, or bot workflows without direct database access.
 
+Patch 29 adds hashed personal API tokens and service accounts for external API/CLI clients. Human users can create personal tokens for notebooks and scripts, while admins can create service accounts for bots or CI jobs. Console dictionary API tokens enforce migration scopes such as `migration:validate`, `migration:apply`, and `migration:export`.
+
 Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
 
 

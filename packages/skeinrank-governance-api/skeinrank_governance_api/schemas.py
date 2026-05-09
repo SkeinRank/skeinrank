@@ -582,3 +582,71 @@ class AuthTokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_at: datetime
     user: UserResponse
+
+
+class ApiTokenCreateRequest(BaseModel):
+    """Request body for creating a personal API token."""
+
+    name: str = Field(..., min_length=1, max_length=128)
+    scopes: list[str] = Field(default_factory=list)
+    expires_in_days: int | None = Field(default=90, ge=1, le=3650)
+
+
+class ApiTokenResponse(BaseModel):
+    """Masked personal or service-account API token metadata."""
+
+    id: int
+    name: str
+    token_prefix: str
+    scopes: list[str]
+    owner_type: str
+    owner_name: str
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    last_used_at: datetime | None = None
+    created_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ApiTokenCreateResponse(ApiTokenResponse):
+    """Create response that returns the plaintext token once."""
+
+    access_token: str
+    token_type: str = "bearer"
+
+
+class ServiceAccountCreateRequest(BaseModel):
+    """Request body for creating a service account."""
+
+    name: str = Field(..., min_length=1, max_length=128)
+    display_name: str | None = Field(default=None, max_length=256)
+    description: str | None = None
+    role: str
+    is_active: bool = True
+
+
+class ServiceAccountUpdateRequest(BaseModel):
+    """Request body for updating a service account."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    display_name: str | None = Field(default=None, max_length=256)
+    description: str | None = None
+    role: str | None = None
+    is_active: bool | None = None
+
+
+class ServiceAccountResponse(BaseModel):
+    """Service account metadata without token material."""
+
+    id: int
+    name: str
+    normalized_name: str
+    display_name: str | None = None
+    description: str | None = None
+    role: str
+    is_active: bool
+    created_by: str | None = None
+    last_used_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime

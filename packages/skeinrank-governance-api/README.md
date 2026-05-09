@@ -563,3 +563,49 @@ by the timestamp field descending internally; the API does not expose a separate
 sort setting. `max_documents` still limits the number of documents processed
 inside the window.
 
+
+## API tokens and service accounts
+
+Patch 29 adds copy-once API tokens for external clients.
+
+Human users can create personal access tokens for notebooks, scripts, or local CLI work:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/auth/api-tokens \
+  -H "Authorization: Bearer $LOGIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Jupyter migration token",
+    "scopes": ["migration:validate", "migration:apply", "migration:export"],
+    "expires_in_days": 90
+  }'
+```
+
+The response includes an `sk_pat_...` token once. The API stores only a SHA-256 hash and a short token prefix.
+
+Admins can create service accounts for bots and automation:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/auth/service-accounts \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "migration-bot", "role": "admin"}'
+
+curl -X POST http://127.0.0.1:8010/v1/auth/service-accounts/migration-bot/tokens \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "CI import token",
+    "scopes": ["migration:validate", "migration:apply", "migration:export"]
+  }'
+```
+
+The second response includes an `sk_sat_...` token once.
+
+Console dictionary endpoints now enforce migration scopes for API tokens:
+
+- `migration:validate` for `POST /v1/console/dictionary/validate`
+- `migration:apply` for `POST /v1/console/dictionary/import`
+- `migration:export` for `GET /v1/console/dictionary/export`
+
+Regular login/session tokens continue to use role checks only. Personal and service-account API tokens must pass both role checks and scope checks.

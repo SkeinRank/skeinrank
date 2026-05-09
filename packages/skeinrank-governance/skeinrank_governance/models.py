@@ -49,6 +49,7 @@ ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
 ELASTICSEARCH_ENRICHMENT_JOB_STATUSES = ("queued", "running", "succeeded", "failed")
 ELASTICSEARCH_BINDING_PROVIDERS = ("elasticsearch",)
 USER_ROLES = ("admin", "moderator", "contributor")
+API_TOKEN_OWNER_TYPES = ("personal", "service_account")
 
 
 def utc_now() -> datetime:
@@ -265,6 +266,11 @@ class GovernanceUser(TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    api_tokens: Mapped[list[GovernanceApiToken]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return f"GovernanceUser(username={self.username!r}, role={self.role!r})"
@@ -296,6 +302,99 @@ class GovernanceAuthToken(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"GovernanceAuthToken(user_id={self.user_id!r}, prefix={self.token_prefix!r})"
+
+
+class GovernanceServiceAccount(TimestampMixin, Base):
+    """A non-human API actor for bots, CI jobs, and migrations."""
+
+    __tablename__ = "governance_service_accounts"
+    __table_args__ = (
+        CheckConstraint(
+            f"role IN {USER_ROLES!r}",
+            name="governance_service_account_role",
+        ),
+        Index(
+            "ix_governance_service_accounts_normalized_name",
+            "normalized_name",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    normalized_name: Mapped[str] = mapped_column(
+        String(128), nullable=False, unique=True
+    )
+    display_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    api_tokens: Mapped[list[GovernanceApiToken]] = relationship(
+        back_populates="service_account",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "GovernanceServiceAccount("
+            f"name={self.name!r}, role={self.role!r}, active={self.is_active!r})"
+        )
+
+
+class GovernanceApiToken(TimestampMixin, Base):
+    """A hashed personal or service-account API token for external clients."""
+
+    __tablename__ = "governance_api_tokens"
+    __table_args__ = (
+        CheckConstraint(
+            "(user_id IS NOT NULL AND service_account_id IS NULL) OR "
+            "(user_id IS NULL AND service_account_id IS NOT NULL)",
+            name="governance_api_token_single_owner",
+        ),
+        Index("ix_governance_api_tokens_user_created", "user_id", "created_at"),
+        Index(
+            "ix_governance_api_tokens_service_account_created",
+            "service_account_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("governance_users.id", ondelete="CASCADE"), nullable=True
+    )
+    service_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("governance_service_accounts.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    token_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
+    scopes: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    user: Mapped[GovernanceUser | None] = relationship(back_populates="api_tokens")
+    service_account: Mapped[GovernanceServiceAccount | None] = relationship(
+        back_populates="api_tokens"
+    )
+
+    def __repr__(self) -> str:
+        owner = self.user_id if self.user_id is not None else self.service_account_id
+        return f"GovernanceApiToken(name={self.name!r}, owner={owner!r})"
 
 
 class GovernanceSuggestion(TimestampMixin, Base):
@@ -696,6 +795,23 @@ def _fill_normalized_user(mapper: Any, connection: Any, target: GovernanceUser) 
     target.normalized_username = normalize_profile_name(target.username)
 
 
+def _fill_normalized_service_account(
+    mapper: Any, connection: Any, target: GovernanceServiceAccount
+) -> None:
+    del mapper, connection
+    target.normalized_name = normalize_profile_name(target.name)
+
+
+def _fill_normalized_api_token(
+    mapper: Any, connection: Any, target: GovernanceApiToken
+) -> None:
+    del mapper, connection
+    target.name = target.name.strip()
+    target.scopes = sorted(
+        {scope.strip() for scope in (target.scopes or []) if scope.strip()}
+    )
+
+
 def _fill_normalized_suggestion(
     mapper: Any, connection: Any, target: GovernanceSuggestion
 ) -> None:
@@ -751,6 +867,14 @@ event.listen(TermAlias, "before_update", _fill_normalized_alias)
 
 event.listen(GovernanceUser, "before_insert", _fill_normalized_user)
 event.listen(GovernanceUser, "before_update", _fill_normalized_user)
+event.listen(
+    GovernanceServiceAccount, "before_insert", _fill_normalized_service_account
+)
+event.listen(
+    GovernanceServiceAccount, "before_update", _fill_normalized_service_account
+)
+event.listen(GovernanceApiToken, "before_insert", _fill_normalized_api_token)
+event.listen(GovernanceApiToken, "before_update", _fill_normalized_api_token)
 event.listen(GovernanceSuggestion, "before_insert", _fill_normalized_suggestion)
 event.listen(GovernanceSuggestion, "before_update", _fill_normalized_suggestion)
 event.listen(GovernanceStopListEntry, "before_insert", _fill_normalized_stop_list_entry)
