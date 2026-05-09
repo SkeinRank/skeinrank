@@ -426,6 +426,108 @@ class RuntimeSnapshotResponse(BaseModel):
     rules: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class ConsoleDictionaryAliasInput(BaseModel):
+    """Alias entry accepted by the user console import API."""
+
+    value: str = Field(..., min_length=1, max_length=256)
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: str = "active"
+    notes: str | None = None
+
+
+class ConsoleDictionaryTermInput(BaseModel):
+    """Canonical term entry accepted by the user console import API."""
+
+    canonical_value: str = Field(..., min_length=1, max_length=256)
+    slot: str = Field(..., min_length=1, max_length=64)
+    description: str | None = None
+    status: str = "active"
+    aliases: list[str | ConsoleDictionaryAliasInput] = Field(default_factory=list)
+
+
+class ConsoleStopListInput(BaseModel):
+    """Stop-list entry accepted by the user console import API."""
+
+    value: str = Field(..., min_length=1, max_length=256)
+    target: str = "both"
+    reason: str | None = None
+    is_active: bool = True
+
+
+class ConsoleDictionaryPayload(BaseModel):
+    """Dictionary migration payload for validation and import."""
+
+    profile_name: str = Field(..., min_length=1, max_length=128)
+    profile_description: str | None = None
+    create_profile: bool = True
+    mode: str = "upsert"
+    terms: list[ConsoleDictionaryTermInput] = Field(default_factory=list)
+    profile_stop_list: list[str | ConsoleStopListInput] = Field(default_factory=list)
+    global_stop_list: list[str | ConsoleStopListInput] = Field(default_factory=list)
+
+
+class ConsoleDictionaryIssue(BaseModel):
+    """Validation issue returned by the user console API."""
+
+    code: str
+    message: str
+    path: str | None = None
+    severity: str = "error"
+
+
+class ConsoleDictionarySummary(BaseModel):
+    """High-level migration summary returned by the user console API."""
+
+    terms_total: int = 0
+    aliases_total: int = 0
+    profile_stop_list_total: int = 0
+    global_stop_list_total: int = 0
+    would_create_terms: int = 0
+    would_update_terms: int = 0
+    would_create_aliases: int = 0
+    would_update_aliases: int = 0
+    would_create_profile_stop_list_entries: int = 0
+    would_update_profile_stop_list_entries: int = 0
+    would_create_global_stop_list_entries: int = 0
+    would_update_global_stop_list_entries: int = 0
+    created_terms: int = 0
+    updated_terms: int = 0
+    created_aliases: int = 0
+    updated_aliases: int = 0
+    created_profile_stop_list_entries: int = 0
+    updated_profile_stop_list_entries: int = 0
+    created_global_stop_list_entries: int = 0
+    updated_global_stop_list_entries: int = 0
+    duplicates: int = 0
+    conflicts: int = 0
+    blocked_by_stop_list: int = 0
+    errors: int = 0
+    warnings: int = 0
+
+
+class ConsoleDictionaryReport(BaseModel):
+    """Validation/import report for a dictionary migration payload."""
+
+    status: str
+    profile_name: str
+    normalized_profile_name: str
+    profile_exists: bool
+    mode: str
+    summary: ConsoleDictionarySummary
+    errors: list[ConsoleDictionaryIssue] = Field(default_factory=list)
+    warnings: list[ConsoleDictionaryIssue] = Field(default_factory=list)
+
+
+class ConsoleDictionaryExportResponse(BaseModel):
+    """Stable user-console dictionary export shape."""
+
+    profile_name: str
+    profile_description: str | None = None
+    terms: list[ConsoleDictionaryTermInput]
+    profile_stop_list: list[ConsoleStopListInput]
+    global_stop_list: list[ConsoleStopListInput]
+
+
 class ErrorResponse(BaseModel):
     """User-facing error response."""
 
