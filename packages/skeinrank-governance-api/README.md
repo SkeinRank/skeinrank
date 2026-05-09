@@ -590,6 +590,37 @@ small list of snippets with plain `fragment`, `highlighted_fragment`,
 `timestamp_field`/`time_window_days` range filter. It does not write to
 Elasticsearch and is safe for contributor/reviewer validation workflows.
 
+## Suggestion evidence snapshots
+
+Patch 33 adds a profile-scoped endpoint that refreshes Elasticsearch evidence and
+saves the bounded evidence result on a pending suggestion:
+
+```text
+POST /v1/governance/profiles/{profile_name}/suggestions/{suggestion_id}/evidence/refresh
+```
+
+Example request:
+
+```json
+{
+  "binding_id": 1,
+  "max_documents": 5,
+  "context_chars": 80
+}
+```
+
+If `query` is omitted, alias suggestions use `alias_value`; canonical-term
+suggestions use `canonical_value`. The binding must belong to the same profile as
+the suggestion. The endpoint returns the updated suggestion with:
+
+- `evidence_snapshot` — binding/query metadata, warnings, and highlighted snippets;
+- `evidence_checked_by`;
+- `evidence_checked_at`.
+
+Only pending suggestions can be refreshed so approved/rejected review history is
+not mutated. Contributors, moderators, and admins can refresh evidence; approval
+remains limited to moderators/admins.
+
 
 ## API tokens and service accounts
 

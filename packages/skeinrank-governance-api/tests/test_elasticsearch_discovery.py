@@ -427,6 +427,156 @@ def test_elasticsearch_evidence_finds_bounded_highlighted_snippets(
     }
 
 
+def test_suggestion_evidence_refresh_saves_snapshot(monkeypatch, tmp_path):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "k8s",
+            "slot": "TOOL",
+        },
+    )
+    assert suggestion_response.status_code == 201
+    assert suggestion_response.json()["evidence_snapshot"] is None
+
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+        },
+    )
+    assert binding_response.status_code == 201
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/"
+        f"suggestions/{suggestion_response.json()['id']}/evidence/refresh",
+        json={"binding_id": binding_response.json()["id"], "max_documents": 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["evidence_checked_by"] == "local_dev"
+    assert payload["evidence_checked_at"] is not None
+    snapshot = payload["evidence_snapshot"]
+    assert snapshot["binding_id"] == binding_response.json()["id"]
+    assert snapshot["binding_name"] == "infra docs"
+    assert snapshot["profile_name"] == "default_it"
+    assert snapshot["index_name"] == "docs"
+    assert snapshot["query"] == "k8s"
+    assert snapshot["canonical_value"] == "kubernetes"
+    assert len(snapshot["documents"]) == 1
+    assert snapshot["documents"][0]["document_id"] == "evidence-1"
+    assert "<mark>k8s</mark>" in snapshot["documents"][0]["highlighted_fragment"]
+
+    list_response = client.get("/v1/governance/profiles/default_it/suggestions")
+    assert list_response.status_code == 200
+    assert list_response.json()[0]["evidence_snapshot"]["query"] == "k8s"
+
+
+def test_suggestion_evidence_refresh_requires_same_profile_binding(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post("/v1/governance/profiles", json={"name": "other"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={"canonical_value": "kubernetes", "alias_value": "k8s", "slot": "TOOL"},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "other docs",
+            "profile_name": "other",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+        },
+    )
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/"
+        f"suggestions/{suggestion_response.json()['id']}/evidence/refresh",
+        json={"binding_id": binding_response.json()["id"]},
+    )
+
+    assert response.status_code == 422
+    assert "must belong to the suggestion profile" in response.json()["detail"]
+
+
+def test_suggestion_evidence_refresh_only_updates_pending_suggestions(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    suggestion_response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={"canonical_value": "kubernetes", "alias_value": "k8s", "slot": "TOOL"},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+        },
+    )
+    reject_response = client.post(
+        "/v1/governance/profiles/default_it/"
+        f"suggestions/{suggestion_response.json()['id']}/reject"
+    )
+    assert reject_response.status_code == 200
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/"
+        f"suggestions/{suggestion_response.json()['id']}/evidence/refresh",
+        json={"binding_id": binding_response.json()["id"]},
+    )
+
+    assert response.status_code == 409
+    assert "Suggestion is not pending" in response.json()["detail"]
+
+
 def test_elasticsearch_evidence_warns_for_stop_listed_query(monkeypatch, tmp_path):
     from skeinrank_governance_api.routes import governance
 

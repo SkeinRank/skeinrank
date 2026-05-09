@@ -348,6 +348,30 @@ class ElasticsearchEvidenceResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class SuggestionEvidenceSnapshot(BaseModel):
+    """Saved evidence snapshot attached to a governance suggestion."""
+
+    binding_id: int
+    binding_name: str
+    index_name: str
+    profile_name: str
+    query: str
+    normalized_query: str
+    canonical_value: str | None = None
+    max_documents: int
+    documents: list[ElasticsearchEvidenceDocument]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class SuggestionEvidenceRefreshRequest(BaseModel):
+    """Request body for refreshing and saving suggestion evidence."""
+
+    binding_id: int
+    query: str | None = Field(default=None, min_length=1, max_length=256)
+    max_documents: int = Field(default=5, ge=1, le=10)
+    context_chars: int = Field(default=80, ge=20, le=240)
+
+
 class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
     """Request body for starting a synchronous enrichment job."""
 
@@ -422,6 +446,9 @@ class SuggestionResponse(BaseModel):
     reviewed_by: str | None = None
     review_comment: str | None = None
     reviewed_at: datetime | None = None
+    evidence_snapshot: SuggestionEvidenceSnapshot | None = None
+    evidence_checked_by: str | None = None
+    evidence_checked_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

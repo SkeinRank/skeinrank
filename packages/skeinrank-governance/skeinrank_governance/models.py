@@ -468,6 +468,13 @@ class GovernanceSuggestion(TimestampMixin, Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    evidence_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )
+    evidence_checked_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    evidence_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     profile: Mapped[TerminologyProfile] = relationship(back_populates="suggestions")
     term: Mapped[CanonicalTerm | None] = relationship()

@@ -91,6 +91,7 @@ from ..schemas import (
     StopListEntryResponse,
     StopListUpdateRequest,
     SuggestionCreateRequest,
+    SuggestionEvidenceRefreshRequest,
     SuggestionResponse,
     SuggestionReviewRequest,
     TermCreateRequest,
@@ -862,74 +863,11 @@ def find_elasticsearch_evidence(
     """Find bounded read-only evidence snippets for a term or alias."""
 
     binding = _get_elasticsearch_binding_or_404(session, binding_id)
-    if not binding.is_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Elasticsearch binding is disabled.",
-        )
-
-    normalized_query = normalize_value(request_body.query)
-    if not normalized_query:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Evidence query must contain at least one non-space character.",
-        )
-
-    client = ElasticsearchDiscoveryClient(request.app.state.config)
-    if not client.is_configured:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Elasticsearch URL is not configured.",
-        )
-
-    try:
-        hits = client.search_evidence_documents(
-            index_name=binding.index_name,
-            text_fields=list(binding.text_fields),
-            query_text=request_body.query.strip(),
-            limit=request_body.max_documents,
-            filter_field=binding.filter_field,
-            filter_value=binding.filter_value,
-            timestamp_field=binding.timestamp_field,
-            time_window_days=binding.time_window_days,
-        )
-    except ElasticsearchDiscoveryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-
-    documents: list[ElasticsearchEvidenceDocument] = []
-    for hit in hits:
-        document = _first_evidence_document_for_hit(
-            hit_id=hit.id,
-            hit_index=hit.index,
-            source=hit.source,
-            text_fields=list(binding.text_fields),
-            query=request_body.query.strip(),
-            context_chars=request_body.context_chars,
-        )
-        if document is not None:
-            documents.append(document)
-        if len(documents) >= request_body.max_documents:
-            break
-
-    warnings = _evidence_warnings(
+    return _build_elasticsearch_evidence_response(
+        request=request,
         session=session,
         binding=binding,
-        normalized_query=normalized_query,
-        hits_count=len(hits),
-        documents_count=len(documents),
-    )
-
-    return ElasticsearchEvidenceResponse(
-        binding=_elasticsearch_binding_response(binding),
-        query=request_body.query.strip(),
-        normalized_query=normalized_query,
-        canonical_value=request_body.canonical_value,
-        max_documents=request_body.max_documents,
-        documents=documents,
-        warnings=warnings,
+        request_body=request_body,
     )
 
 
@@ -1509,6 +1447,58 @@ def create_profile_suggestion(
 
 
 @router.post(
+    "/profiles/{profile_name}/suggestions/{suggestion_id}/evidence/refresh",
+    response_model=SuggestionResponse,
+)
+def refresh_suggestion_evidence(
+    profile_name: str,
+    suggestion_id: int,
+    request_body: SuggestionEvidenceRefreshRequest,
+    request: Request,
+    current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> SuggestionResponse:
+    """Refresh and save an Elasticsearch evidence snapshot for a pending suggestion."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    suggestion = _get_suggestion_or_404(session, profile, suggestion_id)
+    _ensure_pending_suggestion(suggestion)
+
+    binding = _get_elasticsearch_binding_or_404(session, request_body.binding_id)
+    if binding.profile_id != profile.id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Evidence binding must belong to the suggestion profile.",
+        )
+
+    query = request_body.query
+    if query is None:
+        query = suggestion.alias_value or suggestion.canonical_value
+
+    evidence_response = _build_elasticsearch_evidence_response(
+        request=request,
+        session=session,
+        binding=binding,
+        request_body=ElasticsearchEvidenceRequest(
+            query=query,
+            canonical_value=suggestion.canonical_value,
+            max_documents=request_body.max_documents,
+            context_chars=request_body.context_chars,
+        ),
+    )
+
+    suggestion.evidence_snapshot = _suggestion_evidence_snapshot(evidence_response)
+    suggestion.evidence_checked_by = current_user.username
+    suggestion.evidence_checked_at = utc_now()
+
+    session.commit()
+    session.refresh(suggestion)
+    return _suggestion_response(suggestion)
+
+
+@router.post(
     "/profiles/{profile_name}/suggestions/{suggestion_id}/approve",
     response_model=SuggestionResponse,
 )
@@ -1670,6 +1660,104 @@ def _active_global_stop_values_for_target(
         )
     )
     return set(values)
+
+
+def _build_elasticsearch_evidence_response(
+    *,
+    request: Request,
+    session: Session,
+    binding: ElasticsearchBinding,
+    request_body: ElasticsearchEvidenceRequest,
+) -> ElasticsearchEvidenceResponse:
+    if not binding.is_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Elasticsearch binding is disabled.",
+        )
+
+    normalized_query = normalize_value(request_body.query)
+    if not normalized_query:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Evidence query must contain at least one non-space character.",
+        )
+
+    client = ElasticsearchDiscoveryClient(request.app.state.config)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Elasticsearch URL is not configured.",
+        )
+
+    try:
+        hits = client.search_evidence_documents(
+            index_name=binding.index_name,
+            text_fields=list(binding.text_fields),
+            query_text=request_body.query.strip(),
+            limit=request_body.max_documents,
+            filter_field=binding.filter_field,
+            filter_value=binding.filter_value,
+            timestamp_field=binding.timestamp_field,
+            time_window_days=binding.time_window_days,
+        )
+    except ElasticsearchDiscoveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    documents: list[ElasticsearchEvidenceDocument] = []
+    for hit in hits:
+        document = _first_evidence_document_for_hit(
+            hit_id=hit.id,
+            hit_index=hit.index,
+            source=hit.source,
+            text_fields=list(binding.text_fields),
+            query=request_body.query.strip(),
+            context_chars=request_body.context_chars,
+        )
+        if document is not None:
+            documents.append(document)
+        if len(documents) >= request_body.max_documents:
+            break
+
+    warnings = _evidence_warnings(
+        session=session,
+        binding=binding,
+        normalized_query=normalized_query,
+        hits_count=len(hits),
+        documents_count=len(documents),
+    )
+
+    return ElasticsearchEvidenceResponse(
+        binding=_elasticsearch_binding_response(binding),
+        query=request_body.query.strip(),
+        normalized_query=normalized_query,
+        canonical_value=request_body.canonical_value,
+        max_documents=request_body.max_documents,
+        documents=documents,
+        warnings=warnings,
+    )
+
+
+def _suggestion_evidence_snapshot(
+    evidence_response: ElasticsearchEvidenceResponse,
+) -> dict[str, object]:
+    binding = evidence_response.binding
+    return {
+        "binding_id": binding.id,
+        "binding_name": binding.name,
+        "index_name": binding.index_name,
+        "profile_name": binding.profile_name,
+        "query": evidence_response.query,
+        "normalized_query": evidence_response.normalized_query,
+        "canonical_value": evidence_response.canonical_value,
+        "max_documents": evidence_response.max_documents,
+        "documents": [
+            document.model_dump(mode="json") for document in evidence_response.documents
+        ],
+        "warnings": list(evidence_response.warnings),
+    }
 
 
 def _first_evidence_document_for_hit(
@@ -2451,6 +2539,9 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         reviewed_by=suggestion.reviewed_by,
         review_comment=suggestion.review_comment,
         reviewed_at=suggestion.reviewed_at,
+        evidence_snapshot=suggestion.evidence_snapshot,
+        evidence_checked_by=suggestion.evidence_checked_by,
+        evidence_checked_at=suggestion.evidence_checked_at,
         created_at=suggestion.created_at,
         updated_at=suggestion.updated_at,
     )
