@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
 import type {
+  ApiToken,
   AuthUser,
   CanonicalTerm,
   ElasticsearchBinding,
@@ -13,6 +14,7 @@ import type {
   GlobalStopListEntry,
   GovernanceSuggestion,
   Profile,
+  ServiceAccount,
   StopListEntry,
   TermAlias,
 } from "../src/types";
@@ -46,6 +48,57 @@ const contributorUser: AuthUser = {
   display_name: "Contributor User",
   role: "contributor",
 };
+
+
+const personalApiTokens: ApiToken[] = [
+  {
+    id: 1,
+    name: "Existing Jupyter token",
+    token_prefix: "sk_pat_existing",
+    scopes: ["migration:validate", "migration:export"],
+    owner_type: "personal",
+    owner_name: "admin",
+    expires_at: "2026-08-01T00:00:00Z",
+    revoked_at: null,
+    last_used_at: "2026-05-08T00:00:00Z",
+    created_by: "admin",
+    created_at: "2026-05-07T00:00:00Z",
+    updated_at: "2026-05-07T00:00:00Z",
+  },
+];
+
+const serviceAccounts: ServiceAccount[] = [
+  {
+    id: 1,
+    name: "migration-bot",
+    normalized_name: "migration_bot",
+    display_name: "Migration Bot",
+    description: "Dictionary migration automation account",
+    role: "admin",
+    is_active: true,
+    created_by: "admin",
+    last_used_at: null,
+    created_at: "2026-05-09T00:00:00Z",
+    updated_at: "2026-05-09T00:00:00Z",
+  },
+];
+
+const serviceAccountTokens: ApiToken[] = [
+  {
+    id: 11,
+    name: "CI import token",
+    token_prefix: "sk_sat_existing",
+    scopes: ["migration:validate", "migration:apply", "migration:export"],
+    owner_type: "service_account",
+    owner_name: "migration-bot",
+    expires_at: "2026-08-01T00:00:00Z",
+    revoked_at: null,
+    last_used_at: null,
+    created_by: "admin",
+    created_at: "2026-05-09T00:00:00Z",
+    updated_at: "2026-05-09T00:00:00Z",
+  },
+];
 
 const profiles: Profile[] = [
   {
@@ -278,6 +331,18 @@ type StubOptions = {
   duplicateTerm?: boolean;
 };
 
+function clonePersonalApiTokens() {
+  return JSON.parse(JSON.stringify(personalApiTokens)) as ApiToken[];
+}
+
+function cloneServiceAccounts() {
+  return JSON.parse(JSON.stringify(serviceAccounts)) as ServiceAccount[];
+}
+
+function cloneServiceAccountTokens() {
+  return JSON.parse(JSON.stringify(serviceAccountTokens)) as ApiToken[];
+}
+
 function cloneProfiles() {
   return JSON.parse(JSON.stringify(profiles)) as Profile[];
 }
@@ -320,12 +385,18 @@ function stubGovernanceApi(options: StubOptions = {}) {
   let currentProfiles = cloneProfiles();
   let currentUser = options.currentUser ?? adminUser;
   let currentUsers: AuthUser[] = [adminUser, moderatorUser, contributorUser];
+  let currentPersonalApiTokens = clonePersonalApiTokens();
+  let currentServiceAccounts = cloneServiceAccounts();
+  let currentServiceAccountTokens = cloneServiceAccountTokens();
   let currentTerms = cloneTerms();
   let currentSuggestions = cloneSuggestions();
   let currentGlobalStopListEntries = cloneGlobalStopListEntries();
   let currentStopListEntries = cloneStopListEntries();
   let currentElasticsearchBindings = cloneElasticsearchBindings();
   let currentElasticsearchJobs = cloneElasticsearchJobs();
+  let nextPersonalTokenId = 20;
+  let nextServiceAccountId = 20;
+  let nextServiceAccountTokenId = 30;
   let nextProfileId = 10;
   let nextTermId = 10;
   let nextAliasId = 20;
@@ -427,6 +498,133 @@ function stubGovernanceApi(options: StubOptions = {}) {
       if (url.endsWith("/v1/auth/users/contributor") && method === "DELETE") {
         currentUsers = currentUsers.filter(
           (user) => user.username !== "contributor",
+        );
+        return new Response(null, { status: 204 });
+      }
+
+      if (url.endsWith("/v1/auth/api-tokens") && method === "GET") {
+        return Response.json(currentPersonalApiTokens);
+      }
+
+      if (url.endsWith("/v1/auth/api-tokens") && method === "POST") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          expires_in_days?: number | null;
+          name: string;
+          scopes: string[];
+        };
+        const token: ApiToken & { access_token: string; token_type: "bearer" } = {
+          id: nextPersonalTokenId++,
+          name: payload.name,
+          token_prefix: "sk_pat_new",
+          scopes: payload.scopes,
+          owner_type: "personal",
+          owner_name: currentUser.username,
+          expires_at: payload.expires_in_days ? "2026-08-01T00:00:00Z" : null,
+          revoked_at: null,
+          last_used_at: null,
+          created_by: currentUser.username,
+          created_at: "2026-05-09T00:00:00Z",
+          updated_at: "2026-05-09T00:00:00Z",
+          access_token: "sk_pat_plaintext",
+          token_type: "bearer",
+        };
+        currentPersonalApiTokens = [token, ...currentPersonalApiTokens];
+        return Response.json(token, { status: 201 });
+      }
+
+      if (url.match(/\/v1\/auth\/api-tokens\/(\d+)$/) && method === "DELETE") {
+        const tokenId = Number(url.match(/\/v1\/auth\/api-tokens\/(\d+)$/)?.[1] ?? "0");
+        currentPersonalApiTokens = currentPersonalApiTokens.map((token) =>
+          token.id === tokenId ? { ...token, revoked_at: "2026-05-09T00:00:00Z" } : token,
+        );
+        return new Response(null, { status: 204 });
+      }
+
+      if (url.endsWith("/v1/auth/service-accounts") && method === "GET") {
+        if (currentUser.role !== "admin") {
+          return Response.json({ detail: "Forbidden" }, { status: 403 });
+        }
+        return Response.json(currentServiceAccounts);
+      }
+
+      if (url.endsWith("/v1/auth/service-accounts") && method === "POST") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          description?: string | null;
+          display_name?: string | null;
+          is_active?: boolean;
+          name: string;
+          role: AuthUser["role"];
+        };
+        const account: ServiceAccount = {
+          id: nextServiceAccountId++,
+          name: payload.name,
+          normalized_name: payload.name.toLowerCase().replace(/-/g, "_"),
+          display_name: payload.display_name ?? null,
+          description: payload.description ?? null,
+          role: payload.role,
+          is_active: payload.is_active ?? true,
+          created_by: currentUser.username,
+          last_used_at: null,
+          created_at: "2026-05-09T00:00:00Z",
+          updated_at: "2026-05-09T00:00:00Z",
+        };
+        currentServiceAccounts = [account, ...currentServiceAccounts];
+        return Response.json(account, { status: 201 });
+      }
+
+      if (url.endsWith("/v1/auth/service-accounts/migration-bot") && method === "PATCH") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as { is_active?: boolean | null };
+        const account = currentServiceAccounts.find((item) => item.name === "migration-bot");
+        if (!account) {
+          return Response.json({ detail: "not found" }, { status: 404 });
+        }
+        const updated: ServiceAccount = {
+          ...account,
+          is_active: payload.is_active ?? account.is_active,
+          updated_at: "2026-05-09T00:00:00Z",
+        };
+        currentServiceAccounts = currentServiceAccounts.map((item) => item.name === "migration-bot" ? updated : item);
+        return Response.json(updated);
+      }
+
+      if (url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens$/) && method === "GET") {
+        const accountName = decodeURIComponent(url.match(/\/v1\/auth\/service-accounts\/([^/]+)\/tokens$/)?.[1] ?? "");
+        return Response.json(accountName === "migration-bot" ? currentServiceAccountTokens : []);
+      }
+
+      if (url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens$/) && method === "POST") {
+        const accountName = decodeURIComponent(url.match(/\/v1\/auth\/service-accounts\/([^/]+)\/tokens$/)?.[1] ?? "migration-bot");
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          expires_in_days?: number | null;
+          name: string;
+          scopes: string[];
+        };
+        const token: ApiToken & { access_token: string; token_type: "bearer" } = {
+          id: nextServiceAccountTokenId++,
+          name: payload.name,
+          token_prefix: "sk_sat_new",
+          scopes: payload.scopes,
+          owner_type: "service_account",
+          owner_name: accountName,
+          expires_at: payload.expires_in_days ? "2026-08-01T00:00:00Z" : null,
+          revoked_at: null,
+          last_used_at: null,
+          created_by: currentUser.username,
+          created_at: "2026-05-09T00:00:00Z",
+          updated_at: "2026-05-09T00:00:00Z",
+          access_token: "sk_sat_plaintext",
+          token_type: "bearer",
+        };
+        if (accountName === "migration-bot") {
+          currentServiceAccountTokens = [token, ...currentServiceAccountTokens];
+        }
+        return Response.json(token, { status: 201 });
+      }
+
+      if (url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens\/(\d+)$/) && method === "DELETE") {
+        const tokenId = Number(url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens\/(\d+)$/)?.[1] ?? "0");
+        currentServiceAccountTokens = currentServiceAccountTokens.map((token) =>
+          token.id === tokenId ? { ...token, revoked_at: "2026-05-09T00:00:00Z" } : token,
         );
         return new Response(null, { status: 204 });
       }
@@ -2280,4 +2478,156 @@ describe("App", () => {
       ),
     ).toBeInTheDocument();
   });
+  it("lets users create and revoke personal API tokens", async () => {
+    const fetchMock = stubGovernanceApi();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "API Access" }));
+
+    expect(await screen.findByText("My API tokens")).toBeInTheDocument();
+    expect(await screen.findByText("Existing Jupyter token")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Create personal token name"), {
+      target: { value: "Notebook import token" },
+    });
+    fireEvent.change(screen.getByLabelText("Create personal token expiration days"), {
+      target: { value: "30" },
+    });
+    fireEvent.click(screen.getAllByLabelText("migration:apply")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Create personal token" }));
+
+    expect(await screen.findByTestId("copy-once-token")).toHaveTextContent("sk_pat_plaintext");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8010/v1/auth/api-tokens",
+      expect.objectContaining({
+        body: JSON.stringify({
+          name: "Notebook import token",
+          scopes: ["migration:validate", "migration:export", "migration:apply"],
+          expires_in_days: 30,
+        }),
+        method: "POST",
+      }),
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[0]);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/api-tokens/20",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("lets admins manage service accounts and service tokens", async () => {
+    const fetchMock = stubGovernanceApi();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "API Access" }));
+
+    expect((await screen.findAllByText("Service accounts")).length).toBeGreaterThan(0);
+    expect(await screen.findByText("Migration Bot")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Service account name"), {
+      target: { value: "sync-bot" },
+    });
+    fireEvent.change(screen.getByLabelText("Service account display name"), {
+      target: { value: "Sync Bot" },
+    });
+    fireEvent.change(screen.getByLabelText("Service account description"), {
+      target: { value: "Nightly dictionary sync" },
+    });
+    fireEvent.change(screen.getByLabelText("Service account role"), {
+      target: { value: "moderator" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create service account" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/service-accounts",
+        expect.objectContaining({
+          body: JSON.stringify({
+            name: "sync-bot",
+            display_name: "Sync Bot",
+            description: "Nightly dictionary sync",
+            role: "moderator",
+            is_active: true,
+          }),
+          method: "POST",
+        }),
+      );
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Migration Bot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Suspend service account" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/service-accounts/migration-bot",
+        expect.objectContaining({
+          body: JSON.stringify({ is_active: false }),
+          method: "PATCH",
+        }),
+      );
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivate service account" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/service-accounts/migration-bot",
+        expect.objectContaining({
+          body: JSON.stringify({ is_active: true }),
+          method: "PATCH",
+        }),
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText("Create service token name"), {
+      target: { value: "CI import token" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create service token" }));
+
+    expect(await screen.findByTestId("copy-once-token")).toHaveTextContent("sk_sat_plaintext");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8010/v1/auth/service-accounts/migration-bot/tokens",
+      expect.objectContaining({
+        body: JSON.stringify({
+          name: "CI import token",
+          scopes: ["migration:validate", "migration:export"],
+          expires_in_days: 90,
+        }),
+        method: "POST",
+      }),
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[1]);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/service-accounts/migration-bot/tokens/30",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("keeps service account management admin-only", async () => {
+    stubGovernanceApi({ currentUser: contributorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "API Access" }));
+
+    expect(await screen.findByText("My API tokens")).toBeInTheDocument();
+    expect(screen.getByText("Service accounts are visible to admins only. You can still create and revoke your own personal API tokens above.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create service account" })).not.toBeInTheDocument();
+  });
+
 });

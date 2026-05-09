@@ -1,4 +1,4 @@
-import { Database, GitBranch, LogOut, Moon, Monitor, Plug, Search, ShieldCheck, Sun, Users } from "lucide-react";
+import { Database, GitBranch, KeyRound, LogOut, Moon, Monitor, Plug, Search, ShieldCheck, Sun, Users } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useTheme } from "../../theme";
@@ -6,10 +6,11 @@ import type { AuthUser } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
-export type AppSection = "terms" | "suggestions" | "guardrails" | "integrations" | "users";
+export type AppSection = "terms" | "suggestions" | "guardrails" | "integrations" | "api-access" | "users";
 
 type AppShellProps = {
   activeSection: AppSection;
+  canManageApiTokens?: boolean;
   canManageUsers?: boolean;
   children: ReactNode;
   currentUser: AuthUser;
@@ -29,7 +30,7 @@ const themeIcon = {
   system: Monitor,
 };
 
-export function AppShell({ activeSection, canManageUsers = false, children, currentUser, onLogout, onNavigate }: AppShellProps) {
+export function AppShell({ activeSection, canManageApiTokens = true, canManageUsers = false, children, currentUser, onLogout, onNavigate }: AppShellProps) {
   const { theme, toggleTheme } = useTheme();
   const ThemeIcon = themeIcon[theme];
 
@@ -38,6 +39,7 @@ export function AppShell({ activeSection, canManageUsers = false, children, curr
     { label: "Suggestions", icon: Search, section: "suggestions" as const, available: true },
     { label: "Guardrails", icon: ShieldCheck, section: "guardrails" as const, available: true },
     { label: "Integrations", icon: Plug, section: "integrations" as const, available: true },
+    { label: "API Access", icon: KeyRound, section: "api-access" as const, available: canManageApiTokens },
     { label: "Users", icon: Users, section: "users" as const, available: canManageUsers },
   ];
 
@@ -76,7 +78,17 @@ export function AppShell({ activeSection, canManageUsers = false, children, curr
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">
-                {activeSection === "users" ? "Users and roles" : activeSection === "suggestions" ? "Suggestions and approvals" : activeSection === "guardrails" ? "Guardrails" : activeSection === "integrations" ? "Integrations" : "Terminology control plane"}
+                {activeSection === "users"
+                  ? "Users and roles"
+                  : activeSection === "suggestions"
+                    ? "Suggestions and approvals"
+                    : activeSection === "guardrails"
+                      ? "Guardrails"
+                      : activeSection === "integrations"
+                        ? "Integrations"
+                        : activeSection === "api-access"
+                          ? "API Access"
+                          : "Terminology control plane"}
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {activeSection === "users"
@@ -87,7 +99,9 @@ export function AppShell({ activeSection, canManageUsers = false, children, curr
                       ? "Manage stop lists that block noisy or unsafe terminology changes."
                       : activeSection === "integrations"
                         ? "Configure Elasticsearch enrichment bindings for profiles and indices."
-                        : "Manage canonical terms, aliases, slots, and runtime snapshots."}
+                        : activeSection === "api-access"
+                          ? "Create personal API tokens and manage service account access."
+                          : "Manage canonical terms, aliases, slots, and runtime snapshots."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

@@ -324,6 +324,68 @@ export type UserUpdateRequest = {
   is_active?: boolean | null;
 };
 
+
+
+export type ApiTokenScope = "migration:validate" | "migration:apply" | "migration:export";
+
+export type ApiTokenOwnerType = "personal" | "service_account" | "unknown";
+
+export type ApiToken = {
+  id: number;
+  name: string;
+  token_prefix: string;
+  scopes: string[];
+  owner_type: ApiTokenOwnerType;
+  owner_name: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_used_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApiTokenCreateRequest = {
+  name: string;
+  scopes: string[];
+  expires_in_days?: number | null;
+};
+
+export type ApiTokenCreateResponse = ApiToken & {
+  access_token: string;
+  token_type: "bearer";
+};
+
+export type ServiceAccount = {
+  id: number;
+  name: string;
+  normalized_name: string;
+  display_name: string | null;
+  description: string | null;
+  role: UserRole;
+  is_active: boolean;
+  created_by: string | null;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ServiceAccountCreateRequest = {
+  name: string;
+  display_name?: string | null;
+  description?: string | null;
+  role: UserRole;
+  is_active?: boolean;
+};
+
+export type ServiceAccountUpdateRequest = {
+  name?: string | null;
+  display_name?: string | null;
+  description?: string | null;
+  role?: UserRole | null;
+  is_active?: boolean | null;
+};
+
 export type ProfileCreateRequest = {
   name: string;
   description?: string | null;

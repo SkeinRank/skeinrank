@@ -59,6 +59,7 @@ The governance console currently includes:
 - app shell with local login/logout session controls
 - current user and role display
 - admin-only Users page for local user CRUD and role assignment
+- API Access page for personal API tokens and admin-managed service accounts
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
 - Guardrails page for global and profile-scoped stop-list management
@@ -75,7 +76,31 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, global stop-list guardrails, profile stop-list guardrails, Elasticsearch binding configs, dry-run previews, and enrichment job status through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, background workers, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, global stop-list guardrails, profile stop-list guardrails, Elasticsearch binding configs, dry-run previews, enrichment job status, personal API tokens, and service accounts through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, background workers, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+
+
+## API Access
+
+The API Access page lets signed-in users create and revoke personal API tokens for notebooks, scripts, and the `skeinrank-migrate` CLI. Tokens are displayed only once after creation; after that the UI only shows token metadata such as prefix, scopes, expiration, last-used time, and revoked/active status.
+
+Admins also see the Service accounts area. They can:
+
+- create service accounts for bots, CI jobs, and dictionary migration automation;
+- suspend or reactivate service accounts;
+- create service account tokens;
+- revoke service account tokens.
+
+Service account tokens are also displayed only once. Suspended service accounts cannot issue new tokens from the UI, and backend auth rejects tokens for inactive service accounts.
+
+Supported migration scopes:
+
+```text
+migration:validate
+migration:apply
+migration:export
+```
+
+User roles are still enforced by the governance API. A token scope grants API-token permission, but it does not bypass role checks.
 
 ## Checks
 

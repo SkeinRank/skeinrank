@@ -154,6 +154,8 @@ Patch 28 adds `skeinrank-migrate`, a small dictionary migration CLI that talks t
 
 Patch 29 adds hashed personal API tokens and service accounts for external API/CLI clients. Human users can create personal tokens for notebooks and scripts, while admins can create service accounts for bots or CI jobs. Console dictionary API tokens enforce migration scopes such as `migration:validate`, `migration:apply`, and `migration:export`.
 
+Patch 30 adds API Access UI support. Signed-in users can create and revoke their own personal API tokens from the governance console, while admins can manage service accounts, suspend/reactivate them, issue service account tokens, and revoke automation tokens without copying secrets from the database or shell.
+
 Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
 
 
@@ -205,11 +207,12 @@ Current UI scope:
 - app shell with local login/logout session controls
 - current user and role display in the top bar
 - admin-only Users page for local user CRUD and role assignment
+- API Access page for personal API tokens and admin-managed service accounts
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
 - searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
 - Guardrails page for global and profile-scoped stop-list management
-- Integrations page for manual Elasticsearch binding configs with shared-index validation
+- Integrations page for manual Elasticsearch binding configs with shared-index validation, time filters, dry-run previews, and enrichment jobs
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms

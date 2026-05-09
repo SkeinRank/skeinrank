@@ -5,6 +5,7 @@ import { LoginPage } from "./components/LoginPage";
 import { AppSection, AppShell } from "./components/layout/AppShell";
 import { UsersManager } from "./components/UsersManager";
 import { clearAuthToken, createUser, deleteUser, getAuthToken, getCurrentUser, GovernanceApiError, listUsers, login, logout, setAuthToken, updateUser } from "./lib/api";
+import { ApiAccessPage } from "./pages/ApiAccessPage";
 import { GovernanceDashboard } from "./pages/GovernanceDashboard";
 import { GuardrailsPage } from "./pages/GuardrailsPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
@@ -97,6 +98,7 @@ function AuthGate() {
   return (
     <AppShell
       activeSection={safeActiveSection}
+      canManageApiTokens={permissions.canManageApiTokens}
       canManageUsers={permissions.canManageUsers}
       currentUser={currentUser}
       onLogout={handleLogout}
@@ -110,6 +112,8 @@ function AuthGate() {
         <GuardrailsPage currentUser={currentUser} />
       ) : safeActiveSection === "integrations" ? (
         <IntegrationsPage currentUser={currentUser} />
+      ) : safeActiveSection === "api-access" ? (
+        <ApiAccessPage currentUser={currentUser} />
       ) : (
         <GovernanceDashboard currentUser={currentUser} />
       )}
