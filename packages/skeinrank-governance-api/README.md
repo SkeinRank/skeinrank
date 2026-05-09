@@ -217,6 +217,46 @@ Import modes:
 The validation/import report includes planned create/update counts, duplicate warnings, alias/canonical conflicts, and stop-list blocks.
 
 
+## Dictionary Migration Tool
+
+Patch 28 adds a small stdlib-based CLI on top of the User Console API. The tool does not write to the database directly; it calls the same FastAPI endpoints that notebooks, bots, and scripts can use.
+
+Install the governance API package and run:
+
+```bash
+poetry run skeinrank-migrate --help
+```
+
+The API URL defaults to `http://127.0.0.1:8010` and can be overridden with `--api-url` or `SKEINRANK_CONSOLE_API_URL`. When API auth is enabled, pass a bearer token with `--token` or `SKEINRANK_API_TOKEN`.
+
+Validate a dictionary JSON without writing changes:
+
+```bash
+poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.json
+```
+
+Apply the dictionary after validation:
+
+```bash
+poetry run skeinrank-migrate apply ../../examples/migration/console_dictionary.example.json
+```
+
+Export a profile back to the same stable migration JSON shape:
+
+```bash
+poetry run skeinrank-migrate export --profile-name infra_incidents \
+  --output infra_incidents.export.json
+```
+
+Useful environment setup for authenticated API runs:
+
+```bash
+export SKEINRANK_CONSOLE_API_URL=http://127.0.0.1:8010
+export SKEINRANK_API_TOKEN="$TOKEN"
+```
+
+`validate` returns exit code `2` when the API returns an invalid validation report. Use `--allow-invalid` when you want to inspect/report invalid migrations without failing a shell pipeline.
+
 ## Database migrations
 
 `skeinrank-governance` owns the SQLAlchemy models and canonical Alembic revision files. The API package exposes a configuration-aware migration wrapper that uses the same database URL resolution as the HTTP service.
