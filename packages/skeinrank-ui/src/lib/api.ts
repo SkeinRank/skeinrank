@@ -12,6 +12,8 @@ import type {
   ElasticsearchBindingDryRunResponse,
   ElasticsearchEnrichmentJob,
   ElasticsearchEnrichmentJobCreateRequest,
+  ElasticsearchEvidenceRequest,
+  ElasticsearchEvidenceResponse,
   ElasticsearchBindingUpdateRequest,
   ElasticsearchConnectionStatus,
   ElasticsearchIndex,
@@ -34,6 +36,7 @@ import type {
   StopListEntry,
   StopListUpdateRequest,
   SuggestionCreateRequest,
+  SuggestionEvidenceRefreshRequest,
   SuggestionReviewRequest,
   SuggestionStatus,
   TermAlias,
@@ -417,6 +420,13 @@ export function dryRunElasticsearchBinding(bindingId: number, payload: Elasticse
   });
 }
 
+export function findElasticsearchEvidence(bindingId: number, payload: ElasticsearchEvidenceRequest) {
+  return requestJson<ElasticsearchEvidenceResponse>(`/v1/governance/elasticsearch/bindings/${bindingId}/evidence`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function startElasticsearchEnrichmentJob(bindingId: number, payload: ElasticsearchEnrichmentJobCreateRequest = {}) {
   return requestJson<ElasticsearchEnrichmentJob>(`/v1/governance/elasticsearch/bindings/${bindingId}/jobs`, {
     method: "POST",
@@ -443,6 +453,16 @@ export function createSuggestion(profileName: string, payload: SuggestionCreateR
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function refreshSuggestionEvidence(profileName: string, suggestionId: number, payload: SuggestionEvidenceRefreshRequest) {
+  return requestJson<GovernanceSuggestion>(
+    `/v1/governance/profiles/${encodePathSegment(profileName)}/suggestions/${suggestionId}/evidence/refresh`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export function approveSuggestion(profileName: string, suggestionId: number, payload: SuggestionReviewRequest = {}) {

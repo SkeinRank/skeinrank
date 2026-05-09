@@ -9,6 +9,7 @@ import type {
   ElasticsearchBinding,
   ElasticsearchBindingDryRunResponse,
   ElasticsearchEnrichmentJob,
+  ElasticsearchEvidenceResponse,
   ElasticsearchIndex,
   ElasticsearchIndexMapping,
   GlobalStopListEntry,
@@ -49,7 +50,6 @@ const contributorUser: AuthUser = {
   display_name: "Contributor User",
   role: "contributor",
 };
-
 
 const personalApiTokens: ApiToken[] = [
   {
@@ -145,8 +145,6 @@ const terms: CanonicalTerm[] = [
   },
 ];
 
-
-
 const globalStopListEntries: GlobalStopListEntry[] = [
   {
     id: 1,
@@ -238,9 +236,20 @@ const elasticsearchDryRunResponse: ElasticsearchBindingDryRunResponse = {
       document_id: "doc-1",
       index_name: "docs",
       text_preview: "K8s rollout failed in the infra namespace.",
-      source_preview: { title: ["K8s rollout failed"], body: ["Kube rollout failed"], team: ["infra"], created_at: ["2026-05-08T00:00:00Z"] },
+      source_preview: {
+        title: ["K8s rollout failed"],
+        body: ["Kube rollout failed"],
+        team: ["infra"],
+        created_at: ["2026-05-08T00:00:00Z"],
+      },
       matched_aliases: [
-        { alias_value: "k8s", canonical_value: "kubernetes", slot: "TOOL", matched_text: "k8s", confidence: 0.97 },
+        {
+          alias_value: "k8s",
+          canonical_value: "kubernetes",
+          slot: "TOOL",
+          matched_text: "k8s",
+          confidence: 0.97,
+        },
       ],
       would_write: {
         skeinrank: {
@@ -256,7 +265,6 @@ const elasticsearchDryRunResponse: ElasticsearchBindingDryRunResponse = {
     },
   ],
 };
-
 
 const elasticsearchJobs: ElasticsearchEnrichmentJob[] = [
   {
@@ -274,7 +282,12 @@ const elasticsearchJobs: ElasticsearchEnrichmentJob[] = [
     documents_seen: 12,
     documents_enriched: 10,
     documents_failed: 2,
-    result_json: { updated_document_ids: ["doc-1"], errors: ["doc-2 failed"], timestamp_field: "created_at", time_window_days: 1825 },
+    result_json: {
+      updated_document_ids: ["doc-1"],
+      errors: ["doc-2 failed"],
+      timestamp_field: "created_at",
+      time_window_days: 1825,
+    },
     error_message: null,
     started_at: "2026-05-08T10:00:00Z",
     finished_at: "2026-05-08T10:01:00Z",
@@ -291,12 +304,42 @@ const elasticsearchIndices: ElasticsearchIndex[] = [
 const elasticsearchMapping: ElasticsearchIndexMapping = {
   index_name: "docs",
   fields: [
-    { name: "title", type: "text", is_text_candidate: true, is_discriminator_candidate: false },
-    { name: "body", type: "text", is_text_candidate: true, is_discriminator_candidate: false },
-    { name: "summary", type: "text", is_text_candidate: true, is_discriminator_candidate: false },
-    { name: "team", type: "keyword", is_text_candidate: false, is_discriminator_candidate: true },
-    { name: "space", type: "keyword", is_text_candidate: false, is_discriminator_candidate: true },
-    { name: "created_at", type: "date", is_text_candidate: false, is_discriminator_candidate: true },
+    {
+      name: "title",
+      type: "text",
+      is_text_candidate: true,
+      is_discriminator_candidate: false,
+    },
+    {
+      name: "body",
+      type: "text",
+      is_text_candidate: true,
+      is_discriminator_candidate: false,
+    },
+    {
+      name: "summary",
+      type: "text",
+      is_text_candidate: true,
+      is_discriminator_candidate: false,
+    },
+    {
+      name: "team",
+      type: "keyword",
+      is_text_candidate: false,
+      is_discriminator_candidate: true,
+    },
+    {
+      name: "space",
+      type: "keyword",
+      is_text_candidate: false,
+      is_discriminator_candidate: true,
+    },
+    {
+      name: "created_at",
+      type: "date",
+      is_text_candidate: false,
+      is_discriminator_candidate: true,
+    },
   ],
 };
 
@@ -321,10 +364,35 @@ const suggestions: GovernanceSuggestion[] = [
     reviewed_by: null,
     review_comment: null,
     reviewed_at: null,
+    evidence_snapshot: null,
+    evidence_checked_by: null,
+    evidence_checked_at: null,
     created_at: "2026-05-06T00:00:00Z",
     updated_at: "2026-05-06T00:00:00Z",
   },
 ];
+
+const elasticsearchEvidenceResponse: ElasticsearchEvidenceResponse = {
+  binding: elasticsearchBindings[0],
+  query: "kube",
+  normalized_query: "kube",
+  canonical_value: "kubernetes",
+  max_documents: 5,
+  warnings: [],
+  documents: [
+    {
+      document_id: "doc-1",
+      index_name: "docs",
+      field: "body",
+      fragment: "This runbook explains kube rollout failures.",
+      highlighted_fragment:
+        "This runbook explains <mark>kube</mark> rollout failures.",
+      matched_text: "kube",
+      match_start: 22,
+      match_end: 26,
+    },
+  ],
+};
 
 type StubOptions = {
   authRequired?: boolean;
@@ -357,7 +425,9 @@ function cloneSuggestions() {
 }
 
 function cloneGlobalStopListEntries() {
-  return JSON.parse(JSON.stringify(globalStopListEntries)) as GlobalStopListEntry[];
+  return JSON.parse(
+    JSON.stringify(globalStopListEntries),
+  ) as GlobalStopListEntry[];
 }
 
 function cloneStopListEntries() {
@@ -365,19 +435,27 @@ function cloneStopListEntries() {
 }
 
 function cloneElasticsearchBindings() {
-  return JSON.parse(JSON.stringify(elasticsearchBindings)) as ElasticsearchBinding[];
+  return JSON.parse(
+    JSON.stringify(elasticsearchBindings),
+  ) as ElasticsearchBinding[];
 }
 
 function cloneElasticsearchJobs() {
-  return JSON.parse(JSON.stringify(elasticsearchJobs)) as ElasticsearchEnrichmentJob[];
+  return JSON.parse(
+    JSON.stringify(elasticsearchJobs),
+  ) as ElasticsearchEnrichmentJob[];
 }
 
 function cloneElasticsearchIndices() {
-  return JSON.parse(JSON.stringify(elasticsearchIndices)) as ElasticsearchIndex[];
+  return JSON.parse(
+    JSON.stringify(elasticsearchIndices),
+  ) as ElasticsearchIndex[];
 }
 
 function cloneElasticsearchMapping(indexName = "docs") {
-  const mapping = JSON.parse(JSON.stringify(elasticsearchMapping)) as ElasticsearchIndexMapping;
+  const mapping = JSON.parse(
+    JSON.stringify(elasticsearchMapping),
+  ) as ElasticsearchIndexMapping;
   mapping.index_name = indexName;
   return mapping;
 }
@@ -490,7 +568,9 @@ function stubGovernanceApi(options: StubOptions = {}) {
           display_name: payload.display_name ?? null,
           role: payload.role ?? contributorUser.role,
           status: payload.status ?? contributorUser.status,
-          is_active: payload.is_active ?? ((payload.status ?? contributorUser.status) === "active"),
+          is_active:
+            payload.is_active ??
+            (payload.status ?? contributorUser.status) === "active",
           updated_at: "2026-05-06T00:00:00Z",
         };
         currentUsers = currentUsers.map((user) =>
@@ -499,8 +579,13 @@ function stubGovernanceApi(options: StubOptions = {}) {
         return Response.json(updated);
       }
 
-      if (url.endsWith("/v1/auth/users/contributor/status") && method === "PATCH") {
-        const payload = JSON.parse(init?.body?.toString() ?? "{}") as { status: AuthUser["status"] };
+      if (
+        url.endsWith("/v1/auth/users/contributor/status") &&
+        method === "PATCH"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          status: AuthUser["status"];
+        };
         const updated: AuthUser = {
           ...contributorUser,
           status: payload.status,
@@ -513,8 +598,14 @@ function stubGovernanceApi(options: StubOptions = {}) {
         return Response.json(updated);
       }
 
-      if (url.endsWith("/v1/auth/users/contributor/revoke-api-tokens") && method === "POST") {
-        return Response.json({ username: "contributor", revoked_api_tokens: 2 });
+      if (
+        url.endsWith("/v1/auth/users/contributor/revoke-api-tokens") &&
+        method === "POST"
+      ) {
+        return Response.json({
+          username: "contributor",
+          revoked_api_tokens: 2,
+        });
       }
 
       if (url.endsWith("/v1/auth/users/contributor") && method === "DELETE") {
@@ -534,30 +625,35 @@ function stubGovernanceApi(options: StubOptions = {}) {
           name: string;
           scopes: string[];
         };
-        const token: ApiToken & { access_token: string; token_type: "bearer" } = {
-          id: nextPersonalTokenId++,
-          name: payload.name,
-          token_prefix: "sk_pat_new",
-          scopes: payload.scopes,
-          owner_type: "personal",
-          owner_name: currentUser.username,
-          expires_at: payload.expires_in_days ? "2026-08-01T00:00:00Z" : null,
-          revoked_at: null,
-          last_used_at: null,
-          created_by: currentUser.username,
-          created_at: "2026-05-09T00:00:00Z",
-          updated_at: "2026-05-09T00:00:00Z",
-          access_token: "sk_pat_plaintext",
-          token_type: "bearer",
-        };
+        const token: ApiToken & { access_token: string; token_type: "bearer" } =
+          {
+            id: nextPersonalTokenId++,
+            name: payload.name,
+            token_prefix: "sk_pat_new",
+            scopes: payload.scopes,
+            owner_type: "personal",
+            owner_name: currentUser.username,
+            expires_at: payload.expires_in_days ? "2026-08-01T00:00:00Z" : null,
+            revoked_at: null,
+            last_used_at: null,
+            created_by: currentUser.username,
+            created_at: "2026-05-09T00:00:00Z",
+            updated_at: "2026-05-09T00:00:00Z",
+            access_token: "sk_pat_plaintext",
+            token_type: "bearer",
+          };
         currentPersonalApiTokens = [token, ...currentPersonalApiTokens];
         return Response.json(token, { status: 201 });
       }
 
       if (url.match(/\/v1\/auth\/api-tokens\/(\d+)$/) && method === "DELETE") {
-        const tokenId = Number(url.match(/\/v1\/auth\/api-tokens\/(\d+)$/)?.[1] ?? "0");
+        const tokenId = Number(
+          url.match(/\/v1\/auth\/api-tokens\/(\d+)$/)?.[1] ?? "0",
+        );
         currentPersonalApiTokens = currentPersonalApiTokens.map((token) =>
-          token.id === tokenId ? { ...token, revoked_at: "2026-05-09T00:00:00Z" } : token,
+          token.id === tokenId
+            ? { ...token, revoked_at: "2026-05-09T00:00:00Z" }
+            : token,
         );
         return new Response(null, { status: 204 });
       }
@@ -594,9 +690,16 @@ function stubGovernanceApi(options: StubOptions = {}) {
         return Response.json(account, { status: 201 });
       }
 
-      if (url.endsWith("/v1/auth/service-accounts/migration-bot") && method === "PATCH") {
-        const payload = JSON.parse(init?.body?.toString() ?? "{}") as { is_active?: boolean | null };
-        const account = currentServiceAccounts.find((item) => item.name === "migration-bot");
+      if (
+        url.endsWith("/v1/auth/service-accounts/migration-bot") &&
+        method === "PATCH"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          is_active?: boolean | null;
+        };
+        const account = currentServiceAccounts.find(
+          (item) => item.name === "migration-bot",
+        );
         if (!account) {
           return Response.json({ detail: "not found" }, { status: 404 });
         }
@@ -605,48 +708,75 @@ function stubGovernanceApi(options: StubOptions = {}) {
           is_active: payload.is_active ?? account.is_active,
           updated_at: "2026-05-09T00:00:00Z",
         };
-        currentServiceAccounts = currentServiceAccounts.map((item) => item.name === "migration-bot" ? updated : item);
+        currentServiceAccounts = currentServiceAccounts.map((item) =>
+          item.name === "migration-bot" ? updated : item,
+        );
         return Response.json(updated);
       }
 
-      if (url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens$/) && method === "GET") {
-        const accountName = decodeURIComponent(url.match(/\/v1\/auth\/service-accounts\/([^/]+)\/tokens$/)?.[1] ?? "");
-        return Response.json(accountName === "migration-bot" ? currentServiceAccountTokens : []);
+      if (
+        url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens$/) &&
+        method === "GET"
+      ) {
+        const accountName = decodeURIComponent(
+          url.match(/\/v1\/auth\/service-accounts\/([^/]+)\/tokens$/)?.[1] ??
+            "",
+        );
+        return Response.json(
+          accountName === "migration-bot" ? currentServiceAccountTokens : [],
+        );
       }
 
-      if (url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens$/) && method === "POST") {
-        const accountName = decodeURIComponent(url.match(/\/v1\/auth\/service-accounts\/([^/]+)\/tokens$/)?.[1] ?? "migration-bot");
+      if (
+        url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens$/) &&
+        method === "POST"
+      ) {
+        const accountName = decodeURIComponent(
+          url.match(/\/v1\/auth\/service-accounts\/([^/]+)\/tokens$/)?.[1] ??
+            "migration-bot",
+        );
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           expires_in_days?: number | null;
           name: string;
           scopes: string[];
         };
-        const token: ApiToken & { access_token: string; token_type: "bearer" } = {
-          id: nextServiceAccountTokenId++,
-          name: payload.name,
-          token_prefix: "sk_sat_new",
-          scopes: payload.scopes,
-          owner_type: "service_account",
-          owner_name: accountName,
-          expires_at: payload.expires_in_days ? "2026-08-01T00:00:00Z" : null,
-          revoked_at: null,
-          last_used_at: null,
-          created_by: currentUser.username,
-          created_at: "2026-05-09T00:00:00Z",
-          updated_at: "2026-05-09T00:00:00Z",
-          access_token: "sk_sat_plaintext",
-          token_type: "bearer",
-        };
+        const token: ApiToken & { access_token: string; token_type: "bearer" } =
+          {
+            id: nextServiceAccountTokenId++,
+            name: payload.name,
+            token_prefix: "sk_sat_new",
+            scopes: payload.scopes,
+            owner_type: "service_account",
+            owner_name: accountName,
+            expires_at: payload.expires_in_days ? "2026-08-01T00:00:00Z" : null,
+            revoked_at: null,
+            last_used_at: null,
+            created_by: currentUser.username,
+            created_at: "2026-05-09T00:00:00Z",
+            updated_at: "2026-05-09T00:00:00Z",
+            access_token: "sk_sat_plaintext",
+            token_type: "bearer",
+          };
         if (accountName === "migration-bot") {
           currentServiceAccountTokens = [token, ...currentServiceAccountTokens];
         }
         return Response.json(token, { status: 201 });
       }
 
-      if (url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens\/(\d+)$/) && method === "DELETE") {
-        const tokenId = Number(url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens\/(\d+)$/)?.[1] ?? "0");
-        currentServiceAccountTokens = currentServiceAccountTokens.map((token) =>
-          token.id === tokenId ? { ...token, revoked_at: "2026-05-09T00:00:00Z" } : token,
+      if (
+        url.match(/\/v1\/auth\/service-accounts\/[^/]+\/tokens\/(\d+)$/) &&
+        method === "DELETE"
+      ) {
+        const tokenId = Number(
+          url.match(
+            /\/v1\/auth\/service-accounts\/[^/]+\/tokens\/(\d+)$/,
+          )?.[1] ?? "0",
+        );
+        currentServiceAccountTokens = currentServiceAccountTokens.map(
+          (token) =>
+            token.id === tokenId
+              ? { ...token, revoked_at: "2026-05-09T00:00:00Z" }
+              : token,
         );
         return new Response(null, { status: 204 });
       }
@@ -704,12 +834,14 @@ function stubGovernanceApi(options: StubOptions = {}) {
         return new Response(null, { status: 204 });
       }
 
-
       if (url.endsWith("/v1/governance/global-stop-list") && method === "GET") {
         return Response.json(currentGlobalStopListEntries);
       }
 
-      if (url.endsWith("/v1/governance/global-stop-list") && method === "POST") {
+      if (
+        url.endsWith("/v1/governance/global-stop-list") &&
+        method === "POST"
+      ) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           is_active?: boolean;
           reason?: string | null;
@@ -730,34 +862,46 @@ function stubGovernanceApi(options: StubOptions = {}) {
         return Response.json(entry, { status: 201 });
       }
 
-      if (url.endsWith("/v1/governance/global-stop-list/1") && method === "PATCH") {
+      if (
+        url.endsWith("/v1/governance/global-stop-list/1") &&
+        method === "PATCH"
+      ) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           is_active?: boolean | null;
           reason?: string | null;
           target?: GlobalStopListEntry["target"] | null;
           value?: string | null;
         };
-        const existingEntry = currentGlobalStopListEntries.find((entry) => entry.id === 1);
+        const existingEntry = currentGlobalStopListEntries.find(
+          (entry) => entry.id === 1,
+        );
         if (!existingEntry) {
           return Response.json({ detail: "not found" }, { status: 404 });
         }
         const updatedEntry: GlobalStopListEntry = {
           ...existingEntry,
           value: payload.value ?? existingEntry.value,
-          normalized_value: (payload.value ?? existingEntry.value).toLowerCase(),
+          normalized_value: (
+            payload.value ?? existingEntry.value
+          ).toLowerCase(),
           target: payload.target ?? existingEntry.target,
           reason: payload.reason ?? null,
           is_active: payload.is_active ?? existingEntry.is_active,
           updated_at: "2026-05-08T00:00:00Z",
         };
-        currentGlobalStopListEntries = currentGlobalStopListEntries.map((entry) =>
-          entry.id === 1 ? updatedEntry : entry,
+        currentGlobalStopListEntries = currentGlobalStopListEntries.map(
+          (entry) => (entry.id === 1 ? updatedEntry : entry),
         );
         return Response.json(updatedEntry);
       }
 
-      if (url.endsWith("/v1/governance/global-stop-list/1") && method === "DELETE") {
-        currentGlobalStopListEntries = currentGlobalStopListEntries.filter((entry) => entry.id !== 1);
+      if (
+        url.endsWith("/v1/governance/global-stop-list/1") &&
+        method === "DELETE"
+      ) {
+        currentGlobalStopListEntries = currentGlobalStopListEntries.filter(
+          (entry) => entry.id !== 1,
+        );
         return new Response(null, { status: 204 });
       }
 
@@ -803,14 +947,18 @@ function stubGovernanceApi(options: StubOptions = {}) {
           target?: StopListEntry["target"] | null;
           value?: string | null;
         };
-        const existingEntry = currentStopListEntries.find((entry) => entry.id === 1);
+        const existingEntry = currentStopListEntries.find(
+          (entry) => entry.id === 1,
+        );
         if (!existingEntry) {
           return Response.json({ detail: "not found" }, { status: 404 });
         }
         const updatedEntry: StopListEntry = {
           ...existingEntry,
           value: payload.value ?? existingEntry.value,
-          normalized_value: (payload.value ?? existingEntry.value).toLowerCase(),
+          normalized_value: (
+            payload.value ?? existingEntry.value
+          ).toLowerCase(),
           target: payload.target ?? existingEntry.target,
           reason: payload.reason ?? null,
           is_active: payload.is_active ?? existingEntry.is_active,
@@ -826,11 +974,16 @@ function stubGovernanceApi(options: StubOptions = {}) {
         url.endsWith("/v1/governance/profiles/default_it/stop-list/1") &&
         method === "DELETE"
       ) {
-        currentStopListEntries = currentStopListEntries.filter((entry) => entry.id !== 1);
+        currentStopListEntries = currentStopListEntries.filter(
+          (entry) => entry.id !== 1,
+        );
         return new Response(null, { status: 204 });
       }
 
-      if (url.endsWith("/v1/governance/elasticsearch/connection/status") && method === "GET") {
+      if (
+        url.endsWith("/v1/governance/elasticsearch/connection/status") &&
+        method === "GET"
+      ) {
         return Response.json({
           configured: true,
           ok: true,
@@ -841,24 +994,43 @@ function stubGovernanceApi(options: StubOptions = {}) {
         });
       }
 
-      if (url.endsWith("/v1/governance/elasticsearch/indices") && method === "GET") {
+      if (
+        url.endsWith("/v1/governance/elasticsearch/indices") &&
+        method === "GET"
+      ) {
         return Response.json(cloneElasticsearchIndices());
       }
 
-      if (url.includes("/v1/governance/elasticsearch/indices/") && url.endsWith("/mapping") && method === "GET") {
-        const indexName = decodeURIComponent(url.split("/v1/governance/elasticsearch/indices/")[1].replace("/mapping", ""));
+      if (
+        url.includes("/v1/governance/elasticsearch/indices/") &&
+        url.endsWith("/mapping") &&
+        method === "GET"
+      ) {
+        const indexName = decodeURIComponent(
+          url
+            .split("/v1/governance/elasticsearch/indices/")[1]
+            .replace("/mapping", ""),
+        );
         return Response.json(cloneElasticsearchMapping(indexName));
       }
 
-      if (url.includes("/v1/governance/elasticsearch/bindings") && method === "GET") {
+      if (
+        url.includes("/v1/governance/elasticsearch/bindings") &&
+        method === "GET"
+      ) {
         const profileName = new URL(url).searchParams.get("profile_name");
         const visibleBindings = profileName
-          ? currentElasticsearchBindings.filter((binding) => binding.profile_name === profileName)
+          ? currentElasticsearchBindings.filter(
+              (binding) => binding.profile_name === profileName,
+            )
           : currentElasticsearchBindings;
         return Response.json(visibleBindings);
       }
 
-      if (url.endsWith("/v1/governance/elasticsearch/bindings") && method === "POST") {
+      if (
+        url.endsWith("/v1/governance/elasticsearch/bindings") &&
+        method === "POST"
+      ) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           description?: string | null;
           filter_field?: string | null;
@@ -895,31 +1067,49 @@ function stubGovernanceApi(options: StubOptions = {}) {
           created_at: "2026-05-07T00:00:00Z",
           updated_at: "2026-05-07T00:00:00Z",
         };
-        currentElasticsearchBindings = [binding, ...currentElasticsearchBindings];
+        currentElasticsearchBindings = [
+          binding,
+          ...currentElasticsearchBindings,
+        ];
         return Response.json(binding, { status: 201 });
       }
 
-
-      if (url.includes("/v1/governance/elasticsearch/jobs") && method === "GET") {
-        const jobIdMatch = url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)$/);
+      if (
+        url.includes("/v1/governance/elasticsearch/jobs") &&
+        method === "GET"
+      ) {
+        const jobIdMatch = url.match(
+          /\/v1\/governance\/elasticsearch\/jobs\/(\d+)$/,
+        );
         if (jobIdMatch) {
-          const job = currentElasticsearchJobs.find((currentJob) => currentJob.id === Number(jobIdMatch[1]));
-          return job ? Response.json(job) : Response.json({ detail: "not found" }, { status: 404 });
+          const job = currentElasticsearchJobs.find(
+            (currentJob) => currentJob.id === Number(jobIdMatch[1]),
+          );
+          return job
+            ? Response.json(job)
+            : Response.json({ detail: "not found" }, { status: 404 });
         }
         const bindingId = new URL(url).searchParams.get("binding_id");
         const visibleJobs = bindingId
-          ? currentElasticsearchJobs.filter((job) => job.binding_id === Number(bindingId))
+          ? currentElasticsearchJobs.filter(
+              (job) => job.binding_id === Number(bindingId),
+            )
           : currentElasticsearchJobs;
         return Response.json(visibleJobs);
       }
 
-      if (url.endsWith("/v1/governance/elasticsearch/bindings/1/jobs") && method === "POST") {
+      if (
+        url.endsWith("/v1/governance/elasticsearch/bindings/1/jobs") &&
+        method === "POST"
+      ) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           alias_name?: string | null;
           max_documents?: number;
           target_index_name?: string | null;
         };
-        const existingBinding = currentElasticsearchBindings.find((binding) => binding.id === 1);
+        const existingBinding = currentElasticsearchBindings.find(
+          (binding) => binding.id === 1,
+        );
         if (!existingBinding) {
           return Response.json({ detail: "not found" }, { status: 404 });
         }
@@ -933,7 +1123,9 @@ function stubGovernanceApi(options: StubOptions = {}) {
           status: "succeeded",
           write_strategy: existingBinding.write_strategy,
           source_index: existingBinding.index_name,
-          target_index: payload.target_index_name ?? `${existingBinding.index_name}__skeinrank_job_${jobId}`,
+          target_index:
+            payload.target_index_name ??
+            `${existingBinding.index_name}__skeinrank_job_${jobId}`,
           alias_name: payload.alias_name ?? existingBinding.index_name,
           requested_by: currentUser.username,
           documents_seen: payload.max_documents ?? 1000,
@@ -954,20 +1146,70 @@ function stubGovernanceApi(options: StubOptions = {}) {
         return Response.json(job, { status: 201 });
       }
 
-      if (url.endsWith("/v1/governance/elasticsearch/bindings/1/dry-run") && method === "POST") {
+      if (
+        url.endsWith("/v1/governance/elasticsearch/bindings/1/dry-run") &&
+        method === "POST"
+      ) {
         return Response.json(elasticsearchDryRunResponse);
       }
 
-      if (url.endsWith("/v1/governance/elasticsearch/bindings/1") && method === "PATCH") {
-        const payload = JSON.parse(init?.body?.toString() ?? "{}") as Partial<ElasticsearchBinding> & { profile_name?: string | null; text_fields?: string[] | null };
-        const existingBinding = currentElasticsearchBindings.find((binding) => binding.id === 1);
+      if (
+        url.endsWith("/v1/governance/elasticsearch/bindings/1/evidence") &&
+        method === "POST"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          query?: string;
+          canonical_value?: string | null;
+          max_documents?: number;
+        };
+        const query = payload.query ?? elasticsearchEvidenceResponse.query;
+        const fragment = `Evidence mentions ${query} in runbook docs.`;
+        const matchStart = "Evidence mentions ".length;
+        return Response.json({
+          ...elasticsearchEvidenceResponse,
+          query,
+          normalized_query: query.toLowerCase(),
+          canonical_value:
+            payload.canonical_value ??
+            elasticsearchEvidenceResponse.canonical_value,
+          max_documents:
+            payload.max_documents ??
+            elasticsearchEvidenceResponse.max_documents,
+          documents: [
+            {
+              ...elasticsearchEvidenceResponse.documents[0],
+              fragment,
+              highlighted_fragment: `Evidence mentions <mark>${query}</mark> in runbook docs.`,
+              matched_text: query,
+              match_start: matchStart,
+              match_end: matchStart + query.length,
+            },
+          ],
+        });
+      }
+
+      if (
+        url.endsWith("/v1/governance/elasticsearch/bindings/1") &&
+        method === "PATCH"
+      ) {
+        const payload = JSON.parse(
+          init?.body?.toString() ?? "{}",
+        ) as Partial<ElasticsearchBinding> & {
+          profile_name?: string | null;
+          text_fields?: string[] | null;
+        };
+        const existingBinding = currentElasticsearchBindings.find(
+          (binding) => binding.id === 1,
+        );
         if (!existingBinding) {
           return Response.json({ detail: "not found" }, { status: 404 });
         }
         const updatedBinding: ElasticsearchBinding = {
           ...existingBinding,
           name: payload.name ?? existingBinding.name,
-          normalized_name: (payload.name ?? existingBinding.name).toLowerCase().replace(/\s+/g, "_"),
+          normalized_name: (payload.name ?? existingBinding.name)
+            .toLowerCase()
+            .replace(/\s+/g, "_"),
           profile_name: payload.profile_name ?? existingBinding.profile_name,
           description: payload.description ?? null,
           index_name: payload.index_name ?? existingBinding.index_name,
@@ -978,16 +1220,24 @@ function stubGovernanceApi(options: StubOptions = {}) {
           timestamp_field: payload.timestamp_field ?? null,
           time_window_days: payload.time_window_days ?? null,
           mode: payload.mode ?? existingBinding.mode,
-          write_strategy: payload.write_strategy ?? existingBinding.write_strategy,
+          write_strategy:
+            payload.write_strategy ?? existingBinding.write_strategy,
           is_enabled: payload.is_enabled ?? existingBinding.is_enabled,
           updated_at: "2026-05-07T00:00:00Z",
         };
-        currentElasticsearchBindings = currentElasticsearchBindings.map((binding) => binding.id === 1 ? updatedBinding : binding);
+        currentElasticsearchBindings = currentElasticsearchBindings.map(
+          (binding) => (binding.id === 1 ? updatedBinding : binding),
+        );
         return Response.json(updatedBinding);
       }
 
-      if (url.endsWith("/v1/governance/elasticsearch/bindings/1") && method === "DELETE") {
-        currentElasticsearchBindings = currentElasticsearchBindings.filter((binding) => binding.id !== 1);
+      if (
+        url.endsWith("/v1/governance/elasticsearch/bindings/1") &&
+        method === "DELETE"
+      ) {
+        currentElasticsearchBindings = currentElasticsearchBindings.filter(
+          (binding) => binding.id !== 1,
+        );
         return new Response(null, { status: 204 });
       }
 
@@ -1179,9 +1429,9 @@ function stubGovernanceApi(options: StubOptions = {}) {
           profile_id: 1,
           term_id:
             suggestionType === "alias"
-              ? currentTerms.find(
+              ? (currentTerms.find(
                   (term) => term.canonical_value === payload.canonical_value,
-                )?.id ?? null
+                )?.id ?? null)
               : null,
           alias_id: null,
           suggestion_type: suggestionType,
@@ -1199,11 +1449,63 @@ function stubGovernanceApi(options: StubOptions = {}) {
           reviewed_by: null,
           review_comment: null,
           reviewed_at: null,
+          evidence_snapshot: null,
+          evidence_checked_by: null,
+          evidence_checked_at: null,
           created_at: "2026-05-06T00:00:00Z",
           updated_at: "2026-05-06T00:00:00Z",
         };
         currentSuggestions = [suggestion, ...currentSuggestions];
         return Response.json(suggestion, { status: 201 });
+      }
+
+      if (
+        url.includes("/v1/governance/profiles/default_it/suggestions/") &&
+        url.endsWith("/evidence/refresh") &&
+        method === "POST"
+      ) {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          binding_id: number;
+          query?: string | null;
+          max_documents?: number;
+        };
+        const suggestionId = Number(
+          url.match(/suggestions\/(\d+)\/evidence\/refresh/)?.[1] ?? "0",
+        );
+        const currentSuggestion =
+          currentSuggestions.find(
+            (suggestion) => suggestion.id === suggestionId,
+          ) ?? currentSuggestions[0];
+        const query =
+          payload.query ??
+          currentSuggestion.alias_value ??
+          currentSuggestion.canonical_value;
+        const updatedSuggestion: GovernanceSuggestion = {
+          ...currentSuggestion,
+          evidence_snapshot: {
+            binding_id: payload.binding_id,
+            binding_name: "infra docs",
+            index_name: "docs",
+            profile_name: "default_it",
+            query,
+            normalized_query: query.toLowerCase(),
+            canonical_value: currentSuggestion.canonical_value,
+            max_documents: payload.max_documents ?? 5,
+            documents: elasticsearchEvidenceResponse.documents.map(
+              (document) => ({ ...document }),
+            ),
+            warnings: [],
+          },
+          evidence_checked_by: currentUser.username,
+          evidence_checked_at: "2026-05-09T00:00:00Z",
+          updated_at: "2026-05-09T00:00:00Z",
+        };
+        currentSuggestions = currentSuggestions.map((suggestion) =>
+          suggestion.id === currentSuggestion.id
+            ? updatedSuggestion
+            : suggestion,
+        );
+        return Response.json(updatedSuggestion);
       }
 
       if (
@@ -1214,10 +1516,13 @@ function stubGovernanceApi(options: StubOptions = {}) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           review_comment?: string | null;
         };
-        const suggestionId = Number(url.match(/suggestions\/(\d+)\/approve/)?.[1] ?? "0");
+        const suggestionId = Number(
+          url.match(/suggestions\/(\d+)\/approve/)?.[1] ?? "0",
+        );
         const currentSuggestion =
-          currentSuggestions.find((suggestion) => suggestion.id === suggestionId) ??
-          currentSuggestions[0];
+          currentSuggestions.find(
+            (suggestion) => suggestion.id === suggestionId,
+          ) ?? currentSuggestions[0];
         let aliasId = currentSuggestion.alias_id;
         let termId = currentSuggestion.term_id;
         if (currentSuggestion.suggestion_type === "alias") {
@@ -1263,7 +1568,9 @@ function stubGovernanceApi(options: StubOptions = {}) {
           updated_at: "2026-05-06T00:00:00Z",
         };
         currentSuggestions = currentSuggestions.map((suggestion) =>
-          suggestion.id === currentSuggestion.id ? updatedSuggestion : suggestion,
+          suggestion.id === currentSuggestion.id
+            ? updatedSuggestion
+            : suggestion,
         );
         return Response.json(updatedSuggestion);
       }
@@ -1276,10 +1583,13 @@ function stubGovernanceApi(options: StubOptions = {}) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           review_comment?: string | null;
         };
-        const suggestionId = Number(url.match(/suggestions\/(\d+)\/reject/)?.[1] ?? "0");
+        const suggestionId = Number(
+          url.match(/suggestions\/(\d+)\/reject/)?.[1] ?? "0",
+        );
         const currentSuggestion =
-          currentSuggestions.find((suggestion) => suggestion.id === suggestionId) ??
-          currentSuggestions[0];
+          currentSuggestions.find(
+            (suggestion) => suggestion.id === suggestionId,
+          ) ?? currentSuggestions[0];
         const updatedSuggestion: GovernanceSuggestion = {
           ...currentSuggestion,
           status: "rejected",
@@ -1289,7 +1599,9 @@ function stubGovernanceApi(options: StubOptions = {}) {
           updated_at: "2026-05-06T00:00:00Z",
         };
         currentSuggestions = currentSuggestions.map((suggestion) =>
-          suggestion.id === currentSuggestion.id ? updatedSuggestion : suggestion,
+          suggestion.id === currentSuggestion.id
+            ? updatedSuggestion
+            : suggestion,
         );
         return Response.json(updatedSuggestion);
       }
@@ -1644,6 +1956,37 @@ describe("App", () => {
     );
   });
 
+  it("lets admins check Elasticsearch evidence for terms", async () => {
+    const fetchMock = stubGovernanceApi();
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    expect(await screen.findByText("Evidence check")).toBeInTheDocument();
+    expect(await screen.findByText("infra docs · docs")).toBeInTheDocument();
+
+    const checkEvidenceButtons = screen.getAllByRole("button", {
+      name: "Check evidence",
+    });
+    fireEvent.click(checkEvidenceButtons[checkEvidenceButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1/evidence",
+        expect.objectContaining({
+          body: JSON.stringify({
+            canonical_value: "kubernetes",
+            max_documents: 5,
+            query: "kubernetes",
+          }),
+          method: "POST",
+        }),
+      );
+    });
+    expect(await screen.findByText(/Evidence mentions/)).toBeInTheDocument();
+    expect(screen.getAllByText("kubernetes").length).toBeGreaterThan(0);
+  });
+
   it("exports and downloads the runtime snapshot JSON", async () => {
     const fetchMock = stubGovernanceApi();
     const createObjectUrl = vi.fn(() => "blob:skeinrank-snapshot");
@@ -1666,9 +2009,13 @@ describe("App", () => {
     await screen.findByText("kubernetes");
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Export draft snapshot" })).not.toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Export draft snapshot" }),
+      ).not.toBeDisabled();
     });
-    fireEvent.click(screen.getByRole("button", { name: "Export draft snapshot" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Export draft snapshot" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1825,7 +2172,9 @@ describe("App", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Revoke all API tokens" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Revoke all API tokens" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1844,7 +2193,6 @@ describe("App", () => {
     });
   });
 
-
   it("lets admins manage global stop-list guardrails", async () => {
     const fetchMock = stubGovernanceApi();
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -1859,7 +2207,9 @@ describe("App", () => {
       expect(screen.getAllByText("unknown").length).toBeGreaterThan(0);
     });
     expect(screen.getByText("Inherited global stop list")).toBeInTheDocument();
-    expect(screen.getByText("Too generic across every profile")).toBeInTheDocument();
+    expect(
+      screen.getByText("Too generic across every profile"),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Global blocked value"), {
       target: { value: "noise" },
@@ -1870,7 +2220,9 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Global reason"), {
       target: { value: "Generic global placeholder" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add to global stop list" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add to global stop list" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1886,7 +2238,9 @@ describe("App", () => {
         }),
       );
     });
-    expect((await screen.findAllByText("noise")).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText("noise")).length).toBeGreaterThanOrEqual(
+      1,
+    );
 
     fireEvent.click(screen.getAllByText("unknown")[0]);
     fireEvent.change(screen.getByLabelText("Edit global blocked value"), {
@@ -1899,7 +2253,9 @@ describe("App", () => {
       target: { value: "Reserved global placeholder" },
     });
     fireEvent.click(screen.getByLabelText("Active global guardrail"));
-    fireEvent.click(screen.getByRole("button", { name: "Save global stop-list entry" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save global stop-list entry" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1916,7 +2272,9 @@ describe("App", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete global stop-list entry" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete global stop-list entry" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1934,7 +2292,9 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
 
-    expect(await screen.findByText("Inherited global stop list")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Inherited global stop list"),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("unknown").length).toBeGreaterThan(0);
     });
@@ -1949,7 +2309,9 @@ describe("App", () => {
     expect(
       await screen.findByText(/This value is already blocked globally/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add to stop list" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Add to stop list" }),
+    ).toBeDisabled();
   });
 
   it("lets admins manage profile stop-list guardrails", async () => {
@@ -1961,11 +2323,17 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
 
-    expect(await screen.findByText("Manage stop lists that block noisy or unsafe terminology changes.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Manage stop lists that block noisy or unsafe terminology changes.",
+      ),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("service").length).toBeGreaterThan(0);
     });
-    expect(screen.getByText("Too generic for incident search")).toBeInTheDocument();
+    expect(
+      screen.getByText("Too generic for incident search"),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Blocked value"), {
       target: { value: "app" },
@@ -1992,7 +2360,9 @@ describe("App", () => {
         }),
       );
     });
-    expect((await screen.findAllByText("app")).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText("app")).length).toBeGreaterThanOrEqual(
+      1,
+    );
 
     fireEvent.click(screen.getAllByText("service")[0]);
     fireEvent.change(screen.getByLabelText("Edit blocked value"), {
@@ -2005,7 +2375,9 @@ describe("App", () => {
       target: { value: "Reserved internal abbreviation" },
     });
     fireEvent.click(screen.getByLabelText("Active guardrail"));
-    fireEvent.click(screen.getByRole("button", { name: "Save stop-list entry" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save stop-list entry" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -2022,7 +2394,9 @@ describe("App", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete stop-list entry" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete stop-list entry" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -2043,11 +2417,25 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getAllByText("service").length).toBeGreaterThan(0);
     });
-    expect(screen.getByRole("button", { name: "Add to stop list" })).toBeDisabled();
-    expect(screen.getByText("Your role can inspect guardrails, but only admins and moderators can update stop lists.")).toBeInTheDocument();
-    expect(screen.getByText("Contributors can inspect stop lists, but only admins and moderators can update guardrails.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save stop-list entry" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Delete stop-list entry" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Add to stop list" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Your role can inspect guardrails, but only admins and moderators can update stop lists.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Contributors can inspect stop lists, but only admins and moderators can update guardrails.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save stop-list entry" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Delete stop-list entry" }),
+    ).toBeDisabled();
   });
 
   it("lets admins manage Elasticsearch enrichment bindings", async () => {
@@ -2059,14 +2447,18 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
-    expect(await screen.findByText("Elasticsearch bindings")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Elasticsearch bindings"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });
     fireEvent.click(screen.getAllByText("infra docs")[0]);
     await waitFor(() => {
-      expect(screen.getByLabelText("Edit description")).toHaveValue("Apply default IT terms to docs.");
+      expect(screen.getByLabelText("Edit description")).toHaveValue(
+        "Apply default IT terms to docs.",
+      );
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Run dry-run" }));
@@ -2086,9 +2478,15 @@ describe("App", () => {
     expect(await screen.findByText("Job history")).toBeInTheDocument();
     expect(await screen.findByText("Job #101")).toBeInTheDocument();
     expect(screen.getByText("10/12")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Job target index"), { target: { value: "docs__skeinrank_candidate" } });
-    fireEvent.change(screen.getByLabelText("Job alias name"), { target: { value: "docs" } });
-    fireEvent.change(screen.getByLabelText("Max documents"), { target: { value: "25" } });
+    fireEvent.change(screen.getByLabelText("Job target index"), {
+      target: { value: "docs__skeinrank_candidate" },
+    });
+    fireEvent.change(screen.getByLabelText("Job alias name"), {
+      target: { value: "docs" },
+    });
+    fireEvent.change(screen.getByLabelText("Max documents"), {
+      target: { value: "25" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Run enrichment job" }));
 
     await waitFor(() => {
@@ -2107,13 +2505,27 @@ describe("App", () => {
     expect(await screen.findByText("Job #102")).toBeInTheDocument();
     expect(screen.getByText(/doc-3/)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Binding name"), { target: { value: "runbook docs" } });
-    fireEvent.change(screen.getByLabelText("Index"), { target: { value: "runbooks" } });
-    expect(await screen.findByText("Discovered text fields")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/Text fields/), { target: { value: "title, body, summary" } });
-    fireEvent.change(screen.getByLabelText("Target field"), { target: { value: "skeinrank" } });
-    fireEvent.change(screen.getByLabelText("Document discriminator field"), { target: { value: "team" } });
-    fireEvent.change(screen.getByLabelText("Value for this profile"), { target: { value: "infra" } });
+    fireEvent.change(screen.getByLabelText("Binding name"), {
+      target: { value: "runbook docs" },
+    });
+    fireEvent.change(screen.getByLabelText("Index"), {
+      target: { value: "runbooks" },
+    });
+    expect(
+      await screen.findByText("Discovered text fields"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Text fields/), {
+      target: { value: "title, body, summary" },
+    });
+    fireEvent.change(screen.getByLabelText("Target field"), {
+      target: { value: "skeinrank" },
+    });
+    fireEvent.change(screen.getByLabelText("Document discriminator field"), {
+      target: { value: "team" },
+    });
+    fireEvent.change(screen.getByLabelText("Value for this profile"), {
+      target: { value: "infra" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
 
     await waitFor(() => {
@@ -2139,16 +2551,33 @@ describe("App", () => {
         }),
       );
     });
-    expect((await screen.findAllByText("runbook docs")).length).toBeGreaterThanOrEqual(1);
+    expect(
+      (await screen.findAllByText("runbook docs")).length,
+    ).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(screen.getAllByText("infra docs")[0]);
-    fireEvent.change(screen.getByLabelText("Edit binding name"), { target: { value: "infra docs v2" } });
-    fireEvent.change(screen.getByLabelText("Edit index"), { target: { value: "docs-v2" } });
-    fireEvent.change(screen.getByLabelText("Edit text fields"), { target: { value: "title\nbody" } });
-    fireEvent.change(screen.getByLabelText("Edit target field"), { target: { value: "skeinrank_attrs" } });
-    fireEvent.change(screen.getByLabelText("Edit document discriminator field"), { target: { value: "space" } });
-    fireEvent.change(screen.getByLabelText("Edit value for this profile"), { target: { value: "infra" } });
-    fireEvent.change(screen.getByLabelText("Edit mode"), { target: { value: "write" } });
+    fireEvent.change(screen.getByLabelText("Edit binding name"), {
+      target: { value: "infra docs v2" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit index"), {
+      target: { value: "docs-v2" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit text fields"), {
+      target: { value: "title\nbody" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit target field"), {
+      target: { value: "skeinrank_attrs" },
+    });
+    fireEvent.change(
+      screen.getByLabelText("Edit document discriminator field"),
+      { target: { value: "space" } },
+    );
+    fireEvent.change(screen.getByLabelText("Edit value for this profile"), {
+      target: { value: "infra" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit mode"), {
+      target: { value: "write" },
+    });
     fireEvent.click(screen.getByLabelText("Edit enabled binding"));
     fireEvent.click(screen.getByRole("button", { name: "Save binding" }));
 
@@ -2194,24 +2623,50 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
-    expect(await screen.findByText("Elasticsearch bindings")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Elasticsearch bindings"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "ml_platform" } });
-    fireEvent.change(screen.getByLabelText("Binding name"), { target: { value: "ml docs without discriminator" } });
-    fireEvent.change(screen.getByLabelText("Index"), { target: { value: "docs" } });
-    fireEvent.change(screen.getByLabelText(/Text fields/), { target: { value: "title, body" } });
-    fireEvent.change(screen.getByLabelText("Target field"), { target: { value: "skeinrank" } });
+    fireEvent.change(screen.getByLabelText("Profile"), {
+      target: { value: "ml_platform" },
+    });
+    fireEvent.change(screen.getByLabelText("Binding name"), {
+      target: { value: "ml docs without discriminator" },
+    });
+    fireEvent.change(screen.getByLabelText("Index"), {
+      target: { value: "docs" },
+    });
+    fireEvent.change(screen.getByLabelText(/Text fields/), {
+      target: { value: "title, body" },
+    });
+    fireEvent.change(screen.getByLabelText("Target field"), {
+      target: { value: "skeinrank" },
+    });
 
     expect(
       await screen.findByText(/This index is already used by another profile/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create binding" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Create binding" }),
+    ).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Document discriminator field"), { target: { value: "team" } });
-    fireEvent.change(screen.getByLabelText("Value for this profile"), { target: { value: "ml-platform" } });
+    fireEvent.change(screen.getByLabelText("Document discriminator field"), {
+      target: { value: "team" },
+    });
+    fireEvent.change(screen.getByLabelText("Value for this profile"), {
+      target: { value: "ml-platform" },
+    });
 
-    expect((await screen.findAllByText(/The discriminator keeps this profile scoped/)).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Create binding" })).not.toBeDisabled();
+    expect(
+      (
+        await screen.findAllByText(
+          /The discriminator keeps this profile scoped/,
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Create binding" }),
+    ).not.toBeDisabled();
   });
 
   it("keeps contributor users in read-only integrations mode", async () => {
@@ -2225,12 +2680,26 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });
-    expect(screen.getByRole("button", { name: "Create binding" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Run enrichment job" })).toBeDisabled();
-    expect(screen.getByText("Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations.")).toBeInTheDocument();
-    expect(screen.getByText("Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create binding" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Run enrichment job" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save binding" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Delete binding" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Delete binding" }),
+    ).toBeDisabled();
   });
 
   it("keeps contributor users in read-only governance mode", async () => {
@@ -2402,7 +2871,9 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getAllByText("vector database").length).toBeGreaterThan(0);
     });
-    expect(screen.getAllByText("Proposed new canonical term").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Proposed new canonical term").length,
+    ).toBeGreaterThan(0);
   });
 
   it("blocks duplicate canonical term suggestions", async () => {
@@ -2430,6 +2901,45 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: "Create suggestion" }),
     ).toBeDisabled();
+  });
+
+  it("lets reviewers refresh suggestion evidence snapshots", async () => {
+    const fetchMock = stubGovernanceApi({ currentUser: moderatorUser });
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
+
+    expect(
+      await screen.findByText("Suggestions and approvals"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Evidence from Elasticsearch"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No snapshot")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Check evidence" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions/1/evidence/refresh",
+        expect.objectContaining({
+          body: JSON.stringify({
+            binding_id: 1,
+            max_documents: 5,
+            query: "kube",
+          }),
+          method: "POST",
+        }),
+      );
+    });
+
+    expect(await screen.findByText("Snapshot saved")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/This runbook explains/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("kube").length).toBeGreaterThan(0);
   });
 
   it("lets moderators approve suggestions into active aliases", async () => {
@@ -2546,18 +3056,27 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
     expect(await screen.findByText("My API tokens")).toBeInTheDocument();
-    expect(await screen.findByText("Existing Jupyter token")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Existing Jupyter token"),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Create personal token name"), {
       target: { value: "Notebook import token" },
     });
-    fireEvent.change(screen.getByLabelText("Create personal token expiration days"), {
-      target: { value: "30" },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Create personal token expiration days"),
+      {
+        target: { value: "30" },
+      },
+    );
     fireEvent.click(screen.getAllByLabelText("migration:apply")[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Create personal token" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create personal token" }),
+    );
 
-    expect(await screen.findByTestId("copy-once-token")).toHaveTextContent("sk_pat_plaintext");
+    expect(await screen.findByTestId("copy-once-token")).toHaveTextContent(
+      "sk_pat_plaintext",
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8010/v1/auth/api-tokens",
       expect.objectContaining({
@@ -2589,7 +3108,9 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
-    expect((await screen.findAllByText("Service accounts")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("Service accounts")).length,
+    ).toBeGreaterThan(0);
     expect(await screen.findByText("Migration Bot")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Service account name"), {
@@ -2604,7 +3125,9 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Service account role"), {
       target: { value: "moderator" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create service account" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create service account" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -2622,8 +3145,12 @@ describe("App", () => {
       );
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Migration Bot" }));
-    fireEvent.click(screen.getByRole("button", { name: "Suspend service account" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Migration Bot" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Suspend service account" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -2635,7 +3162,9 @@ describe("App", () => {
       );
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Reactivate service account" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reactivate service account" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -2650,9 +3179,13 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Create service token name"), {
       target: { value: "CI import token" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create service token" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create service token" }),
+    );
 
-    expect(await screen.findByTestId("copy-once-token")).toHaveTextContent("sk_sat_plaintext");
+    expect(await screen.findByTestId("copy-once-token")).toHaveTextContent(
+      "sk_sat_plaintext",
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8010/v1/auth/service-accounts/migration-bot/tokens",
       expect.objectContaining({
@@ -2684,8 +3217,13 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
     expect(await screen.findByText("My API tokens")).toBeInTheDocument();
-    expect(screen.getByText("Service accounts are visible to admins only. You can still create and revoke your own personal API tokens above.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Create service account" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Service accounts are visible to admins only. You can still create and revoke your own personal API tokens above.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Create service account" }),
+    ).not.toBeInTheDocument();
   });
-
 });

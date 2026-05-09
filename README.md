@@ -92,7 +92,6 @@ Example result shape:
 }
 ```
 
-
 ## Development hygiene
 
 This repository uses Ruff and pre-commit for lightweight linting and formatting.
@@ -160,8 +159,9 @@ Patch 31 adds user account status controls. Admins can set users to `active`, `s
 
 Patch 33 adds suggestion evidence snapshots. Contributors, moderators, and admins can refresh bounded Elasticsearch evidence for a pending suggestion through the suggestion API; the returned snippets are saved on the suggestion so reviewers can see the evidence that justified the change even if Elasticsearch content changes later.
 
-Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
+Patch 34 adds Evidence UI support. The Terms page can run bounded Elasticsearch evidence checks for approved canonical terms and aliases, while the Suggestions page can refresh and display saved evidence snapshots with highlighted snippets before approve/reject decisions.
 
+Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
 
 ## Governance UI preview
 
@@ -183,7 +183,6 @@ export SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN=true
 export SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME=admin
 export SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD='change-me'
 ```
-
 
 For a quick throwaway demo database, you can still use:
 
@@ -213,14 +212,14 @@ Current UI scope:
 - admin-only Users page for local user CRUD, role assignment, account status controls, and user token revocation
 - API Access page for personal API tokens and admin-managed service accounts
 - role-aware controls for Admin, Moderator, and Contributor users
-- Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
+- Suggestions page for creating, filtering, approving, rejecting, and evidence-checking alias/canonical term proposals
 - searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
 - Guardrails page for global and profile-scoped stop-list management
 - Integrations page for manual Elasticsearch binding configs with shared-index validation, time filters, dry-run previews, and enrichment jobs
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
 - create, edit, and delete canonical terms
-- term details panel with lifecycle status controls
+- term details panel with lifecycle status controls and explicit Elasticsearch evidence checks
 - create, edit, and delete aliases with manual confidence hidden
 - manual alias status choices limited to `active`, `deprecated`, and `disabled`; review-only statuses stay reserved for future suggestions and validation flags
 - aliases display
@@ -504,10 +503,11 @@ POST /v1/governance/elasticsearch/bindings/{binding_id}/dry-run
 Example request:
 
 ```json
-{"limit": 3}
+{ "limit": 3 }
 ```
 
 Dry-run never writes to Elasticsearch. It is intended to validate profile/index/text-field/discriminator configuration before any future write strategy or reindex/alias-swap job is introduced.
+
 ### Patch 25g — reindex + alias swap jobs
 
 Patch 25g adds the backend job contract for Elasticsearch enrichment writes. A
@@ -604,6 +604,18 @@ metadata, query metadata, warnings, and highlighted evidence snippets.
 
 The endpoint only updates pending suggestions; approved/rejected review history
 is not rewritten. Reviewers can inspect the saved `evidence_snapshot` in normal
-suggestion responses and later UI patches can add a refresh button before
-approval.
+suggestion responses.
 
+### Patch 34 — Evidence UI
+
+Patch 34 exposes the evidence workflow in the governance UI. The Terms page can
+run a bounded evidence check for a selected canonical term or alias through the
+profile's Elasticsearch binding and display exact snippets with highlighted
+matches. The Suggestions page shows saved evidence snapshots, lets contributors,
+moderators, and admins refresh evidence for pending suggestions, and keeps
+reviewers on the same approve/reject workflow with the evidence visible next to
+context and review comments.
+
+The UI does not automatically search Elasticsearch for every row. Evidence checks
+are explicit button clicks, use the existing bounded backend endpoints, and reuse
+the configured binding text fields, discriminator, and time-window filters.

@@ -208,6 +208,55 @@ export type ElasticsearchBindingDryRunResponse = {
 
 
 
+
+export type ElasticsearchEvidenceRequest = {
+  query: string;
+  canonical_value?: string | null;
+  max_documents?: number;
+  context_chars?: number;
+};
+
+export type ElasticsearchEvidenceDocument = {
+  document_id: string;
+  index_name: string;
+  field: string;
+  fragment: string;
+  highlighted_fragment: string;
+  matched_text: string;
+  match_start: number;
+  match_end: number;
+};
+
+export type ElasticsearchEvidenceResponse = {
+  binding: ElasticsearchBinding;
+  query: string;
+  normalized_query: string;
+  canonical_value: string | null;
+  max_documents: number;
+  documents: ElasticsearchEvidenceDocument[];
+  warnings: string[];
+};
+
+export type SuggestionEvidenceSnapshot = {
+  binding_id: number;
+  binding_name: string;
+  index_name: string;
+  profile_name: string;
+  query: string;
+  normalized_query: string;
+  canonical_value: string | null;
+  max_documents: number;
+  documents: ElasticsearchEvidenceDocument[];
+  warnings: string[];
+};
+
+export type SuggestionEvidenceRefreshRequest = {
+  binding_id: number;
+  query?: string | null;
+  max_documents?: number;
+  context_chars?: number;
+};
+
 export type ElasticsearchEnrichmentJobCreateRequest = {
   target_index_name?: string | null;
   alias_name?: string | null;
@@ -263,6 +312,9 @@ export type GovernanceSuggestion = {
   reviewed_by: string | null;
   review_comment: string | null;
   reviewed_at: string | null;
+  evidence_snapshot: SuggestionEvidenceSnapshot | null;
+  evidence_checked_by: string | null;
+  evidence_checked_at: string | null;
   created_at: string;
   updated_at: string;
 };
