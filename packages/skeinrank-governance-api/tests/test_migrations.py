@@ -87,6 +87,8 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "filter_value",
         "mode",
         "write_strategy",
+        "timestamp_field",
+        "time_window_days",
         "is_enabled",
     }.issubset(binding_columns)
 
@@ -112,7 +114,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260508_0008"
+    assert revision == "20260509_0009"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

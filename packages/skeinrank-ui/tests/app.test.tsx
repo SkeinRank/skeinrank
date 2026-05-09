@@ -119,6 +119,8 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     target_field: "skeinrank",
     filter_field: "team",
     filter_value: "infra",
+    timestamp_field: "created_at",
+    time_window_days: 1825,
     mode: "write",
     write_strategy: "reindex_alias_swap",
     is_enabled: true,
@@ -138,6 +140,8 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     target_field: "skeinrank",
     filter_field: "team",
     filter_value: "ml-platform",
+    timestamp_field: null,
+    time_window_days: null,
     mode: "dry_run",
     write_strategy: "reindex_alias_swap",
     is_enabled: true,
@@ -155,7 +159,7 @@ const elasticsearchDryRunResponse: ElasticsearchBindingDryRunResponse = {
       document_id: "doc-1",
       index_name: "docs",
       text_preview: "K8s rollout failed in the infra namespace.",
-      source_preview: { title: ["K8s rollout failed"], body: ["Kube rollout failed"], team: ["infra"] },
+      source_preview: { title: ["K8s rollout failed"], body: ["Kube rollout failed"], team: ["infra"], created_at: ["2026-05-08T00:00:00Z"] },
       matched_aliases: [
         { alias_value: "k8s", canonical_value: "kubernetes", slot: "TOOL", matched_text: "k8s", confidence: 0.97 },
       ],
@@ -191,7 +195,7 @@ const elasticsearchJobs: ElasticsearchEnrichmentJob[] = [
     documents_seen: 12,
     documents_enriched: 10,
     documents_failed: 2,
-    result_json: { updated_document_ids: ["doc-1"], errors: ["doc-2 failed"] },
+    result_json: { updated_document_ids: ["doc-1"], errors: ["doc-2 failed"], timestamp_field: "created_at", time_window_days: 1825 },
     error_message: null,
     started_at: "2026-05-08T10:00:00Z",
     finished_at: "2026-05-08T10:01:00Z",
@@ -213,6 +217,7 @@ const elasticsearchMapping: ElasticsearchIndexMapping = {
     { name: "summary", type: "text", is_text_candidate: true, is_discriminator_candidate: false },
     { name: "team", type: "keyword", is_text_candidate: false, is_discriminator_candidate: true },
     { name: "space", type: "keyword", is_text_candidate: false, is_discriminator_candidate: true },
+    { name: "created_at", type: "date", is_text_candidate: false, is_discriminator_candidate: true },
   ],
 };
 
@@ -550,6 +555,8 @@ function stubGovernanceApi(options: StubOptions = {}) {
           description?: string | null;
           filter_field?: string | null;
           filter_value?: string | null;
+          timestamp_field?: string | null;
+          time_window_days?: number | null;
           index_name: string;
           is_enabled?: boolean;
           mode?: ElasticsearchBinding["mode"];
@@ -572,6 +579,8 @@ function stubGovernanceApi(options: StubOptions = {}) {
           target_field: payload.target_field,
           filter_field: payload.filter_field ?? null,
           filter_value: payload.filter_value ?? null,
+          timestamp_field: payload.timestamp_field ?? null,
+          time_window_days: payload.time_window_days ?? null,
           mode: payload.mode ?? "dry_run",
           write_strategy: payload.write_strategy ?? "reindex_alias_swap",
           is_enabled: payload.is_enabled ?? true,
@@ -622,7 +631,11 @@ function stubGovernanceApi(options: StubOptions = {}) {
           documents_seen: payload.max_documents ?? 1000,
           documents_enriched: 3,
           documents_failed: 0,
-          result_json: { updated_document_ids: ["doc-1", "doc-3"] },
+          result_json: {
+            updated_document_ids: ["doc-1", "doc-3"],
+            timestamp_field: existingBinding.timestamp_field,
+            time_window_days: existingBinding.time_window_days,
+          },
           error_message: null,
           started_at: "2026-05-08T11:00:00Z",
           finished_at: "2026-05-08T11:01:00Z",
@@ -654,6 +667,8 @@ function stubGovernanceApi(options: StubOptions = {}) {
           target_field: payload.target_field ?? existingBinding.target_field,
           filter_field: payload.filter_field ?? null,
           filter_value: payload.filter_value ?? null,
+          timestamp_field: payload.timestamp_field ?? null,
+          time_window_days: payload.time_window_days ?? null,
           mode: payload.mode ?? existingBinding.mode,
           write_strategy: payload.write_strategy ?? existingBinding.write_strategy,
           is_enabled: payload.is_enabled ?? existingBinding.is_enabled,
@@ -1663,6 +1678,8 @@ describe("App", () => {
             target_field: "skeinrank",
             filter_field: "team",
             filter_value: "infra",
+            timestamp_field: null,
+            time_window_days: null,
             mode: "dry_run",
             write_strategy: "reindex_alias_swap",
             is_enabled: true,
@@ -1697,6 +1714,8 @@ describe("App", () => {
             target_field: "skeinrank_attrs",
             filter_field: "space",
             filter_value: "infra",
+            timestamp_field: "created_at",
+            time_window_days: 1825,
             mode: "write",
             write_strategy: "reindex_alias_swap",
             is_enabled: false,

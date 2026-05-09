@@ -109,6 +109,8 @@ export type ElasticsearchBinding = {
   target_field: string;
   filter_field: string | null;
   filter_value: string | null;
+  timestamp_field: string | null;
+  time_window_days: number | null;
   mode: ElasticsearchBindingMode;
   write_strategy: ElasticsearchBindingWriteStrategy;
   is_enabled: boolean;
@@ -125,6 +127,8 @@ export type ElasticsearchBindingCreateRequest = {
   target_field: string;
   filter_field?: string | null;
   filter_value?: string | null;
+  timestamp_field?: string | null;
+  time_window_days?: number | null;
   mode?: ElasticsearchBindingMode;
   write_strategy?: ElasticsearchBindingWriteStrategy;
   is_enabled?: boolean;
@@ -139,6 +143,8 @@ export type ElasticsearchBindingUpdateRequest = {
   target_field?: string | null;
   filter_field?: string | null;
   filter_value?: string | null;
+  timestamp_field?: string | null;
+  time_window_days?: number | null;
   mode?: ElasticsearchBindingMode | null;
   write_strategy?: ElasticsearchBindingWriteStrategy | null;
   is_enabled?: boolean | null;

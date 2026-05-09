@@ -25,6 +25,7 @@ DISCRIMINATOR_FIELD_TYPES = {
     "long",
     "unsigned_long",
     "date",
+    "date_nanos",
     "ip",
 }
 
@@ -108,22 +109,34 @@ class ElasticsearchDiscoveryClient:
         limit: int,
         filter_field: str | None = None,
         filter_value: str | None = None,
+        timestamp_field: str | None = None,
+        time_window_days: int | None = None,
     ) -> list[ElasticsearchSearchHit]:
         """Return sample documents for a read-only enrichment dry-run."""
 
         source_fields = sorted(
-            {field for field in [*text_fields, filter_field or ""] if field}
+            {
+                field
+                for field in [*text_fields, filter_field or "", timestamp_field or ""]
+                if field
+            }
         )
-        query: dict[str, Any] = {"match_all": {}}
-        if filter_field and filter_value:
-            query = {"term": {filter_field: filter_value}}
+        query = _document_query(
+            filter_field=filter_field,
+            filter_value=filter_value,
+            timestamp_field=timestamp_field,
+            time_window_days=time_window_days,
+        )
+        sort: list[Any] = ["_doc"]
+        if timestamp_field and time_window_days is not None:
+            sort = [{timestamp_field: {"order": "desc"}}, "_doc"]
 
         payload = self._post_json(
             f"/{quote(index_name, safe='')}/_search",
             {
                 "query": query,
                 "size": limit,
-                "sort": ["_doc"],
+                "sort": sort,
                 "_source": source_fields,
             },
         )
@@ -171,12 +184,20 @@ class ElasticsearchDiscoveryClient:
         target_index: str,
         filter_field: str | None = None,
         filter_value: str | None = None,
+        timestamp_field: str | None = None,
+        time_window_days: int | None = None,
     ) -> dict[str, Any]:
         """Run an Elasticsearch _reindex request and wait for completion."""
 
         source: dict[str, Any] = {"index": source_index}
-        if filter_field and filter_value:
-            source["query"] = {"term": {filter_field: filter_value}}
+        query = _document_query(
+            filter_field=filter_field,
+            filter_value=filter_value,
+            timestamp_field=timestamp_field,
+            time_window_days=time_window_days,
+        )
+        if query != {"match_all": {}}:
+            source["query"] = query
         return self._post_json(
             "/_reindex?wait_for_completion=true&refresh=true",
             {"source": source, "dest": {"index": target_index}},
@@ -344,6 +365,34 @@ class ElasticsearchDiscoveryClient:
             ).decode()
             headers["Authorization"] = f"Basic {token}"
         return headers
+
+
+def _document_query(
+    *,
+    filter_field: str | None,
+    filter_value: str | None,
+    timestamp_field: str | None,
+    time_window_days: int | None,
+) -> dict[str, Any]:
+    filters: list[dict[str, Any]] = []
+    if filter_field and filter_value:
+        filters.append({"term": {filter_field: filter_value}})
+    if timestamp_field and time_window_days is not None:
+        filters.append(
+            {
+                "range": {
+                    timestamp_field: {
+                        "gte": f"now-{time_window_days}d",
+                        "lte": "now",
+                    }
+                }
+            }
+        )
+    if not filters:
+        return {"match_all": {}}
+    if len(filters) == 1:
+        return filters[0]
+    return {"bool": {"filter": filters}}
 
 
 def extract_mapping_fields(
