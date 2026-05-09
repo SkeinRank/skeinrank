@@ -161,6 +161,17 @@ The governance schema includes saved Elasticsearch enrichment bindings. A bindin
 Bindings are configuration-only in this package. They do not open an Elasticsearch connection or write to an index. Provider/job patches can read these saved bindings to run dry-run or write-mode enrichment jobs. The default write strategy is `reindex_alias_swap`, which is safer for production workflows than mutating the live index directly.
 
 Patch 25i adds `timestamp_field` and `time_window_days` to the binding schema so jobs can scope enrichment to recent documents while keeping `Max documents` as a safety limit inside that time window.
+
+
+## Suggestion evidence snapshots
+
+Patch 33 adds optional evidence snapshot fields to `governance_suggestions`. The
+API can save a bounded Elasticsearch evidence result on a pending suggestion,
+including binding metadata, highlighted snippets, warnings, the actor who checked
+evidence, and the check timestamp. The snapshot is stored as JSON so review UI
+can show the evidence that supported a proposed alias or canonical term without
+rerunning Elasticsearch automatically.
+
 ### Patch 25g — reindex + alias swap jobs
 
 Patch 25g adds the backend job contract for Elasticsearch enrichment writes. A

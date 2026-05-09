@@ -85,6 +85,19 @@ def test_create_governance_rows_and_normalized_values(session):
         source="manual",
         context="People search for kube",
         created_by="tester",
+        evidence_snapshot={
+            "binding_id": 1,
+            "binding_name": "Infra Docs",
+            "index_name": "docs",
+            "profile_name": "Default IT",
+            "query": "kube",
+            "normalized_query": "kube",
+            "canonical_value": "Kubernetes",
+            "max_documents": 5,
+            "documents": [],
+            "warnings": [],
+        },
+        evidence_checked_by="tester",
     )
     stop_list_entry = GovernanceStopListEntry(
         profile=profile,
@@ -186,6 +199,8 @@ def test_create_governance_rows_and_normalized_values(session):
     assert suggestion.normalized_alias == "kube"
     assert suggestion.slot == "TOOL"
     assert suggestion.status == "pending"
+    assert suggestion.evidence_snapshot["query"] == "kube"
+    assert suggestion.evidence_checked_by == "tester"
     assert stop_list_entry.normalized_value == "service"
     assert stop_list_entry.target == "alias"
     assert stop_list_entry.is_active is True

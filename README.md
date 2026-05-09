@@ -158,6 +158,8 @@ Patch 30 adds API Access UI support. Signed-in users can create and revoke their
 
 Patch 31 adds user account status controls. Admins can set users to `active`, `suspended`, or `deactivated`, and can revoke all personal API tokens for one user. Suspended/deactivated users cannot sign in or use personal API tokens; service account tokens are controlled separately from user status.
 
+Patch 33 adds suggestion evidence snapshots. Contributors, moderators, and admins can refresh bounded Elasticsearch evidence for a pending suggestion through the suggestion API; the returned snippets are saved on the suggestion so reviewers can see the evidence that justified the change even if Elasticsearch content changes later.
+
 Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
 
 
@@ -563,6 +565,7 @@ the governance API adds an Elasticsearch range query from `now-{days}d` to
 `Max documents` remains a safety limit inside the selected time window. The UI
 keeps this product-facing: users configure timestamp field and time window, but
 there is no separate sort selector in the Integrations page.
+
 ### Patch 32 — Elasticsearch evidence API
 
 Patch 32 adds a read-only bounded evidence lookup endpoint for saved Elasticsearch
@@ -584,4 +587,23 @@ The endpoint is deliberately bounded for production safety:
 - Elasticsearch requests use `track_total_hits=false` and a short timeout;
 - only the binding's configured text/discriminator/timestamp fields are read;
 - no documents are written or enriched.
+
+### Patch 33 — Suggestion evidence snapshots
+
+Patch 33 stores the result of a bounded evidence lookup on a pending governance
+suggestion. The refresh endpoint is:
+
+```text
+POST /v1/governance/profiles/{profile_name}/suggestions/{suggestion_id}/evidence/refresh
+```
+
+The request references an Elasticsearch binding for the same profile. If `query`
+is omitted, alias suggestions use their `alias_value` and canonical-term
+suggestions use their `canonical_value`. The saved snapshot includes binding
+metadata, query metadata, warnings, and highlighted evidence snippets.
+
+The endpoint only updates pending suggestions; approved/rejected review history
+is not rewritten. Reviewers can inspect the saved `evidence_snapshot` in normal
+suggestion responses and later UI patches can add a refresh button before
+approval.
 
