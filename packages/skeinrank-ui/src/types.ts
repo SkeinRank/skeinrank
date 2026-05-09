@@ -62,6 +62,32 @@ export type StopListUpdateRequest = {
 
 
 
+export type GlobalStopListEntry = {
+  id: number;
+  value: string;
+  normalized_value: string;
+  target: StopListTarget;
+  reason: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GlobalStopListCreateRequest = {
+  value: string;
+  target: StopListTarget;
+  reason?: string | null;
+  is_active?: boolean;
+};
+
+export type GlobalStopListUpdateRequest = {
+  value?: string | null;
+  target?: StopListTarget | null;
+  reason?: string | null;
+  is_active?: boolean | null;
+};
+
+
 export type ElasticsearchConnectionStatus = {
   configured: boolean;
   ok: boolean;

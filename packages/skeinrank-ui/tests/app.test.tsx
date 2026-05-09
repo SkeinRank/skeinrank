@@ -10,6 +10,7 @@ import type {
   ElasticsearchEnrichmentJob,
   ElasticsearchIndex,
   ElasticsearchIndexMapping,
+  GlobalStopListEntry,
   GovernanceSuggestion,
   Profile,
   StopListEntry,
@@ -90,6 +91,30 @@ const terms: CanonicalTerm[] = [
   },
 ];
 
+
+
+const globalStopListEntries: GlobalStopListEntry[] = [
+  {
+    id: 1,
+    value: "unknown",
+    normalized_value: "unknown",
+    target: "both",
+    reason: "Too generic across every profile",
+    is_active: true,
+    created_at: "2026-05-08T00:00:00Z",
+    updated_at: "2026-05-08T00:00:00Z",
+  },
+  {
+    id: 2,
+    value: "tmp",
+    normalized_value: "tmp",
+    target: "alias",
+    reason: "Temporary placeholder",
+    is_active: false,
+    created_at: "2026-05-08T00:00:00Z",
+    updated_at: "2026-05-08T00:00:00Z",
+  },
+];
 
 const stopListEntries: StopListEntry[] = [
   {
@@ -265,6 +290,10 @@ function cloneSuggestions() {
   return JSON.parse(JSON.stringify(suggestions)) as GovernanceSuggestion[];
 }
 
+function cloneGlobalStopListEntries() {
+  return JSON.parse(JSON.stringify(globalStopListEntries)) as GlobalStopListEntry[];
+}
+
 function cloneStopListEntries() {
   return JSON.parse(JSON.stringify(stopListEntries)) as StopListEntry[];
 }
@@ -293,6 +322,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
   let currentUsers: AuthUser[] = [adminUser, moderatorUser, contributorUser];
   let currentTerms = cloneTerms();
   let currentSuggestions = cloneSuggestions();
+  let currentGlobalStopListEntries = cloneGlobalStopListEntries();
   let currentStopListEntries = cloneStopListEntries();
   let currentElasticsearchBindings = cloneElasticsearchBindings();
   let currentElasticsearchJobs = cloneElasticsearchJobs();
@@ -300,6 +330,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
   let nextTermId = 10;
   let nextAliasId = 20;
   let nextSuggestionId = 10;
+  let nextGlobalStopListEntryId = 10;
   let nextStopListEntryId = 10;
   let nextElasticsearchBindingId = 10;
   let nextElasticsearchJobId = 102;
@@ -450,6 +481,63 @@ function stubGovernanceApi(options: StubOptions = {}) {
           (profile) => profile.name !== "default_it",
         );
         currentTerms = [];
+        return new Response(null, { status: 204 });
+      }
+
+
+      if (url.endsWith("/v1/governance/global-stop-list") && method === "GET") {
+        return Response.json(currentGlobalStopListEntries);
+      }
+
+      if (url.endsWith("/v1/governance/global-stop-list") && method === "POST") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          is_active?: boolean;
+          reason?: string | null;
+          target: GlobalStopListEntry["target"];
+          value: string;
+        };
+        const entry: GlobalStopListEntry = {
+          id: nextGlobalStopListEntryId++,
+          value: payload.value,
+          normalized_value: payload.value.toLowerCase(),
+          target: payload.target,
+          reason: payload.reason ?? null,
+          is_active: payload.is_active ?? true,
+          created_at: "2026-05-08T00:00:00Z",
+          updated_at: "2026-05-08T00:00:00Z",
+        };
+        currentGlobalStopListEntries = [entry, ...currentGlobalStopListEntries];
+        return Response.json(entry, { status: 201 });
+      }
+
+      if (url.endsWith("/v1/governance/global-stop-list/1") && method === "PATCH") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          is_active?: boolean | null;
+          reason?: string | null;
+          target?: GlobalStopListEntry["target"] | null;
+          value?: string | null;
+        };
+        const existingEntry = currentGlobalStopListEntries.find((entry) => entry.id === 1);
+        if (!existingEntry) {
+          return Response.json({ detail: "not found" }, { status: 404 });
+        }
+        const updatedEntry: GlobalStopListEntry = {
+          ...existingEntry,
+          value: payload.value ?? existingEntry.value,
+          normalized_value: (payload.value ?? existingEntry.value).toLowerCase(),
+          target: payload.target ?? existingEntry.target,
+          reason: payload.reason ?? null,
+          is_active: payload.is_active ?? existingEntry.is_active,
+          updated_at: "2026-05-08T00:00:00Z",
+        };
+        currentGlobalStopListEntries = currentGlobalStopListEntries.map((entry) =>
+          entry.id === 1 ? updatedEntry : entry,
+        );
+        return Response.json(updatedEntry);
+      }
+
+      if (url.endsWith("/v1/governance/global-stop-list/1") && method === "DELETE") {
+        currentGlobalStopListEntries = currentGlobalStopListEntries.filter((entry) => entry.id !== 1);
         return new Response(null, { status: 204 });
       }
 
@@ -1500,6 +1588,113 @@ describe("App", () => {
     });
   });
 
+
+  it("lets admins manage global stop-list guardrails", async () => {
+    const fetchMock = stubGovernanceApi();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+
+    expect(await screen.findByText("Global stop list")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("unknown").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText("Inherited global stop list")).toBeInTheDocument();
+    expect(screen.getByText("Too generic across every profile")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Global blocked value"), {
+      target: { value: "noise" },
+    });
+    fireEvent.change(screen.getByLabelText("Global target"), {
+      target: { value: "both" },
+    });
+    fireEvent.change(screen.getByLabelText("Global reason"), {
+      target: { value: "Generic global placeholder" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add to global stop list" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/global-stop-list",
+        expect.objectContaining({
+          body: JSON.stringify({
+            value: "noise",
+            target: "both",
+            reason: "Generic global placeholder",
+            is_active: true,
+          }),
+          method: "POST",
+        }),
+      );
+    });
+    expect((await screen.findAllByText("noise")).length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.click(screen.getAllByText("unknown")[0]);
+    fireEvent.change(screen.getByLabelText("Edit global blocked value"), {
+      target: { value: "unknown-value" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit global target"), {
+      target: { value: "canonical" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit global reason"), {
+      target: { value: "Reserved global placeholder" },
+    });
+    fireEvent.click(screen.getByLabelText("Active global guardrail"));
+    fireEvent.click(screen.getByRole("button", { name: "Save global stop-list entry" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/global-stop-list/1",
+        expect.objectContaining({
+          body: JSON.stringify({
+            value: "unknown-value",
+            target: "canonical",
+            reason: "Reserved global placeholder",
+            is_active: false,
+          }),
+          method: "PATCH",
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete global stop-list entry" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/global-stop-list/1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("marks inherited global stop-list entries as read-only for profiles", async () => {
+    stubGovernanceApi();
+
+    render(<App />);
+
+    await screen.findByText("Terminology control plane");
+    fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+
+    expect(await screen.findByText("Inherited global stop list")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("unknown").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.change(screen.getByLabelText("Blocked value"), {
+      target: { value: "unknown" },
+    });
+    fireEvent.change(screen.getByLabelText("Target"), {
+      target: { value: "alias" },
+    });
+
+    expect(
+      await screen.findByText(/This value is already blocked globally/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to stop list" })).toBeDisabled();
+  });
 
   it("lets admins manage profile stop-list guardrails", async () => {
     const fetchMock = stubGovernanceApi();

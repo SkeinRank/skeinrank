@@ -61,7 +61,7 @@ The governance console currently includes:
 - admin-only Users page for local user CRUD and role assignment
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
-- Guardrails page for profile-scoped stop-list management
+- Guardrails page for global and profile-scoped stop-list management
 - Integrations page for manual Elasticsearch binding configs, shared-index validation, time-window filters, dry-run previews, and enrichment job status
 - searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
 - profile CRUD controls: create, select, rename, describe, and delete profiles
@@ -75,7 +75,7 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, profile stop-list guardrails, Elasticsearch binding configs, dry-run previews, and enrichment job status through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, background workers, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, global stop-list guardrails, profile stop-list guardrails, Elasticsearch binding configs, dry-run previews, and enrichment job status through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, background workers, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Checks
 
@@ -84,6 +84,20 @@ npm run typecheck
 npm test -- --run
 npm run build
 ```
+
+
+## Global stop lists
+
+The Guardrails page now supports global stop-list management on top of the profile-scoped stop lists. Global entries are inherited by every profile and are shown as a read-only `Global` layer above the selected profile's local stop list.
+
+Admins and moderators can:
+
+- create global stop-list entries;
+- edit global target/reason/active status;
+- delete global entries;
+- manage profile-local stop-list entries below the inherited global layer.
+
+Contributors can inspect both global and profile stop lists in read-only mode. When adding a profile-local entry, the UI warns and blocks duplicate local entries if the same value is already covered by an active global stop-list entry.
 
 ## Elasticsearch discovery in Integrations
 
