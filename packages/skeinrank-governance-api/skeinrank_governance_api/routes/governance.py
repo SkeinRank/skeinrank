@@ -34,6 +34,7 @@ from skeinrank_governance.models import (
     CanonicalTerm,
     ElasticsearchBinding,
     ElasticsearchEnrichmentJob,
+    GovernanceGlobalStopListEntry,
     GovernanceStopListEntry,
     GovernanceSuggestion,
     TermAlias,
@@ -71,6 +72,9 @@ from ..schemas import (
     ElasticsearchIndexMappingResponse,
     ElasticsearchIndexResponse,
     ElasticsearchMappingFieldResponse,
+    GlobalStopListCreateRequest,
+    GlobalStopListEntryResponse,
+    GlobalStopListUpdateRequest,
     ProfileCreateRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -331,6 +335,133 @@ def delete_profile_stop_list_entry(
 
     profile = _get_profile_or_404(session, profile_name)
     entry = _get_stop_list_entry_or_404(session, profile, entry_id)
+    session.delete(entry)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/global-stop-list",
+    response_model=list[GlobalStopListEntryResponse],
+)
+def list_global_stop_list(
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[GlobalStopListEntryResponse]:
+    """List global stop-list guardrails."""
+
+    entries = list(
+        session.scalars(
+            select(GovernanceGlobalStopListEntry).order_by(
+                GovernanceGlobalStopListEntry.target,
+                GovernanceGlobalStopListEntry.normalized_value,
+            )
+        )
+    )
+    return [_global_stop_list_response(entry) for entry in entries]
+
+
+@router.post(
+    "/global-stop-list",
+    response_model=GlobalStopListEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_global_stop_list_entry(
+    request: GlobalStopListCreateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> GlobalStopListEntryResponse:
+    """Create a global stop-list entry."""
+
+    _validate_stop_list_target(request.target)
+    normalized_value = normalize_value(request.value)
+    _ensure_global_stop_list_entry_unique(
+        session,
+        normalized_value=normalized_value,
+        target=request.target,
+    )
+
+    entry = GovernanceGlobalStopListEntry(
+        value=request.value,
+        target=request.target,
+        reason=request.reason,
+        is_active=request.is_active,
+    )
+    session.add(entry)
+    try:
+        session.commit()
+        session.refresh(entry)
+        return _global_stop_list_response(entry)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.patch(
+    "/global-stop-list/{entry_id}",
+    response_model=GlobalStopListEntryResponse,
+)
+def update_global_stop_list_entry(
+    entry_id: int,
+    request: GlobalStopListUpdateRequest,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> GlobalStopListEntryResponse:
+    """Update a global stop-list entry."""
+
+    entry = _get_global_stop_list_entry_or_404(session, entry_id)
+    fields = request.model_fields_set
+
+    next_value = (
+        request.value
+        if "value" in fields and request.value is not None
+        else entry.value
+    )
+    next_target = (
+        request.target
+        if "target" in fields and request.target is not None
+        else entry.target
+    )
+    _validate_stop_list_target(next_target)
+
+    if next_value != entry.value or next_target != entry.target:
+        _ensure_global_stop_list_entry_unique(
+            session,
+            normalized_value=normalize_value(next_value),
+            target=next_target,
+            exclude_id=entry.id,
+        )
+        entry.value = next_value
+        entry.target = next_target
+
+    if "reason" in fields:
+        entry.reason = request.reason
+    if "is_active" in fields and request.is_active is not None:
+        entry.is_active = request.is_active
+
+    try:
+        session.commit()
+        session.refresh(entry)
+        return _global_stop_list_response(entry)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.delete(
+    "/global-stop-list/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_global_stop_list_entry(
+    entry_id: int,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> Response:
+    """Delete a global stop-list entry."""
+
+    entry = _get_global_stop_list_entry_or_404(session, entry_id)
     session.delete(entry)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1385,14 +1516,14 @@ def export_profile_snapshot(
 def _active_alias_entries_for_profile(
     session: Session, profile: TerminologyProfile
 ) -> list[tuple[str, str, str, float]]:
-    """Return active alias rows not blocked by profile stop-list entries."""
+    """Return active alias rows not blocked by profile/global stop-list entries."""
 
     blocked_alias_values = _active_stop_values_for_target(
         session, profile, targets=("alias", "both")
-    )
+    ) | _active_global_stop_values_for_target(session, targets=("alias", "both"))
     blocked_canonical_values = _active_stop_values_for_target(
         session, profile, targets=("canonical", "both")
-    )
+    ) | _active_global_stop_values_for_target(session, targets=("canonical", "both"))
     aliases = list(
         session.scalars(
             select(TermAlias)
@@ -1430,6 +1561,18 @@ def _active_stop_values_for_target(
             GovernanceStopListEntry.profile_id == profile.id,
             GovernanceStopListEntry.is_active.is_(True),
             GovernanceStopListEntry.target.in_(targets),
+        )
+    )
+    return set(values)
+
+
+def _active_global_stop_values_for_target(
+    session: Session, *, targets: tuple[str, ...]
+) -> set[str]:
+    values = session.scalars(
+        select(GovernanceGlobalStopListEntry.normalized_value).where(
+            GovernanceGlobalStopListEntry.is_active.is_(True),
+            GovernanceGlobalStopListEntry.target.in_(targets),
         )
     )
     return set(values)
@@ -1799,6 +1942,46 @@ def _get_stop_list_entry_or_404(
     return entry
 
 
+def _get_global_stop_list_entry_or_404(
+    session: Session, entry_id: int
+) -> GovernanceGlobalStopListEntry:
+    entry = session.scalar(
+        select(GovernanceGlobalStopListEntry).where(
+            GovernanceGlobalStopListEntry.id == entry_id
+        )
+    )
+    if entry is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Global stop-list entry not found: {entry_id}",
+        )
+    return entry
+
+
+def _ensure_global_stop_list_entry_unique(
+    session: Session,
+    *,
+    normalized_value: str,
+    target: str,
+    exclude_id: int | None = None,
+) -> None:
+    query = select(GovernanceGlobalStopListEntry).where(
+        GovernanceGlobalStopListEntry.normalized_value == normalized_value
+    )
+    if exclude_id is not None:
+        query = query.where(GovernanceGlobalStopListEntry.id != exclude_id)
+    candidates = list(session.scalars(query))
+    for entry in candidates:
+        if entry.target == target or entry.target == "both" or target == "both":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Global stop-list entry already exists: "
+                    f"{entry.value} ({entry.target})"
+                ),
+            )
+
+
 def _validate_stop_list_target(target: str) -> None:
     if target not in STOP_LIST_TARGETS:
         allowed_values = ", ".join(STOP_LIST_TARGETS)
@@ -1851,22 +2034,37 @@ def _ensure_not_stoplisted(
     entity_name: str,
 ) -> None:
     normalized_value = normalize_value(value)
-    entry = session.scalar(
+    target_values = _stop_list_targets_for(target)
+
+    global_entry = session.scalar(
+        select(GovernanceGlobalStopListEntry).where(
+            GovernanceGlobalStopListEntry.normalized_value == normalized_value,
+            GovernanceGlobalStopListEntry.target.in_(target_values),
+            GovernanceGlobalStopListEntry.is_active.is_(True),
+        )
+    )
+    if global_entry is not None:
+        detail = f"{entity_name} is blocked by global stop list: {value}"
+        if global_entry.reason:
+            detail = f"{detail}. Reason: {global_entry.reason}"
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+    profile_entry = session.scalar(
         select(GovernanceStopListEntry).where(
             GovernanceStopListEntry.profile_id == profile.id,
             GovernanceStopListEntry.normalized_value == normalized_value,
-            GovernanceStopListEntry.target.in_(_stop_list_targets_for(target)),
+            GovernanceStopListEntry.target.in_(target_values),
             GovernanceStopListEntry.is_active.is_(True),
         )
     )
-    if entry is None:
+    if profile_entry is None:
         return
     detail = (
         f"{entity_name} is blocked by stop list for profile {profile.name!r}: "
         f"{value}"
     )
-    if entry.reason:
-        detail = f"{detail}. Reason: {entry.reason}"
+    if profile_entry.reason:
+        detail = f"{detail}. Reason: {profile_entry.reason}"
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
@@ -2069,6 +2267,21 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         reviewed_at=suggestion.reviewed_at,
         created_at=suggestion.created_at,
         updated_at=suggestion.updated_at,
+    )
+
+
+def _global_stop_list_response(
+    entry: GovernanceGlobalStopListEntry,
+) -> GlobalStopListEntryResponse:
+    return GlobalStopListEntryResponse(
+        id=entry.id,
+        value=entry.value,
+        normalized_value=entry.normalized_value,
+        target=entry.target,
+        reason=entry.reason,
+        is_active=entry.is_active,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
     )
 
 

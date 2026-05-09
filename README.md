@@ -349,7 +349,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, stop lists, suggestions/approval, Elasticsearch binding configs and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, background workers, and model-based discovery ingestion.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, profile/global stop lists, suggestions/approval, Elasticsearch binding configs and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, background workers, and model-based discovery ingestion.
 
 The intended architecture is:
 
@@ -383,7 +383,7 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/ex
   -d '{"snapshot_version":"default_it@v1"}'
 ```
 
-The initial schema includes profiles, canonical terms, aliases, profile snapshots, suggestions, stop-list guardrails, users, and audit events.
+The initial schema includes profiles, canonical terms, aliases, profile snapshots, suggestions, profile/global stop-list guardrails, users, and audit events.
 
 ## Notes and current limitations
 

@@ -425,6 +425,47 @@ class GovernanceStopListEntry(TimestampMixin, Base):
         )
 
 
+class GovernanceGlobalStopListEntry(TimestampMixin, Base):
+    """A global guardrail that blocks noisy terminology values across profiles.
+
+    Global stop-list entries complement profile-scoped stop lists. They are useful
+    for organization-wide noise such as generic UI/log words that should never be
+    introduced as aliases or canonical terms in any profile.
+    """
+
+    __tablename__ = "governance_global_stop_list_entries"
+    __table_args__ = (
+        UniqueConstraint(
+            "target",
+            "normalized_value",
+            name="uq_governance_global_stop_list_target_value",
+        ),
+        CheckConstraint(
+            f"target IN {STOP_LIST_TARGETS!r}",
+            name="governance_global_stop_list_target",
+        ),
+        Index(
+            "ix_governance_global_stop_list_target_active",
+            "target",
+            "is_active",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    value: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    target: Mapped[str] = mapped_column(String(32), default="both", nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    def __repr__(self) -> str:
+        return (
+            "GovernanceGlobalStopListEntry("
+            f"value={self.value!r}, target={self.target!r}, "
+            f"active={self.is_active!r})"
+        )
+
+
 class ElasticsearchBinding(TimestampMixin, Base):
     """A saved enrichment target that binds a profile to Elasticsearch documents.
 
@@ -673,6 +714,13 @@ def _fill_normalized_stop_list_entry(
     target.normalized_value = normalize_value(target.value)
 
 
+def _fill_normalized_global_stop_list_entry(
+    mapper: Any, connection: Any, target: GovernanceGlobalStopListEntry
+) -> None:
+    del mapper, connection
+    target.normalized_value = normalize_value(target.value)
+
+
 def _fill_normalized_elasticsearch_binding(
     mapper: Any, connection: Any, target: ElasticsearchBinding
 ) -> None:
@@ -707,6 +755,16 @@ event.listen(GovernanceSuggestion, "before_insert", _fill_normalized_suggestion)
 event.listen(GovernanceSuggestion, "before_update", _fill_normalized_suggestion)
 event.listen(GovernanceStopListEntry, "before_insert", _fill_normalized_stop_list_entry)
 event.listen(GovernanceStopListEntry, "before_update", _fill_normalized_stop_list_entry)
+event.listen(
+    GovernanceGlobalStopListEntry,
+    "before_insert",
+    _fill_normalized_global_stop_list_entry,
+)
+event.listen(
+    GovernanceGlobalStopListEntry,
+    "before_update",
+    _fill_normalized_global_stop_list_entry,
+)
 event.listen(
     ElasticsearchBinding, "before_insert", _fill_normalized_elasticsearch_binding
 )

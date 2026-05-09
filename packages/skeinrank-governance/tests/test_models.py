@@ -8,6 +8,7 @@ from skeinrank_governance import (
     ElasticsearchBinding,
     ElasticsearchEnrichmentJob,
     GovernanceAuthToken,
+    GovernanceGlobalStopListEntry,
     GovernanceStopListEntry,
     GovernanceSuggestion,
     GovernanceUser,
@@ -44,6 +45,7 @@ def test_metadata_contains_expected_tables():
         "governance_auth_tokens",
         "governance_suggestions",
         "governance_stop_list_entries",
+        "governance_global_stop_list_entries",
         "elasticsearch_bindings",
         "elasticsearch_enrichment_jobs",
     }
@@ -86,6 +88,11 @@ def test_create_governance_rows_and_normalized_values(session):
         target="alias",
         reason="Too generic for this profile",
     )
+    global_stop_list_entry = GovernanceGlobalStopListEntry(
+        value="Unknown",
+        target="both",
+        reason="Organization-wide noise",
+    )
     binding = ElasticsearchBinding(
         profile=profile,
         name="Infra Docs",
@@ -124,6 +131,7 @@ def test_create_governance_rows_and_normalized_values(session):
             snapshot,
             suggestion,
             stop_list_entry,
+            global_stop_list_entry,
             binding,
             job,
             audit,
@@ -144,6 +152,9 @@ def test_create_governance_rows_and_normalized_values(session):
     assert stop_list_entry.normalized_value == "service"
     assert stop_list_entry.target == "alias"
     assert stop_list_entry.is_active is True
+    assert global_stop_list_entry.normalized_value == "unknown"
+    assert global_stop_list_entry.target == "both"
+    assert global_stop_list_entry.is_active is True
     assert binding.normalized_name == "infra_docs"
     assert binding.provider == "elasticsearch"
     assert binding.text_fields == ["title", "body", "body"]
@@ -191,6 +202,18 @@ def test_snapshot_version_is_unique_per_profile(session):
         session.commit()
 
 
+def test_global_stop_list_overlap_is_rejected(session):
+    session.add_all(
+        [
+            GovernanceGlobalStopListEntry(value="unknown", target="alias"),
+            GovernanceGlobalStopListEntry(value="Unknown", target="alias"),
+        ]
+    )
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
 def test_invalid_alias_status_is_rejected(session):
     profile = TerminologyProfile(name="default_it")
     term = CanonicalTerm(profile=profile, canonical_value="kubernetes", slot="TOOL")
@@ -214,6 +237,7 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "governance_auth_tokens" in table_names
     assert "governance_suggestions" in table_names
     assert "governance_stop_list_entries" in table_names
+    assert "governance_global_stop_list_entries" in table_names
     assert "elasticsearch_bindings" in table_names
     assert "elasticsearch_enrichment_jobs" in table_names
 
