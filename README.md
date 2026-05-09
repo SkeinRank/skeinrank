@@ -228,7 +228,7 @@ Current UI scope:
 
 The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Guardrails page lets admins/moderators manage global stop-list entries inherited by every profile and profile-local stop-list entries for scoped cleanup. Global entries are displayed as read-only inherited guardrails while editing a profile stop list, so teams can see whether a value is blocked globally or locally.
 
-The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings and show job history/status/details. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, background workers, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings, show job history/status/details, and expose bounded evidence lookups for reviewer validation. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, background workers, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -363,7 +363,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, profile/global stop lists, suggestions/approval, Elasticsearch binding configs and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, background workers, and model-based discovery ingestion.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, profile/global stop lists, suggestions/approval, Elasticsearch binding configs, evidence lookups, and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, background workers, and model-based discovery ingestion.
 
 The intended architecture is:
 
@@ -373,7 +373,7 @@ Postgres governance store -> governance API/UI -> published snapshot JSON -> run
 
 The hot extraction path still uses exported snapshots; it does not query Postgres or the governance API per request.
 
-Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They can now be tested with read-only connection/mapping discovery, binding dry-runs, and write-mode enrichment jobs with status/details in the Integrations page.
+Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They can now be tested with read-only connection/mapping discovery, binding dry-runs, bounded evidence lookups, and write-mode enrichment jobs with status/details in the Integrations page.
 
 Local smoke tests:
 
@@ -563,3 +563,25 @@ the governance API adds an Elasticsearch range query from `now-{days}d` to
 `Max documents` remains a safety limit inside the selected time window. The UI
 keeps this product-facing: users configure timestamp field and time window, but
 there is no separate sort selector in the Integrations page.
+### Patch 32 — Elasticsearch evidence API
+
+Patch 32 adds a read-only bounded evidence lookup endpoint for saved Elasticsearch
+bindings:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/evidence
+```
+
+The endpoint is intended for review workflows where a contributor or reviewer
+wants to verify that an alias or canonical value appears in real indexed
+content before approving a terminology change. It uses the binding's index,
+`text_fields`, document discriminator, and optional time-window filters, then
+returns a small number of exact literal snippets with `<mark>` highlighting.
+
+The endpoint is deliberately bounded for production safety:
+
+- `max_documents` is limited to 10;
+- Elasticsearch requests use `track_total_hits=false` and a short timeout;
+- only the binding's configured text/discriminator/timestamp fields are read;
+- no documents are written or enriched.
+
