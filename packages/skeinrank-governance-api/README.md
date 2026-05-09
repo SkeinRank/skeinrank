@@ -140,6 +140,83 @@ curl -X POST http://127.0.0.1:8010/v1/auth/users \
 ```
 
 
+## User Console API
+
+Patch 27 adds a migration-friendly API surface for users who work from JupyterHub, scripts, bots, or future CLI tools. It reuses the same governance database and role checks as the UI, but accepts a bulk dictionary JSON so companies do not need to enter existing dictionaries by hand.
+
+Endpoints:
+
+```bash
+POST /v1/console/dictionary/validate
+POST /v1/console/dictionary/import
+GET  /v1/console/dictionary/export?profile_name=infra_incidents
+```
+
+Role behavior:
+
+- `admin`, `moderator`, and `contributor` can validate payloads and export dictionaries.
+- `admin` and `moderator` can import into existing profiles.
+- only `admin` can create a missing profile during import.
+
+Minimal import payload:
+
+```json
+{
+  "profile_name": "infra_incidents",
+  "profile_description": "Infra incident dictionary",
+  "mode": "upsert",
+  "terms": [
+    {
+      "canonical_value": "kubernetes",
+      "slot": "TOOL",
+      "aliases": [
+        "k8s",
+        {"value": "kube", "confidence": 0.95}
+      ]
+    }
+  ],
+  "profile_stop_list": [
+    {"value": "tmp", "target": "alias", "reason": "too generic"}
+  ],
+  "global_stop_list": [
+    {"value": "unknown", "target": "both", "reason": "global noise"}
+  ]
+}
+```
+
+Validate without writing:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/console/dictionary/validate \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @company_dictionary.json
+```
+
+Apply after validation:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/console/dictionary/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @company_dictionary.json
+```
+
+Export a profile back to the same stable shape:
+
+```bash
+curl "http://127.0.0.1:8010/v1/console/dictionary/export?profile_name=infra_incidents" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Import modes:
+
+- `upsert` — create missing values and update existing values.
+- `strict` — report conflicts when the payload already exists.
+
+The validation/import report includes planned create/update counts, duplicate warnings, alias/canonical conflicts, and stop-list blocks.
+
+
 ## Database migrations
 
 `skeinrank-governance` owns the SQLAlchemy models and canonical Alembic revision files. The API package exposes a configuration-aware migration wrapper that uses the same database URL resolution as the HTTP service.
@@ -192,6 +269,7 @@ This package currently provides:
 - SQLAlchemy session dependency
 - `/healthz` endpoint
 - governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
+- user-console dictionary validation, import, and export endpoints for migration workflows
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
 - local auth endpoints for login/logout/current user
 - admin-only user management endpoints

@@ -24,7 +24,7 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 - `packages/skeinrank-server` — FastAPI service wrapper
 - `packages/skeinrank-provider-elasticsearch` — optional Elasticsearch retrieval provider and enrichment CLI
 - `packages/skeinrank-governance` — SQLAlchemy/Alembic foundation and admin CLI for Postgres terminology governance
-- `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, stop lists, suggestions/approval, auth/users/roles, and future governance workflows
+- `packages/skeinrank-governance-api` — FastAPI control-plane API for profiles, terms, aliases, stop lists, suggestions/approval, auth/users/roles, user-console dictionary import/export, and future governance workflows
 - `packages/skeinrank-ui` — React/TypeScript governance console for terms, aliases, suggestions, guardrails, users, roles, and snapshots
 - `examples/demo/` — small demo corpus, demo queries, and usage notes
 
@@ -146,6 +146,8 @@ poetry run python -m skeinrank_governance_api.migrations upgrade head
 ```
 
 For local demos/tests only, set `SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true` to create tables at startup.
+
+Patch 27 adds the User Console API for migration-friendly dictionary workflows. External users, notebooks, bots, and future CLI tools can validate a company dictionary JSON, apply it in upsert/strict mode, and export a profile dictionary through `/v1/console/dictionary/*` endpoints instead of manually entering every term through the UI.
 
 Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
 
