@@ -62,7 +62,7 @@ The governance console currently includes:
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
 - Guardrails page for profile-scoped stop-list management
-- Integrations page for manual Elasticsearch binding configs with shared-index validation
+- Integrations page for manual Elasticsearch binding configs, shared-index validation, dry-run previews, and enrichment job status
 - searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
@@ -75,7 +75,7 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, profile stop-list guardrails, and Elasticsearch binding configs through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, Elasticsearch write/reindex jobs, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, profile stop-list guardrails, Elasticsearch binding configs, dry-run previews, and enrichment job status through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, background workers, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Checks
 
@@ -101,3 +101,32 @@ If Elasticsearch is not configured or unavailable, the page still works in manua
 The Integrations page can run a read-only dry-run for the selected binding. The preview shows sample documents, matched aliases, canonical values, and the JSON payload that would be written to the configured target field.
 
 Dry-run is safe for production validation because it does not write to Elasticsearch. It only calls the governance API dry-run endpoint and displays the returned preview.
+
+## Elasticsearch enrichment jobs
+
+The Integrations page can now run and inspect enrichment jobs for the selected
+Elasticsearch binding when Patch 25g backend endpoints are available.
+
+Admins and moderators can start a job from the selected binding details panel.
+The form supports:
+
+- `Job target index`;
+- `Job alias name`;
+- `Max documents`;
+- binding `write_strategy` selection during create/edit.
+
+The job panel shows job history and selected job details: status, write
+strategy, source index, target index, alias name, requested user, document
+counters, error message, and result JSON. Contributors can inspect jobs in
+read-only mode but cannot run them.
+
+The UI uses these governance API endpoints:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+GET /v1/governance/elasticsearch/jobs?binding_id=...
+GET /v1/governance/elasticsearch/jobs/{job_id}
+```
+
+The current backend executor is synchronous. Future worker-based polling can
+reuse the same UI contract.

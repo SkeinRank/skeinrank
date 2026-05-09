@@ -214,7 +214,7 @@ Current UI scope:
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, dry-run/write mode, and enabled state. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, Elasticsearch write jobs, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings and show job history/status/details. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, background workers, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -349,7 +349,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, stop lists, suggestions/approval, Elasticsearch binding configs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, Elasticsearch write/reindex jobs, and model-based discovery ingestion.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, stop lists, suggestions/approval, Elasticsearch binding configs and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, background workers, and model-based discovery ingestion.
 
 The intended architecture is:
 
@@ -359,7 +359,7 @@ Postgres governance store -> governance API/UI -> published snapshot JSON -> run
 
 The hot extraction path still uses exported snapshots; it does not query Postgres or the governance API per request.
 
-Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, dry-run/write mode, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They can now be tested with read-only connection/mapping discovery and binding dry-runs. Follow-up patches will add production write/reindex jobs.
+Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, dry-run/write mode, write strategy, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They can now be tested with read-only connection/mapping discovery, binding dry-runs, and write-mode enrichment jobs with status/details in the Integrations page.
 
 Local smoke tests:
 
@@ -510,3 +510,27 @@ This patch intentionally does not add Celery/RabbitMQ yet. The API executes the
 MVP job inline and records a durable job row so a future worker implementation
 can reuse the same contract.
 
+### Patch 25h — enrichment job status UI
+
+Patch 25h adds the UI layer for the Patch 25g enrichment job API. In the
+Integrations page, the selected Elasticsearch binding now shows an enrichment
+jobs panel with:
+
+- role-aware `Run enrichment job` action for admins/moderators;
+- read-only job history for contributors;
+- job target index, alias name, and max documents inputs for `reindex_alias_swap`;
+- `in_place` strategy messaging for direct write jobs;
+- queued/running/succeeded/failed status badges;
+- source/target index, alias, counters, error message, and result JSON details.
+
+The UI calls the existing governance API endpoints:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+GET /v1/governance/elasticsearch/jobs?binding_id=...
+GET /v1/governance/elasticsearch/jobs/{job_id}
+```
+
+This patch does not add Celery/RabbitMQ, cancellation, rollback, scheduling, or
+log streaming. The current backend job executor is still the synchronous MVP
+from Patch 25g.

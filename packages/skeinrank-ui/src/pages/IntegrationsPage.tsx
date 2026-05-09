@@ -10,10 +10,13 @@ import {
   deleteElasticsearchBinding,
   dryRunElasticsearchBinding,
   getElasticsearchConnectionStatus,
+  getElasticsearchEnrichmentJob,
   getElasticsearchIndexMapping,
   listElasticsearchBindings,
+  listElasticsearchEnrichmentJobs,
   listElasticsearchIndices,
   listProfiles,
+  startElasticsearchEnrichmentJob,
   updateElasticsearchBinding,
 } from "../lib/api";
 import { permissionsForUser } from "../permissions";
@@ -24,6 +27,9 @@ import type {
   ElasticsearchBindingDryRunResponse,
   ElasticsearchBindingMode,
   ElasticsearchBindingUpdateRequest,
+  ElasticsearchBindingWriteStrategy,
+  ElasticsearchEnrichmentJob,
+  ElasticsearchEnrichmentJobCreateRequest,
   ElasticsearchConnectionStatus,
   ElasticsearchIndex,
   ElasticsearchMappingField,
@@ -31,6 +37,7 @@ import type {
 } from "../types";
 
 const bindingModes: ElasticsearchBindingMode[] = ["dry_run", "write"];
+const bindingWriteStrategies: ElasticsearchBindingWriteStrategy[] = ["reindex_alias_swap", "in_place"];
 
 type BindingDraft = {
   id?: number;
@@ -53,17 +60,20 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
   const profilesQuery = useQuery({ queryKey: ["profiles"], queryFn: listProfiles });
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [selectedBindingId, setSelectedBindingId] = useState<number | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!profilesQuery.data || profilesQuery.data.length === 0) {
       setSelectedProfile(null);
       setSelectedBindingId(null);
+      setSelectedJobId(null);
       return;
     }
 
     if (!selectedProfile || !profilesQuery.data.some((profile) => profile.name === selectedProfile)) {
       setSelectedProfile(profilesQuery.data[0].name);
       setSelectedBindingId(null);
+      setSelectedJobId(null);
     }
   }, [profilesQuery.data, selectedProfile]);
 
@@ -94,6 +104,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
   useEffect(() => {
     if (!bindingsQuery.data || bindingsQuery.data.length === 0) {
       setSelectedBindingId(null);
+      setSelectedJobId(null);
       return;
     }
 
@@ -109,11 +120,35 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
     return bindingsQuery.data.find((binding) => binding.id === selectedBindingId) ?? null;
   }, [bindingsQuery.data, selectedBindingId]);
 
+  const jobsQuery = useQuery({
+    queryKey: ["elasticsearch-enrichment-jobs", selectedBindingId],
+    queryFn: () => listElasticsearchEnrichmentJobs(selectedBindingId ?? undefined),
+    enabled: permissions.canReadBindings && Boolean(selectedBindingId),
+  });
+
+  useEffect(() => {
+    if (!jobsQuery.data || jobsQuery.data.length === 0) {
+      setSelectedJobId(null);
+      return;
+    }
+
+    if (!selectedJobId || !jobsQuery.data.some((job) => job.id === selectedJobId)) {
+      setSelectedJobId(jobsQuery.data[0].id);
+    }
+  }, [jobsQuery.data, selectedJobId]);
+
+  const jobDetailsQuery = useQuery({
+    queryKey: ["elasticsearch-enrichment-job", selectedJobId],
+    queryFn: () => getElasticsearchEnrichmentJob(selectedJobId ?? 0),
+    enabled: permissions.canReadBindings && Boolean(selectedJobId),
+  });
+
   const createMutation = useMutation({
     mutationFn: (payload: ElasticsearchBindingCreateRequest) => createElasticsearchBinding(payload),
     onSuccess: (binding) => {
       setSelectedProfile(binding.profile_name);
       setSelectedBindingId(binding.id);
+      setSelectedJobId(null);
       upsertElasticsearchBinding(queryClient, "all", binding);
       upsertElasticsearchBinding(queryClient, binding.profile_name, binding);
       void queryClient.invalidateQueries({ queryKey: ["elasticsearch-bindings"] });
@@ -136,6 +171,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
     mutationFn: (bindingId: number) => deleteElasticsearchBinding(bindingId),
     onSuccess: (_result, bindingId) => {
       setSelectedBindingId(null);
+      setSelectedJobId(null);
       removeElasticsearchBinding(queryClient, "all", bindingId);
       removeElasticsearchBinding(queryClient, selectedProfile, bindingId);
       void queryClient.invalidateQueries({ queryKey: ["elasticsearch-bindings"] });
@@ -144,6 +180,20 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
 
   const dryRunMutation = useMutation({
     mutationFn: (bindingId: number) => dryRunElasticsearchBinding(bindingId, { limit: 3 }),
+  });
+
+  const startJobMutation = useMutation({
+    mutationFn: ({ bindingId, payload }: { bindingId: number; payload: ElasticsearchEnrichmentJobCreateRequest }) =>
+      startElasticsearchEnrichmentJob(bindingId, payload),
+    onSuccess: (job) => {
+      setSelectedJobId(job.id);
+      queryClient.setQueryData<ElasticsearchEnrichmentJob[]>(["elasticsearch-enrichment-jobs", job.binding_id], (jobs = []) => {
+        const withoutJob = jobs.filter((current) => current.id !== job.id);
+        return [job, ...withoutJob].sort(sortJobs);
+      });
+      queryClient.setQueryData(["elasticsearch-enrichment-job", job.id], job);
+      void queryClient.invalidateQueries({ queryKey: ["elasticsearch-enrichment-jobs", job.binding_id] });
+    },
   });
 
   async function handleCreateBinding(payload: ElasticsearchBindingCreateRequest) {
@@ -160,6 +210,10 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
 
   async function handleDryRunBinding(bindingId: number) {
     await dryRunMutation.mutateAsync(bindingId);
+  }
+
+  async function handleStartJob(bindingId: number, payload: ElasticsearchEnrichmentJobCreateRequest) {
+    await startJobMutation.mutateAsync({ bindingId, payload });
   }
 
   const allBindings = allBindingsQuery.data ?? [];
@@ -203,10 +257,12 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
             onSelectProfile={(profileName) => {
               setSelectedProfile(profileName);
               setSelectedBindingId(null);
+              setSelectedJobId(null);
               createMutation.reset();
               updateMutation.reset();
               deleteMutation.reset();
               dryRunMutation.reset();
+              startJobMutation.reset();
             }}
             profiles={profilesQuery.data ?? []}
             selectedProfile={selectedProfile}
@@ -238,6 +294,8 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
               updateMutation.reset();
               deleteMutation.reset();
               dryRunMutation.reset();
+              startJobMutation.reset();
+              setSelectedJobId(null);
             }}
             selectedBindingId={selectedBindingId}
           />
@@ -254,11 +312,19 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
           dryRunResult={dryRunMutation.data ?? null}
           isDeleting={deleteMutation.isPending}
           isDryRunning={dryRunMutation.isPending}
+          isLoadingJobs={jobsQuery.isLoading && Boolean(selectedBinding)}
+          isStartingJob={startJobMutation.isPending}
           isUpdating={updateMutation.isPending}
+          jobDetails={jobDetailsQuery.data ?? null}
+          jobErrorMessage={getErrorMessage(startJobMutation.error) ?? getErrorMessage(jobsQuery.error) ?? getErrorMessage(jobDetailsQuery.error)}
+          jobs={jobsQuery.data ?? []}
           onDelete={handleDeleteBinding}
           onDryRun={handleDryRunBinding}
+          onSelectJob={setSelectedJobId}
+          onStartJob={handleStartJob}
           onUpdate={handleUpdateBinding}
           profiles={profilesQuery.data ?? []}
+          selectedJobId={selectedJobId}
           updateErrorMessage={getErrorMessage(updateMutation.error)}
         />
       </section>
@@ -459,6 +525,7 @@ function CreateBindingForm({
   const [discriminatorField, setDiscriminatorField] = useState("");
   const [discriminatorValue, setDiscriminatorValue] = useState("");
   const [mode, setMode] = useState<ElasticsearchBindingMode>("dry_run");
+  const [writeStrategy, setWriteStrategy] = useState<ElasticsearchBindingWriteStrategy>("reindex_alias_swap");
   const [isEnabled, setIsEnabled] = useState(true);
 
   useEffect(() => {
@@ -505,6 +572,7 @@ function CreateBindingForm({
       filter_field: discriminatorField.trim() || null,
       filter_value: discriminatorValue.trim() || null,
       mode,
+      write_strategy: writeStrategy,
       is_enabled: isEnabled,
     });
     setName("");
@@ -515,6 +583,7 @@ function CreateBindingForm({
     setDiscriminatorField("");
     setDiscriminatorValue("");
     setMode("dry_run");
+    setWriteStrategy("reindex_alias_swap");
     setIsEnabled(true);
   }
 
@@ -604,6 +673,12 @@ function CreateBindingForm({
                 {bindingModes.map((bindingMode) => <option key={bindingMode} value={bindingMode}>{bindingMode}</option>)}
               </select>
             </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Write strategy</span>
+              <select className={selectClassName} disabled={disabled || isSubmitting} onChange={(event) => setWriteStrategy(event.target.value as ElasticsearchBindingWriteStrategy)} value={writeStrategy}>
+                {bindingWriteStrategies.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}
+              </select>
+            </label>
             <label className="mt-6 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
               <input checked={isEnabled} disabled={disabled || isSubmitting} onChange={(event) => setIsEnabled(event.target.checked)} type="checkbox" />
               Enabled binding
@@ -647,6 +722,7 @@ function BindingsTable({
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Profile</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Index</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Discriminator</th>
+                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Strategy</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Status</th>
               </tr>
             </thead>
@@ -661,12 +737,13 @@ function BindingsTable({
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">{binding.profile_name}</td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><code>{binding.index_name}</code></td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">{formatDiscriminator(binding)}</td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><BindingWriteStrategyBadge strategy={binding.write_strategy} /></td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><BindingStatusBadge isEnabled={binding.is_enabled} /></td>
                 </tr>
               ))}
               {bindings.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={5}>No bindings found for this profile.</td>
+                  <td className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={6}>No bindings found for this profile.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -688,11 +765,19 @@ function BindingDetailsPanel({
   dryRunResult,
   isDeleting,
   isDryRunning,
+  isLoadingJobs,
+  isStartingJob,
   isUpdating,
+  jobDetails,
+  jobErrorMessage,
+  jobs,
   onDelete,
   onDryRun,
+  onSelectJob,
+  onStartJob,
   onUpdate,
   profiles,
+  selectedJobId,
   updateErrorMessage,
 }: {
   allBindings: ElasticsearchBinding[];
@@ -705,11 +790,19 @@ function BindingDetailsPanel({
   dryRunResult: ElasticsearchBindingDryRunResponse | null;
   isDeleting: boolean;
   isDryRunning: boolean;
+  isLoadingJobs: boolean;
+  isStartingJob: boolean;
   isUpdating: boolean;
+  jobDetails: ElasticsearchEnrichmentJob | null;
+  jobErrorMessage?: string | null;
+  jobs: ElasticsearchEnrichmentJob[];
   onDelete: (bindingId: number) => Promise<void> | void;
   onDryRun: (bindingId: number) => Promise<void> | void;
+  onSelectJob: (jobId: number) => void;
+  onStartJob: (bindingId: number, payload: ElasticsearchEnrichmentJobCreateRequest) => Promise<void> | void;
   onUpdate: (bindingId: number, payload: ElasticsearchBindingUpdateRequest) => Promise<void> | void;
   profiles: Profile[];
+  selectedJobId: number | null;
   updateErrorMessage?: string | null;
 }) {
   const [name, setName] = useState("");
@@ -721,6 +814,7 @@ function BindingDetailsPanel({
   const [discriminatorField, setDiscriminatorField] = useState("");
   const [discriminatorValue, setDiscriminatorValue] = useState("");
   const [mode, setMode] = useState<ElasticsearchBindingMode>("dry_run");
+  const [writeStrategy, setWriteStrategy] = useState<ElasticsearchBindingWriteStrategy>("reindex_alias_swap");
   const [isEnabled, setIsEnabled] = useState(true);
 
   useEffect(() => {
@@ -734,6 +828,7 @@ function BindingDetailsPanel({
     setDiscriminatorField(binding.filter_field ?? "");
     setDiscriminatorValue(binding.filter_value ?? "");
     setMode(binding.mode);
+    setWriteStrategy(binding.write_strategy);
     setIsEnabled(binding.is_enabled);
   }, [binding]);
 
@@ -784,6 +879,7 @@ function BindingDetailsPanel({
       filter_field: discriminatorField.trim() || null,
       filter_value: discriminatorValue.trim() || null,
       mode,
+      write_strategy: writeStrategy,
       is_enabled: isEnabled,
     });
   }
@@ -832,7 +928,7 @@ function BindingDetailsPanel({
           </div>
           <MappingFieldSuggestions fields={discriminatorCandidates} label="Discovered discriminator fields" onUseFields={(fields) => setDiscriminatorField(fields[0] ?? discriminatorField)} />
           <BindingValidationMessages validation={validation} />
-          <div className="flex flex-wrap items-center gap-4"><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit mode</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setMode(event.target.value as ElasticsearchBindingMode)} value={mode}>{bindingModes.map((bindingMode) => <option key={bindingMode} value={bindingMode}>{bindingMode}</option>)}</select></label><label className="mt-6 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input checked={isEnabled} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setIsEnabled(event.target.checked)} type="checkbox" />Edit enabled binding</label></div>
+          <div className="flex flex-wrap items-center gap-4"><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit mode</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setMode(event.target.value as ElasticsearchBindingMode)} value={mode}>{bindingModes.map((bindingMode) => <option key={bindingMode} value={bindingMode}>{bindingMode}</option>)}</select></label><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit write strategy</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setWriteStrategy(event.target.value as ElasticsearchBindingWriteStrategy)} value={writeStrategy}>{bindingWriteStrategies.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}</select></label><label className="mt-6 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input checked={isEnabled} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setIsEnabled(event.target.checked)} type="checkbox" />Edit enabled binding</label></div>
           {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}{deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
           <div className="flex flex-wrap gap-2"><Button disabled={!canSave} type="submit">{isUpdating ? "Saving..." : "Save binding"}</Button><Button disabled={!canManage || isUpdating || isDeleting} onClick={handleDelete} type="button" variant="secondary">{isDeleting ? "Deleting..." : "Delete binding"}</Button></div>
         </form>
@@ -848,8 +944,197 @@ function BindingDetailsPanel({
           {dryRunErrorMessage ? <div className="mt-3"><InlineError message={dryRunErrorMessage} /></div> : null}
           {dryRunResult && dryRunResult.binding.id === binding.id ? <DryRunPreview result={dryRunResult} /> : null}
         </div>
+
+        <EnrichmentJobsPanel
+          binding={binding}
+          canManage={canManage}
+          errorMessage={jobErrorMessage}
+          isLoading={isLoadingJobs}
+          isStarting={isStartingJob}
+          jobDetails={jobDetails}
+          jobs={jobs}
+          onSelectJob={onSelectJob}
+          onStartJob={onStartJob}
+          selectedJobId={selectedJobId}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+
+function EnrichmentJobsPanel({
+  binding,
+  canManage,
+  errorMessage,
+  isLoading,
+  isStarting,
+  jobDetails,
+  jobs,
+  onSelectJob,
+  onStartJob,
+  selectedJobId,
+}: {
+  binding: ElasticsearchBinding;
+  canManage: boolean;
+  errorMessage?: string | null;
+  isLoading: boolean;
+  isStarting: boolean;
+  jobDetails: ElasticsearchEnrichmentJob | null;
+  jobs: ElasticsearchEnrichmentJob[];
+  onSelectJob: (jobId: number) => void;
+  onStartJob: (bindingId: number, payload: ElasticsearchEnrichmentJobCreateRequest) => Promise<void> | void;
+  selectedJobId: number | null;
+}) {
+  const [targetIndexName, setTargetIndexName] = useState("");
+  const [aliasName, setAliasName] = useState("");
+  const [maxDocuments, setMaxDocuments] = useState("1000");
+
+  useEffect(() => {
+    setTargetIndexName("");
+    setAliasName("");
+    setMaxDocuments("1000");
+  }, [binding.id]);
+
+  const isReindexAliasSwap = binding.write_strategy === "reindex_alias_swap";
+  const maxDocumentCount = Number(maxDocuments);
+  const canStartJob =
+    canManage &&
+    binding.is_enabled &&
+    binding.mode === "write" &&
+    !isStarting &&
+    Number.isInteger(maxDocumentCount) &&
+    maxDocumentCount >= 1 &&
+    maxDocumentCount <= 10000;
+
+  async function handleStartJob(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canStartJob) return;
+
+    const payload: ElasticsearchEnrichmentJobCreateRequest = {
+      max_documents: maxDocumentCount,
+    };
+    if (isReindexAliasSwap) {
+      payload.target_index_name = targetIndexName.trim() || null;
+      payload.alias_name = aliasName.trim() || null;
+    }
+    await onStartJob(binding.id, payload);
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="font-medium text-slate-950 dark:text-slate-50">Enrichment jobs</div>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Start a write-mode enrichment job and track queued/running/succeeded/failed status for this binding.
+          </p>
+        </div>
+        <BindingWriteStrategyBadge strategy={binding.write_strategy} />
+      </div>
+
+      {!canManage ? (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          Contributors can inspect enrichment jobs, but only admins and moderators can run them.
+        </div>
+      ) : null}
+      {binding.mode !== "write" ? (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          Switch this binding to write mode before starting an enrichment job.
+        </div>
+      ) : null}
+      {binding.write_strategy === "in_place" ? (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          This job will update the existing index in place.
+        </div>
+      ) : (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          This job will create an enriched target index and swap the alias after enrichment.
+        </div>
+      )}
+
+      <form className="mt-4 space-y-3" onSubmit={handleStartJob}>
+        {isReindexAliasSwap ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Job target index</span>
+              <Input disabled={!canManage || isStarting || binding.mode !== "write"} onChange={(event) => setTargetIndexName(event.target.value)} placeholder={`${binding.index_name}__skeinrank_job_<id>`} value={targetIndexName} />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Job alias name</span>
+              <Input disabled={!canManage || isStarting || binding.mode !== "write"} onChange={(event) => setAliasName(event.target.value)} placeholder={binding.index_name} value={aliasName} />
+            </label>
+          </div>
+        ) : null}
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Max documents</span>
+          <Input disabled={!canManage || isStarting || binding.mode !== "write"} max={10000} min={1} onChange={(event) => setMaxDocuments(event.target.value)} type="number" value={maxDocuments} />
+        </label>
+        <Button disabled={!canStartJob} type="submit">{isStarting ? "Starting..." : "Run enrichment job"}</Button>
+      </form>
+
+      {errorMessage ? <div className="mt-3"><InlineError message={errorMessage} /></div> : null}
+
+      <div className="mt-5 space-y-3">
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">Job history</div>
+        {isLoading ? <p className="text-sm text-slate-500 dark:text-slate-400">Loading enrichment jobs...</p> : null}
+        {!isLoading && jobs.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-400">No enrichment jobs for this binding yet.</p> : null}
+        {jobs.length > 0 ? (
+          <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead className="bg-slate-50 uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+                <tr>
+                  <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Job</th>
+                  <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Status</th>
+                  <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Docs</th>
+                  <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Finished</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr className={selectedJobId === job.id ? "bg-slate-50 dark:bg-slate-900" : ""} key={job.id}>
+                    <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800"><button className="font-medium text-slate-950 underline-offset-2 hover:underline dark:text-slate-50" onClick={() => onSelectJob(job.id)} type="button">#{job.id}</button></td>
+                    <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800"><JobStatusBadge status={job.status} /></td>
+                    <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{job.documents_enriched}/{job.documents_seen}</td>
+                    <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{formatDateTime(job.finished_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
+
+      {jobDetails ? <JobDetails job={jobDetails} /> : null}
+    </div>
+  );
+}
+
+function JobDetails({ job }: { job: ElasticsearchEnrichmentJob }) {
+  return (
+    <div className="mt-5 space-y-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-slate-950 dark:text-slate-50">Job #{job.id}</span>
+        <JobStatusBadge status={job.status} />
+      </div>
+      <div className="grid gap-2 text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Binding:</span> {job.binding_name}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Profile:</span> {job.profile_name}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Strategy:</span> {job.write_strategy}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Requested by:</span> {job.requested_by ?? "—"}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Source index:</span> <code>{job.source_index}</code></div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Target index:</span> {job.target_index ? <code>{job.target_index}</code> : "—"}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Alias:</span> {job.alias_name ? <code>{job.alias_name}</code> : "—"}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Failed docs:</span> {job.documents_failed}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Started:</span> {formatDateTime(job.started_at)}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Finished:</span> {formatDateTime(job.finished_at)}</div>
+      </div>
+      {job.error_message ? <InlineError message={job.error_message} /> : null}
+      <div>
+        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Result JSON</div>
+        <pre className="max-h-56 overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(job.result_json, null, 2)}</pre>
+      </div>
+    </div>
   );
 }
 
@@ -966,8 +1251,30 @@ function BindingStatusBadge({ isEnabled }: { isEnabled: boolean }) {
   return isEnabled ? <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">enabled</Badge> : <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">disabled</Badge>;
 }
 
+function BindingWriteStrategyBadge({ strategy }: { strategy: ElasticsearchBindingWriteStrategy }) {
+  return strategy === "reindex_alias_swap" ? <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200">reindex + alias swap</Badge> : <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">in place</Badge>;
+}
+
+function JobStatusBadge({ status }: { status: ElasticsearchEnrichmentJob["status"] }) {
+  const className =
+    status === "succeeded"
+      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
+      : status === "failed"
+        ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200"
+        : status === "running"
+          ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200"
+          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+  return <Badge className={className}>{status}</Badge>;
+}
+
 function InlineError({ message }: { message: string }) {
   return <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">{message}</div>;
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
 function getErrorMessage(error: unknown) {
@@ -1029,6 +1336,10 @@ function upsertElasticsearchBinding(queryClient: ReturnType<typeof useQueryClien
 
 function removeElasticsearchBinding(queryClient: ReturnType<typeof useQueryClient>, cacheProfileName: string | null, bindingId: number) {
   queryClient.setQueryData<ElasticsearchBinding[]>(["elasticsearch-bindings", cacheProfileName], (bindings = []) => bindings.filter((binding) => binding.id !== bindingId));
+}
+
+function sortJobs(left: ElasticsearchEnrichmentJob, right: ElasticsearchEnrichmentJob) {
+  return right.created_at.localeCompare(left.created_at) || right.id - left.id;
 }
 
 function sortBindings(left: ElasticsearchBinding, right: ElasticsearchBinding) {
