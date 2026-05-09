@@ -8,7 +8,13 @@ import { SnapshotPanel } from "../components/SnapshotPanel";
 import { TermDetailsPanel } from "../components/TermDetailsPanel";
 import { TermsTable } from "../components/TermsTable";
 import { Badge } from "../components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import {
   createAlias,
   createProfile,
@@ -16,6 +22,8 @@ import {
   deleteAlias,
   deleteProfile,
   deleteTerm,
+  findElasticsearchEvidence,
+  listElasticsearchBindings,
   listProfiles,
   listTerms,
   updateAlias,
@@ -27,6 +35,7 @@ import type {
   AliasCreateRequest,
   AliasUpdateRequest,
   CanonicalTerm,
+  ElasticsearchEvidenceResponse,
   Profile,
   ProfileCreateRequest,
   ProfileUpdateRequest,
@@ -36,7 +45,11 @@ import type {
   AuthUser,
 } from "../types";
 
-export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) {
+export function GovernanceDashboard({
+  currentUser,
+}: {
+  currentUser: AuthUser;
+}) {
   const permissions = permissionsForUser(currentUser);
   const queryClient = useQueryClient();
   const profilesQuery = useQuery({
@@ -54,7 +67,10 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
       return;
     }
 
-    if (!selectedProfile || !profilesQuery.data.some((profile) => profile.name === selectedProfile)) {
+    if (
+      !selectedProfile ||
+      !profilesQuery.data.some((profile) => profile.name === selectedProfile)
+    ) {
       setSelectedProfile(profilesQuery.data[0].name);
       setSelectedTermId(null);
     }
@@ -63,6 +79,12 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
   const termsQuery = useQuery({
     queryKey: ["terms", selectedProfile],
     queryFn: () => listTerms(selectedProfile ?? ""),
+    enabled: Boolean(selectedProfile),
+  });
+
+  const bindingsQuery = useQuery({
+    queryKey: ["elasticsearch", "bindings", selectedProfile],
+    queryFn: () => listElasticsearchBindings(selectedProfile ?? ""),
     enabled: Boolean(selectedProfile),
   });
 
@@ -76,7 +98,10 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
       return;
     }
 
-    if (!selectedTermId || !termsQuery.data.some((term) => term.id === selectedTermId)) {
+    if (
+      !selectedTermId ||
+      !termsQuery.data.some((term) => term.id === selectedTermId)
+    ) {
       setSelectedTermId(termsQuery.data[0].id);
     }
   }, [selectedTermId, termsQuery.data]);
@@ -95,10 +120,14 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
       setSelectedTermId(null);
       queryClient.setQueryData(["profiles"], (currentProfiles = []) => {
         const profiles = currentProfiles as Profile[];
-        if (profiles.some((currentProfile) => currentProfile.id === profile.id)) {
+        if (
+          profiles.some((currentProfile) => currentProfile.id === profile.id)
+        ) {
           return profiles;
         }
-        return [...profiles, profile].sort((left, right) => left.normalized_name.localeCompare(right.normalized_name));
+        return [...profiles, profile].sort((left, right) =>
+          left.normalized_name.localeCompare(right.normalized_name),
+        );
       });
       queryClient.setQueryData(["terms", profile.name], []);
       void queryClient.invalidateQueries({ queryKey: ["profiles"] });
@@ -106,17 +135,29 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: ({ profileName, payload }: { profileName: string; payload: ProfileUpdateRequest }) => updateProfile(profileName, payload),
+    mutationFn: ({
+      profileName,
+      payload,
+    }: {
+      profileName: string;
+      payload: ProfileUpdateRequest;
+    }) => updateProfile(profileName, payload),
     onSuccess: (profile, variables) => {
       setSelectedProfile(profile.name);
       setSelectedTermId(null);
       queryClient.setQueryData(["profiles"], (currentProfiles = []) =>
         (currentProfiles as Profile[])
-          .map((currentProfile) => (currentProfile.id === profile.id ? profile : currentProfile))
-          .sort((left, right) => left.normalized_name.localeCompare(right.normalized_name)),
+          .map((currentProfile) =>
+            currentProfile.id === profile.id ? profile : currentProfile,
+          )
+          .sort((left, right) =>
+            left.normalized_name.localeCompare(right.normalized_name),
+          ),
       );
       if (variables.profileName !== profile.name) {
-        queryClient.removeQueries({ queryKey: ["terms", variables.profileName] });
+        queryClient.removeQueries({
+          queryKey: ["terms", variables.profileName],
+        });
       }
       void queryClient.invalidateQueries({ queryKey: ["profiles"] });
       void queryClient.invalidateQueries({ queryKey: ["terms", profile.name] });
@@ -127,7 +168,9 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
     mutationFn: (profileName: string) => deleteProfile(profileName),
     onSuccess: (_result, profileName) => {
       queryClient.setQueryData(["profiles"], (currentProfiles = []) =>
-        (currentProfiles as Array<{ name: string }>).filter((profile) => profile.name !== profileName),
+        (currentProfiles as Array<{ name: string }>).filter(
+          (profile) => profile.name !== profileName,
+        ),
       );
       queryClient.removeQueries({ queryKey: ["terms", profileName] });
       setSelectedProfile(null);
@@ -145,18 +188,29 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
     },
     onSuccess: (term) => {
       setSelectedTermId(term.id);
-      queryClient.setQueryData<CanonicalTerm[]>(["terms", selectedProfile], (currentTerms = []) => {
-        if (currentTerms.some((currentTerm) => currentTerm.id === term.id)) {
-          return currentTerms;
-        }
-        return [...currentTerms, term];
+      queryClient.setQueryData<CanonicalTerm[]>(
+        ["terms", selectedProfile],
+        (currentTerms = []) => {
+          if (currentTerms.some((currentTerm) => currentTerm.id === term.id)) {
+            return currentTerms;
+          }
+          return [...currentTerms, term];
+        },
+      );
+      void queryClient.invalidateQueries({
+        queryKey: ["terms", selectedProfile],
       });
-      void queryClient.invalidateQueries({ queryKey: ["terms", selectedProfile] });
     },
   });
 
   const updateTermMutation = useMutation({
-    mutationFn: ({ term, payload }: { term: CanonicalTerm; payload: TermUpdateRequest }) => {
+    mutationFn: ({
+      term,
+      payload,
+    }: {
+      term: CanonicalTerm;
+      payload: TermUpdateRequest;
+    }) => {
       if (!selectedProfile) {
         throw new Error("Select a profile before updating a term.");
       }
@@ -164,10 +218,16 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
     },
     onSuccess: (term) => {
       setSelectedTermId(term.id);
-      queryClient.setQueryData<CanonicalTerm[]>(["terms", selectedProfile], (currentTerms = []) =>
-        currentTerms.map((currentTerm) => (currentTerm.id === term.id ? term : currentTerm)),
+      queryClient.setQueryData<CanonicalTerm[]>(
+        ["terms", selectedProfile],
+        (currentTerms = []) =>
+          currentTerms.map((currentTerm) =>
+            currentTerm.id === term.id ? term : currentTerm,
+          ),
       );
-      void queryClient.invalidateQueries({ queryKey: ["terms", selectedProfile] });
+      void queryClient.invalidateQueries({
+        queryKey: ["terms", selectedProfile],
+      });
     },
   });
 
@@ -180,10 +240,14 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
     },
     onSuccess: (_result, term) => {
       setSelectedTermId(null);
-      queryClient.setQueryData<CanonicalTerm[]>(["terms", selectedProfile], (currentTerms = []) =>
-        currentTerms.filter((currentTerm) => currentTerm.id !== term.id),
+      queryClient.setQueryData<CanonicalTerm[]>(
+        ["terms", selectedProfile],
+        (currentTerms = []) =>
+          currentTerms.filter((currentTerm) => currentTerm.id !== term.id),
       );
-      void queryClient.invalidateQueries({ queryKey: ["terms", selectedProfile] });
+      void queryClient.invalidateQueries({
+        queryKey: ["terms", selectedProfile],
+      });
     },
   });
 
@@ -192,41 +256,69 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
       if (!selectedProfile || !selectedTerm) {
         throw new Error("Select a canonical term before creating an alias.");
       }
-      return createAlias(selectedProfile, selectedTerm.canonical_value, payload);
+      return createAlias(
+        selectedProfile,
+        selectedTerm.canonical_value,
+        payload,
+      );
     },
     onSuccess: (alias) => {
-      queryClient.setQueryData<CanonicalTerm[]>(["terms", selectedProfile], (currentTerms = []) =>
-        currentTerms.map((term) => {
-          if (term.id !== selectedTerm?.id || term.aliases.some((currentAlias) => currentAlias.id === alias.id)) {
-            return term;
-          }
-          return { ...term, aliases: [...term.aliases, alias] };
-        }),
+      queryClient.setQueryData<CanonicalTerm[]>(
+        ["terms", selectedProfile],
+        (currentTerms = []) =>
+          currentTerms.map((term) => {
+            if (
+              term.id !== selectedTerm?.id ||
+              term.aliases.some((currentAlias) => currentAlias.id === alias.id)
+            ) {
+              return term;
+            }
+            return { ...term, aliases: [...term.aliases, alias] };
+          }),
       );
-      void queryClient.invalidateQueries({ queryKey: ["terms", selectedProfile] });
+      void queryClient.invalidateQueries({
+        queryKey: ["terms", selectedProfile],
+      });
     },
   });
 
   const updateAliasMutation = useMutation({
-    mutationFn: ({ alias, payload }: { alias: TermAlias; payload: AliasUpdateRequest }) => {
+    mutationFn: ({
+      alias,
+      payload,
+    }: {
+      alias: TermAlias;
+      payload: AliasUpdateRequest;
+    }) => {
       if (!selectedProfile || !selectedTerm) {
         throw new Error("Select a canonical term before updating an alias.");
       }
-      return updateAlias(selectedProfile, selectedTerm.canonical_value, alias.id, payload);
+      return updateAlias(
+        selectedProfile,
+        selectedTerm.canonical_value,
+        alias.id,
+        payload,
+      );
     },
     onSuccess: (alias) => {
-      queryClient.setQueryData<CanonicalTerm[]>(["terms", selectedProfile], (currentTerms = []) =>
-        currentTerms.map((term) => {
-          if (term.id !== selectedTerm?.id) {
-            return term;
-          }
-          return {
-            ...term,
-            aliases: term.aliases.map((currentAlias) => (currentAlias.id === alias.id ? alias : currentAlias)),
-          };
-        }),
+      queryClient.setQueryData<CanonicalTerm[]>(
+        ["terms", selectedProfile],
+        (currentTerms = []) =>
+          currentTerms.map((term) => {
+            if (term.id !== selectedTerm?.id) {
+              return term;
+            }
+            return {
+              ...term,
+              aliases: term.aliases.map((currentAlias) =>
+                currentAlias.id === alias.id ? alias : currentAlias,
+              ),
+            };
+          }),
       );
-      void queryClient.invalidateQueries({ queryKey: ["terms", selectedProfile] });
+      void queryClient.invalidateQueries({
+        queryKey: ["terms", selectedProfile],
+      });
     },
   });
 
@@ -235,20 +327,62 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
       if (!selectedProfile || !selectedTerm) {
         throw new Error("Select a canonical term before deleting an alias.");
       }
-      return deleteAlias(selectedProfile, selectedTerm.canonical_value, alias.id);
+      return deleteAlias(
+        selectedProfile,
+        selectedTerm.canonical_value,
+        alias.id,
+      );
     },
     onSuccess: (_result, alias) => {
-      queryClient.setQueryData<CanonicalTerm[]>(["terms", selectedProfile], (currentTerms = []) =>
-        currentTerms.map((term) => {
-          if (term.id !== selectedTerm?.id) {
-            return term;
-          }
-          return { ...term, aliases: term.aliases.filter((currentAlias) => currentAlias.id !== alias.id) };
-        }),
+      queryClient.setQueryData<CanonicalTerm[]>(
+        ["terms", selectedProfile],
+        (currentTerms = []) =>
+          currentTerms.map((term) => {
+            if (term.id !== selectedTerm?.id) {
+              return term;
+            }
+            return {
+              ...term,
+              aliases: term.aliases.filter(
+                (currentAlias) => currentAlias.id !== alias.id,
+              ),
+            };
+          }),
       );
-      void queryClient.invalidateQueries({ queryKey: ["terms", selectedProfile] });
+      void queryClient.invalidateQueries({
+        queryKey: ["terms", selectedProfile],
+      });
     },
   });
+
+  const evidenceMutation = useMutation({
+    mutationFn: ({
+      bindingId,
+      canonicalValue,
+      query,
+    }: {
+      bindingId: number;
+      canonicalValue: string;
+      query: string;
+    }) =>
+      findElasticsearchEvidence(bindingId, {
+        canonical_value: canonicalValue,
+        max_documents: 5,
+        query,
+      }),
+  });
+
+  async function handleCheckEvidence(
+    term: CanonicalTerm,
+    bindingId: number,
+    query: string,
+  ) {
+    await evidenceMutation.mutateAsync({
+      bindingId,
+      canonicalValue: term.canonical_value,
+      query,
+    });
+  }
 
   function handleProfileSelect(profileName: string) {
     setSelectedProfile(profileName);
@@ -266,13 +400,17 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
     createAliasMutation.reset();
     updateAliasMutation.reset();
     deleteAliasMutation.reset();
+    evidenceMutation.reset();
   }
 
   async function handleCreateProfile(payload: ProfileCreateRequest) {
     await createProfileMutation.mutateAsync(payload);
   }
 
-  async function handleUpdateProfile(profileName: string, payload: ProfileUpdateRequest) {
+  async function handleUpdateProfile(
+    profileName: string,
+    payload: ProfileUpdateRequest,
+  ) {
     await updateProfileMutation.mutateAsync({ profileName, payload });
   }
 
@@ -284,7 +422,10 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
     await createTermMutation.mutateAsync(payload);
   }
 
-  async function handleUpdateTerm(term: CanonicalTerm, payload: TermUpdateRequest) {
+  async function handleUpdateTerm(
+    term: CanonicalTerm,
+    payload: TermUpdateRequest,
+  ) {
     await updateTermMutation.mutateAsync({ term, payload });
   }
 
@@ -296,7 +437,10 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
     await createAliasMutation.mutateAsync(payload);
   }
 
-  async function handleUpdateAlias(alias: TermAlias, payload: AliasUpdateRequest) {
+  async function handleUpdateAlias(
+    alias: TermAlias,
+    payload: AliasUpdateRequest,
+  ) {
     await updateAliasMutation.mutateAsync({ alias, payload });
   }
 
@@ -311,6 +455,7 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
     deleteAliasMutation.reset();
     updateTermMutation.reset();
     deleteTermMutation.reset();
+    evidenceMutation.reset();
   }
 
   return (
@@ -322,16 +467,22 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
             <CardDescription>Terminology namespaces.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{profilesQuery.data?.length ?? 0}</div>
+            <div className="text-3xl font-semibold">
+              {profilesQuery.data?.length ?? 0}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Canonical terms</CardTitle>
-            <CardDescription>Typed entities in the selected profile.</CardDescription>
+            <CardDescription>
+              Typed entities in the selected profile.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{termsQuery.data?.length ?? 0}</div>
+            <div className="text-3xl font-semibold">
+              {termsQuery.data?.length ?? 0}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -354,9 +505,15 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
             isDeleting={deleteProfileMutation.isPending}
             isUpdating={updateProfileMutation.isPending}
             loading={profilesQuery.isLoading}
-            loadErrorMessage={profilesQuery.isError ? profilesQuery.error.message : null}
+            loadErrorMessage={
+              profilesQuery.isError ? profilesQuery.error.message : null
+            }
             disabled={!permissions.canManageProfiles}
-            readOnlyMessage={permissions.canManageProfiles ? null : "Only admins can create, rename, or delete terminology profiles."}
+            readOnlyMessage={
+              permissions.canManageProfiles
+                ? null
+                : "Only admins can create, rename, or delete terminology profiles."
+            }
             onCreateProfile={handleCreateProfile}
             onDeleteProfile={handleDeleteProfile}
             onSelectProfile={handleProfileSelect}
@@ -370,7 +527,11 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
             disabled={!selectedProfile || !permissions.canManageTerms}
             errorMessage={errorMessage(createTermMutation.error)}
             isSubmitting={createTermMutation.isPending}
-            readOnlyMessage={permissions.canManageTerms ? null : "Your role can inspect terms, but cannot create canonical terms."}
+            readOnlyMessage={
+              permissions.canManageTerms
+                ? null
+                : "Your role can inspect terms, but cannot create canonical terms."
+            }
             onSubmit={handleCreateTerm}
           />
 
@@ -379,21 +540,42 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
           ) : termsQuery.isLoading && selectedProfile ? (
             <Card>
               <CardContent>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Loading terms...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Loading terms...
+                </p>
               </CardContent>
             </Card>
           ) : (
-            <TermsTable onSelectTerm={(term) => handleTermSelect(term.id)} selectedTermId={selectedTermId} terms={termsQuery.data ?? []} />
+            <TermsTable
+              onSelectTerm={(term) => handleTermSelect(term.id)}
+              selectedTermId={selectedTermId}
+              terms={termsQuery.data ?? []}
+            />
           )}
         </div>
 
         <div className="space-y-6">
           <TermDetailsPanel
-            aliasErrorMessage={errorMessage(updateAliasMutation.error) ?? errorMessage(deleteAliasMutation.error)}
+            aliasErrorMessage={
+              errorMessage(updateAliasMutation.error) ??
+              errorMessage(deleteAliasMutation.error)
+            }
+            bindings={bindingsQuery.data ?? []}
+            bindingsErrorMessage={
+              bindingsQuery.isError ? bindingsQuery.error.message : null
+            }
+            bindingsLoading={
+              bindingsQuery.isLoading && Boolean(selectedProfile)
+            }
+            evidence={
+              evidenceMutation.data as ElasticsearchEvidenceResponse | undefined
+            }
+            evidenceErrorMessage={errorMessage(evidenceMutation.error)}
             errorMessage={errorMessage(createAliasMutation.error)}
             isAddingAlias={createAliasMutation.isPending}
             isDeletingAlias={deleteAliasMutation.isPending}
             isDeletingTerm={deleteTermMutation.isPending}
+            isCheckingEvidence={evidenceMutation.isPending}
             isUpdatingAlias={updateAliasMutation.isPending}
             isUpdatingTerm={updateTermMutation.isPending}
             canManageAliases={permissions.canManageAliases}
@@ -401,12 +583,24 @@ export function GovernanceDashboard({ currentUser }: { currentUser: AuthUser }) 
             onAddAlias={handleCreateAlias}
             onDeleteAlias={handleDeleteAlias}
             onDeleteTerm={handleDeleteTerm}
+            onCheckEvidence={handleCheckEvidence}
             onUpdateAlias={handleUpdateAlias}
             onUpdateTerm={handleUpdateTerm}
             term={selectedTerm}
-            termErrorMessage={errorMessage(updateTermMutation.error) ?? errorMessage(deleteTermMutation.error)}
+            termErrorMessage={
+              errorMessage(updateTermMutation.error) ??
+              errorMessage(deleteTermMutation.error)
+            }
           />
-          <SnapshotPanel disabled={!permissions.canExportSnapshots} profileName={selectedProfile} readOnlyMessage={permissions.canExportSnapshots ? null : "Snapshot export requires an admin or moderator role."} />
+          <SnapshotPanel
+            disabled={!permissions.canExportSnapshots}
+            profileName={selectedProfile}
+            readOnlyMessage={
+              permissions.canExportSnapshots
+                ? null
+                : "Snapshot export requires an admin or moderator role."
+            }
+          />
         </div>
       </section>
     </div>
@@ -429,5 +623,7 @@ function errorMessage(error: unknown) {
   if (!error) {
     return null;
   }
-  return error instanceof Error ? error.message : "Request failed. Check the governance API and try again.";
+  return error instanceof Error
+    ? error.message
+    : "Request failed. Check the governance API and try again.";
 }
