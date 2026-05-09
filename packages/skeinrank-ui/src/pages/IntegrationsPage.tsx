@@ -38,6 +38,15 @@ import type {
 
 const bindingModes: ElasticsearchBindingMode[] = ["dry_run", "write"];
 const bindingWriteStrategies: ElasticsearchBindingWriteStrategy[] = ["reindex_alias_swap", "in_place"];
+const timeWindowOptions = [
+  { label: "All documents", value: "all" },
+  { label: "Last 30 days", value: "30" },
+  { label: "Last 1 year", value: "365" },
+  { label: "Last 5 years", value: "1825" },
+  { label: "Custom days", value: "custom" },
+] as const;
+
+type TimeWindowValue = (typeof timeWindowOptions)[number]["value"];
 
 type BindingDraft = {
   id?: number;
@@ -524,6 +533,9 @@ function CreateBindingForm({
   const [targetField, setTargetField] = useState("skeinrank");
   const [discriminatorField, setDiscriminatorField] = useState("");
   const [discriminatorValue, setDiscriminatorValue] = useState("");
+  const [timestampField, setTimestampField] = useState("");
+  const [timeWindow, setTimeWindow] = useState<TimeWindowValue>("all");
+  const [customTimeWindowDays, setCustomTimeWindowDays] = useState("90");
   const [mode, setMode] = useState<ElasticsearchBindingMode>("dry_run");
   const [writeStrategy, setWriteStrategy] = useState<ElasticsearchBindingWriteStrategy>("reindex_alias_swap");
   const [isEnabled, setIsEnabled] = useState(true);
@@ -540,8 +552,12 @@ function CreateBindingForm({
   const mappingFields = mappingQuery.data?.fields ?? [];
   const textCandidates = mappingFields.filter((field) => field.is_text_candidate);
   const discriminatorCandidates = mappingFields.filter((field) => field.is_discriminator_candidate);
+  const timestampCandidates = mappingFields.filter((field) => field.type === "date" || field.type === "date_nanos");
 
   const parsedTextFields = parseTextFields(textFields);
+  const timeWindowDays = timeWindowDaysFromDraft(timeWindow, customTimeWindowDays);
+  const hasInvalidCustomTimeWindow = timeWindow === "custom" && timeWindowDays === null;
+  const hasTimeWindowWithoutTimestamp = timeWindowDays !== null && timestampField.trim().length === 0;
   const validation = validateBindingDraft(allBindings, {
     profileName,
     indexName,
@@ -556,6 +572,8 @@ function CreateBindingForm({
     indexName.trim().length > 0 &&
     targetField.trim().length > 0 &&
     parsedTextFields.length > 0 &&
+    !hasInvalidCustomTimeWindow &&
+    !hasTimeWindowWithoutTimestamp &&
     !validation.hasPartialFilter &&
     !validation.missingDiscriminator;
 
@@ -571,6 +589,8 @@ function CreateBindingForm({
       target_field: targetField.trim(),
       filter_field: discriminatorField.trim() || null,
       filter_value: discriminatorValue.trim() || null,
+      timestamp_field: timestampField.trim() || null,
+      time_window_days: timeWindowDays,
       mode,
       write_strategy: writeStrategy,
       is_enabled: isEnabled,
@@ -582,6 +602,9 @@ function CreateBindingForm({
     setTargetField("skeinrank");
     setDiscriminatorField("");
     setDiscriminatorValue("");
+    setTimestampField("");
+    setTimeWindow("all");
+    setCustomTimeWindowDays("90");
     setMode("dry_run");
     setWriteStrategy("reindex_alias_swap");
     setIsEnabled(true);
@@ -665,6 +688,31 @@ function CreateBindingForm({
             label="Discovered discriminator fields"
             onUseFields={(fields) => setDiscriminatorField(fields[0] ?? discriminatorField)}
           />
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Timestamp field</span>
+              <Input disabled={disabled || isSubmitting} list="create-es-timestamp-fields" onChange={(event) => setTimestampField(event.target.value)} placeholder="@timestamp" value={timestampField} />
+              <FieldsDatalist id="create-es-timestamp-fields" fields={timestampCandidates} />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Time window</span>
+              <select className={selectClassName} disabled={disabled || isSubmitting} onChange={(event) => setTimeWindow(event.target.value as TimeWindowValue)} value={timeWindow}>
+                {timeWindowOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+          </div>
+          {timeWindow === "custom" ? (
+            <label className="space-y-1.5">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Custom time window days</span>
+              <Input disabled={disabled || isSubmitting} max={3650} min={1} onChange={(event) => setCustomTimeWindowDays(event.target.value)} type="number" value={customTimeWindowDays} />
+            </label>
+          ) : null}
+          <MappingFieldSuggestions
+            fields={timestampCandidates}
+            label="Discovered timestamp fields"
+            onUseFields={(fields) => setTimestampField(fields[0] ?? timestampField)}
+          />
+          <TimeFilterValidationMessage hasInvalidCustomTimeWindow={hasInvalidCustomTimeWindow} hasTimeWindowWithoutTimestamp={hasTimeWindowWithoutTimestamp} />
           <BindingValidationMessages validation={validation} />
           <div className="flex flex-wrap items-center gap-4">
             <label className="space-y-1.5">
@@ -813,6 +861,9 @@ function BindingDetailsPanel({
   const [targetField, setTargetField] = useState("");
   const [discriminatorField, setDiscriminatorField] = useState("");
   const [discriminatorValue, setDiscriminatorValue] = useState("");
+  const [timestampField, setTimestampField] = useState("");
+  const [timeWindow, setTimeWindow] = useState<TimeWindowValue>("all");
+  const [customTimeWindowDays, setCustomTimeWindowDays] = useState("90");
   const [mode, setMode] = useState<ElasticsearchBindingMode>("dry_run");
   const [writeStrategy, setWriteStrategy] = useState<ElasticsearchBindingWriteStrategy>("reindex_alias_swap");
   const [isEnabled, setIsEnabled] = useState(true);
@@ -827,6 +878,9 @@ function BindingDetailsPanel({
     setTargetField(binding.target_field);
     setDiscriminatorField(binding.filter_field ?? "");
     setDiscriminatorValue(binding.filter_value ?? "");
+    setTimestampField(binding.timestamp_field ?? "");
+    setTimeWindow(timeWindowValueFromDays(binding.time_window_days));
+    setCustomTimeWindowDays(binding.time_window_days ? String(binding.time_window_days) : "90");
     setMode(binding.mode);
     setWriteStrategy(binding.write_strategy);
     setIsEnabled(binding.is_enabled);
@@ -840,6 +894,7 @@ function BindingDetailsPanel({
   const mappingFields = mappingQuery.data?.fields ?? [];
   const textCandidates = mappingFields.filter((field) => field.is_text_candidate);
   const discriminatorCandidates = mappingFields.filter((field) => field.is_discriminator_candidate);
+  const timestampCandidates = mappingFields.filter((field) => field.type === "date" || field.type === "date_nanos");
 
   if (!binding) {
     return (
@@ -857,6 +912,9 @@ function BindingDetailsPanel({
 
   const selectedBinding = binding;
   const parsedTextFields = parseTextFields(textFields);
+  const timeWindowDays = timeWindowDaysFromDraft(timeWindow, customTimeWindowDays);
+  const hasInvalidCustomTimeWindow = timeWindow === "custom" && timeWindowDays === null;
+  const hasTimeWindowWithoutTimestamp = timeWindowDays !== null && timestampField.trim().length === 0;
   const validation = validateBindingDraft(allBindings, {
     id: selectedBinding.id,
     profileName,
@@ -864,7 +922,7 @@ function BindingDetailsPanel({
     filterField: discriminatorField,
     filterValue: discriminatorValue,
   });
-  const canSave = canManage && !isUpdating && !isDeleting && name.trim().length > 0 && profileName.trim().length > 0 && indexName.trim().length > 0 && targetField.trim().length > 0 && parsedTextFields.length > 0 && !validation.hasPartialFilter && !validation.missingDiscriminator;
+  const canSave = canManage && !isUpdating && !isDeleting && name.trim().length > 0 && profileName.trim().length > 0 && indexName.trim().length > 0 && targetField.trim().length > 0 && parsedTextFields.length > 0 && !hasInvalidCustomTimeWindow && !hasTimeWindowWithoutTimestamp && !validation.hasPartialFilter && !validation.missingDiscriminator;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -878,6 +936,8 @@ function BindingDetailsPanel({
       target_field: targetField.trim(),
       filter_field: discriminatorField.trim() || null,
       filter_value: discriminatorValue.trim() || null,
+      timestamp_field: timestampField.trim() || null,
+      time_window_days: timeWindowDays,
       mode,
       write_strategy: writeStrategy,
       is_enabled: isEnabled,
@@ -927,6 +987,13 @@ function BindingDetailsPanel({
             <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit value for this profile</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setDiscriminatorValue(event.target.value)} placeholder="Optional" value={discriminatorValue} /></label>
           </div>
           <MappingFieldSuggestions fields={discriminatorCandidates} label="Discovered discriminator fields" onUseFields={(fields) => setDiscriminatorField(fields[0] ?? discriminatorField)} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit timestamp field</span><Input disabled={!canManage || isUpdating || isDeleting} list="edit-es-timestamp-fields" onChange={(event) => setTimestampField(event.target.value)} placeholder="Optional" value={timestampField} /><FieldsDatalist id="edit-es-timestamp-fields" fields={timestampCandidates} /></label>
+            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit time window</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setTimeWindow(event.target.value as TimeWindowValue)} value={timeWindow}>{timeWindowOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          </div>
+          {timeWindow === "custom" ? <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit custom time window days</span><Input disabled={!canManage || isUpdating || isDeleting} max={3650} min={1} onChange={(event) => setCustomTimeWindowDays(event.target.value)} type="number" value={customTimeWindowDays} /></label> : null}
+          <MappingFieldSuggestions fields={timestampCandidates} label="Discovered timestamp fields" onUseFields={(fields) => setTimestampField(fields[0] ?? timestampField)} />
+          <TimeFilterValidationMessage hasInvalidCustomTimeWindow={hasInvalidCustomTimeWindow} hasTimeWindowWithoutTimestamp={hasTimeWindowWithoutTimestamp} />
           <BindingValidationMessages validation={validation} />
           <div className="flex flex-wrap items-center gap-4"><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit mode</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setMode(event.target.value as ElasticsearchBindingMode)} value={mode}>{bindingModes.map((bindingMode) => <option key={bindingMode} value={bindingMode}>{bindingMode}</option>)}</select></label><label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit write strategy</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setWriteStrategy(event.target.value as ElasticsearchBindingWriteStrategy)} value={writeStrategy}>{bindingWriteStrategies.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}</select></label><label className="mt-6 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"><input checked={isEnabled} disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setIsEnabled(event.target.checked)} type="checkbox" />Edit enabled binding</label></div>
           {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}{deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
@@ -1052,6 +1119,9 @@ function EnrichmentJobsPanel({
           This job will create an enriched target index and swap the alias after enrichment.
         </div>
       )}
+      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+        Time filter: {formatTimeFilter(binding)}. Max documents is still a safety limit inside that window.
+      </div>
 
       <form className="mt-4 space-y-3" onSubmit={handleStartJob}>
         {isReindexAliasSwap ? (
@@ -1227,6 +1297,24 @@ function FieldsDatalist({ id, fields }: { id: string; fields: ElasticsearchMappi
   );
 }
 
+function TimeFilterValidationMessage({
+  hasInvalidCustomTimeWindow,
+  hasTimeWindowWithoutTimestamp,
+}: {
+  hasInvalidCustomTimeWindow: boolean;
+  hasTimeWindowWithoutTimestamp: boolean;
+}) {
+  if (hasInvalidCustomTimeWindow) {
+    return <InlineError message="Custom time window must be between 1 and 3650 days." />;
+  }
+
+  if (hasTimeWindowWithoutTimestamp) {
+    return <InlineError message="Time window requires a timestamp field." />;
+  }
+
+  return null;
+}
+
 function BindingValidationMessages({ validation }: { validation: BindingValidation }) {
   if (validation.hasPartialFilter) {
     return <InlineError message="Document discriminator field and value must be provided together." />;
@@ -1289,6 +1377,40 @@ function parseTextFields(value: string) {
 
 function mergeTextFields(currentValue: string, nextFields: string[]) {
   return Array.from(new Set([...parseTextFields(currentValue), ...nextFields])).join(", ");
+}
+
+function timeWindowDaysFromDraft(timeWindow: TimeWindowValue, customValue: string) {
+  if (timeWindow === "all") {
+    return null;
+  }
+  const rawValue = timeWindow === "custom" ? customValue : timeWindow;
+  const parsedValue = Number(rawValue);
+  if (!Number.isInteger(parsedValue) || parsedValue < 1 || parsedValue > 3650) {
+    return null;
+  }
+  return parsedValue;
+}
+
+function timeWindowValueFromDays(days: number | null): TimeWindowValue {
+  if (days === 30 || days === 365 || days === 1825) {
+    return String(days) as TimeWindowValue;
+  }
+  return days ? "custom" : "all";
+}
+
+function formatTimeWindowDays(days: number | null) {
+  if (!days) return "all documents";
+  if (days === 30) return "last 30 days";
+  if (days === 365) return "last 1 year";
+  if (days === 1825) return "last 5 years";
+  return `last ${days} days`;
+}
+
+function formatTimeFilter(binding: ElasticsearchBinding) {
+  if (!binding.timestamp_field || !binding.time_window_days) {
+    return "all documents";
+  }
+  return `${binding.timestamp_field} · ${formatTimeWindowDays(binding.time_window_days)}`;
 }
 
 function formatDiscriminator(binding: ElasticsearchBinding) {

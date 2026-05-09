@@ -489,6 +489,9 @@ def create_elasticsearch_binding(
     filter_field, filter_value = _normalize_optional_filter(
         request.filter_field, request.filter_value
     )
+    timestamp_field, time_window_days = _normalize_time_filter(
+        request.timestamp_field, request.time_window_days
+    )
     _ensure_elasticsearch_binding_name_unique(
         session,
         normalized_name=normalize_profile_name(request.name),
@@ -504,6 +507,8 @@ def create_elasticsearch_binding(
         target_field=request.target_field,
         filter_field=filter_field,
         filter_value=filter_value,
+        timestamp_field=timestamp_field,
+        time_window_days=time_window_days,
         mode=request.mode,
         write_strategy=request.write_strategy,
         is_enabled=request.is_enabled,
@@ -565,6 +570,21 @@ def update_elasticsearch_binding(
     if "filter_field" in fields or "filter_value" in fields:
         binding.filter_field, binding.filter_value = _normalize_optional_filter(
             next_filter_field, next_filter_value
+        )
+
+    next_timestamp_field = (
+        request.timestamp_field
+        if "timestamp_field" in fields
+        else binding.timestamp_field
+    )
+    next_time_window_days = (
+        request.time_window_days
+        if "time_window_days" in fields
+        else binding.time_window_days
+    )
+    if "timestamp_field" in fields or "time_window_days" in fields:
+        binding.timestamp_field, binding.time_window_days = _normalize_time_filter(
+            next_timestamp_field, next_time_window_days
         )
 
     if "mode" in fields and request.mode is not None:
@@ -641,6 +661,8 @@ def dry_run_elasticsearch_binding(
             limit=limit,
             filter_field=binding.filter_field,
             filter_value=binding.filter_value,
+            timestamp_field=binding.timestamp_field,
+            time_window_days=binding.time_window_days,
         )
     except ElasticsearchDiscoveryError as exc:
         raise HTTPException(
@@ -657,6 +679,8 @@ def dry_run_elasticsearch_binding(
         preview_fields = list(binding.text_fields)
         if binding.filter_field:
             preview_fields = [*preview_fields, binding.filter_field]
+        if binding.timestamp_field:
+            preview_fields = [*preview_fields, binding.timestamp_field]
         documents.append(
             ElasticsearchBindingDryRunDocument(
                 document_id=hit.id,
@@ -1525,6 +1549,8 @@ def _execute_elasticsearch_enrichment_job(
             target_index=job.target_index,
             filter_field=binding.filter_field,
             filter_value=binding.filter_value,
+            timestamp_field=binding.timestamp_field,
+            time_window_days=binding.time_window_days,
         )
         update_index = job.target_index
     elif binding.write_strategy == "in_place":
@@ -1542,6 +1568,8 @@ def _execute_elasticsearch_enrichment_job(
         limit=max_documents,
         filter_field=binding.filter_field,
         filter_value=binding.filter_value,
+        timestamp_field=binding.timestamp_field,
+        time_window_days=binding.time_window_days,
     )
 
     updates: list[tuple[str, dict[str, object]]] = []
@@ -1588,6 +1616,8 @@ def _execute_elasticsearch_enrichment_job(
         "source_index": binding.index_name,
         "target_index": update_index,
         "alias_name": job.alias_name,
+        "timestamp_field": binding.timestamp_field,
+        "time_window_days": binding.time_window_days,
         "documents_seen": len(hits),
         "documents_enriched": len(updates),
         "documents_failed": 0,
@@ -1718,6 +1748,19 @@ def _normalize_optional_filter(
             detail="Elasticsearch binding filter requires both filter_field and filter_value.",
         )
     return field, value
+
+
+def _normalize_time_filter(
+    timestamp_field: str | None, time_window_days: int | None
+) -> tuple[str | None, int | None]:
+    field = timestamp_field.strip() if timestamp_field is not None else None
+    field = field or None
+    if time_window_days is not None and field is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Elasticsearch binding time window requires timestamp_field.",
+        )
+    return field, time_window_days
 
 
 def _ensure_elasticsearch_binding_name_unique(
@@ -2059,6 +2102,8 @@ def _elasticsearch_binding_response(
         target_field=binding.target_field,
         filter_field=binding.filter_field,
         filter_value=binding.filter_value,
+        timestamp_field=binding.timestamp_field,
+        time_window_days=binding.time_window_days,
         mode=binding.mode,
         write_strategy=binding.write_strategy,
         is_enabled=binding.is_enabled,

@@ -62,7 +62,7 @@ The governance console currently includes:
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
 - Guardrails page for profile-scoped stop-list management
-- Integrations page for manual Elasticsearch binding configs, shared-index validation, dry-run previews, and enrichment job status
+- Integrations page for manual Elasticsearch binding configs, shared-index validation, time-window filters, dry-run previews, and enrichment job status
 - searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
 - profile CRUD controls: create, select, rename, describe, and delete profiles
 - terms table with row selection
@@ -127,6 +127,18 @@ POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
 GET /v1/governance/elasticsearch/jobs?binding_id=...
 GET /v1/governance/elasticsearch/jobs/{job_id}
 ```
+
+## Elasticsearch enrichment time filters
+
+The Integrations page can now store optional document time filters on a binding:
+
+- `Timestamp field`, for example `@timestamp`, `created_at`, or `updated_at`;
+- `Time window`: all documents, last 30 days, last 1 year, last 5 years, or custom days.
+
+Dry-run previews and write-mode jobs use the same binding-level time filter.
+There is no product-facing sort selector; the backend uses newest-first ordering
+when a timestamp window is configured. `Max documents` remains a safety limit
+inside the selected window.
 
 The current backend executor is synchronous. Future worker-based polling can
 reuse the same UI contract.

@@ -95,6 +95,8 @@ def test_create_governance_rows_and_normalized_values(session):
         target_field="skeinrank",
         filter_field="team",
         filter_value="infra",
+        timestamp_field="created_at",
+        time_window_days=1825,
     )
     job = ElasticsearchEnrichmentJob(
         binding=binding,
@@ -147,6 +149,8 @@ def test_create_governance_rows_and_normalized_values(session):
     assert binding.text_fields == ["title", "body", "body"]
     assert binding.mode == "dry_run"
     assert binding.write_strategy == "reindex_alias_swap"
+    assert binding.timestamp_field == "created_at"
+    assert binding.time_window_days == 1825
     assert job.status == "queued"
     assert job.write_strategy == "reindex_alias_swap"
     assert job.documents_seen == 0

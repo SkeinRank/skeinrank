@@ -408,3 +408,21 @@ This patch intentionally does not add Celery/RabbitMQ yet. The API executes the
 MVP job inline and records a durable job row so a future worker implementation
 can reuse the same contract.
 
+## Elasticsearch enrichment job time filters
+
+Elasticsearch bindings can optionally scope dry-runs and write-mode enrichment
+jobs by document time:
+
+```json
+{
+  "timestamp_field": "created_at",
+  "time_window_days": 1825
+}
+```
+
+When both values are present, dry-run and job search/reindex requests include a
+range filter from `now-{time_window_days}d` to `now`. Search samples are sorted
+by the timestamp field descending internally; the API does not expose a separate
+sort setting. `max_documents` still limits the number of documents processed
+inside the window.
+

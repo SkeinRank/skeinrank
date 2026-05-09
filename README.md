@@ -214,7 +214,7 @@ Current UI scope:
 - API state management through TanStack Query
 - light/dark/system theme toggle with local persistence
 
-The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings and show job history/status/details. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, background workers, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings and show job history/status/details. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, background workers, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -359,7 +359,7 @@ Postgres governance store -> governance API/UI -> published snapshot JSON -> run
 
 The hot extraction path still uses exported snapshots; it does not query Postgres or the governance API per request.
 
-Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, dry-run/write mode, write strategy, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They can now be tested with read-only connection/mapping discovery, binding dry-runs, and write-mode enrichment jobs with status/details in the Integrations page.
+Elasticsearch binding configs now describe where a profile should be applied later: index/index pattern, source text fields, target enrichment field, optional document discriminator, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. The UI can manage these configs manually through the Integrations page and validates the shared-index case: if multiple profiles point to the same index, a discriminator such as `team = infra` is required. They can now be tested with read-only connection/mapping discovery, binding dry-runs, and write-mode enrichment jobs with status/details in the Integrations page.
 
 Local smoke tests:
 
@@ -534,3 +534,18 @@ GET /v1/governance/elasticsearch/jobs/{job_id}
 This patch does not add Celery/RabbitMQ, cancellation, rollback, scheduling, or
 log streaming. The current backend job executor is still the synchronous MVP
 from Patch 25g.
+
+### Patch 25i — Elasticsearch enrichment job time filters
+
+Patch 25i adds optional time-window scoping for Elasticsearch bindings and
+enrichment jobs. A binding can now store:
+
+- `timestamp_field` — for example `@timestamp`, `created_at`, or `updated_at`;
+- `time_window_days` — optional rolling window in days.
+
+Dry-runs and write-mode jobs apply the same filter. When both fields are set,
+the governance API adds an Elasticsearch range query from `now-{days}d` to
+`now` and sorts search samples by the timestamp field descending internally.
+`Max documents` remains a safety limit inside the selected time window. The UI
+keeps this product-facing: users configure timestamp field and time window, but
+there is no separate sort selector in the Integrations page.

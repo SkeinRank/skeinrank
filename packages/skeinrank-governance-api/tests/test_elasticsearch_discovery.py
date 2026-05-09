@@ -46,6 +46,7 @@ class FakeElasticsearchClient:
                             },
                             "body": {"type": "match_only_text"},
                             "team": {"type": "keyword"},
+                            "created_at": {"type": "date"},
                             "metadata": {
                                 "properties": {"service": {"type": "keyword"}}
                             },
@@ -57,10 +58,26 @@ class FakeElasticsearchClient:
         )
         return fields
 
+    last_search_args = None
+    last_reindex_args = None
+
     def search_documents(
-        self, *, index_name, text_fields, limit, filter_field=None, filter_value=None
+        self,
+        *,
+        index_name,
+        text_fields,
+        limit,
+        filter_field=None,
+        filter_value=None,
+        timestamp_field=None,
+        time_window_days=None,
     ):
-        del filter_field, filter_value
+        type(self).last_search_args = {
+            "filter_field": filter_field,
+            "filter_value": filter_value,
+            "timestamp_field": timestamp_field,
+            "time_window_days": time_window_days,
+        }
         assert (
             index_name == "docs"
             or index_name.startswith("docs__skeinrank_job_")
@@ -78,6 +95,7 @@ class FakeElasticsearchClient:
                     "title": "K8s outage",
                     "body": "Kube rollout failed",
                     "team": "infra",
+                    "created_at": "2026-05-08T00:00:00Z",
                 },
             ),
             ElasticsearchSearchHit(
@@ -96,11 +114,24 @@ class FakeElasticsearchClient:
         return {"acknowledged": True, "index": target_index}
 
     def reindex_documents(
-        self, *, source_index, target_index, filter_field=None, filter_value=None
+        self,
+        *,
+        source_index,
+        target_index,
+        filter_field=None,
+        filter_value=None,
+        timestamp_field=None,
+        time_window_days=None,
     ):
         assert source_index == "docs"
         assert filter_field == "team"
         assert filter_value == "infra"
+        type(self).last_reindex_args = {
+            "filter_field": filter_field,
+            "filter_value": filter_value,
+            "timestamp_field": timestamp_field,
+            "time_window_days": time_window_days,
+        }
         self.reindexed_target_index = target_index
         return {"created": 2, "updated": 0, "failures": []}
 
@@ -154,6 +185,7 @@ def test_elasticsearch_discovery_routes(monkeypatch, tmp_path):
     assert fields["title"]["is_text_candidate"] is True
     assert fields["title.keyword"]["is_discriminator_candidate"] is True
     assert fields["metadata.service"]["is_discriminator_candidate"] is True
+    assert fields["created_at"]["type"] == "date"
 
 
 def test_extract_mapping_fields_handles_nested_properties():
@@ -210,6 +242,8 @@ def test_elasticsearch_binding_dry_run_previews_matches(monkeypatch, tmp_path):
             "target_field": "skeinrank",
             "filter_field": "team",
             "filter_value": "infra",
+            "timestamp_field": "created_at",
+            "time_window_days": 1825,
         },
     )
     assert binding_response.status_code == 201
@@ -222,12 +256,36 @@ def test_elasticsearch_binding_dry_run_previews_matches(monkeypatch, tmp_path):
     assert response.status_code == 200
     payload = response.json()
     assert payload["binding"]["name"] == "infra docs"
+    assert payload["binding"]["timestamp_field"] == "created_at"
+    assert payload["binding"]["time_window_days"] == 1825
+    assert FakeElasticsearchClient.last_search_args["timestamp_field"] == "created_at"
+    assert FakeElasticsearchClient.last_search_args["time_window_days"] == 1825
     assert payload["documents"][0]["document_id"] == "1"
     assert payload["documents"][0]["matched_aliases"][0]["alias_value"] == "k8s"
     assert payload["documents"][0]["would_write"]["skeinrank"]["canonical_values"] == [
         "kubernetes"
     ]
     assert payload["documents"][1]["matched_aliases"] == []
+
+
+def test_elasticsearch_binding_time_window_requires_timestamp_field(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+
+    response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+            "time_window_days": 30,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "timestamp_field" in response.json()["detail"]
 
 
 def test_elasticsearch_binding_dry_run_requires_connection(tmp_path):
@@ -282,6 +340,8 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
             "filter_value": "infra",
             "mode": "write",
             "write_strategy": "reindex_alias_swap",
+            "timestamp_field": "created_at",
+            "time_window_days": 30,
         },
     )
     assert binding_response.status_code == 201
@@ -301,6 +361,10 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
     assert payload["documents_seen"] == 2
     assert payload["documents_enriched"] == 1
     assert payload["result_json"]["updated_document_ids"] == ["1"]
+    assert payload["result_json"]["timestamp_field"] == "created_at"
+    assert payload["result_json"]["time_window_days"] == 30
+    assert FakeElasticsearchClient.last_reindex_args["timestamp_field"] == "created_at"
+    assert FakeElasticsearchClient.last_reindex_args["time_window_days"] == 30
 
     list_response = client.get("/v1/governance/elasticsearch/jobs")
     assert list_response.status_code == 200

@@ -149,9 +149,11 @@ Stop lists are used by the governance API to reject blocked direct edits, blocke
 
 ## Elasticsearch bindings
 
-The governance schema includes saved Elasticsearch enrichment bindings. A binding is a configuration object that connects one terminology profile to one Elasticsearch index or index pattern, the source text fields to inspect, an enrichment target field, an optional metadata filter such as `team = infra`, and an enrichment write strategy.
+The governance schema includes saved Elasticsearch enrichment bindings. A binding is a configuration object that connects one terminology profile to one Elasticsearch index or index pattern, the source text fields to inspect, an enrichment target field, an optional metadata filter such as `team = infra`, optional time-window filters such as `created_at` plus `1825` days, and an enrichment write strategy.
 
-Bindings are configuration-only in this package. They do not open an Elasticsearch connection or write to an index. Future provider/job patches can read these saved bindings to run dry-run or write-mode enrichment jobs. The default write strategy is `reindex_alias_swap`, which is safer for production workflows than mutating the live index directly.
+Bindings are configuration-only in this package. They do not open an Elasticsearch connection or write to an index. Provider/job patches can read these saved bindings to run dry-run or write-mode enrichment jobs. The default write strategy is `reindex_alias_swap`, which is safer for production workflows than mutating the live index directly.
+
+Patch 25i adds `timestamp_field` and `time_window_days` to the binding schema so jobs can scope enrichment to recent documents while keeping `Max documents` as a safety limit inside that time window.
 ### Patch 25g — reindex + alias swap jobs
 
 Patch 25g adds the backend job contract for Elasticsearch enrichment writes. A

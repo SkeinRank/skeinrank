@@ -470,6 +470,8 @@ class ElasticsearchBinding(TimestampMixin, Base):
     target_field: Mapped[str] = mapped_column(String(256), nullable=False)
     filter_field: Mapped[str | None] = mapped_column(String(256), nullable=True)
     filter_value: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    timestamp_field: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    time_window_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mode: Mapped[str] = mapped_column(String(32), default="dry_run", nullable=False)
     write_strategy: Mapped[str] = mapped_column(
         String(32), default="reindex_alias_swap", nullable=False
@@ -490,7 +492,9 @@ class ElasticsearchBinding(TimestampMixin, Base):
             "ElasticsearchBinding("
             f"name={self.name!r}, profile_id={self.profile_id!r}, "
             f"index={self.index_name!r}, mode={self.mode!r}, "
-            f"write_strategy={self.write_strategy!r})"
+            f"write_strategy={self.write_strategy!r}, "
+            f"timestamp_field={self.timestamp_field!r}, "
+            f"time_window_days={self.time_window_days!r})"
         )
 
 
