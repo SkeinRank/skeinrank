@@ -250,6 +250,70 @@ class ElasticsearchDiscoveryClient:
             },
         )
 
+    def search_evidence_documents(
+        self,
+        *,
+        index_name: str,
+        text_fields: list[str],
+        query_text: str,
+        limit: int,
+        filter_field: str | None = None,
+        filter_value: str | None = None,
+        timestamp_field: str | None = None,
+        time_window_days: int | None = None,
+    ) -> list[ElasticsearchSearchHit]:
+        """Return bounded candidate documents for read-only evidence lookup."""
+
+        source_fields = sorted(
+            {
+                field
+                for field in [*text_fields, filter_field or "", timestamp_field or ""]
+                if field
+            }
+        )
+        query = _evidence_query(
+            query_text=query_text,
+            text_fields=text_fields,
+            filter_field=filter_field,
+            filter_value=filter_value,
+            timestamp_field=timestamp_field,
+            time_window_days=time_window_days,
+        )
+        sort: list[Any] = ["_score", "_doc"]
+        if timestamp_field and time_window_days is not None:
+            sort = ["_score", {timestamp_field: {"order": "desc"}}, "_doc"]
+
+        payload = self._post_json(
+            f"/{quote(index_name, safe='')}/_search",
+            {
+                "query": query,
+                "size": limit,
+                "sort": sort,
+                "track_total_hits": False,
+                "timeout": "2s",
+                "_source": source_fields,
+            },
+        )
+        hits_payload = (payload or {}).get("hits", {}).get("hits", [])
+        if not isinstance(hits_payload, list):
+            raise ElasticsearchDiscoveryError(
+                "Unexpected Elasticsearch evidence search response"
+            )
+
+        hits: list[ElasticsearchSearchHit] = []
+        for item in hits_payload:
+            if not isinstance(item, dict):
+                continue
+            source = item.get("_source")
+            hits.append(
+                ElasticsearchSearchHit(
+                    id=str(item.get("_id") or ""),
+                    index=str(item.get("_index") or index_name),
+                    source=source if isinstance(source, dict) else {},
+                )
+            )
+        return hits
+
     def _get_json(self, path: str) -> Any:
         if not self.url:
             raise ElasticsearchDiscoveryError("Elasticsearch URL is not configured")
@@ -393,6 +457,33 @@ def _document_query(
     if len(filters) == 1:
         return filters[0]
     return {"bool": {"filter": filters}}
+
+
+def _evidence_query(
+    *,
+    query_text: str,
+    text_fields: list[str],
+    filter_field: str | None,
+    filter_value: str | None,
+    timestamp_field: str | None,
+    time_window_days: int | None,
+) -> dict[str, Any]:
+    filters = _document_query(
+        filter_field=filter_field,
+        filter_value=filter_value,
+        timestamp_field=timestamp_field,
+        time_window_days=time_window_days,
+    )
+    text_query: dict[str, Any] = {
+        "multi_match": {
+            "query": query_text,
+            "fields": text_fields,
+            "type": "phrase",
+        }
+    }
+    if filters == {"match_all": {}}:
+        return text_query
+    return {"bool": {"must": [text_query], "filter": [filters]}}
 
 
 def extract_mapping_fields(

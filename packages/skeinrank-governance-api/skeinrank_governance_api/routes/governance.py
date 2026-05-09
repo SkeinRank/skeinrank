@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import html
+import re
+
 from fastapi import (
     APIRouter,
     Body,
@@ -53,6 +56,7 @@ from ..elasticsearch import (
     ElasticsearchDiscoveryClient,
     ElasticsearchDiscoveryError,
     compose_source_text,
+    get_source_values,
     source_preview,
 )
 from ..schemas import (
@@ -69,6 +73,9 @@ from ..schemas import (
     ElasticsearchDryRunMatchedAlias,
     ElasticsearchEnrichmentJobCreateRequest,
     ElasticsearchEnrichmentJobResponse,
+    ElasticsearchEvidenceDocument,
+    ElasticsearchEvidenceRequest,
+    ElasticsearchEvidenceResponse,
     ElasticsearchIndexMappingResponse,
     ElasticsearchIndexResponse,
     ElasticsearchMappingFieldResponse,
@@ -840,6 +847,93 @@ def dry_run_elasticsearch_binding(
 
 
 @router.post(
+    "/elasticsearch/bindings/{binding_id}/evidence",
+    response_model=ElasticsearchEvidenceResponse,
+)
+def find_elasticsearch_evidence(
+    binding_id: int,
+    request_body: ElasticsearchEvidenceRequest,
+    request: Request,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> ElasticsearchEvidenceResponse:
+    """Find bounded read-only evidence snippets for a term or alias."""
+
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    if not binding.is_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Elasticsearch binding is disabled.",
+        )
+
+    normalized_query = normalize_value(request_body.query)
+    if not normalized_query:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Evidence query must contain at least one non-space character.",
+        )
+
+    client = ElasticsearchDiscoveryClient(request.app.state.config)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Elasticsearch URL is not configured.",
+        )
+
+    try:
+        hits = client.search_evidence_documents(
+            index_name=binding.index_name,
+            text_fields=list(binding.text_fields),
+            query_text=request_body.query.strip(),
+            limit=request_body.max_documents,
+            filter_field=binding.filter_field,
+            filter_value=binding.filter_value,
+            timestamp_field=binding.timestamp_field,
+            time_window_days=binding.time_window_days,
+        )
+    except ElasticsearchDiscoveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    documents: list[ElasticsearchEvidenceDocument] = []
+    for hit in hits:
+        document = _first_evidence_document_for_hit(
+            hit_id=hit.id,
+            hit_index=hit.index,
+            source=hit.source,
+            text_fields=list(binding.text_fields),
+            query=request_body.query.strip(),
+            context_chars=request_body.context_chars,
+        )
+        if document is not None:
+            documents.append(document)
+        if len(documents) >= request_body.max_documents:
+            break
+
+    warnings = _evidence_warnings(
+        session=session,
+        binding=binding,
+        normalized_query=normalized_query,
+        hits_count=len(hits),
+        documents_count=len(documents),
+    )
+
+    return ElasticsearchEvidenceResponse(
+        binding=_elasticsearch_binding_response(binding),
+        query=request_body.query.strip(),
+        normalized_query=normalized_query,
+        canonical_value=request_body.canonical_value,
+        max_documents=request_body.max_documents,
+        documents=documents,
+        warnings=warnings,
+    )
+
+
+@router.post(
     "/elasticsearch/bindings/{binding_id}/jobs",
     response_model=ElasticsearchEnrichmentJobResponse,
     status_code=status.HTTP_201_CREATED,
@@ -1576,6 +1670,98 @@ def _active_global_stop_values_for_target(
         )
     )
     return set(values)
+
+
+def _first_evidence_document_for_hit(
+    *,
+    hit_id: str,
+    hit_index: str,
+    source: dict[str, object],
+    text_fields: list[str],
+    query: str,
+    context_chars: int,
+) -> ElasticsearchEvidenceDocument | None:
+    for field in text_fields:
+        for value in get_source_values(source, field):
+            fragment = _evidence_fragment(
+                value, query=query, context_chars=context_chars
+            )
+            if fragment is None:
+                continue
+            return ElasticsearchEvidenceDocument(
+                document_id=hit_id,
+                index_name=hit_index,
+                field=field,
+                fragment=fragment["fragment"],
+                highlighted_fragment=fragment["highlighted_fragment"],
+                matched_text=fragment["matched_text"],
+                match_start=fragment["match_start"],
+                match_end=fragment["match_end"],
+            )
+    return None
+
+
+def _evidence_fragment(
+    text: str, *, query: str, context_chars: int
+) -> dict[str, object] | None:
+    pattern = re.compile(rf"(?<!\w){re.escape(query)}(?!\w)", re.IGNORECASE)
+    match = pattern.search(text)
+    if match is None:
+        return None
+
+    fragment_start = max(0, match.start() - context_chars)
+    fragment_end = min(len(text), match.end() + context_chars)
+    prefix = "…" if fragment_start > 0 else ""
+    suffix = "…" if fragment_end < len(text) else ""
+    core = text[fragment_start:fragment_end]
+    match_start = len(prefix) + match.start() - fragment_start
+    match_end = len(prefix) + match.end() - fragment_start
+    fragment = f"{prefix}{core}{suffix}"
+    highlighted_fragment = (
+        html.escape(fragment[:match_start])
+        + "<mark>"
+        + html.escape(fragment[match_start:match_end])
+        + "</mark>"
+        + html.escape(fragment[match_end:])
+    )
+    return {
+        "fragment": fragment,
+        "highlighted_fragment": highlighted_fragment,
+        "matched_text": match.group(0),
+        "match_start": match_start,
+        "match_end": match_end,
+    }
+
+
+def _evidence_warnings(
+    *,
+    session: Session,
+    binding: ElasticsearchBinding,
+    normalized_query: str,
+    hits_count: int,
+    documents_count: int,
+) -> list[str]:
+    warnings: list[str] = []
+    if hits_count == 0:
+        warnings.append("No Elasticsearch documents matched this evidence query.")
+    elif documents_count == 0:
+        warnings.append(
+            "Elasticsearch returned candidates, but no exact literal evidence matches were found."
+        )
+
+    blocked_alias_values = _active_stop_values_for_target(
+        session, binding.profile, targets=("alias", "both")
+    ) | _active_global_stop_values_for_target(session, targets=("alias", "both"))
+    blocked_canonical_values = _active_stop_values_for_target(
+        session, binding.profile, targets=("canonical", "both")
+    ) | _active_global_stop_values_for_target(session, targets=("canonical", "both"))
+    if normalized_query in blocked_alias_values:
+        warnings.append("Evidence query is blocked as an alias by an active stop list.")
+    if normalized_query in blocked_canonical_values:
+        warnings.append(
+            "Evidence query is blocked as a canonical value by an active stop list."
+        )
+    return warnings
 
 
 def _match_alias_entries(

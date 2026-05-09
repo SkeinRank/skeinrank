@@ -314,6 +314,40 @@ class ElasticsearchBindingDryRunResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class ElasticsearchEvidenceRequest(BaseModel):
+    """Request body for bounded Elasticsearch evidence search."""
+
+    query: str = Field(..., min_length=1, max_length=256)
+    canonical_value: str | None = Field(default=None, max_length=256)
+    max_documents: int = Field(default=5, ge=1, le=10)
+    context_chars: int = Field(default=80, ge=20, le=240)
+
+
+class ElasticsearchEvidenceDocument(BaseModel):
+    """One bounded evidence fragment found in Elasticsearch."""
+
+    document_id: str
+    index_name: str
+    field: str
+    fragment: str
+    highlighted_fragment: str
+    matched_text: str
+    match_start: int
+    match_end: int
+
+
+class ElasticsearchEvidenceResponse(BaseModel):
+    """Bounded read-only Elasticsearch evidence search response."""
+
+    binding: ElasticsearchBindingResponse
+    query: str
+    normalized_query: str
+    canonical_value: str | None = None
+    max_documents: int
+    documents: list[ElasticsearchEvidenceDocument]
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
     """Request body for starting a synchronous enrichment job."""
 

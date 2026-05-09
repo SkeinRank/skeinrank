@@ -405,7 +405,7 @@ curl -X PATCH http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list/
 curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list/1
 ```
 
-Stop-list targets are `alias`, `canonical`, and `both`. Active global and profile stop-list entries block matching direct CRUD mutations, suggestion creation, suggestion approval, Elasticsearch dry-run matches, and Elasticsearch enrichment job matches.
+Stop-list targets are `alias`, `canonical`, and `both`. Active global and profile stop-list entries block matching direct CRUD mutations, suggestion creation, suggestion approval, Elasticsearch dry-run matches, enrichment job matches, and evidence lookup warnings.
 
 Elasticsearch bindings:
 
@@ -562,6 +562,33 @@ range filter from `now-{time_window_days}d` to `now`. Search samples are sorted
 by the timestamp field descending internally; the API does not expose a separate
 sort setting. `max_documents` still limits the number of documents processed
 inside the window.
+
+## Elasticsearch evidence API
+
+Saved Elasticsearch bindings can be queried for bounded, read-only evidence
+snippets:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/evidence
+```
+
+Example request:
+
+```json
+{
+  "query": "k8s",
+  "canonical_value": "kubernetes",
+  "max_documents": 5,
+  "context_chars": 80
+}
+```
+
+The response includes the binding metadata, normalized query, warnings, and a
+small list of snippets with plain `fragment`, `highlighted_fragment`,
+`matched_text`, and match offsets. Evidence lookup respects the binding
+`filter_field`/`filter_value` discriminator and optional
+`timestamp_field`/`time_window_days` range filter. It does not write to
+Elasticsearch and is safe for contributor/reviewer validation workflows.
 
 
 ## API tokens and service accounts

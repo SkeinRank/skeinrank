@@ -105,6 +105,55 @@ class FakeElasticsearchClient:
             ),
         ]
 
+    last_evidence_args = None
+
+    def search_evidence_documents(
+        self,
+        *,
+        index_name,
+        text_fields,
+        query_text,
+        limit,
+        filter_field=None,
+        filter_value=None,
+        timestamp_field=None,
+        time_window_days=None,
+    ):
+        type(self).last_evidence_args = {
+            "index_name": index_name,
+            "text_fields": text_fields,
+            "query_text": query_text,
+            "limit": limit,
+            "filter_field": filter_field,
+            "filter_value": filter_value,
+            "timestamp_field": timestamp_field,
+            "time_window_days": time_window_days,
+        }
+        from skeinrank_governance_api.elasticsearch import ElasticsearchSearchHit
+
+        return [
+            ElasticsearchSearchHit(
+                id="evidence-1",
+                index="docs",
+                source={
+                    "title": "Cluster runbook",
+                    "body": "This instruction helps run 500 k8s servers safely.",
+                    "team": "infra",
+                    "created_at": "2026-05-08T00:00:00Z",
+                },
+            ),
+            ElasticsearchSearchHit(
+                id="evidence-2",
+                index="docs",
+                source={
+                    "title": "Postgres note",
+                    "body": "No literal evidence here.",
+                    "team": "infra",
+                    "created_at": "2026-05-08T00:00:00Z",
+                },
+            ),
+        ]
+
     def create_reindex_target_index(self, *, source_index, target_index):
         assert source_index == "docs"
         assert (
@@ -312,6 +361,126 @@ def test_elasticsearch_dry_run_respects_global_stop_list(monkeypatch, tmp_path):
     payload = response.json()
     assert payload["documents"][0]["matched_aliases"] == []
     assert payload["documents"][0]["would_write"]["skeinrank"]["canonical_values"] == []
+
+
+def test_elasticsearch_evidence_finds_bounded_highlighted_snippets(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "timestamp_field": "created_at",
+            "time_window_days": 30,
+        },
+    )
+    assert binding_response.status_code == 201
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/evidence",
+        json={
+            "query": "k8s",
+            "canonical_value": "kubernetes",
+            "max_documents": 2,
+            "context_chars": 40,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["binding"]["name"] == "infra docs"
+    assert payload["query"] == "k8s"
+    assert payload["normalized_query"] == "k8s"
+    assert payload["canonical_value"] == "kubernetes"
+    assert len(payload["documents"]) == 1
+    document = payload["documents"][0]
+    assert document["document_id"] == "evidence-1"
+    assert document["field"] == "body"
+    assert document["matched_text"] == "k8s"
+    assert "<mark>k8s</mark>" in document["highlighted_fragment"]
+    assert (
+        document["fragment"][document["match_start"] : document["match_end"]] == "k8s"
+    )
+    assert FakeElasticsearchClient.last_evidence_args == {
+        "index_name": "docs",
+        "text_fields": ["title", "body"],
+        "query_text": "k8s",
+        "limit": 2,
+        "filter_field": "team",
+        "filter_value": "infra",
+        "timestamp_field": "created_at",
+        "time_window_days": 30,
+    }
+
+
+def test_elasticsearch_evidence_warns_for_stop_listed_query(monkeypatch, tmp_path):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/global-stop-list",
+        json={"value": "k8s", "target": "alias"},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+        },
+    )
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/evidence",
+        json={"query": "k8s", "max_documents": 2},
+    )
+
+    assert response.status_code == 200
+    assert "blocked as an alias" in " ".join(response.json()["warnings"])
+
+
+def test_elasticsearch_evidence_requires_connection(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+        },
+    )
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/evidence",
+        json={"query": "k8s", "max_documents": 1},
+    )
+
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"]
 
 
 def test_elasticsearch_binding_time_window_requires_timestamp_field(tmp_path):
