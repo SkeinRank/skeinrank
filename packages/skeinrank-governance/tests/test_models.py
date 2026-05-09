@@ -7,8 +7,10 @@ from skeinrank_governance import (
     CanonicalTerm,
     ElasticsearchBinding,
     ElasticsearchEnrichmentJob,
+    GovernanceApiToken,
     GovernanceAuthToken,
     GovernanceGlobalStopListEntry,
+    GovernanceServiceAccount,
     GovernanceStopListEntry,
     GovernanceSuggestion,
     GovernanceUser,
@@ -43,6 +45,8 @@ def test_metadata_contains_expected_tables():
         "audit_events",
         "governance_users",
         "governance_auth_tokens",
+        "governance_service_accounts",
+        "governance_api_tokens",
         "governance_suggestions",
         "governance_stop_list_entries",
         "governance_global_stop_list_entries",
@@ -93,6 +97,35 @@ def test_create_governance_rows_and_normalized_values(session):
         target="both",
         reason="Organization-wide noise",
     )
+    user = GovernanceUser(
+        username="Maxim",
+        display_name="Maxim",
+        password_hash="hash",
+        role="admin",
+    )
+    service_account = GovernanceServiceAccount(
+        name="Migration Bot",
+        display_name="Migration Bot",
+        description="Loads dictionary migrations.",
+        role="moderator",
+        created_by="tester",
+    )
+    personal_token = GovernanceApiToken(
+        user=user,
+        name="Jupyter token",
+        token_hash="personal-hash",
+        token_prefix="sk_pat_abc",
+        scopes=["migration:apply", "migration:validate", "migration:validate"],
+        created_by="Maxim",
+    )
+    service_token = GovernanceApiToken(
+        service_account=service_account,
+        name="CI token",
+        token_hash="service-hash",
+        token_prefix="sk_sat_abc",
+        scopes=["migration:validate"],
+        created_by="tester",
+    )
     binding = ElasticsearchBinding(
         profile=profile,
         name="Infra Docs",
@@ -132,6 +165,10 @@ def test_create_governance_rows_and_normalized_values(session):
             suggestion,
             stop_list_entry,
             global_stop_list_entry,
+            user,
+            service_account,
+            personal_token,
+            service_token,
             binding,
             job,
             audit,
@@ -155,6 +192,11 @@ def test_create_governance_rows_and_normalized_values(session):
     assert global_stop_list_entry.normalized_value == "unknown"
     assert global_stop_list_entry.target == "both"
     assert global_stop_list_entry.is_active is True
+    assert user.normalized_username == "maxim"
+    assert service_account.normalized_name == "migration_bot"
+    assert service_account.role == "moderator"
+    assert personal_token.scopes == ["migration:apply", "migration:validate"]
+    assert service_token.scopes == ["migration:validate"]
     assert binding.normalized_name == "infra_docs"
     assert binding.provider == "elasticsearch"
     assert binding.text_fields == ["title", "body", "body"]
@@ -235,6 +277,8 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "term_aliases" in table_names
     assert "governance_users" in table_names
     assert "governance_auth_tokens" in table_names
+    assert "governance_service_accounts" in table_names
+    assert "governance_api_tokens" in table_names
     assert "governance_suggestions" in table_names
     assert "governance_stop_list_entries" in table_names
     assert "governance_global_stop_list_entries" in table_names

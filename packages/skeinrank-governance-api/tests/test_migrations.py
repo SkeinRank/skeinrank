@@ -46,12 +46,40 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "audit_events",
         "governance_users",
         "governance_auth_tokens",
+        "governance_service_accounts",
+        "governance_api_tokens",
         "governance_suggestions",
         "governance_stop_list_entries",
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
         "elasticsearch_enrichment_jobs",
     }.issubset(set(inspector.get_table_names()))
+    service_account_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_service_accounts")
+    }
+    assert {
+        "name",
+        "normalized_name",
+        "role",
+        "is_active",
+        "created_by",
+    }.issubset(service_account_columns)
+
+    api_token_columns = {
+        column["name"] for column in inspector.get_columns("governance_api_tokens")
+    }
+    assert {
+        "user_id",
+        "service_account_id",
+        "name",
+        "token_hash",
+        "token_prefix",
+        "scopes",
+        "expires_at",
+        "revoked_at",
+    }.issubset(api_token_columns)
+
     suggestion_columns = {
         column["name"] for column in inspector.get_columns("governance_suggestions")
     }
@@ -127,7 +155,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260509_0010"
+    assert revision == "20260509_0011"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):
