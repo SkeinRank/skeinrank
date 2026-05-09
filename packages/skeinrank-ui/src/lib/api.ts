@@ -14,6 +14,9 @@ import type {
   ElasticsearchIndex,
   ElasticsearchIndexMapping,
   CanonicalTerm,
+  GlobalStopListCreateRequest,
+  GlobalStopListEntry,
+  GlobalStopListUpdateRequest,
   LoginRequest,
   GovernanceSuggestion,
   Profile,
@@ -258,6 +261,31 @@ export function updateStopListEntry(profileName: string, entryId: number, payloa
 
 export function deleteStopListEntry(profileName: string, entryId: number) {
   return requestJson<void>(`/v1/governance/profiles/${encodePathSegment(profileName)}/stop-list/${entryId}`, {
+    method: "DELETE",
+  });
+}
+
+
+export function listGlobalStopList() {
+  return requestJson<GlobalStopListEntry[]>("/v1/governance/global-stop-list");
+}
+
+export function createGlobalStopListEntry(payload: GlobalStopListCreateRequest) {
+  return requestJson<GlobalStopListEntry>("/v1/governance/global-stop-list", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateGlobalStopListEntry(entryId: number, payload: GlobalStopListUpdateRequest) {
+  return requestJson<GlobalStopListEntry>(`/v1/governance/global-stop-list/${entryId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteGlobalStopListEntry(entryId: number) {
+  return requestJson<void>(`/v1/governance/global-stop-list/${entryId}`, {
     method: "DELETE",
   });
 }
