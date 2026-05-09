@@ -1,13 +1,14 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { Users } from "lucide-react";
+import { ShieldAlert, Users } from "lucide-react";
 
-import type { AuthUser, UserCreateRequest, UserRole, UserUpdateRequest } from "../types";
+import type { AuthUser, UserCreateRequest, UserRole, UserStatus, UserUpdateRequest } from "../types";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 
 const USER_ROLES: UserRole[] = ["admin", "moderator", "contributor"];
+const USER_STATUSES: UserStatus[] = ["active", "suspended", "deactivated"];
 
 type UsersManagerProps = {
   createErrorMessage?: string | null;
@@ -15,12 +16,18 @@ type UsersManagerProps = {
   isCreating?: boolean;
   isDeleting?: boolean;
   isLoading?: boolean;
+  isRevokingTokens?: boolean;
   isUpdating?: boolean;
+  isUpdatingStatus?: boolean;
   loadErrorMessage?: string | null;
   onCreateUser: (payload: UserCreateRequest) => Promise<void> | void;
   onDeleteUser: (username: string) => Promise<void> | void;
+  onRevokeUserApiTokens: (username: string) => Promise<void> | void;
   onUpdateUser: (username: string, payload: UserUpdateRequest) => Promise<void> | void;
+  onUpdateUserStatus: (username: string, status: UserStatus) => Promise<void> | void;
+  revokeTokensErrorMessage?: string | null;
   updateErrorMessage?: string | null;
+  updateStatusErrorMessage?: string | null;
   users: AuthUser[];
 };
 
@@ -29,13 +36,19 @@ export function UsersManager({
   deleteErrorMessage,
   isCreating = false,
   isDeleting = false,
+  isRevokingTokens = false,
   isLoading = false,
   isUpdating = false,
+  isUpdatingStatus = false,
   loadErrorMessage,
   onCreateUser,
   onDeleteUser,
+  onRevokeUserApiTokens,
   onUpdateUser,
+  onUpdateUserStatus,
+  revokeTokensErrorMessage,
   updateErrorMessage,
+  updateStatusErrorMessage,
   users,
 }: UsersManagerProps) {
   const [newUsername, setNewUsername] = useState("");
@@ -47,11 +60,13 @@ export function UsersManager({
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState<UserRole>("contributor");
-  const [editIsActive, setEditIsActive] = useState(true);
 
   const editingUser = users.find((user) => user.username === editingUsername) ?? null;
   const canCreate = newUsername.trim().length > 0 && newPassword.length > 0 && !isCreating;
   const canUpdate = Boolean(editingUser) && editUsername.trim().length > 0 && !isUpdating;
+  const activeCount = users.filter((user) => user.status === "active").length;
+  const suspendedCount = users.filter((user) => user.status === "suspended").length;
+  const deactivatedCount = users.filter((user) => user.status === "deactivated").length;
 
   useEffect(() => {
     if (!editingUser) {
@@ -61,8 +76,7 @@ export function UsersManager({
     setEditDisplayName(editingUser.display_name ?? "");
     setEditPassword("");
     setEditRole(editingUser.role);
-    setEditIsActive(editingUser.is_active);
-  }, [editingUser?.id, editingUser?.is_active, editingUser?.display_name, editingUser?.role, editingUser?.username]);
+  }, [editingUser?.id, editingUser?.display_name, editingUser?.role, editingUser?.username]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,7 +90,7 @@ export function UsersManager({
         password: newPassword,
         display_name: newDisplayName.trim() || null,
         role: newRole,
-        is_active: true,
+        status: "active",
       });
       setNewUsername("");
       setNewDisplayName("");
@@ -99,7 +113,6 @@ export function UsersManager({
         display_name: editDisplayName.trim() || null,
         password: editPassword || null,
         role: editRole,
-        is_active: editIsActive,
       });
       setEditPassword("");
     } catch {
@@ -107,8 +120,39 @@ export function UsersManager({
     }
   }
 
+  async function handleStatusChange(username: string, nextStatus: UserStatus) {
+    const verb = nextStatus === "active" ? "reactivate" : nextStatus;
+    const confirmed = window.confirm(
+      `${capitalize(verb)} user "${username}"? ${statusConfirmation(nextStatus)}`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await onUpdateUserStatus(username, nextStatus);
+    } catch {
+      // Parent mutation owns user-facing error rendering.
+    }
+  }
+
+  async function handleRevokeTokens(username: string) {
+    const confirmed = window.confirm(
+      `Revoke all personal API tokens for "${username}"? Existing scripts and notebooks using these tokens will stop working.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await onRevokeUserApiTokens(username);
+    } catch {
+      // Parent mutation owns user-facing error rendering.
+    }
+  }
+
   async function handleDelete(username: string) {
-    const confirmed = window.confirm(`Delete user "${username}"? This will revoke their governance access.`);
+    const confirmed = window.confirm(`Delete user "${username}"? This will remove the account and revoke their governance access.`);
     if (!confirmed) {
       return;
     }
@@ -125,7 +169,7 @@ export function UsersManager({
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle>Users</CardTitle>
@@ -137,24 +181,29 @@ export function UsersManager({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Roles</CardTitle>
-            <CardDescription>Admin, Moderator, Contributor.</CardDescription>
+            <CardTitle>Active</CardTitle>
+            <CardDescription>Can sign in and use API tokens.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {USER_ROLES.map((role) => (
-                <Badge key={role}>{role}</Badge>
-              ))}
-            </div>
+            <div className="text-3xl font-semibold">{activeCount}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Access model</CardTitle>
-            <CardDescription>Backend-enforced permissions.</CardDescription>
+            <CardTitle>Suspended</CardTitle>
+            <CardDescription>Temporarily blocked accounts.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Badge>Bearer token → Role checks</Badge>
+            <div className="text-3xl font-semibold">{suspendedCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Deactivated</CardTitle>
+            <CardDescription>Closed user accounts.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">{deactivatedCount}</div>
           </CardContent>
         </Card>
       </section>
@@ -167,7 +216,7 @@ export function UsersManager({
                 <Users className="h-5 w-5" />
                 <div>
                   <CardTitle>Governance users</CardTitle>
-                  <CardDescription>Create users and assign platform roles.</CardDescription>
+                  <CardDescription>Manage account status, roles, and personal API-token access.</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -195,9 +244,7 @@ export function UsersManager({
                         </div>
                         <div className="flex gap-2">
                           <Badge>{user.role}</Badge>
-                          <Badge className={user.is_active ? undefined : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"}>
-                            {user.is_active ? "active" : "inactive"}
-                          </Badge>
+                          <StatusBadge status={user.status} />
                         </div>
                       </div>
                     </button>
@@ -257,11 +304,20 @@ export function UsersManager({
           <Card>
             <CardHeader>
               <CardTitle>Selected user</CardTitle>
-              <CardDescription>Update role, active state, display name, or password.</CardDescription>
+              <CardDescription>Update role/display name/password or control account access.</CardDescription>
             </CardHeader>
             <CardContent>
               {editingUser ? (
                 <form className="space-y-3" onSubmit={handleUpdate}>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-medium text-slate-950 dark:text-slate-50">Account status</div>
+                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Suspended and deactivated users cannot sign in or use personal API tokens.</div>
+                      </div>
+                      <StatusBadge status={editingUser.status} />
+                    </div>
+                  </div>
                   <label className="space-y-1.5">
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Username</span>
                     <Input onChange={(event) => setEditUsername(event.target.value)} value={editUsername} />
@@ -288,24 +344,39 @@ export function UsersManager({
                       ))}
                     </select>
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                    <input checked={editIsActive} onChange={(event) => setEditIsActive(event.target.checked)} type="checkbox" />
-                    Active user
-                  </label>
                   {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}
+                  {updateStatusErrorMessage ? <InlineError message={updateStatusErrorMessage} /> : null}
+                  {revokeTokensErrorMessage ? <InlineError message={revokeTokensErrorMessage} /> : null}
                   {deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
                   <div className="flex flex-wrap gap-2">
                     <Button disabled={!canUpdate} type="submit">
                       {isUpdating ? "Saving..." : "Save user"}
                     </Button>
-                    <Button disabled={isDeleting} onClick={() => handleDelete(editingUser.username)} type="button" variant="secondary">
+                    {editingUser.status !== "active" ? (
+                      <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(editingUser.username, "active")} type="button" variant="secondary">
+                        {isUpdatingStatus ? "Updating..." : "Reactivate"}
+                      </Button>
+                    ) : (
+                      <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(editingUser.username, "suspended")} type="button" variant="secondary">
+                        {isUpdatingStatus ? "Updating..." : "Suspend"}
+                      </Button>
+                    )}
+                    {editingUser.status !== "deactivated" ? (
+                      <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(editingUser.username, "deactivated")} type="button" variant="secondary">
+                        Deactivate
+                      </Button>
+                    ) : null}
+                    <Button disabled={isRevokingTokens} onClick={() => handleRevokeTokens(editingUser.username)} type="button" variant="secondary">
+                      {isRevokingTokens ? "Revoking..." : "Revoke all API tokens"}
+                    </Button>
+                    <Button disabled={isDeleting} onClick={() => handleDelete(editingUser.username)} type="button" variant="ghost">
                       {isDeleting ? "Deleting..." : "Delete user"}
                     </Button>
                   </div>
                 </form>
               ) : (
                 <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  Select a user to update their role, display name, active state, or password.
+                  Select a user to update their role, display name, account status, password, or API-token access.
                 </p>
               )}
             </CardContent>
@@ -313,19 +384,27 @@ export function UsersManager({
 
           <Card>
             <CardHeader>
-              <CardTitle>Role permissions</CardTitle>
-              <CardDescription>UI follows the backend permission model.</CardDescription>
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5" />
+                <div>
+                  <CardTitle>Status semantics</CardTitle>
+                  <CardDescription>Backend-enforced account controls.</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
                 <p>
-                  <strong className="text-slate-950 dark:text-slate-50">Admin:</strong> users, profiles, terminology CRUD, snapshot export.
+                  <strong className="text-slate-950 dark:text-slate-50">Active:</strong> user can sign in and use personal API tokens.
                 </p>
                 <p>
-                  <strong className="text-slate-950 dark:text-slate-50">Moderator:</strong> terminology CRUD and snapshot export.
+                  <strong className="text-slate-950 dark:text-slate-50">Suspended:</strong> temporary block. The account can be reactivated later.
                 </p>
                 <p>
-                  <strong className="text-slate-950 dark:text-slate-50">Contributor:</strong> read-only terminology access until suggestions are added.
+                  <strong className="text-slate-950 dark:text-slate-50">Deactivated:</strong> closed account state for offboarding or permanent access removal.
+                </p>
+                <p>
+                  <strong className="text-slate-950 dark:text-slate-50">Revoke all API tokens:</strong> disables existing personal tokens without deleting the user.
                 </p>
               </div>
             </CardContent>
@@ -336,10 +415,34 @@ export function UsersManager({
   );
 }
 
+function StatusBadge({ status }: { status: UserStatus }) {
+  const className =
+    status === "active"
+      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
+      : status === "suspended"
+        ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
+        : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200";
+  return <Badge className={className}>{status}</Badge>;
+}
+
 function InlineError({ message }: { message: string }) {
   return (
     <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
       {message}
     </div>
   );
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function statusConfirmation(status: UserStatus) {
+  if (status === "active") {
+    return "The user will be able to sign in and use non-revoked personal API tokens again.";
+  }
+  if (status === "suspended") {
+    return "This will temporarily block UI login and personal API-token authentication.";
+  }
+  return "This will close the account and block UI login and personal API-token authentication.";
 }

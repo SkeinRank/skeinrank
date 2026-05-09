@@ -156,6 +156,8 @@ Patch 29 adds hashed personal API tokens and service accounts for external API/C
 
 Patch 30 adds API Access UI support. Signed-in users can create and revoke their own personal API tokens from the governance console, while admins can manage service accounts, suspend/reactivate them, issue service account tokens, and revoke automation tokens without copying secrets from the database or shell.
 
+Patch 31 adds user account status controls. Admins can set users to `active`, `suspended`, or `deactivated`, and can revoke all personal API tokens for one user. Suspended/deactivated users cannot sign in or use personal API tokens; service account tokens are controlled separately from user status.
+
 Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
 
 
@@ -206,7 +208,7 @@ Current UI scope:
 
 - app shell with local login/logout session controls
 - current user and role display in the top bar
-- admin-only Users page for local user CRUD and role assignment
+- admin-only Users page for local user CRUD, role assignment, account status controls, and user token revocation
 - API Access page for personal API tokens and admin-managed service accounts
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals

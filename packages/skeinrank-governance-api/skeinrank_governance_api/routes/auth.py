@@ -27,6 +27,8 @@ from ..auth import (
     hash_password,
     normalize_username,
     require_roles,
+    user_can_auth,
+    validate_user_status,
     verify_password,
 )
 from ..config import GovernanceApiConfig
@@ -42,6 +44,8 @@ from ..schemas import (
     ServiceAccountUpdateRequest,
     UserCreateRequest,
     UserResponse,
+    UserStatusUpdateRequest,
+    UserTokenRevokeResponse,
     UserUpdateRequest,
 )
 
@@ -63,7 +67,7 @@ def login(
             == normalize_username(request_body.username)
         )
     )
-    if user is None or not user.is_active:
+    if user is None or not user_can_auth(user):
         raise _invalid_credentials()
     if not verify_password(request_body.password, user.password_hash):
         raise _invalid_credentials()
@@ -114,6 +118,7 @@ def read_me(current_user: AuthContext = Depends(get_current_user)) -> UserRespon
         normalized_username=normalize_username(current_user.username),
         display_name=current_user.display_name,
         role=current_user.role,
+        status=current_user.status,
         is_active=current_user.is_active,
     )
 
@@ -142,6 +147,7 @@ def create_user(
     """Create a local governance API user. Admin role required when auth is enabled."""
 
     _validate_role(request.role)
+    user_status = _resolve_user_status(request.status, request.is_active)
     existing = session.scalar(
         select(GovernanceUser).where(
             GovernanceUser.normalized_username == normalize_username(request.username)
@@ -157,7 +163,8 @@ def create_user(
         display_name=request.display_name,
         password_hash=hash_password(request.password),
         role=request.role,
-        is_active=request.is_active,
+        status=user_status,
+        is_active=user_status == "active",
     )
     session.add(user)
     try:
@@ -206,10 +213,10 @@ def update_user(
     if "password" in fields and request.password is not None:
         user.password_hash = hash_password(request.password)
         _revoke_user_tokens(session, user.id)
-    if "is_active" in fields and request.is_active is not None:
-        user.is_active = request.is_active
-        if not request.is_active:
-            _revoke_user_tokens(session, user.id)
+    if "status" in fields and request.status is not None:
+        _set_user_status(session, user, request.status)
+    elif "is_active" in fields and request.is_active is not None:
+        _set_user_status(session, user, "active" if request.is_active else "suspended")
 
     try:
         session.commit()
@@ -221,6 +228,41 @@ def update_user(
             detail="User update conflicts with an existing username",
         ) from exc
     return _user_response(user)
+
+
+@router.patch("/users/{username}/status", response_model=UserResponse)
+def update_user_status(
+    username: str,
+    request: UserStatusUpdateRequest,
+    _admin: AuthContext = Depends(require_roles("admin")),
+    session: Session = Depends(get_session),
+) -> UserResponse:
+    """Suspend, reactivate, or deactivate a local governance API user."""
+
+    user = _get_user_or_404(session, username)
+    _set_user_status(session, user, request.status)
+    session.commit()
+    session.refresh(user)
+    return _user_response(user)
+
+
+@router.post(
+    "/users/{username}/revoke-api-tokens",
+    response_model=UserTokenRevokeResponse,
+)
+def revoke_user_api_tokens(
+    username: str,
+    _admin: AuthContext = Depends(require_roles("admin")),
+    session: Session = Depends(get_session),
+) -> UserTokenRevokeResponse:
+    """Revoke all active personal API tokens for one human user."""
+
+    user = _get_user_or_404(session, username)
+    revoked_count = _revoke_user_api_tokens(session, user.id)
+    session.commit()
+    return UserTokenRevokeResponse(
+        username=user.username, revoked_api_tokens=revoked_count
+    )
 
 
 @router.delete("/users/{username}", status_code=status.HTTP_204_NO_CONTENT)
@@ -522,6 +564,7 @@ def _user_response(user: GovernanceUser) -> UserResponse:
         normalized_username=user.normalized_username,
         display_name=user.display_name,
         role=user.role,
+        status=user.status,
         is_active=user.is_active,
         created_at=user.created_at,
         updated_at=user.updated_at,
@@ -631,9 +674,25 @@ def _get_user_or_404(session: Session, username: str) -> GovernanceUser:
     return user
 
 
-def _revoke_user_tokens(session: Session, user_id: int) -> None:
+def _resolve_user_status(status_value: str | None, is_active: bool | None) -> str:
+    if status_value is not None:
+        return validate_user_status(status_value)
+    if is_active is False:
+        return "suspended"
+    return "active"
+
+
+def _set_user_status(session: Session, user: GovernanceUser, status_value: str) -> None:
+    user_status = validate_user_status(status_value)
+    user.status = user_status
+    user.is_active = user_status == "active"
+    if user_status != "active":
+        _revoke_user_login_tokens(session, user.id)
+
+
+def _revoke_user_login_tokens(session: Session, user_id: int) -> int:
     now = utc_now()
-    login_tokens = list(
+    tokens = list(
         session.scalars(
             select(GovernanceAuthToken).where(
                 GovernanceAuthToken.user_id == user_id,
@@ -641,7 +700,14 @@ def _revoke_user_tokens(session: Session, user_id: int) -> None:
             )
         )
     )
-    api_tokens = list(
+    for token in tokens:
+        token.revoked_at = now
+    return len(tokens)
+
+
+def _revoke_user_api_tokens(session: Session, user_id: int) -> int:
+    now = utc_now()
+    tokens = list(
         session.scalars(
             select(GovernanceApiToken).where(
                 GovernanceApiToken.user_id == user_id,
@@ -649,8 +715,14 @@ def _revoke_user_tokens(session: Session, user_id: int) -> None:
             )
         )
     )
-    for token in [*login_tokens, *api_tokens]:
+    for token in tokens:
         token.revoked_at = now
+    return len(tokens)
+
+
+def _revoke_user_tokens(session: Session, user_id: int) -> None:
+    _revoke_user_login_tokens(session, user_id)
+    _revoke_user_api_tokens(session, user_id)
 
 
 def _validate_role(role: str) -> None:

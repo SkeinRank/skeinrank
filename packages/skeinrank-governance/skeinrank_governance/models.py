@@ -49,6 +49,7 @@ ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
 ELASTICSEARCH_ENRICHMENT_JOB_STATUSES = ("queued", "running", "succeeded", "failed")
 ELASTICSEARCH_BINDING_PROVIDERS = ("elasticsearch",)
 USER_ROLES = ("admin", "moderator", "contributor")
+USER_STATUSES = ("active", "suspended", "deactivated")
 API_TOKEN_OWNER_TYPES = ("personal", "service_account")
 
 
@@ -245,7 +246,12 @@ class GovernanceUser(TimestampMixin, Base):
             f"role IN {USER_ROLES!r}",
             name="governance_user_role",
         ),
+        CheckConstraint(
+            f"status IN {USER_STATUSES!r}",
+            name="governance_user_status",
+        ),
         Index("ix_governance_users_normalized_username", "normalized_username"),
+        Index("ix_governance_users_status", "status"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -256,6 +262,7 @@ class GovernanceUser(TimestampMixin, Base):
     display_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -793,6 +800,11 @@ def _fill_normalized_alias(mapper: Any, connection: Any, target: TermAlias) -> N
 def _fill_normalized_user(mapper: Any, connection: Any, target: GovernanceUser) -> None:
     del mapper, connection
     target.normalized_username = normalize_profile_name(target.username)
+    if target.status:
+        target.status = target.status.strip().lower()
+    else:
+        target.status = "suspended" if target.is_active is False else "active"
+    target.is_active = target.status == "active"
 
 
 def _fill_normalized_service_account(

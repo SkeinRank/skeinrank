@@ -284,12 +284,15 @@ export type SuggestionReviewRequest = {
 
 export type UserRole = "admin" | "moderator" | "contributor";
 
+export type UserStatus = "active" | "suspended" | "deactivated";
+
 export type AuthUser = {
   id: number;
   username: string;
   normalized_username: string;
   display_name: string | null;
   role: UserRole;
+  status: UserStatus;
   is_active: boolean;
   created_at?: string | null;
   updated_at?: string | null;
@@ -313,7 +316,8 @@ export type UserCreateRequest = {
   password: string;
   display_name?: string | null;
   role: UserRole;
-  is_active?: boolean;
+  status?: UserStatus;
+  is_active?: boolean | null;
 };
 
 export type UserUpdateRequest = {
@@ -321,7 +325,13 @@ export type UserUpdateRequest = {
   password?: string | null;
   display_name?: string | null;
   role?: UserRole | null;
+  status?: UserStatus | null;
   is_active?: boolean | null;
+};
+
+export type UserTokenRevokeResponse = {
+  username: string;
+  revoked_api_tokens: number;
 };
 
 
