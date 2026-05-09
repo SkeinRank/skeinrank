@@ -40,6 +40,7 @@ skeinrank-enrich-jsonl examples/demo/demo_documents.jsonl examples/demo/demo_enr
 skeinrank-eval-demo examples/demo/demo_queries.jsonl examples/demo/demo_enriched_documents.jsonl
 skeinrank-server --reload
 skeinrank-es-enrich --help
+skeinrank-migrate --help
 ```
 
 ### 1) Core tests
@@ -148,6 +149,8 @@ poetry run python -m skeinrank_governance_api.migrations upgrade head
 For local demos/tests only, set `SKEINRANK_GOVERNANCE_API_CREATE_TABLES=true` to create tables at startup.
 
 Patch 27 adds the User Console API for migration-friendly dictionary workflows. External users, notebooks, bots, and future CLI tools can validate a company dictionary JSON, apply it in upsert/strict mode, and export a profile dictionary through `/v1/console/dictionary/*` endpoints instead of manually entering every term through the UI.
+
+Patch 28 adds `skeinrank-migrate`, a small dictionary migration CLI that talks to the User Console API. It can validate, apply, and export dictionary JSON files from notebooks, local shells, CI jobs, or bot workflows without direct database access.
 
 Patch 23 adds the suggestions/approval workflow: contributors and future discovery jobs can create pending alias suggestions or propose new canonical terms, while moderators/admins can approve or reject them. Approved alias suggestions create active aliases; approved canonical term suggestions create active canonical terms; rejected suggestions remain as review history.
 

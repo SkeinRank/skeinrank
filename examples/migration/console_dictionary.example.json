@@ -1,0 +1,40 @@
+{
+  "profile_name": "infra_incidents",
+  "profile_description": "Infra incident dictionary",
+  "create_profile": true,
+  "mode": "upsert",
+  "terms": [
+    {
+      "canonical_value": "kubernetes",
+      "slot": "TOOL",
+      "description": "Container orchestration platform",
+      "aliases": [
+        "k8s",
+        {
+          "value": "kube",
+          "confidence": 0.95,
+          "notes": "short form"
+        }
+      ]
+    },
+    {
+      "canonical_value": "postgresql",
+      "slot": "DATABASE",
+      "aliases": ["postgres", "pg"]
+    }
+  ],
+  "profile_stop_list": [
+    {
+      "value": "tmp",
+      "target": "alias",
+      "reason": "too generic"
+    }
+  ],
+  "global_stop_list": [
+    {
+      "value": "unknown",
+      "target": "both",
+      "reason": "global noise"
+    }
+  ]
+}

@@ -22,6 +22,7 @@ skeinrank-governance = { path = "../skeinrank-governance", develop = true }
 
 [tool.poetry.scripts]
 skeinrank-governance-api = "skeinrank_governance_api.cli:main"
+skeinrank-migrate = "skeinrank_governance_api.migration_tool:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0"
