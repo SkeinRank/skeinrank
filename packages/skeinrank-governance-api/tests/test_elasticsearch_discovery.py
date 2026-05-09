@@ -268,6 +268,52 @@ def test_elasticsearch_binding_dry_run_previews_matches(monkeypatch, tmp_path):
     assert payload["documents"][1]["matched_aliases"] == []
 
 
+def test_elasticsearch_dry_run_respects_global_stop_list(monkeypatch, tmp_path):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 0.97},
+    )
+    client.post(
+        "/v1/governance/global-stop-list",
+        json={"value": "k8s", "target": "alias"},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+        },
+    )
+    assert binding_response.status_code == 201
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/dry-run",
+        json={"limit": 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["documents"][0]["matched_aliases"] == []
+    assert payload["documents"][0]["would_write"]["skeinrank"]["canonical_values"] == []
+
+
 def test_elasticsearch_binding_time_window_requires_timestamp_field(tmp_path):
     client = _client(tmp_path)
     client.post("/v1/governance/profiles", json={"name": "default_it"})

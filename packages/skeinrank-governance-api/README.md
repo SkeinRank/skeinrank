@@ -191,7 +191,7 @@ This package currently provides:
 - environment-based configuration
 - SQLAlchemy session dependency
 - `/healthz` endpoint
-- governance REST endpoints for profiles, terms, aliases, suggestions, stop lists, and snapshot export
+- governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
 - local auth endpoints for login/logout/current user
 - admin-only user management endpoints
@@ -253,6 +253,25 @@ curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/terms/kub
 
 Stop lists:
 
+Global stop-list entries apply across all profiles:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/global-stop-list \
+  -H "Content-Type: application/json" \
+  -d '{"value":"unknown","target":"both","reason":"Organization-wide noise."}'
+
+curl http://127.0.0.1:8010/v1/governance/global-stop-list
+
+# Replace 1 with the global stop-list entry id returned by the create response.
+curl -X PATCH http://127.0.0.1:8010/v1/governance/global-stop-list/1 \
+  -H "Content-Type: application/json" \
+  -d '{"value":"test","target":"alias","is_active":false}'
+
+curl -X DELETE http://127.0.0.1:8010/v1/governance/global-stop-list/1
+```
+
+Profile stop-list entries apply only inside one profile:
+
 ```bash
 curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list \
   -H "Content-Type: application/json" \
@@ -268,7 +287,7 @@ curl -X PATCH http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list/
 curl -X DELETE http://127.0.0.1:8010/v1/governance/profiles/default_it/stop-list/1
 ```
 
-Stop-list targets are `alias`, `canonical`, and `both`. Active stop-list entries block matching direct CRUD mutations, suggestion creation, and suggestion approval.
+Stop-list targets are `alias`, `canonical`, and `both`. Active global and profile stop-list entries block matching direct CRUD mutations, suggestion creation, suggestion approval, Elasticsearch dry-run matches, and Elasticsearch enrichment job matches.
 
 Elasticsearch bindings:
 

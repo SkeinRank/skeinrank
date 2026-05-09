@@ -151,6 +151,37 @@ class StopListEntryResponse(BaseModel):
     updated_at: datetime
 
 
+class GlobalStopListCreateRequest(BaseModel):
+    """Request body for creating a global stop-list entry."""
+
+    value: str = Field(..., min_length=1, max_length=256)
+    target: str = "both"
+    reason: str | None = None
+    is_active: bool = True
+
+
+class GlobalStopListUpdateRequest(BaseModel):
+    """Request body for updating a global stop-list entry."""
+
+    value: str | None = Field(default=None, min_length=1, max_length=256)
+    target: str | None = None
+    reason: str | None = None
+    is_active: bool | None = None
+
+
+class GlobalStopListEntryResponse(BaseModel):
+    """Global stop-list entry response."""
+
+    id: int
+    value: str
+    normalized_value: str
+    target: str
+    reason: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
 class ElasticsearchBindingCreateRequest(BaseModel):
     """Request body for creating an Elasticsearch enrichment binding."""
 

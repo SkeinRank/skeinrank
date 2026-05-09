@@ -807,6 +807,119 @@ def test_suggestion_rejects_invalid_type(tmp_path):
     assert "Invalid suggestion type status" in response.json()["detail"]
 
 
+def test_global_stop_list_crud_workflow(tmp_path):
+    client = _client(tmp_path)
+
+    create_response = client.post(
+        "/v1/governance/global-stop-list",
+        json={
+            "value": "Unknown",
+            "target": "both",
+            "reason": "Organization-wide noise.",
+        },
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["value"] == "Unknown"
+    assert created["normalized_value"] == "unknown"
+    assert created["target"] == "both"
+    assert created["is_active"] is True
+
+    list_response = client.get("/v1/governance/global-stop-list")
+    assert list_response.status_code == 200
+    assert [entry["normalized_value"] for entry in list_response.json()] == ["unknown"]
+
+    update_response = client.patch(
+        f"/v1/governance/global-stop-list/{created['id']}",
+        json={"value": "Test", "target": "alias", "is_active": False},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["normalized_value"] == "test"
+    assert updated["target"] == "alias"
+    assert updated["is_active"] is False
+
+    delete_response = client.delete(f"/v1/governance/global-stop-list/{created['id']}")
+    assert delete_response.status_code == 204
+    assert client.get("/v1/governance/global-stop-list").json() == []
+
+
+def test_global_stop_list_rejects_invalid_target_and_duplicate_overlap(tmp_path):
+    client = _client(tmp_path)
+
+    invalid = client.post(
+        "/v1/governance/global-stop-list",
+        json={"value": "service", "target": "unknown"},
+    )
+    assert invalid.status_code == 422
+    assert "Invalid stop-list target" in invalid.json()["detail"]
+
+    first = client.post(
+        "/v1/governance/global-stop-list",
+        json={"value": "service", "target": "both"},
+    )
+    assert first.status_code == 201
+
+    overlap = client.post(
+        "/v1/governance/global-stop-list",
+        json={"value": " Service ", "target": "alias"},
+    )
+    assert overlap.status_code == 409
+    assert "Global stop-list entry already exists" in overlap.json()["detail"]
+
+
+def test_global_stop_list_blocks_direct_terms_and_suggestions(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/global-stop-list",
+        json={
+            "value": "kube",
+            "target": "alias",
+            "reason": "Use a less ambiguous alias globally.",
+        },
+    )
+    client.post(
+        "/v1/governance/global-stop-list",
+        json={"value": "service", "target": "canonical"},
+    )
+
+    direct_alias = client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "kube"},
+    )
+    assert direct_alias.status_code == 409
+    assert "Alias is blocked by global stop list" in direct_alias.json()["detail"]
+    assert "less ambiguous" in direct_alias.json()["detail"]
+
+    alias_suggestion = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "TOOL",
+        },
+    )
+    assert alias_suggestion.status_code == 409
+    assert (
+        "Alias suggestion is blocked by global stop list"
+        in alias_suggestion.json()["detail"]
+    )
+
+    direct_term = client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "service", "slot": "SERVICE"},
+    )
+    assert direct_term.status_code == 409
+    assert (
+        "Canonical term is blocked by global stop list" in direct_term.json()["detail"]
+    )
+
+
 def test_stop_list_crud_workflow(tmp_path):
     client = _client(tmp_path)
     client.post("/v1/governance/profiles", json={"name": "default_it"})

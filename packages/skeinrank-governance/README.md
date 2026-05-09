@@ -142,9 +142,11 @@ Those pieces are planned for later platform patches.
 
 ## Governance stop lists
 
-The governance schema includes profile-scoped stop-list entries for terminology guardrails. A stop-list entry can block aliases, canonical terms, or both. This is intentionally profile-scoped for the MVP because a value that is too generic in one corpus can be valid in another.
+The governance schema includes profile-scoped and global stop-list entries for terminology guardrails. A stop-list entry can block aliases, canonical terms, or both. Profile-scoped entries protect one terminology profile, while global entries block organization-wide noise across every profile.
 
-Stop lists are used by the governance API to reject blocked direct edits, blocked suggestions, and approvals that became blocked after the suggestion was created.
+Stop lists are used by the governance API to reject blocked direct edits, blocked suggestions, and approvals that became blocked after the suggestion was created. Elasticsearch dry-runs and enrichment jobs also exclude active aliases/canonical terms blocked by profile or global stop-list entries.
+
+Patch 26c adds the `governance_global_stop_list_entries` table and global stop-list API support.
 
 
 ## Elasticsearch bindings

@@ -21,6 +21,10 @@ def test_public_api_exports_governance_models_and_helpers():
         governance.GovernanceStopListEntry.__tablename__
         == "governance_stop_list_entries"
     )
+    assert (
+        governance.GovernanceGlobalStopListEntry.__tablename__
+        == "governance_global_stop_list_entries"
+    )
     assert governance.USER_ROLES == ("admin", "moderator", "contributor")
     assert governance.SUGGESTION_STATUSES == ("pending", "approved", "rejected")
     assert governance.SUGGESTION_TYPES == ("alias", "canonical_term")
