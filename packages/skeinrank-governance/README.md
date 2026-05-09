@@ -2,7 +2,7 @@
 
 Postgres-ready terminology governance foundation for SkeinRank.
 
-This package contains SQLAlchemy models and Alembic migrations for the control-plane layer where teams manage canonical terms, aliases, suggestions, snapshots, audit history, users, login tokens, personal API tokens, service accounts, and roles.
+This package contains SQLAlchemy models and Alembic migrations for the control-plane layer where teams manage canonical terms, aliases, suggestions, snapshots, audit history, users, login tokens, personal API tokens, service accounts, roles, and user account status controls.
 
 ## Role in the architecture
 
@@ -37,6 +37,7 @@ Important constraints:
 - alias collisions such as `pg -> postgresql` and `pg -> payment-gateway` are rejected at the database layer
 - term, alias, and snapshot statuses are constrained
 - governance user roles are constrained to `admin`, `moderator`, and `contributor`
+- governance user statuses are constrained to `active`, `suspended`, and `deactivated`
 - login tokens, personal API tokens, and service-account API tokens are stored as hashes, not plaintext bearer tokens
 - service account roles are constrained to `admin`, `moderator`, and `contributor`
 - API tokens must belong to exactly one owner: either one user or one service account

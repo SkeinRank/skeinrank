@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, Header, HTTPException, Request, status
 from skeinrank_governance.models import (
     USER_ROLES,
+    USER_STATUSES,
     GovernanceApiToken,
     GovernanceAuthToken,
     GovernanceServiceAccount,
@@ -40,6 +41,7 @@ class AuthContext:
     username: str
     display_name: str | None
     role: str
+    status: str
     is_active: bool
     token_hash: str | None = None
     scopes: frozenset[str] | None = None
@@ -131,6 +133,7 @@ def bootstrap_admin_if_needed(
             display_name=config.admin_display_name,
             password_hash=hash_password(config.admin_password),
             role="admin",
+            status="active",
             is_active=True,
         )
         session.add(admin)
@@ -223,6 +226,7 @@ def get_current_user(
             username=DEV_USERNAME,
             display_name="Local development",
             role=DEV_ROLE,
+            status="active",
             is_active=True,
         )
 
@@ -245,12 +249,13 @@ def get_current_user(
             GovernanceAuthToken.expires_at > now,
         )
     )
-    if auth_token is not None and auth_token.user.is_active:
+    if auth_token is not None and user_can_auth(auth_token.user):
         return AuthContext(
             id=auth_token.user.id,
             username=auth_token.user.username,
             display_name=auth_token.user.display_name,
             role=auth_token.user.role,
+            status=auth_token.user.status,
             is_active=auth_token.user.is_active,
             token_hash=token_hash,
             scopes=None,
@@ -267,12 +272,13 @@ def get_current_user(
         )
     )
     if api_token is not None and _not_expired(api_token.expires_at, now):
-        if api_token.user is not None and api_token.user.is_active:
+        if api_token.user is not None and user_can_auth(api_token.user):
             return AuthContext(
                 id=api_token.user.id,
                 username=api_token.user.username,
                 display_name=api_token.user.display_name,
                 role=api_token.user.role,
+                status=api_token.user.status,
                 is_active=api_token.user.is_active,
                 token_hash=token_hash,
                 scopes=frozenset(api_token.scopes or []),
@@ -287,6 +293,7 @@ def get_current_user(
                 username=api_token.service_account.name,
                 display_name=api_token.service_account.display_name,
                 role=api_token.service_account.role,
+                status="active" if api_token.service_account.is_active else "suspended",
                 is_active=api_token.service_account.is_active,
                 token_hash=token_hash,
                 scopes=frozenset(api_token.scopes or []),
@@ -299,6 +306,24 @@ def get_current_user(
         detail="Invalid or expired bearer token",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+def validate_user_status(user_status: str) -> str:
+    """Validate and normalize a user account status."""
+
+    normalized = user_status.strip().lower()
+    if normalized not in USER_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Invalid user status: {user_status}",
+        )
+    return normalized
+
+
+def user_can_auth(user: GovernanceUser) -> bool:
+    """Return true when a human user can authenticate with sessions or tokens."""
+
+    return user.is_active and user.status == "active"
 
 
 def require_scopes(*required_scopes: str) -> Callable[[AuthContext], AuthContext]:

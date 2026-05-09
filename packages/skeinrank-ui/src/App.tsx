@@ -4,7 +4,7 @@ import { useState } from "react";
 import { LoginPage } from "./components/LoginPage";
 import { AppSection, AppShell } from "./components/layout/AppShell";
 import { UsersManager } from "./components/UsersManager";
-import { clearAuthToken, createUser, deleteUser, getAuthToken, getCurrentUser, GovernanceApiError, listUsers, login, logout, setAuthToken, updateUser } from "./lib/api";
+import { clearAuthToken, createUser, deleteUser, getAuthToken, getCurrentUser, GovernanceApiError, listUsers, login, logout, revokeUserApiTokens, setAuthToken, updateUser, updateUserStatus } from "./lib/api";
 import { ApiAccessPage } from "./pages/ApiAccessPage";
 import { GovernanceDashboard } from "./pages/GovernanceDashboard";
 import { GuardrailsPage } from "./pages/GuardrailsPage";
@@ -12,7 +12,7 @@ import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { SuggestionsPage } from "./pages/SuggestionsPage";
 import { permissionsForUser } from "./permissions";
 import { ThemeProvider } from "./theme";
-import type { AuthUser, LoginRequest, UserCreateRequest, UserUpdateRequest } from "./types";
+import type { AuthUser, LoginRequest, UserCreateRequest, UserStatus, UserUpdateRequest } from "./types";
 
 function createQueryClient() {
   return new QueryClient({
@@ -147,6 +147,24 @@ function UsersPage({ currentUser }: { currentUser: AuthUser }) {
     },
   });
 
+  const updateUserStatusMutation = useMutation({
+    mutationFn: ({ username, status }: { username: string; status: UserStatus }) => updateUserStatus(username, status),
+    onSuccess: (user) => {
+      queryClient.setQueryData<AuthUser[]>(["auth", "users"], (users = []) => users.map((current) => (current.id === user.id ? user : current)).sort(sortUsers));
+      if (user.id === currentUser.id) {
+        queryClient.setQueryData(["auth", "me", getAuthToken() ?? "anonymous"], user);
+      }
+      void queryClient.invalidateQueries({ queryKey: ["auth", "users"] });
+    },
+  });
+
+  const revokeUserApiTokensMutation = useMutation({
+    mutationFn: (username: string) => revokeUserApiTokens(username),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["auth", "users"] });
+    },
+  });
+
   const deleteUserMutation = useMutation({
     mutationFn: (username: string) => deleteUser(username),
     onSuccess: (_result, username) => {
@@ -163,6 +181,14 @@ function UsersPage({ currentUser }: { currentUser: AuthUser }) {
     await updateUserMutation.mutateAsync({ username, payload });
   }
 
+  async function handleUpdateUserStatus(username: string, status: UserStatus) {
+    await updateUserStatusMutation.mutateAsync({ username, status });
+  }
+
+  async function handleRevokeUserApiTokens(username: string) {
+    await revokeUserApiTokensMutation.mutateAsync(username);
+  }
+
   async function handleDeleteUser(username: string) {
     await deleteUserMutation.mutateAsync(username);
   }
@@ -174,12 +200,18 @@ function UsersPage({ currentUser }: { currentUser: AuthUser }) {
       isCreating={createUserMutation.isPending}
       isDeleting={deleteUserMutation.isPending}
       isLoading={usersQuery.isLoading}
+      isRevokingTokens={revokeUserApiTokensMutation.isPending}
       isUpdating={updateUserMutation.isPending}
+      isUpdatingStatus={updateUserStatusMutation.isPending}
       loadErrorMessage={usersQuery.isError ? usersQuery.error.message : null}
       onCreateUser={handleCreateUser}
       onDeleteUser={handleDeleteUser}
+      onRevokeUserApiTokens={handleRevokeUserApiTokens}
       onUpdateUser={handleUpdateUser}
+      onUpdateUserStatus={handleUpdateUserStatus}
+      revokeTokensErrorMessage={errorMessage(revokeUserApiTokensMutation.error)}
       updateErrorMessage={errorMessage(updateUserMutation.error)}
+      updateStatusErrorMessage={errorMessage(updateUserStatusMutation.error)}
       users={usersQuery.data ?? []}
     />
   );

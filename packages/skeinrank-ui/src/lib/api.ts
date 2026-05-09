@@ -40,6 +40,8 @@ import type {
   TermCreateRequest,
   TermUpdateRequest,
   UserCreateRequest,
+  UserStatus,
+  UserTokenRevokeResponse,
   UserUpdateRequest,
 } from "../types";
 
@@ -157,6 +159,19 @@ export function updateUser(username: string, payload: UserUpdateRequest) {
   return requestJson<AuthUser>(`/v1/auth/users/${encodePathSegment(username)}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export function updateUserStatus(username: string, userStatus: UserStatus) {
+  return requestJson<AuthUser>(`/v1/auth/users/${encodePathSegment(username)}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: userStatus }),
+  });
+}
+
+export function revokeUserApiTokens(username: string) {
+  return requestJson<UserTokenRevokeResponse>(`/v1/auth/users/${encodePathSegment(username)}/revoke-api-tokens`, {
+    method: "POST",
   });
 }
 

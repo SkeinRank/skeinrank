@@ -631,3 +631,128 @@ def test_admin_can_disable_service_account_and_revoke_tokens(tmp_path):
 
     after_disable = client.get("/v1/auth/me", headers=_auth(service_token))
     assert after_disable.status_code == 401
+
+
+def test_admin_can_suspend_and_reactivate_user_without_recreating_personal_tokens(
+    tmp_path,
+):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+
+    create_user_response = client.post(
+        "/v1/auth/users",
+        json={
+            "username": "analyst",
+            "password": "analyst-secret",
+            "role": "contributor",
+        },
+        headers=_auth(admin_token),
+    )
+    assert create_user_response.status_code == 201
+    assert create_user_response.json()["status"] == "active"
+
+    analyst_token = _login(client, "analyst", "analyst-secret")
+    create_token_response = client.post(
+        "/v1/auth/api-tokens",
+        json={"name": "Notebook token", "scopes": ["migration:validate"]},
+        headers=_auth(analyst_token),
+    )
+    assert create_token_response.status_code == 201
+    personal_token = create_token_response.json()["access_token"]
+
+    suspend_response = client.patch(
+        "/v1/auth/users/analyst/status",
+        json={"status": "suspended"},
+        headers=_auth(admin_token),
+    )
+    assert suspend_response.status_code == 200
+    assert suspend_response.json()["status"] == "suspended"
+    assert suspend_response.json()["is_active"] is False
+
+    assert (
+        client.post(
+            "/v1/auth/login",
+            json={"username": "analyst", "password": "analyst-secret"},
+        ).status_code
+        == 401
+    )
+    assert client.get("/v1/auth/me", headers=_auth(personal_token)).status_code == 401
+
+    reactivate_response = client.patch(
+        "/v1/auth/users/analyst/status",
+        json={"status": "active"},
+        headers=_auth(admin_token),
+    )
+    assert reactivate_response.status_code == 200
+    assert reactivate_response.json()["status"] == "active"
+    assert reactivate_response.json()["is_active"] is True
+
+    assert (
+        client.post(
+            "/v1/auth/login",
+            json={"username": "analyst", "password": "analyst-secret"},
+        ).status_code
+        == 200
+    )
+    assert client.get("/v1/auth/me", headers=_auth(personal_token)).status_code == 200
+
+
+def test_admin_can_deactivate_user_and_revoke_all_personal_api_tokens(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+
+    client.post(
+        "/v1/auth/users",
+        json={"username": "ds", "password": "ds-secret", "role": "moderator"},
+        headers=_auth(admin_token),
+    )
+    ds_token = _login(client, "ds", "ds-secret")
+    first_token = client.post(
+        "/v1/auth/api-tokens",
+        json={"name": "First", "scopes": ["migration:validate"]},
+        headers=_auth(ds_token),
+    ).json()["access_token"]
+    second_token = client.post(
+        "/v1/auth/api-tokens",
+        json={"name": "Second", "scopes": ["migration:validate"]},
+        headers=_auth(ds_token),
+    ).json()["access_token"]
+
+    revoke_response = client.post(
+        "/v1/auth/users/ds/revoke-api-tokens",
+        headers=_auth(admin_token),
+    )
+    assert revoke_response.status_code == 200
+    assert revoke_response.json() == {"username": "ds", "revoked_api_tokens": 2}
+    assert client.get("/v1/auth/me", headers=_auth(first_token)).status_code == 401
+    assert client.get("/v1/auth/me", headers=_auth(second_token)).status_code == 401
+
+    deactivate_response = client.patch(
+        "/v1/auth/users/ds/status",
+        json={"status": "deactivated"},
+        headers=_auth(admin_token),
+    )
+    assert deactivate_response.status_code == 200
+    assert deactivate_response.json()["status"] == "deactivated"
+    assert deactivate_response.json()["is_active"] is False
+    assert (
+        client.post(
+            "/v1/auth/login",
+            json={"username": "ds", "password": "ds-secret"},
+        ).status_code
+        == 401
+    )
+
+
+def test_user_status_update_rejects_invalid_status(tmp_path):
+    client = _client(tmp_path)
+    admin_token = _login(client)
+
+    response = client.patch(
+        "/v1/auth/users/admin/status",
+        json={"status": "paused"},
+        headers=_auth(admin_token),
+    )
+
+    assert response.status_code == 422
+    assert "Invalid user status" in response.json()["detail"]

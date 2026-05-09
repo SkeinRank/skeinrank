@@ -193,6 +193,8 @@ def test_create_governance_rows_and_normalized_values(session):
     assert global_stop_list_entry.target == "both"
     assert global_stop_list_entry.is_active is True
     assert user.normalized_username == "maxim"
+    assert user.status == "active"
+    assert user.is_active is True
     assert service_account.normalized_name == "migration_bot"
     assert service_account.role == "moderator"
     assert personal_token.scopes == ["migration:apply", "migration:validate"]

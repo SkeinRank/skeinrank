@@ -25,6 +25,7 @@ const adminUser: AuthUser = {
   normalized_username: "admin",
   display_name: "Admin User",
   role: "admin",
+  status: "active",
   is_active: true,
   created_at: "2026-05-05T00:00:00Z",
   updated_at: "2026-05-05T00:00:00Z",
@@ -457,6 +458,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
         const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
           display_name?: string | null;
           role: AuthUser["role"];
+          status?: AuthUser["status"];
           username: string;
         };
         const user: AuthUser = {
@@ -465,7 +467,8 @@ function stubGovernanceApi(options: StubOptions = {}) {
           normalized_username: payload.username.toLowerCase(),
           display_name: payload.display_name ?? null,
           role: payload.role,
-          is_active: true,
+          status: payload.status ?? "active",
+          is_active: (payload.status ?? "active") === "active",
           created_at: "2026-05-05T00:00:00Z",
           updated_at: "2026-05-05T00:00:00Z",
           last_login_at: null,
@@ -486,13 +489,32 @@ function stubGovernanceApi(options: StubOptions = {}) {
           ).toLowerCase(),
           display_name: payload.display_name ?? null,
           role: payload.role ?? contributorUser.role,
-          is_active: payload.is_active ?? contributorUser.is_active,
+          status: payload.status ?? contributorUser.status,
+          is_active: payload.is_active ?? ((payload.status ?? contributorUser.status) === "active"),
           updated_at: "2026-05-06T00:00:00Z",
         };
         currentUsers = currentUsers.map((user) =>
           user.username === "contributor" ? updated : user,
         );
         return Response.json(updated);
+      }
+
+      if (url.endsWith("/v1/auth/users/contributor/status") && method === "PATCH") {
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as { status: AuthUser["status"] };
+        const updated: AuthUser = {
+          ...contributorUser,
+          status: payload.status,
+          is_active: payload.status === "active",
+          updated_at: "2026-05-06T00:00:00Z",
+        };
+        currentUsers = currentUsers.map((user) =>
+          user.username === "contributor" ? updated : user,
+        );
+        return Response.json(updated);
+      }
+
+      if (url.endsWith("/v1/auth/users/contributor/revoke-api-tokens") && method === "POST") {
+        return Response.json({ username: "contributor", revoked_api_tokens: 2 });
       }
 
       if (url.endsWith("/v1/auth/users/contributor") && method === "DELETE") {
@@ -1719,7 +1741,7 @@ describe("App", () => {
     await screen.findByText("Terminology control plane");
     fireEvent.click(screen.getByRole("button", { name: "Users" }));
 
-    expect(await screen.findByText("Users and roles")).toBeInTheDocument();
+    expect(await screen.findByText("Governance users")).toBeInTheDocument();
     expect(await screen.findByText("Admin User")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("New username"), {
@@ -1745,7 +1767,7 @@ describe("App", () => {
           password: "temporary-password",
           display_name: "Alex Kim",
           role: "moderator",
-          is_active: true,
+          status: "active",
         }),
         method: "POST",
       }),
@@ -1769,10 +1791,46 @@ describe("App", () => {
             display_name: "Term Contributor",
             password: null,
             role: "moderator",
-            is_active: true,
           }),
           method: "PATCH",
         }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Suspend" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/users/contributor/status",
+        expect.objectContaining({
+          body: JSON.stringify({ status: "suspended" }),
+          method: "PATCH",
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("suspended").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reactivate" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/users/contributor/status",
+        expect.objectContaining({
+          body: JSON.stringify({ status: "active" }),
+          method: "PATCH",
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke all API tokens" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/auth/users/contributor/revoke-api-tokens",
+        expect.objectContaining({ method: "POST" }),
       );
     });
 

@@ -58,7 +58,7 @@ The governance console currently includes:
 
 - app shell with local login/logout session controls
 - current user and role display
-- admin-only Users page for local user CRUD and role assignment
+- admin-only Users page for local user CRUD, role assignment, account status controls, and user token revocation
 - API Access page for personal API tokens and admin-managed service accounts
 - role-aware controls for Admin, Moderator, and Contributor users
 - Suggestions page for creating, filtering, approving, and rejecting alias/canonical term proposals
@@ -80,6 +80,8 @@ Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alia
 
 
 ## API Access
+
+The Users page lets admins set user status to `active`, `suspended`, or `deactivated`, and revoke all personal API tokens for a selected user. Suspended/deactivated users cannot sign in or use personal API tokens until reactivated; service accounts remain managed separately from human user status.
 
 The API Access page lets signed-in users create and revoke personal API tokens for notebooks, scripts, and the `skeinrank-migrate` CLI. Tokens are displayed only once after creation; after that the UI only shows token metadata such as prefix, scopes, expiration, last-used time, and revoked/active status.
 

@@ -548,7 +548,8 @@ class UserCreateRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=512)
     display_name: str | None = Field(default=None, max_length=256)
     role: str
-    is_active: bool = True
+    status: str = "active"
+    is_active: bool | None = None
 
 
 class UserUpdateRequest(BaseModel):
@@ -558,7 +559,21 @@ class UserUpdateRequest(BaseModel):
     password: str | None = Field(default=None, min_length=1, max_length=512)
     display_name: str | None = Field(default=None, max_length=256)
     role: str | None = None
+    status: str | None = None
     is_active: bool | None = None
+
+
+class UserStatusUpdateRequest(BaseModel):
+    """Request body for changing a user's account status."""
+
+    status: str
+
+
+class UserTokenRevokeResponse(BaseModel):
+    """Response returned when user-owned personal API tokens are revoked."""
+
+    username: str
+    revoked_api_tokens: int
 
 
 class UserResponse(BaseModel):
@@ -569,6 +584,7 @@ class UserResponse(BaseModel):
     normalized_username: str
     display_name: str | None = None
     role: str
+    status: str = "active"
     is_active: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None

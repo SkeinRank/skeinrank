@@ -609,3 +609,28 @@ Console dictionary endpoints now enforce migration scopes for API tokens:
 - `migration:export` for `GET /v1/console/dictionary/export`
 
 Regular login/session tokens continue to use role checks only. Personal and service-account API tokens must pass both role checks and scope checks.
+
+
+## User account status controls
+
+Patch 31 adds explicit account statuses for human users:
+
+```text
+active
+suspended
+deactivated
+```
+
+Admins can change user status and revoke all personal API tokens for one user:
+
+```bash
+curl -X PATCH http://127.0.0.1:8010/v1/auth/users/alex/status \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "suspended"}'
+
+curl -X POST http://127.0.0.1:8010/v1/auth/users/alex/revoke-api-tokens \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Suspended and deactivated users cannot sign in and their personal API tokens are rejected by Bearer auth. Reactivating a user restores access for non-revoked, non-expired personal API tokens. `revoke-api-tokens` permanently revokes the user-owned personal API tokens without touching service account tokens.
