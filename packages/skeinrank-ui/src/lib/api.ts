@@ -1,6 +1,9 @@
 import type {
   AliasCreateRequest,
   AliasUpdateRequest,
+  ApiToken,
+  ApiTokenCreateRequest,
+  ApiTokenCreateResponse,
   AuthTokenResponse,
   AuthUser,
   ElasticsearchBinding,
@@ -24,6 +27,9 @@ import type {
   ProfileUpdateRequest,
   RuntimeSnapshot,
   SnapshotExportRequest,
+  ServiceAccount,
+  ServiceAccountCreateRequest,
+  ServiceAccountUpdateRequest,
   StopListCreateRequest,
   StopListEntry,
   StopListUpdateRequest,
@@ -156,6 +162,65 @@ export function updateUser(username: string, payload: UserUpdateRequest) {
 
 export function deleteUser(username: string) {
   return requestJson<void>(`/v1/auth/users/${encodePathSegment(username)}`, {
+    method: "DELETE",
+  });
+}
+
+
+export function listPersonalApiTokens() {
+  return requestJson<ApiToken[]>("/v1/auth/api-tokens");
+}
+
+export function createPersonalApiToken(payload: ApiTokenCreateRequest) {
+  return requestJson<ApiTokenCreateResponse>("/v1/auth/api-tokens", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function revokePersonalApiToken(tokenId: number) {
+  return requestJson<void>(`/v1/auth/api-tokens/${tokenId}`, {
+    method: "DELETE",
+  });
+}
+
+export function listServiceAccounts() {
+  return requestJson<ServiceAccount[]>("/v1/auth/service-accounts");
+}
+
+export function createServiceAccount(payload: ServiceAccountCreateRequest) {
+  return requestJson<ServiceAccount>("/v1/auth/service-accounts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateServiceAccount(accountName: string, payload: ServiceAccountUpdateRequest) {
+  return requestJson<ServiceAccount>(`/v1/auth/service-accounts/${encodePathSegment(accountName)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteServiceAccount(accountName: string) {
+  return requestJson<void>(`/v1/auth/service-accounts/${encodePathSegment(accountName)}`, {
+    method: "DELETE",
+  });
+}
+
+export function listServiceAccountTokens(accountName: string) {
+  return requestJson<ApiToken[]>(`/v1/auth/service-accounts/${encodePathSegment(accountName)}/tokens`);
+}
+
+export function createServiceAccountToken(accountName: string, payload: ApiTokenCreateRequest) {
+  return requestJson<ApiTokenCreateResponse>(`/v1/auth/service-accounts/${encodePathSegment(accountName)}/tokens`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function revokeServiceAccountToken(accountName: string, tokenId: number) {
+  return requestJson<void>(`/v1/auth/service-accounts/${encodePathSegment(accountName)}/tokens/${tokenId}`, {
     method: "DELETE",
   });
 }
