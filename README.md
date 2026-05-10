@@ -78,6 +78,33 @@ print(result.document.file_name)
 print(result.extraction.canonical_values)
 ```
 
+### PyPI/TestPyPI packaging
+
+Patch 44 adds a conservative publishing workflow for the lightweight `skeinrank` core package. The package should be published to TestPyPI first, installed in a clean environment, and only then published to the real PyPI project.
+
+Manual workflow:
+
+```text
+Actions → publish-skeinrank-core → Run workflow
+repository = testpypi
+dry_run = false
+```
+
+The workflow builds wheel/sdist, runs `twine check`, smoke-tests the built wheel and CLI, and then publishes through PyPI Trusted Publishing when `dry_run=false`. Keep `dry_run=true` for build-only release candidates.
+
+Local packaging smoke test:
+
+```bash
+cd packages/skeinrank-core
+poetry install
+poetry run pytest -q
+poetry build
+poetry run python -m pip install --upgrade twine
+poetry run twine check dist/*
+```
+
+See `packages/skeinrank-core/docs/PUBLISHING.md` for the full TestPyPI → PyPI checklist.
+
 
 After installing the package you can use the small command-line tools directly:
 
