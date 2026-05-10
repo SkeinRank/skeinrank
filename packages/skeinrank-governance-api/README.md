@@ -594,8 +594,9 @@ Chunk size can also be passed per job as `chunk_size` in
 default is `SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE`, with the short alias
 `SKEINRANK_ENRICHMENT_CHUNK_SIZE`.
 
-Patch 36 adds parallel chunk execution, but it still leaves cancellation, retry
-UI, Flower, scheduled jobs, and rollback controls for follow-up patches.
+Patch 36 adds parallel chunk execution. Patch 38 adds safe cancellation for
+queued/running jobs; retry UI, Flower, scheduled jobs, and rollback controls
+remain follow-up patches.
 
 ## Elasticsearch enrichment job time filters
 

@@ -46,7 +46,14 @@ SUGGESTION_SOURCES = ("manual", "discovery", "import")
 STOP_LIST_TARGETS = ("alias", "canonical", "both")
 ELASTICSEARCH_BINDING_MODES = ("dry_run", "write")
 ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
-ELASTICSEARCH_ENRICHMENT_JOB_STATUSES = ("queued", "running", "succeeded", "failed")
+ELASTICSEARCH_ENRICHMENT_JOB_STATUSES = (
+    "queued",
+    "running",
+    "cancel_requested",
+    "cancelled",
+    "succeeded",
+    "failed",
+)
 ELASTICSEARCH_BINDING_PROVIDERS = ("elasticsearch",)
 USER_ROLES = ("admin", "moderator", "contributor")
 USER_STATUSES = ("active", "suspended", "deactivated")
@@ -653,11 +660,11 @@ class ElasticsearchBinding(TimestampMixin, Base):
 
 
 class ElasticsearchEnrichmentJob(TimestampMixin, Base):
-    """A synchronous MVP control-plane record for Elasticsearch enrichment jobs.
+    """Control-plane record for Elasticsearch enrichment jobs.
 
-    The first job implementation runs inside the API process and records the
-    result in the database. Celery/RabbitMQ workers can later execute the same
-    job contract asynchronously without changing the stored API shape.
+    Jobs may execute synchronously in the API process or asynchronously through
+    Celery/RabbitMQ workers. The status field includes safe cancellation states
+    so workers can stop queued chunks without killing worker processes.
     """
 
     __tablename__ = "elasticsearch_enrichment_jobs"

@@ -42,6 +42,8 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.ELASTICSEARCH_ENRICHMENT_JOB_STATUSES == (
         "queued",
         "running",
+        "cancel_requested",
+        "cancelled",
         "succeeded",
         "failed",
     )

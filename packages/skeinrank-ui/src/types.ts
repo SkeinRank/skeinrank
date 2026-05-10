@@ -120,7 +120,7 @@ export type ElasticsearchBindingMode = "dry_run" | "write";
 
 export type ElasticsearchBindingWriteStrategy = "in_place" | "reindex_alias_swap";
 
-export type ElasticsearchEnrichmentJobStatus = "queued" | "running" | "succeeded" | "failed";
+export type ElasticsearchEnrichmentJobStatus = "queued" | "running" | "cancel_requested" | "cancelled" | "succeeded" | "failed";
 
 export type ElasticsearchBinding = {
   id: number;
@@ -261,6 +261,11 @@ export type ElasticsearchEnrichmentJobCreateRequest = {
   target_index_name?: string | null;
   alias_name?: string | null;
   max_documents?: number;
+  chunk_size?: number | null;
+};
+
+export type ElasticsearchEnrichmentJobCancelRequest = {
+  reason?: string | null;
 };
 
 export type ElasticsearchEnrichmentJob = {

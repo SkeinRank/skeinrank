@@ -381,6 +381,12 @@ class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
     chunk_size: int | None = Field(default=None, ge=1, le=1000)
 
 
+class ElasticsearchEnrichmentJobCancelRequest(BaseModel):
+    """Request body for safely cancelling an Elasticsearch enrichment job."""
+
+    reason: str | None = Field(default=None, max_length=512)
+
+
 class ElasticsearchEnrichmentJobResponse(BaseModel):
     """Elasticsearch enrichment job status response."""
 

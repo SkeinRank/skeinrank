@@ -1037,3 +1037,183 @@ def test_celery_enrichment_job_is_split_into_parallel_chunks(monkeypatch, tmp_pa
     assert [chunk["offset"] for chunk in chunked["chunks"]] == [0, 2]
     assert payload["result_json"]["updated_document_ids"] == ["1", "3"]
     assert payload["result_json"]["alias_result"] == {"acknowledged": True}
+
+
+def test_elasticsearch_enrichment_job_can_be_cancelled_while_queued(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api import job_runner
+    from skeinrank_governance_api.routes import governance
+    from skeinrank_governance_api.worker_queue import EnqueuedTask
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+
+    def fake_enqueue_elasticsearch_enrichment_job(*, config, job_id):
+        return EnqueuedTask(task_id="coordinator-task", queue=config.celery_task_queue)
+
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_job",
+        fake_enqueue_elasticsearch_enrichment_job,
+    )
+
+    client = _client(
+        tmp_path,
+        elasticsearch_url="http://es:9200",
+        enrichment_jobs_backend="celery",
+    )
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    job_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 2},
+    )
+    assert job_response.status_code == 201
+    job_id = job_response.json()["id"]
+
+    cancel_response = client.post(
+        f"/v1/governance/elasticsearch/jobs/{job_id}/cancel",
+        json={"reason": "wrong binding"},
+    )
+    assert cancel_response.status_code == 200
+    payload = cancel_response.json()
+    assert payload["status"] == "cancelled"
+    assert payload["finished_at"] is not None
+    assert payload["result_json"]["cancellation"]["reason"] == "wrong binding"
+
+    coordinator_result = job_runner.run_elasticsearch_enrichment_job(
+        job_id=job_id,
+        config=client.app.state.config,
+    )
+    assert coordinator_result["status"] == "cancelled"
+    assert coordinator_result["skipped"] is True
+
+
+def test_running_chunked_enrichment_job_can_be_cancelled_safely(monkeypatch, tmp_path):
+    from skeinrank_governance_api import job_runner
+    from skeinrank_governance_api.routes import governance
+    from skeinrank_governance_api.worker_queue import EnqueuedTask
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    monkeypatch.setattr(
+        job_runner, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+
+    def fake_enqueue_elasticsearch_enrichment_job(*, config, job_id):
+        return EnqueuedTask(task_id="coordinator-task", queue=config.celery_task_queue)
+
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_job",
+        fake_enqueue_elasticsearch_enrichment_job,
+    )
+
+    enqueued_chunks: list[dict[str, int]] = []
+
+    def fake_enqueue_elasticsearch_enrichment_chunk(
+        *, config, job_id, chunk_index, offset, limit
+    ):
+        enqueued_chunks.append(
+            {
+                "job_id": job_id,
+                "chunk_index": chunk_index,
+                "offset": offset,
+                "limit": limit,
+            }
+        )
+        return EnqueuedTask(
+            task_id=f"chunk-task-{chunk_index}", queue=config.celery_task_queue
+        )
+
+    import skeinrank_governance_api.worker_queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue,
+        "enqueue_elasticsearch_enrichment_chunk",
+        fake_enqueue_elasticsearch_enrichment_chunk,
+    )
+
+    client = _client(
+        tmp_path,
+        elasticsearch_url="http://es:9200",
+        enrichment_jobs_backend="celery",
+    )
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 0.97},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    job_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 3, "chunk_size": 2},
+    )
+    job_id = job_response.json()["id"]
+
+    coordinator_result = job_runner.run_elasticsearch_enrichment_job(
+        job_id=job_id,
+        config=client.app.state.config,
+    )
+    assert coordinator_result["chunks_queued"] == 2
+    assert len(enqueued_chunks) == 2
+
+    cancel_response = client.post(
+        f"/v1/governance/elasticsearch/jobs/{job_id}/cancel",
+        json={"reason": "operator requested stop"},
+    )
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "cancel_requested"
+
+    chunk_result = job_runner.run_elasticsearch_enrichment_chunk(
+        job_id=job_id,
+        chunk_index=0,
+        offset=0,
+        limit=2,
+        config=client.app.state.config,
+    )
+    assert chunk_result["status"] == "cancelled"
+    assert chunk_result["chunk"]["status"] == "cancelled"
+
+    detail_response = client.get(f"/v1/governance/elasticsearch/jobs/{job_id}")
+    assert detail_response.status_code == 200
+    payload = detail_response.json()
+    assert payload["status"] == "cancelled"
+    assert payload["finished_at"] is not None
+    assert payload["result_json"]["cancellation"]["reason"] == (
+        "operator requested stop"
+    )
+    assert "alias_result" not in payload["result_json"]
