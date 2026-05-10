@@ -163,7 +163,7 @@ The form supports:
 The job panel shows job history and selected job details: status, write
 strategy, source index, target index, alias name, requested user, document
 counters, error message, and result JSON. Contributors can inspect jobs in
-read-only mode but cannot run them.
+read-only mode but cannot run them. Admins and moderators can also request safe cancellation for queued/running jobs; running chunked jobs move through `cancel_requested` before becoming `cancelled`.
 
 The UI uses these governance API endpoints:
 
@@ -171,6 +171,7 @@ The UI uses these governance API endpoints:
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
 GET /v1/governance/elasticsearch/jobs?binding_id=...
 GET /v1/governance/elasticsearch/jobs/{job_id}
+POST /v1/governance/elasticsearch/jobs/{job_id}/cancel
 ```
 
 ## Elasticsearch enrichment time filters

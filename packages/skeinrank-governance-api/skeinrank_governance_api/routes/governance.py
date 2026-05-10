@@ -71,6 +71,7 @@ from ..schemas import (
     ElasticsearchBindingUpdateRequest,
     ElasticsearchConnectionStatusResponse,
     ElasticsearchDryRunMatchedAlias,
+    ElasticsearchEnrichmentJobCancelRequest,
     ElasticsearchEnrichmentJobCreateRequest,
     ElasticsearchEnrichmentJobResponse,
     ElasticsearchEvidenceDocument,
@@ -1039,6 +1040,52 @@ def get_elasticsearch_enrichment_job(
     """Return one Elasticsearch enrichment job."""
 
     job = _get_elasticsearch_enrichment_job_or_404(session, job_id)
+    return _elasticsearch_enrichment_job_response(job)
+
+
+@router.post(
+    "/elasticsearch/jobs/{job_id}/cancel",
+    response_model=ElasticsearchEnrichmentJobResponse,
+)
+def cancel_elasticsearch_enrichment_job(
+    job_id: int,
+    request_body: ElasticsearchEnrichmentJobCancelRequest | None = Body(default=None),
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ElasticsearchEnrichmentJobResponse:
+    """Request safe cancellation for a queued or running enrichment job."""
+
+    job = _get_elasticsearch_enrichment_job_or_404(session, job_id)
+    request_body = request_body or ElasticsearchEnrichmentJobCancelRequest()
+    now = utc_now()
+    cancellation = {
+        "requested_by": current_user.username,
+        "requested_at": now.isoformat(),
+    }
+    if request_body.reason:
+        cancellation["reason"] = request_body.reason
+
+    if job.status == "queued":
+        job.status = "cancelled"
+        job.finished_at = now
+        job.error_message = None
+        cancellation["cancelled_at"] = now.isoformat()
+    elif job.status == "running":
+        job.status = "cancel_requested"
+    elif job.status == "cancel_requested":
+        pass
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel enrichment job with status: {job.status}",
+        )
+
+    job.result_json = {
+        **(job.result_json or {}),
+        "cancellation": cancellation,
+    }
+    session.commit()
+    session.refresh(job)
     return _elasticsearch_enrichment_job_response(job)
 
 

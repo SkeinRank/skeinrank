@@ -18,6 +18,10 @@ from .elasticsearch import (
 
 CHUNK_RESULT_STATUS_SUCCEEDED = "succeeded"
 CHUNK_RESULT_STATUS_FAILED = "failed"
+CHUNK_RESULT_STATUS_CANCELLED = "cancelled"
+JOB_STATUS_CANCEL_REQUESTED = "cancel_requested"
+JOB_STATUS_CANCELLED = "cancelled"
+TERMINAL_JOB_STATUSES = {"succeeded", "failed", JOB_STATUS_CANCELLED}
 
 
 def run_elasticsearch_enrichment_job(
@@ -52,6 +56,20 @@ def run_elasticsearch_enrichment_job(
                 raise ElasticsearchDiscoveryError(
                     f"Elasticsearch enrichment job not found: {job_id}"
                 )
+            if job.status == JOB_STATUS_CANCEL_REQUESTED:
+                _mark_job_cancelled_in_session(
+                    job=job, reason="Cancellation was requested before worker startup."
+                )
+                session.commit()
+                session.refresh(job)
+                return {"job_id": job_id, "status": job.status, "cancelled": True}
+            if job.status in TERMINAL_JOB_STATUSES:
+                return {
+                    "job_id": job_id,
+                    "status": job.status,
+                    "skipped": True,
+                    "reason": "Job is already in a terminal state.",
+                }
             if job.status not in {"queued", "running"}:
                 return {
                     "job_id": job_id,
@@ -92,6 +110,15 @@ def run_elasticsearch_enrichment_job(
                     backend=config.enrichment_jobs_backend,
                 )
                 session.commit()
+                session.refresh(job)
+                if job.status == JOB_STATUS_CANCEL_REQUESTED:
+                    _mark_job_cancelled_in_session(
+                        job=job,
+                        reason="Cancellation was requested before chunks were queued.",
+                    )
+                    session.commit()
+                    session.refresh(job)
+                    return {"job_id": job_id, "status": job.status, "cancelled": True}
             except ElasticsearchDiscoveryError as exc:
                 job.status = "failed"
                 job.error_message = str(exc)
@@ -177,6 +204,20 @@ def run_elasticsearch_enrichment_chunk(
                 raise ElasticsearchDiscoveryError(
                     f"Elasticsearch enrichment job not found: {job_id}"
                 )
+            if job.status == JOB_STATUS_CANCEL_REQUESTED:
+                result = _cancelled_chunk_result(
+                    chunk_index=chunk_index,
+                    offset=offset,
+                    limit=limit,
+                    reason="Cancellation requested before chunk execution.",
+                )
+                _apply_chunk_result(job=job, chunk_result=result)
+                _mark_job_cancelled_in_session(
+                    job=job, reason="Cancellation requested before chunk execution."
+                )
+                session.commit()
+                session.refresh(job)
+                return {"job_id": job_id, "status": job.status, "chunk": result}
             if job.status != "running":
                 return {
                     "job_id": job_id,
@@ -214,13 +255,69 @@ def run_elasticsearch_enrichment_chunk(
                 session.refresh(job)
                 return {"job_id": job_id, "status": "failed", "chunk": result}
 
+            session.refresh(job)
             _apply_chunk_result(job=job, chunk_result=result)
-            _maybe_finalize_chunked_job(config=config, session=session, job=job)
+            if job.status == JOB_STATUS_CANCEL_REQUESTED:
+                _mark_job_cancelled_in_session(
+                    job=job, reason="Cancellation requested after chunk execution."
+                )
+            else:
+                _maybe_finalize_chunked_job(config=config, session=session, job=job)
             session.commit()
             session.refresh(job)
             return {"job_id": job_id, "status": job.status, "chunk": result}
     finally:
         engine.dispose()
+
+
+def _cancelled_chunk_result(
+    *, chunk_index: int, offset: int, limit: int, reason: str
+) -> dict[str, Any]:
+    return {
+        "chunk_index": chunk_index,
+        "offset": offset,
+        "limit": limit,
+        "status": CHUNK_RESULT_STATUS_CANCELLED,
+        "documents_seen": 0,
+        "documents_enriched": 0,
+        "documents_failed": 0,
+        "updated_document_ids": [],
+        "matched_documents": [],
+        "cancelled": True,
+        "reason": reason,
+    }
+
+
+def _mark_job_cancelled_in_session(
+    *, job: ElasticsearchEnrichmentJob, reason: str | None = None
+) -> None:
+    now = utc_now()
+    result_json = dict(job.result_json or {})
+    cancellation = dict(result_json.get("cancellation") or {})
+    cancellation.setdefault("requested_at", now.isoformat())
+    cancellation["cancelled_at"] = now.isoformat()
+    if reason:
+        cancellation.setdefault("reason", reason)
+    result_json["cancellation"] = cancellation
+
+    chunked = dict(result_json.get("chunked_enrichment") or {})
+    if chunked:
+        chunks = list(chunked.get("chunks") or [])
+        chunked["chunks_cancelled"] = len(
+            [
+                chunk
+                for chunk in chunks
+                if chunk.get("status") == CHUNK_RESULT_STATUS_CANCELLED
+            ]
+        )
+        chunked.setdefault("cancelled_at", now.isoformat())
+        result_json["chunked_enrichment"] = chunked
+
+    job.status = JOB_STATUS_CANCELLED
+    job.error_message = None
+    if job.finished_at is None:
+        job.finished_at = now
+    job.result_json = result_json
 
 
 def _prepare_chunked_enrichment(
@@ -330,6 +427,12 @@ def _execute_enrichment_chunk(
 def _maybe_finalize_chunked_job(
     *, config: GovernanceApiConfig, session, job: ElasticsearchEnrichmentJob
 ) -> None:
+    if job.status == JOB_STATUS_CANCEL_REQUESTED:
+        _mark_job_cancelled_in_session(
+            job=job, reason="Cancellation requested before chunked job finalization."
+        )
+        return
+
     result_json = job.result_json or {}
     chunked = dict(result_json.get("chunked_enrichment") or {})
     chunks = list(chunked.get("chunks") or [])
@@ -342,6 +445,11 @@ def _maybe_finalize_chunked_job(
     failed = [
         chunk for chunk in chunks if chunk.get("status") == CHUNK_RESULT_STATUS_FAILED
     ]
+    cancelled = [
+        chunk
+        for chunk in chunks
+        if chunk.get("status") == CHUNK_RESULT_STATUS_CANCELLED
+    ]
 
     job.documents_seen = sum(int(chunk.get("documents_seen") or 0) for chunk in chunks)
     job.documents_enriched = sum(
@@ -350,6 +458,14 @@ def _maybe_finalize_chunked_job(
     job.documents_failed = sum(
         int(chunk.get("documents_failed") or 0) for chunk in chunks
     )
+
+    if cancelled:
+        _mark_job_cancelled_in_session(
+            job=job,
+            reason=cancelled[0].get("reason")
+            or "One or more enrichment chunks were cancelled.",
+        )
+        return
 
     if failed:
         job.status = "failed"
@@ -383,6 +499,7 @@ def _maybe_finalize_chunked_job(
         chunked["finalized_at"] = utc_now().isoformat()
         chunked["chunks_completed"] = len(completed)
         chunked["chunks_failed"] = 0
+        chunked["chunks_cancelled"] = 0
         job.result_json = {
             **result_json,
             "documents_seen": job.documents_seen,
@@ -399,6 +516,7 @@ def _maybe_finalize_chunked_job(
     else:
         chunked["chunks_completed"] = len(completed)
         chunked["chunks_failed"] = len(failed)
+        chunked["chunks_cancelled"] = len(cancelled)
         job.result_json = {**result_json, "chunked_enrichment": chunked}
 
 
@@ -431,6 +549,7 @@ def _initial_chunked_result_json(
             "chunks_total": chunks_total,
             "chunks_completed": 0,
             "chunks_failed": 0,
+            "chunks_cancelled": 0,
             "chunks": [],
             "queued_chunks": [],
             "started_at": utc_now().isoformat(),

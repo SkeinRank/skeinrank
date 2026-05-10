@@ -11,6 +11,7 @@ import type {
   ElasticsearchBindingDryRunRequest,
   ElasticsearchBindingDryRunResponse,
   ElasticsearchEnrichmentJob,
+  ElasticsearchEnrichmentJobCancelRequest,
   ElasticsearchEnrichmentJobCreateRequest,
   ElasticsearchEvidenceRequest,
   ElasticsearchEvidenceResponse,
@@ -441,6 +442,13 @@ export function listElasticsearchEnrichmentJobs(bindingId?: number) {
 
 export function getElasticsearchEnrichmentJob(jobId: number) {
   return requestJson<ElasticsearchEnrichmentJob>(`/v1/governance/elasticsearch/jobs/${jobId}`);
+}
+
+export function cancelElasticsearchEnrichmentJob(jobId: number, payload: ElasticsearchEnrichmentJobCancelRequest = {}) {
+  return requestJson<ElasticsearchEnrichmentJob>(`/v1/governance/elasticsearch/jobs/${jobId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function listSuggestions(profileName: string, status?: SuggestionStatus | "all") {

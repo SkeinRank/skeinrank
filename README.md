@@ -579,8 +579,25 @@ export SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE=500
 The coordinator task records `execution_mode=chunked` and `chunked_enrichment`
 metadata in the job result JSON, then queues chunk tasks with offsets/limits.
 This is the first throughput-scaling step: running more workers lets RabbitMQ
-distribute chunk tasks across worker processes. Cancellation, retries UI, and
-rollout/rollback controls remain follow-up work.
+distribute chunk tasks across worker processes. Retries UI and
+rollout/rollback controls remain follow-up work. Patch 38 adds safe job
+cancellation through the jobs API and worker status checks.
+
+### Patch 38 — Job cancellation / safe stop
+
+Patch 38 adds safe cancellation for Elasticsearch enrichment jobs:
+
+```text
+POST /v1/governance/elasticsearch/jobs/{job_id}/cancel
+```
+
+Admins and moderators can cancel `queued`, `running`, or already
+`cancel_requested` jobs. Queued jobs move directly to `cancelled`; running jobs
+move to `cancel_requested` so workers can stop safely before starting new
+chunks. Chunk workers check job status before writing a chunk, record cancelled
+chunk metadata, and prevent `reindex_alias_swap` alias swaps when cancellation is
+requested. The job result JSON stores cancellation metadata such as requester,
+request time, reason, and cancellation time.
 
 ### Patch 25h — enrichment job status UI
 
@@ -592,7 +609,7 @@ jobs panel with:
 - read-only job history for contributors;
 - job target index, alias name, and max documents inputs for `reindex_alias_swap`;
 - `in_place` strategy messaging for direct write jobs;
-- queued/running/succeeded/failed status badges;
+- queued/running/cancel_requested/cancelled/succeeded/failed status badges;
 - source/target index, alias, counters, error message, and result JSON details.
 
 The UI calls the existing governance API endpoints:
@@ -603,8 +620,8 @@ GET /v1/governance/elasticsearch/jobs?binding_id=...
 GET /v1/governance/elasticsearch/jobs/{job_id}
 ```
 
-This patch does not add Celery/RabbitMQ, cancellation, rollback, scheduling, or
-log streaming. The current backend job executor is still the synchronous MVP
+This patch originally did not add Celery/RabbitMQ, cancellation, rollback, scheduling, or
+log streaming. Later patches added async workers, chunks, and safe cancellation while keeping the same UI contract. The current backend job executor is still the synchronous MVP
 from Patch 25g.
 
 ### Patch 25i — Elasticsearch enrichment job time filters

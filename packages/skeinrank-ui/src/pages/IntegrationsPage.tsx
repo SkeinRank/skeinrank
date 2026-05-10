@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import {
+  cancelElasticsearchEnrichmentJob,
   createElasticsearchBinding,
   deleteElasticsearchBinding,
   dryRunElasticsearchBinding,
@@ -205,6 +206,19 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
     },
   });
 
+  const cancelJobMutation = useMutation({
+    mutationFn: ({ jobId, reason }: { jobId: number; reason?: string }) =>
+      cancelElasticsearchEnrichmentJob(jobId, reason ? { reason } : {}),
+    onSuccess: (job) => {
+      queryClient.setQueryData<ElasticsearchEnrichmentJob[]>(["elasticsearch-enrichment-jobs", job.binding_id], (jobs = []) => {
+        const withoutJob = jobs.filter((current) => current.id !== job.id);
+        return [job, ...withoutJob].sort(sortJobs);
+      });
+      queryClient.setQueryData(["elasticsearch-enrichment-job", job.id], job);
+      void queryClient.invalidateQueries({ queryKey: ["elasticsearch-enrichment-jobs", job.binding_id] });
+    },
+  });
+
   async function handleCreateBinding(payload: ElasticsearchBindingCreateRequest) {
     await createMutation.mutateAsync(payload);
   }
@@ -223,6 +237,10 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
 
   async function handleStartJob(bindingId: number, payload: ElasticsearchEnrichmentJobCreateRequest) {
     await startJobMutation.mutateAsync({ bindingId, payload });
+  }
+
+  async function handleCancelJob(jobId: number) {
+    await cancelJobMutation.mutateAsync({ jobId, reason: "Cancelled from Integrations UI." });
   }
 
   const allBindings = allBindingsQuery.data ?? [];
@@ -272,6 +290,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
               deleteMutation.reset();
               dryRunMutation.reset();
               startJobMutation.reset();
+              cancelJobMutation.reset();
             }}
             profiles={profilesQuery.data ?? []}
             selectedProfile={selectedProfile}
@@ -304,6 +323,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
               deleteMutation.reset();
               dryRunMutation.reset();
               startJobMutation.reset();
+              cancelJobMutation.reset();
               setSelectedJobId(null);
             }}
             selectedBindingId={selectedBindingId}
@@ -321,12 +341,14 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
           dryRunResult={dryRunMutation.data ?? null}
           isDeleting={deleteMutation.isPending}
           isDryRunning={dryRunMutation.isPending}
+          isCancellingJob={cancelJobMutation.isPending}
           isLoadingJobs={jobsQuery.isLoading && Boolean(selectedBinding)}
           isStartingJob={startJobMutation.isPending}
           isUpdating={updateMutation.isPending}
           jobDetails={jobDetailsQuery.data ?? null}
-          jobErrorMessage={getErrorMessage(startJobMutation.error) ?? getErrorMessage(jobsQuery.error) ?? getErrorMessage(jobDetailsQuery.error)}
+          jobErrorMessage={getErrorMessage(startJobMutation.error) ?? getErrorMessage(cancelJobMutation.error) ?? getErrorMessage(jobsQuery.error) ?? getErrorMessage(jobDetailsQuery.error)}
           jobs={jobsQuery.data ?? []}
+          onCancelJob={handleCancelJob}
           onDelete={handleDeleteBinding}
           onDryRun={handleDryRunBinding}
           onSelectJob={setSelectedJobId}
@@ -813,12 +835,14 @@ function BindingDetailsPanel({
   dryRunResult,
   isDeleting,
   isDryRunning,
+  isCancellingJob,
   isLoadingJobs,
   isStartingJob,
   isUpdating,
   jobDetails,
   jobErrorMessage,
   jobs,
+  onCancelJob,
   onDelete,
   onDryRun,
   onSelectJob,
@@ -838,12 +862,14 @@ function BindingDetailsPanel({
   dryRunResult: ElasticsearchBindingDryRunResponse | null;
   isDeleting: boolean;
   isDryRunning: boolean;
+  isCancellingJob: boolean;
   isLoadingJobs: boolean;
   isStartingJob: boolean;
   isUpdating: boolean;
   jobDetails: ElasticsearchEnrichmentJob | null;
   jobErrorMessage?: string | null;
   jobs: ElasticsearchEnrichmentJob[];
+  onCancelJob: (jobId: number) => Promise<void> | void;
   onDelete: (bindingId: number) => Promise<void> | void;
   onDryRun: (bindingId: number) => Promise<void> | void;
   onSelectJob: (jobId: number) => void;
@@ -1016,10 +1042,12 @@ function BindingDetailsPanel({
           binding={binding}
           canManage={canManage}
           errorMessage={jobErrorMessage}
+          isCancelling={isCancellingJob}
           isLoading={isLoadingJobs}
           isStarting={isStartingJob}
           jobDetails={jobDetails}
           jobs={jobs}
+          onCancelJob={onCancelJob}
           onSelectJob={onSelectJob}
           onStartJob={onStartJob}
           selectedJobId={selectedJobId}
@@ -1034,10 +1062,12 @@ function EnrichmentJobsPanel({
   binding,
   canManage,
   errorMessage,
+  isCancelling,
   isLoading,
   isStarting,
   jobDetails,
   jobs,
+  onCancelJob,
   onSelectJob,
   onStartJob,
   selectedJobId,
@@ -1045,10 +1075,12 @@ function EnrichmentJobsPanel({
   binding: ElasticsearchBinding;
   canManage: boolean;
   errorMessage?: string | null;
+  isCancelling: boolean;
   isLoading: boolean;
   isStarting: boolean;
   jobDetails: ElasticsearchEnrichmentJob | null;
   jobs: ElasticsearchEnrichmentJob[];
+  onCancelJob: (jobId: number) => Promise<void> | void;
   onSelectJob: (jobId: number) => void;
   onStartJob: (bindingId: number, payload: ElasticsearchEnrichmentJobCreateRequest) => Promise<void> | void;
   selectedJobId: number | null;
@@ -1070,6 +1102,7 @@ function EnrichmentJobsPanel({
     binding.is_enabled &&
     binding.mode === "write" &&
     !isStarting &&
+    !isCancelling &&
     Number.isInteger(maxDocumentCount) &&
     maxDocumentCount >= 1 &&
     maxDocumentCount <= 10000;
@@ -1094,7 +1127,7 @@ function EnrichmentJobsPanel({
         <div>
           <div className="font-medium text-slate-950 dark:text-slate-50">Enrichment jobs</div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Start a write-mode enrichment job and track queued/running/succeeded/failed status for this binding.
+            Start a write-mode enrichment job and track queued/running/cancelled/succeeded/failed status for this binding.
           </p>
         </div>
         <BindingWriteStrategyBadge strategy={binding.write_strategy} />
@@ -1175,17 +1208,48 @@ function EnrichmentJobsPanel({
         ) : null}
       </div>
 
-      {jobDetails ? <JobDetails job={jobDetails} /> : null}
+      {jobDetails ? (
+        <JobDetails
+          canCancel={canManage && ["queued", "running", "cancel_requested"].includes(jobDetails.status)}
+          isCancelling={isCancelling}
+          job={jobDetails}
+          onCancelJob={onCancelJob}
+        />
+      ) : null}
     </div>
   );
 }
 
-function JobDetails({ job }: { job: ElasticsearchEnrichmentJob }) {
+function JobDetails({
+  canCancel,
+  isCancelling,
+  job,
+  onCancelJob,
+}: {
+  canCancel: boolean;
+  isCancelling: boolean;
+  job: ElasticsearchEnrichmentJob;
+  onCancelJob: (jobId: number) => Promise<void> | void;
+}) {
+  const cancellation = job.result_json?.cancellation as Record<string, unknown> | undefined;
+
   return (
     <div className="mt-5 space-y-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-slate-950 dark:text-slate-50">Job #{job.id}</span>
-        <JobStatusBadge status={job.status} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-slate-950 dark:text-slate-50">Job #{job.id}</span>
+          <JobStatusBadge status={job.status} />
+        </div>
+        {canCancel ? (
+          <Button
+            disabled={isCancelling || job.status === "cancel_requested"}
+            onClick={() => { void onCancelJob(job.id); }}
+            type="button"
+            variant="secondary"
+          >
+            {job.status === "cancel_requested" ? "Cancellation requested" : isCancelling ? "Cancelling..." : "Cancel job"}
+          </Button>
+        ) : null}
       </div>
       <div className="grid gap-2 text-slate-600 dark:text-slate-300 sm:grid-cols-2">
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Binding:</span> {job.binding_name}</div>
@@ -1199,6 +1263,12 @@ function JobDetails({ job }: { job: ElasticsearchEnrichmentJob }) {
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Started:</span> {formatDateTime(job.started_at)}</div>
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Finished:</span> {formatDateTime(job.finished_at)}</div>
       </div>
+      {cancellation ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          Cancellation requested{typeof cancellation.requested_by === "string" ? ` by ${cancellation.requested_by}` : ""}
+          {typeof cancellation.cancelled_at === "string" ? ` · cancelled at ${formatDateTime(cancellation.cancelled_at)}` : ""}.
+        </div>
+      ) : null}
       {job.error_message ? <InlineError message={job.error_message} /> : null}
       <div>
         <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Result JSON</div>
@@ -1351,7 +1421,9 @@ function JobStatusBadge({ status }: { status: ElasticsearchEnrichmentJob["status
         ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200"
         : status === "running"
           ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200"
-          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+          : status === "cancel_requested" || status === "cancelled"
+            ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
+            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
   return <Badge className={className}>{status}</Badge>;
 }
 

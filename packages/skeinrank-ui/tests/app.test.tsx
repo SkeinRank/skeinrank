@@ -1099,6 +1099,38 @@ function stubGovernanceApi(options: StubOptions = {}) {
       }
 
       if (
+        url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/cancel$/) &&
+        method === "POST"
+      ) {
+        const jobId = Number(url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/cancel$/)?.[1]);
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as { reason?: string | null };
+        const job = currentElasticsearchJobs.find((currentJob) => currentJob.id === jobId);
+        if (!job) {
+          return Response.json({ detail: "not found" }, { status: 404 });
+        }
+        if (!["queued", "running", "cancel_requested"].includes(job.status)) {
+          return Response.json({ detail: `Cannot cancel enrichment job with status: ${job.status}` }, { status: 409 });
+        }
+        const nextJob: ElasticsearchEnrichmentJob = {
+          ...job,
+          status: job.status === "queued" ? "cancelled" : "cancel_requested",
+          result_json: {
+            ...job.result_json,
+            cancellation: {
+              requested_by: currentUser.username,
+              requested_at: "2026-05-08T11:02:00Z",
+              reason: payload.reason ?? "Cancelled from test",
+            },
+          },
+          updated_at: "2026-05-08T11:02:00Z",
+        };
+        currentElasticsearchJobs = currentElasticsearchJobs.map((currentJob) =>
+          currentJob.id === jobId ? nextJob : currentJob,
+        );
+        return Response.json(nextJob);
+      }
+
+      if (
         url.endsWith("/v1/governance/elasticsearch/bindings/1/jobs") &&
         method === "POST"
       ) {
@@ -1120,7 +1152,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
           profile_id: existingBinding.profile_id,
           binding_name: existingBinding.name,
           profile_name: existingBinding.profile_name,
-          status: "succeeded",
+          status: "running",
           write_strategy: existingBinding.write_strategy,
           source_index: existingBinding.index_name,
           target_index:
@@ -1138,7 +1170,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
           },
           error_message: null,
           started_at: "2026-05-08T11:00:00Z",
-          finished_at: "2026-05-08T11:01:00Z",
+          finished_at: null,
           created_at: "2026-05-08T11:00:00Z",
           updated_at: "2026-05-08T11:01:00Z",
         };
@@ -2504,6 +2536,17 @@ describe("App", () => {
     });
     expect(await screen.findByText("Job #102")).toBeInTheDocument();
     expect(screen.getByText(/doc-3/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel job" }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/jobs/102/cancel",
+        expect.objectContaining({
+          body: JSON.stringify({ reason: "Cancelled from Integrations UI." }),
+          method: "POST",
+        }),
+      );
+    });
+    expect((await screen.findAllByText("cancel_requested")).length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText("Binding name"), {
       target: { value: "runbook docs" },
