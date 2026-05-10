@@ -17,6 +17,7 @@ import {
   listElasticsearchEnrichmentJobs,
   listElasticsearchIndices,
   listProfiles,
+  rollbackElasticsearchEnrichmentJob,
   startElasticsearchEnrichmentJob,
   updateElasticsearchBinding,
 } from "../lib/api";
@@ -219,6 +220,19 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
     },
   });
 
+  const rollbackJobMutation = useMutation({
+    mutationFn: ({ jobId, reason }: { jobId: number; reason?: string }) =>
+      rollbackElasticsearchEnrichmentJob(jobId, reason ? { reason } : {}),
+    onSuccess: (job) => {
+      queryClient.setQueryData<ElasticsearchEnrichmentJob[]>(["elasticsearch-enrichment-jobs", job.binding_id], (jobs = []) => {
+        const withoutJob = jobs.filter((current) => current.id !== job.id);
+        return [job, ...withoutJob].sort(sortJobs);
+      });
+      queryClient.setQueryData(["elasticsearch-enrichment-job", job.id], job);
+      void queryClient.invalidateQueries({ queryKey: ["elasticsearch-enrichment-jobs", job.binding_id] });
+    },
+  });
+
   async function handleCreateBinding(payload: ElasticsearchBindingCreateRequest) {
     await createMutation.mutateAsync(payload);
   }
@@ -241,6 +255,10 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
 
   async function handleCancelJob(jobId: number) {
     await cancelJobMutation.mutateAsync({ jobId, reason: "Cancelled from Integrations UI." });
+  }
+
+  async function handleRollbackJob(jobId: number) {
+    await rollbackJobMutation.mutateAsync({ jobId, reason: "Rollback requested from Integrations UI." });
   }
 
   const allBindings = allBindingsQuery.data ?? [];
@@ -324,6 +342,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
               dryRunMutation.reset();
               startJobMutation.reset();
               cancelJobMutation.reset();
+              rollbackJobMutation.reset();
               setSelectedJobId(null);
             }}
             selectedBindingId={selectedBindingId}
@@ -343,12 +362,14 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
           isDryRunning={dryRunMutation.isPending}
           isCancellingJob={cancelJobMutation.isPending}
           isLoadingJobs={jobsQuery.isLoading && Boolean(selectedBinding)}
+          isRollingBackJob={rollbackJobMutation.isPending}
           isStartingJob={startJobMutation.isPending}
           isUpdating={updateMutation.isPending}
           jobDetails={jobDetailsQuery.data ?? null}
-          jobErrorMessage={getErrorMessage(startJobMutation.error) ?? getErrorMessage(cancelJobMutation.error) ?? getErrorMessage(jobsQuery.error) ?? getErrorMessage(jobDetailsQuery.error)}
+          jobErrorMessage={getErrorMessage(startJobMutation.error) ?? getErrorMessage(cancelJobMutation.error) ?? getErrorMessage(rollbackJobMutation.error) ?? getErrorMessage(jobsQuery.error) ?? getErrorMessage(jobDetailsQuery.error)}
           jobs={jobsQuery.data ?? []}
           onCancelJob={handleCancelJob}
+          onRollbackJob={handleRollbackJob}
           onDelete={handleDeleteBinding}
           onDryRun={handleDryRunBinding}
           onSelectJob={setSelectedJobId}
@@ -837,12 +858,14 @@ function BindingDetailsPanel({
   isDryRunning,
   isCancellingJob,
   isLoadingJobs,
+  isRollingBackJob,
   isStartingJob,
   isUpdating,
   jobDetails,
   jobErrorMessage,
   jobs,
   onCancelJob,
+  onRollbackJob,
   onDelete,
   onDryRun,
   onSelectJob,
@@ -864,12 +887,14 @@ function BindingDetailsPanel({
   isDryRunning: boolean;
   isCancellingJob: boolean;
   isLoadingJobs: boolean;
+  isRollingBackJob: boolean;
   isStartingJob: boolean;
   isUpdating: boolean;
   jobDetails: ElasticsearchEnrichmentJob | null;
   jobErrorMessage?: string | null;
   jobs: ElasticsearchEnrichmentJob[];
   onCancelJob: (jobId: number) => Promise<void> | void;
+  onRollbackJob: (jobId: number) => Promise<void> | void;
   onDelete: (bindingId: number) => Promise<void> | void;
   onDryRun: (bindingId: number) => Promise<void> | void;
   onSelectJob: (jobId: number) => void;
@@ -1044,10 +1069,12 @@ function BindingDetailsPanel({
           errorMessage={jobErrorMessage}
           isCancelling={isCancellingJob}
           isLoading={isLoadingJobs}
+          isRollingBack={isRollingBackJob}
           isStarting={isStartingJob}
           jobDetails={jobDetails}
           jobs={jobs}
           onCancelJob={onCancelJob}
+          onRollbackJob={onRollbackJob}
           onSelectJob={onSelectJob}
           onStartJob={onStartJob}
           selectedJobId={selectedJobId}
@@ -1064,10 +1091,12 @@ function EnrichmentJobsPanel({
   errorMessage,
   isCancelling,
   isLoading,
+  isRollingBack,
   isStarting,
   jobDetails,
   jobs,
   onCancelJob,
+  onRollbackJob,
   onSelectJob,
   onStartJob,
   selectedJobId,
@@ -1077,10 +1106,12 @@ function EnrichmentJobsPanel({
   errorMessage?: string | null;
   isCancelling: boolean;
   isLoading: boolean;
+  isRollingBack: boolean;
   isStarting: boolean;
   jobDetails: ElasticsearchEnrichmentJob | null;
   jobs: ElasticsearchEnrichmentJob[];
   onCancelJob: (jobId: number) => Promise<void> | void;
+  onRollbackJob: (jobId: number) => Promise<void> | void;
   onSelectJob: (jobId: number) => void;
   onStartJob: (bindingId: number, payload: ElasticsearchEnrichmentJobCreateRequest) => Promise<void> | void;
   selectedJobId: number | null;
@@ -1211,9 +1242,12 @@ function EnrichmentJobsPanel({
       {jobDetails ? (
         <JobDetails
           canCancel={canManage && ["queued", "running", "cancel_requested"].includes(jobDetails.status)}
+          canRollback={canManage && isRollbackAvailable(jobDetails)}
           isCancelling={isCancelling}
+          isRollingBack={isRollingBack}
           job={jobDetails}
           onCancelJob={onCancelJob}
+          onRollbackJob={onRollbackJob}
         />
       ) : null}
     </div>
@@ -1222,14 +1256,20 @@ function EnrichmentJobsPanel({
 
 function JobDetails({
   canCancel,
+  canRollback,
   isCancelling,
+  isRollingBack,
   job,
   onCancelJob,
+  onRollbackJob,
 }: {
   canCancel: boolean;
+  canRollback: boolean;
   isCancelling: boolean;
+  isRollingBack: boolean;
   job: ElasticsearchEnrichmentJob;
   onCancelJob: (jobId: number) => Promise<void> | void;
+  onRollbackJob: (jobId: number) => Promise<void> | void;
 }) {
   const cancellation = job.result_json?.cancellation as Record<string, unknown> | undefined;
   const rollout = job.result_json?.rollout as Record<string, unknown> | undefined;
@@ -1270,7 +1310,15 @@ function JobDetails({
           {typeof cancellation.cancelled_at === "string" ? ` · cancelled at ${formatDateTime(cancellation.cancelled_at)}` : ""}.
         </div>
       ) : null}
-      {rollout ? <RolloutMetadataPanel rollout={rollout} /> : null}
+      {rollout ? (
+        <RolloutMetadataPanel
+          canRollback={canRollback}
+          isRollingBack={isRollingBack}
+          jobId={job.id}
+          onRollbackJob={onRollbackJob}
+          rollout={rollout}
+        />
+      ) : null}
       {job.error_message ? <InlineError message={job.error_message} /> : null}
       <div>
         <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Result JSON</div>
@@ -1280,15 +1328,43 @@ function JobDetails({
   );
 }
 
-function RolloutMetadataPanel({ rollout }: { rollout: Record<string, unknown> }) {
+function RolloutMetadataPanel({
+  canRollback,
+  isRollingBack,
+  jobId,
+  onRollbackJob,
+  rollout,
+}: {
+  canRollback: boolean;
+  isRollingBack: boolean;
+  jobId: number;
+  onRollbackJob: (jobId: number) => Promise<void> | void;
+  rollout: Record<string, unknown>;
+}) {
   const previousAliasIndices = stringifyList(rollout.previous_alias_indices);
   const newAliasIndices = stringifyList(rollout.new_alias_indices);
   const rollbackCandidate = typeof rollout.rollback_candidate_index === "string" && rollout.rollback_candidate_index ? rollout.rollback_candidate_index : "—";
   const aliasSwapCompleted = rollout.alias_swap_completed === true;
+  const rollback = rollout.rollback as Record<string, unknown> | undefined;
+  const rollbackCompleted = rollout.rollback_completed === true || rollback?.status === "rolled_back";
+
+  async function handleRollback() {
+    if (!window.confirm("Rollback this alias to the recorded rollback candidate? This will change the Elasticsearch alias target.")) {
+      return;
+    }
+    await onRollbackJob(jobId);
+  }
 
   return (
     <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100">
-      <div className="font-medium">Rollout metadata</div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-medium">Rollout metadata</div>
+        {canRollback ? (
+          <Button disabled={isRollingBack} onClick={() => { void handleRollback(); }} type="button" variant="secondary">
+            {isRollingBack ? "Rolling back..." : "Rollback alias"}
+          </Button>
+        ) : null}
+      </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <div><span className="font-medium">Status:</span> {String(rollout.status ?? "—")}</div>
         <div><span className="font-medium">Alias swap:</span> {aliasSwapCompleted ? "completed" : "not completed"}</div>
@@ -1297,9 +1373,27 @@ function RolloutMetadataPanel({ rollout }: { rollout: Record<string, unknown> })
         <div><span className="font-medium">Rollback candidate:</span> <code>{rollbackCandidate}</code></div>
         <div><span className="font-medium">Swapped at:</span> {typeof rollout.alias_swapped_at === "string" ? formatDateTime(rollout.alias_swapped_at) : "—"}</div>
       </div>
+      {rollbackCompleted ? (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+          Rollback completed{typeof rollback?.completed_at === "string" ? ` at ${formatDateTime(rollback.completed_at)}` : ""}.
+          {Array.isArray(rollback?.alias_indices_after_rollback) ? ` Alias now points to ${stringifyList(rollback.alias_indices_after_rollback)}.` : ""}
+        </div>
+      ) : null}
       {typeof rollout.rollback_hint === "string" ? <p>{rollout.rollback_hint}</p> : null}
       {typeof rollout.cleanup_hint === "string" ? <p>{rollout.cleanup_hint}</p> : null}
     </div>
+  );
+}
+
+function isRollbackAvailable(job: ElasticsearchEnrichmentJob): boolean {
+  const rollout = job.result_json?.rollout as Record<string, unknown> | undefined;
+  return Boolean(
+    job.status === "succeeded" &&
+    job.write_strategy === "reindex_alias_swap" &&
+    rollout?.rollback_available === true &&
+    rollout?.alias_swap_completed === true &&
+    rollout?.rollback_completed !== true &&
+    !rollout?.rollback,
   );
 }
 

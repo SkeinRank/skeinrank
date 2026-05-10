@@ -13,6 +13,7 @@ import type {
   ElasticsearchEnrichmentJob,
   ElasticsearchEnrichmentJobCancelRequest,
   ElasticsearchEnrichmentJobCreateRequest,
+  ElasticsearchEnrichmentJobRollbackRequest,
   ElasticsearchEvidenceRequest,
   ElasticsearchEvidenceResponse,
   ElasticsearchBindingUpdateRequest,
@@ -446,6 +447,13 @@ export function getElasticsearchEnrichmentJob(jobId: number) {
 
 export function cancelElasticsearchEnrichmentJob(jobId: number, payload: ElasticsearchEnrichmentJobCancelRequest = {}) {
   return requestJson<ElasticsearchEnrichmentJob>(`/v1/governance/elasticsearch/jobs/${jobId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function rollbackElasticsearchEnrichmentJob(jobId: number, payload: ElasticsearchEnrichmentJobRollbackRequest = {}) {
+  return requestJson<ElasticsearchEnrichmentJob>(`/v1/governance/elasticsearch/jobs/${jobId}/rollback`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

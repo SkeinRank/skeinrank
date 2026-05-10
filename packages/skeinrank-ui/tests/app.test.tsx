@@ -1115,6 +1115,54 @@ function stubGovernanceApi(options: StubOptions = {}) {
       }
 
       if (
+        url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/rollback$/) &&
+        method === "POST"
+      ) {
+        const jobId = Number(url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/rollback$/)?.[1]);
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as { reason?: string | null };
+        const job = currentElasticsearchJobs.find((currentJob) => currentJob.id === jobId);
+        if (!job) {
+          return Response.json({ detail: "not found" }, { status: 404 });
+        }
+        const rollout = job.result_json.rollout as Record<string, unknown> | undefined;
+        if (!rollout || job.status !== "succeeded") {
+          return Response.json({ detail: "Rollback is not available for this job." }, { status: 409 });
+        }
+        const nextRollout = {
+          ...rollout,
+          status: "rolled_back",
+          rollback_available: false,
+          rollback_completed: true,
+          rollback_completed_at: "2026-05-08T11:10:00Z",
+          rollback: {
+            status: "rolled_back",
+            requested_by: currentUser.username,
+            requested_at: "2026-05-08T11:10:00Z",
+            completed_at: "2026-05-08T11:10:00Z",
+            reason: payload.reason ?? "Rollback requested from test",
+            alias_name: rollout.alias_name,
+            from_indices: rollout.new_alias_indices,
+            rollback_candidate_index: rollout.rollback_candidate_index,
+            alias_indices_after_rollback: [rollout.rollback_candidate_index],
+            alias_result: { acknowledged: true },
+          },
+          rollback_hint: `Rollback completed: alias ${String(rollout.alias_name)} now points to ${String(rollout.rollback_candidate_index)}.`,
+        };
+        const nextJob: ElasticsearchEnrichmentJob = {
+          ...job,
+          result_json: {
+            ...job.result_json,
+            rollout: nextRollout,
+          },
+          updated_at: "2026-05-08T11:10:00Z",
+        };
+        currentElasticsearchJobs = currentElasticsearchJobs.map((currentJob) =>
+          currentJob.id === jobId ? nextJob : currentJob,
+        );
+        return Response.json(nextJob);
+      }
+
+      if (
         url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/cancel$/) &&
         method === "POST"
       ) {
@@ -2544,6 +2592,17 @@ describe("App", () => {
     expect(screen.getByText("10/12")).toBeInTheDocument();
     expect(screen.getByText("Rollout metadata")).toBeInTheDocument();
     expect(screen.getAllByText("docs_v1").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Rollback alias" }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/jobs/101/rollback",
+        expect.objectContaining({
+          body: JSON.stringify({ reason: "Rollback requested from Integrations UI." }),
+          method: "POST",
+        }),
+      );
+    });
+    expect((await screen.findAllByText(/Rollback completed/)).length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText("Job target index"), {
       target: { value: "docs__skeinrank_candidate" },
     });

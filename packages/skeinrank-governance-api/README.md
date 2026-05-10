@@ -771,5 +771,16 @@ chunked execution:
 }
 ```
 
-Rollback is still a manual/operator action in this patch. The metadata is meant
-for auditability, UI visibility, and a future safe rollback API.
+Patch 40 adds the safe rollback API:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/elasticsearch/jobs/123/rollback \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "bad rollout"}'
+```
+
+The rollback endpoint is conservative: it only works for succeeded
+`reindex_alias_swap` jobs with completed alias swaps, a single rollback
+candidate, and a current alias state that still matches the expected
+post-rollout indices. Successful rollback writes `result_json.rollout.rollback`
+and marks the rollout status as `rolled_back`.
