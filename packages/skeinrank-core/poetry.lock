@@ -2345,5 +2345,5 @@ torch = ["torch", "transformers"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.11,<4.0"
-content-hash = "3870aeb1193e88b59e8c4be9d084fd80abec73df95ece3ae5553a57bf57a2745"
+python-versions = ">=3.10,<4.0"
+content-hash = "9c81d81e83198fd84324100e3763420d5acaf6aaeeda0f18300821056d8cc6fe"
