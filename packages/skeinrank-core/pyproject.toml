@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "skeinrank"
-version = "0.0.13"
+version = "0.0.14"
 description = "SkeinRank — production-grade reranking core (query + candidates → ranked results) with passports and strict contracts."
 authors = ["NkvMax"]
 license = "Apache-2.0"
@@ -40,6 +40,7 @@ torch = ["torch", "transformers"]
 attribute-models = ["gliner", "sentence-transformers", "keybert"]
 
 [tool.poetry.scripts]
+skeinrank = "skeinrank.cli:entrypoint"
 skeinrank-extract = "skeinrank.attributes.cli:extract_main"
 skeinrank-enrich-jsonl = "skeinrank.attributes.cli:enrich_jsonl_main"
 skeinrank-eval-demo = "skeinrank.attributes.cli:eval_demo_main"

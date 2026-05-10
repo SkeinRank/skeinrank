@@ -85,6 +85,53 @@ Stable public exports include:
 - `extract_document_text(...)`
 - `extract_terms_from_document(...)`
 
+
+## Local dictionary extraction CLI
+
+Patch 43 adds a lightweight `skeinrank` CLI for local dictionary validation, text/document extraction, and canonicalization. It uses only the public SDK/document helpers and does not require the governance API, Elasticsearch, Celery, RabbitMQ, or a database.
+
+Validate a dictionary exported from the Console API or used by `skeinrank-migrate`:
+
+```bash
+poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.json
+poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.json --json
+```
+
+Extract canonical terms from raw text:
+
+```bash
+poetry run skeinrank extract "k8s rollout uses pg database" \
+  --text \
+  --dictionary ../../examples/migration/console_dictionary.example.json
+```
+
+Extract canonical terms from a supported local document:
+
+```bash
+poetry run skeinrank extract incident-runbook.md \
+  --dictionary ../../examples/migration/console_dictionary.example.json
+```
+
+Canonicalize raw text or document text:
+
+```bash
+poetry run skeinrank canonicalize "k8s rollout uses pg database" \
+  --text \
+  --dictionary ../../examples/migration/console_dictionary.example.json
+
+poetry run skeinrank canonicalize incident-runbook.md \
+  --dictionary ../../examples/migration/console_dictionary.example.json \
+  --output incident-runbook.canonicalized.txt
+```
+
+Extract plain text from a document before matching:
+
+```bash
+poetry run skeinrank document-text incident-runbook.docx --output incident-runbook.txt
+```
+
+The CLI returns JSON for `extract`, raw text by default for `canonicalize`/`document-text`, and supports `--output`, `--compact`, `--max-matches`, and `--context-chars` where relevant.
+
 ## Minimal attribute extraction example
 
 ```python

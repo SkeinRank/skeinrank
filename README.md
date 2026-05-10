@@ -32,6 +32,25 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 
 ### CLI commands
 
+Patch 43 adds a lightweight local `skeinrank` CLI for dictionary-first extraction without starting platform services. It can validate a dictionary JSON, extract canonical terms from raw text or supported documents, canonicalize text, and extract document text.
+
+```bash
+cd packages/skeinrank-core
+poetry install
+
+poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.json
+
+poetry run skeinrank extract "k8s rollout uses pg database" \
+  --text \
+  --dictionary ../../examples/migration/console_dictionary.example.json
+
+poetry run skeinrank canonicalize "k8s rollout uses pg database" \
+  --text \
+  --dictionary ../../examples/migration/console_dictionary.example.json
+
+poetry run skeinrank document-text incident-runbook.md
+```
+
 ### Public Python SDK
 
 Patch 41 adds a lightweight SDK API for local dictionary-driven extraction without starting the platform services. It accepts the same migration/export JSON shape used by the User Console API and `skeinrank-migrate`.

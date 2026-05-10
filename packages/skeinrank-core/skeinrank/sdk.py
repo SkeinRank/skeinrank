@@ -387,6 +387,8 @@ def canonicalize_text(
     text: str,
     *,
     dictionary: str | Path | Mapping[str, Any] | Dictionary,
+    max_matches: int | None = None,
+    context_chars: int = 48,
 ) -> CanonicalizedText:
     """Replace matched aliases in text with canonical values.
 
@@ -394,7 +396,12 @@ def canonicalize_text(
     :func:`extract_terms`.
     """
 
-    result = extract_terms(text, dictionary=dictionary)
+    result = extract_terms(
+        text,
+        dictionary=dictionary,
+        max_matches=max_matches,
+        context_chars=context_chars,
+    )
     if not result.matches:
         runtime_dictionary = load_dictionary(dictionary)
         return CanonicalizedText(
