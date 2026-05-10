@@ -692,3 +692,27 @@ context and review comments.
 The UI does not automatically search Elasticsearch for every row. Evidence checks
 are explicit button clicks, use the existing bounded backend endpoints, and reuse
 the configured binding text fields, discriminator, and time-window filters.
+
+### Patch 39 — Rollout / rollback metadata for reindex alias swap
+
+Patch 39 records rollout metadata for `reindex_alias_swap` enrichment jobs.
+The job result JSON now captures the alias state before and after the swap so
+operators can audit what changed and identify a manual rollback candidate before
+a future rollback action is added.
+
+For reindex alias-swap jobs, `result_json.rollout` includes:
+
+- `strategy`: `reindex_alias_swap`;
+- `status`: `prepared` or `alias_swapped`;
+- `alias_name`;
+- `source_index` and `target_index`;
+- `previous_alias_indices`;
+- `new_alias_indices`;
+- `rollback_candidate_index` when exactly one previous alias target exists;
+- `rollback_available`;
+- `alias_swap_completed`;
+- `alias_swap_started_at` and `alias_swapped_at`;
+- `cleanup_hint` and `rollback_hint`.
+
+This patch does not perform rollback automatically. It only stores the metadata
+required to make a later rollback action safer and more transparent.

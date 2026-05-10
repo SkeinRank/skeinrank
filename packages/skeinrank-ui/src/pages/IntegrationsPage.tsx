@@ -1232,6 +1232,7 @@ function JobDetails({
   onCancelJob: (jobId: number) => Promise<void> | void;
 }) {
   const cancellation = job.result_json?.cancellation as Record<string, unknown> | undefined;
+  const rollout = job.result_json?.rollout as Record<string, unknown> | undefined;
 
   return (
     <div className="mt-5 space-y-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
@@ -1269,6 +1270,7 @@ function JobDetails({
           {typeof cancellation.cancelled_at === "string" ? ` · cancelled at ${formatDateTime(cancellation.cancelled_at)}` : ""}.
         </div>
       ) : null}
+      {rollout ? <RolloutMetadataPanel rollout={rollout} /> : null}
       {job.error_message ? <InlineError message={job.error_message} /> : null}
       <div>
         <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Result JSON</div>
@@ -1277,6 +1279,34 @@ function JobDetails({
     </div>
   );
 }
+
+function RolloutMetadataPanel({ rollout }: { rollout: Record<string, unknown> }) {
+  const previousAliasIndices = stringifyList(rollout.previous_alias_indices);
+  const newAliasIndices = stringifyList(rollout.new_alias_indices);
+  const rollbackCandidate = typeof rollout.rollback_candidate_index === "string" && rollout.rollback_candidate_index ? rollout.rollback_candidate_index : "—";
+  const aliasSwapCompleted = rollout.alias_swap_completed === true;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100">
+      <div className="font-medium">Rollout metadata</div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div><span className="font-medium">Status:</span> {String(rollout.status ?? "—")}</div>
+        <div><span className="font-medium">Alias swap:</span> {aliasSwapCompleted ? "completed" : "not completed"}</div>
+        <div><span className="font-medium">Previous alias indices:</span> <code>{previousAliasIndices}</code></div>
+        <div><span className="font-medium">New alias indices:</span> <code>{newAliasIndices}</code></div>
+        <div><span className="font-medium">Rollback candidate:</span> <code>{rollbackCandidate}</code></div>
+        <div><span className="font-medium">Swapped at:</span> {typeof rollout.alias_swapped_at === "string" ? formatDateTime(rollout.alias_swapped_at) : "—"}</div>
+      </div>
+      {typeof rollout.rollback_hint === "string" ? <p>{rollout.rollback_hint}</p> : null}
+      {typeof rollout.cleanup_hint === "string" ? <p>{rollout.cleanup_hint}</p> : null}
+    </div>
+  );
+}
+
+function stringifyList(value: unknown): string {
+  return Array.isArray(value) && value.length > 0 ? value.map((item) => String(item)).join(", ") : "—";
+}
+
 
 function DryRunPreview({ result }: { result: ElasticsearchBindingDryRunResponse }) {
   return (

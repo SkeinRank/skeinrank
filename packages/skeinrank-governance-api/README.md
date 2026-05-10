@@ -745,3 +745,31 @@ curl -X POST http://127.0.0.1:8010/v1/auth/users/alex/revoke-api-tokens \
 ```
 
 Suspended and deactivated users cannot sign in and their personal API tokens are rejected by Bearer auth. Reactivating a user restores access for non-revoked, non-expired personal API tokens. `revoke-api-tokens` permanently revokes the user-owned personal API tokens without touching service account tokens.
+
+## Patch 39 — Rollout / rollback metadata
+
+`reindex_alias_swap` enrichment jobs now record rollout metadata in
+`result_json.rollout`. The API captures the indices attached to the alias before
+swap, the indices attached after swap, and a rollback candidate when the previous
+alias state points to exactly one index.
+
+The metadata is written by both synchronous enrichment execution and Celery
+chunked execution:
+
+```json
+{
+  "strategy": "reindex_alias_swap",
+  "status": "alias_swapped",
+  "alias_name": "docs_current",
+  "source_index": "docs_v1",
+  "target_index": "docs_v2",
+  "previous_alias_indices": ["docs_v1"],
+  "new_alias_indices": ["docs_v2"],
+  "rollback_candidate_index": "docs_v1",
+  "rollback_available": true,
+  "alias_swap_completed": true
+}
+```
+
+Rollback is still a manual/operator action in this patch. The metadata is meant
+for auditability, UI visibility, and a future safe rollback API.

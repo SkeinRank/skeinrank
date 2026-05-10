@@ -287,6 +287,22 @@ const elasticsearchJobs: ElasticsearchEnrichmentJob[] = [
       errors: ["doc-2 failed"],
       timestamp_field: "created_at",
       time_window_days: 1825,
+      rollout: {
+        strategy: "reindex_alias_swap",
+        status: "alias_swapped",
+        alias_name: "docs",
+        source_index: "docs",
+        target_index: "docs__skeinrank_job_101",
+        previous_alias_indices: ["docs_v1"],
+        new_alias_indices: ["docs__skeinrank_job_101"],
+        rollback_candidate_index: "docs_v1",
+        rollback_available: true,
+        alias_swap_completed: true,
+        alias_swap_started_at: "2026-05-08T10:00:50Z",
+        alias_swapped_at: "2026-05-08T10:00:55Z",
+        rollback_hint: "Manual rollback candidate: repoint alias docs to docs_v1.",
+        cleanup_hint: "If this rollout is cancelled or fails before alias swap, review or delete target index docs__skeinrank_job_101.",
+      },
     },
     error_message: null,
     started_at: "2026-05-08T10:00:00Z",
@@ -1167,6 +1183,22 @@ function stubGovernanceApi(options: StubOptions = {}) {
             updated_document_ids: ["doc-1", "doc-3"],
             timestamp_field: existingBinding.timestamp_field,
             time_window_days: existingBinding.time_window_days,
+            rollout: {
+              strategy: "reindex_alias_swap",
+              status: "prepared",
+              alias_name: payload.alias_name ?? existingBinding.index_name,
+              source_index: existingBinding.index_name,
+              target_index: payload.target_index_name ?? `${existingBinding.index_name}__skeinrank_job_${jobId}`,
+              previous_alias_indices: ["docs_v1"],
+              new_alias_indices: [],
+              rollback_candidate_index: "docs_v1",
+              rollback_available: true,
+              alias_swap_completed: false,
+              alias_swap_started_at: "2026-05-08T11:00:30Z",
+              alias_swapped_at: null,
+              rollback_hint: "Manual rollback candidate: repoint alias docs to docs_v1.",
+              cleanup_hint: "If this rollout is cancelled or fails before alias swap, review or delete target index docs__skeinrank_candidate.",
+            },
           },
           error_message: null,
           started_at: "2026-05-08T11:00:00Z",
@@ -2510,6 +2542,8 @@ describe("App", () => {
     expect(await screen.findByText("Job history")).toBeInTheDocument();
     expect(await screen.findByText("Job #101")).toBeInTheDocument();
     expect(screen.getByText("10/12")).toBeInTheDocument();
+    expect(screen.getByText("Rollout metadata")).toBeInTheDocument();
+    expect(screen.getAllByText("docs_v1").length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText("Job target index"), {
       target: { value: "docs__skeinrank_candidate" },
     });
