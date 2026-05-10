@@ -91,9 +91,11 @@ def run_elasticsearch_enrichment_job(
                         "Elasticsearch URL is not configured."
                     )
 
-                reindex_result, update_index = _prepare_chunked_enrichment(
-                    client=client,
-                    job=job,
+                reindex_result, update_index, rollout_metadata = (
+                    _prepare_chunked_enrichment(
+                        client=client,
+                        job=job,
+                    )
                 )
                 max_documents = _job_max_documents(job)
                 chunk_size = _job_chunk_size(job, config)
@@ -107,6 +109,7 @@ def run_elasticsearch_enrichment_job(
                     update_index=update_index,
                     chunks_total=len(chunk_specs),
                     reindex_result=reindex_result,
+                    rollout_metadata=rollout_metadata,
                     backend=config.enrichment_jobs_backend,
                 )
                 session.commit()
@@ -322,13 +325,24 @@ def _mark_job_cancelled_in_session(
 
 def _prepare_chunked_enrichment(
     *, client: ElasticsearchDiscoveryClient, job: ElasticsearchEnrichmentJob
-) -> tuple[dict[str, Any] | None, str]:
+) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
     binding = job.binding
     if binding.write_strategy == "reindex_alias_swap":
         if not job.target_index:
             raise ElasticsearchDiscoveryError(
                 "Target index is required for reindex jobs"
             )
+        if not job.alias_name:
+            raise ElasticsearchDiscoveryError(
+                "Alias name is required for alias-swap jobs"
+            )
+        previous_alias_indices = client.alias_indices(alias_name=job.alias_name)
+        rollout_metadata = _build_reindex_rollout_metadata(
+            alias_name=job.alias_name,
+            source_index=binding.index_name,
+            target_index=job.target_index,
+            previous_alias_indices=previous_alias_indices,
+        )
         client.create_reindex_target_index(
             source_index=binding.index_name,
             target_index=job.target_index,
@@ -341,9 +355,9 @@ def _prepare_chunked_enrichment(
             timestamp_field=binding.timestamp_field,
             time_window_days=binding.time_window_days,
         )
-        return reindex_result, job.target_index
+        return reindex_result, job.target_index, rollout_metadata
     if binding.write_strategy == "in_place":
-        return None, binding.index_name
+        return None, binding.index_name, None
     raise ElasticsearchDiscoveryError(
         f"Unsupported write strategy: {binding.write_strategy}"
     )
@@ -481,15 +495,30 @@ def _maybe_finalize_chunked_job(
         and not chunked.get("finalized_at")
     ):
         alias_result = None
+        rollout_metadata = result_json.get("rollout")
         if job.write_strategy == "reindex_alias_swap":
             if not job.alias_name:
                 raise ElasticsearchDiscoveryError(
                     "Alias name is required for alias-swap jobs"
                 )
             client = ElasticsearchDiscoveryClient(config)
+            if not isinstance(rollout_metadata, dict):
+                rollout_metadata = _build_reindex_rollout_metadata(
+                    alias_name=job.alias_name,
+                    source_index=job.source_index,
+                    target_index=_chunked_update_index(job),
+                    previous_alias_indices=client.alias_indices(
+                        alias_name=job.alias_name
+                    ),
+                )
             alias_result = client.swap_alias(
                 alias_name=job.alias_name,
                 target_index=_chunked_update_index(job),
+            )
+            rollout_metadata = _complete_reindex_rollout_metadata(
+                rollout_metadata=rollout_metadata,
+                alias_result=alias_result,
+                new_alias_indices=client.alias_indices(alias_name=job.alias_name),
             )
         updated_document_ids: list[str] = []
         matched_documents: list[dict[str, object]] = []
@@ -508,6 +537,7 @@ def _maybe_finalize_chunked_job(
             "updated_document_ids": updated_document_ids,
             "matched_documents": matched_documents,
             "alias_result": alias_result,
+            "rollout": rollout_metadata,
             "chunked_enrichment": chunked,
         }
         job.status = "succeeded"
@@ -528,6 +558,7 @@ def _initial_chunked_result_json(
     update_index: str,
     chunks_total: int,
     reindex_result: dict[str, Any] | None,
+    rollout_metadata: dict[str, Any] | None,
     backend: str,
 ) -> dict[str, Any]:
     result_json = job.result_json or {}
@@ -544,6 +575,7 @@ def _initial_chunked_result_json(
         "max_documents": max_documents,
         "chunk_size": chunk_size,
         "reindex_result": reindex_result,
+        "rollout": rollout_metadata,
         "chunked_enrichment": {
             "update_index": update_index,
             "chunks_total": chunks_total,
@@ -554,6 +586,65 @@ def _initial_chunked_result_json(
             "queued_chunks": [],
             "started_at": utc_now().isoformat(),
         },
+    }
+
+
+def _rollback_candidate_index(
+    previous_alias_indices: list[str], target_index: str
+) -> str | None:
+    candidates = [index for index in previous_alias_indices if index != target_index]
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def _build_reindex_rollout_metadata(
+    *,
+    alias_name: str,
+    source_index: str,
+    target_index: str,
+    previous_alias_indices: list[str],
+) -> dict[str, Any]:
+    rollback_candidate = _rollback_candidate_index(previous_alias_indices, target_index)
+    return {
+        "strategy": "reindex_alias_swap",
+        "status": "prepared",
+        "alias_name": alias_name,
+        "source_index": source_index,
+        "target_index": target_index,
+        "previous_alias_indices": previous_alias_indices,
+        "new_alias_indices": [],
+        "rollback_candidate_index": rollback_candidate,
+        "rollback_available": rollback_candidate is not None,
+        "alias_swap_completed": False,
+        "alias_swap_started_at": utc_now().isoformat(),
+        "alias_swapped_at": None,
+        "alias_result": None,
+        "cleanup_hint": (
+            "If this rollout is cancelled or fails before alias swap, "
+            f"review or delete target index {target_index}."
+        ),
+        "rollback_hint": (
+            f"Manual rollback candidate: repoint alias {alias_name} to {rollback_candidate}."
+            if rollback_candidate
+            else "No single previous alias index was found for automatic rollback planning."
+        ),
+    }
+
+
+def _complete_reindex_rollout_metadata(
+    *,
+    rollout_metadata: dict[str, Any],
+    alias_result: dict[str, Any] | None,
+    new_alias_indices: list[str],
+) -> dict[str, Any]:
+    return {
+        **rollout_metadata,
+        "status": "alias_swapped",
+        "new_alias_indices": new_alias_indices,
+        "alias_swap_completed": True,
+        "alias_swapped_at": utc_now().isoformat(),
+        "alias_result": alias_result,
     }
 
 

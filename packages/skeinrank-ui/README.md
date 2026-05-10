@@ -188,3 +188,20 @@ inside the selected window.
 
 The current backend executor is synchronous. Future worker-based polling can
 reuse the same UI contract.
+
+## Patch 39 — Rollout metadata in job details
+
+The Integrations job details panel now surfaces rollout metadata for
+`reindex_alias_swap` jobs when the API includes `result_json.rollout`.
+
+The panel shows:
+
+- rollout status;
+- whether alias swap completed;
+- previous alias indices;
+- new alias indices;
+- rollback candidate index;
+- swap timestamp;
+- cleanup and rollback hints.
+
+This UI is read-only. It does not perform rollback yet.

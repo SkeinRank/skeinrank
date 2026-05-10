@@ -205,6 +205,11 @@ class FakeElasticsearchClient:
         self.bulk_updates = updates
         return {"errors": False, "items": []}
 
+    def alias_indices(self, *, alias_name):
+        if getattr(self, "swapped_alias", None) == alias_name:
+            return [getattr(self, "swapped_target_index")]
+        return ["docs_v1"]
+
     def swap_alias(self, *, alias_name, target_index):
         self.swapped_alias = alias_name
         self.swapped_target_index = target_index
@@ -745,6 +750,15 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
     assert payload["result_json"]["updated_document_ids"] == ["1"]
     assert payload["result_json"]["timestamp_field"] == "created_at"
     assert payload["result_json"]["time_window_days"] == 30
+    rollout = payload["result_json"]["rollout"]
+    assert rollout["strategy"] == "reindex_alias_swap"
+    assert rollout["alias_name"] == "docs"
+    assert rollout["source_index"] == "docs"
+    assert rollout["previous_alias_indices"] == ["docs_v1"]
+    assert rollout["new_alias_indices"] == [payload["target_index"]]
+    assert rollout["rollback_candidate_index"] == "docs_v1"
+    assert rollout["rollback_available"] is True
+    assert rollout["alias_swap_completed"] is True
     assert FakeElasticsearchClient.last_reindex_args["timestamp_field"] == "created_at"
     assert FakeElasticsearchClient.last_reindex_args["time_window_days"] == 30
 
@@ -1037,6 +1051,15 @@ def test_celery_enrichment_job_is_split_into_parallel_chunks(monkeypatch, tmp_pa
     assert [chunk["offset"] for chunk in chunked["chunks"]] == [0, 2]
     assert payload["result_json"]["updated_document_ids"] == ["1", "3"]
     assert payload["result_json"]["alias_result"] == {"acknowledged": True}
+    rollout = payload["result_json"]["rollout"]
+    assert rollout["strategy"] == "reindex_alias_swap"
+    assert rollout["alias_name"] == "docs"
+    assert rollout["source_index"] == "docs"
+    assert rollout["previous_alias_indices"] == ["docs_v1"]
+    assert rollout["new_alias_indices"] == [payload["target_index"]]
+    assert rollout["rollback_candidate_index"] == "docs_v1"
+    assert rollout["rollback_available"] is True
+    assert rollout["alias_swap_completed"] is True
 
 
 def test_elasticsearch_enrichment_job_can_be_cancelled_while_queued(

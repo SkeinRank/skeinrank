@@ -2107,14 +2107,27 @@ def _execute_elasticsearch_enrichment_job(
 
     bulk_result = client.bulk_update_documents(index_name=update_index, updates=updates)
     alias_result = None
+    rollout_metadata = None
     if binding.write_strategy == "reindex_alias_swap":
         if not job.alias_name:
             raise ElasticsearchDiscoveryError(
                 "Alias name is required for alias-swap jobs"
             )
+        previous_alias_indices = client.alias_indices(alias_name=job.alias_name)
+        rollout_metadata = _build_reindex_rollout_metadata(
+            alias_name=job.alias_name,
+            source_index=binding.index_name,
+            target_index=update_index,
+            previous_alias_indices=previous_alias_indices,
+        )
         alias_result = client.swap_alias(
             alias_name=job.alias_name,
             target_index=update_index,
+        )
+        rollout_metadata = _complete_reindex_rollout_metadata(
+            rollout_metadata=rollout_metadata,
+            alias_result=alias_result,
+            new_alias_indices=client.alias_indices(alias_name=job.alias_name),
         )
 
     return {
@@ -2131,6 +2144,66 @@ def _execute_elasticsearch_enrichment_job(
         "matched_documents": matched_documents,
         "reindex_result": reindex_result,
         "bulk_result": bulk_result,
+        "alias_result": alias_result,
+        "rollout": rollout_metadata,
+    }
+
+
+def _rollback_candidate_index(
+    previous_alias_indices: list[str], target_index: str
+) -> str | None:
+    candidates = [index for index in previous_alias_indices if index != target_index]
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def _build_reindex_rollout_metadata(
+    *,
+    alias_name: str,
+    source_index: str,
+    target_index: str,
+    previous_alias_indices: list[str],
+) -> dict[str, object]:
+    rollback_candidate = _rollback_candidate_index(previous_alias_indices, target_index)
+    return {
+        "strategy": "reindex_alias_swap",
+        "status": "prepared",
+        "alias_name": alias_name,
+        "source_index": source_index,
+        "target_index": target_index,
+        "previous_alias_indices": previous_alias_indices,
+        "new_alias_indices": [],
+        "rollback_candidate_index": rollback_candidate,
+        "rollback_available": rollback_candidate is not None,
+        "alias_swap_completed": False,
+        "alias_swap_started_at": utc_now().isoformat(),
+        "alias_swapped_at": None,
+        "alias_result": None,
+        "cleanup_hint": (
+            "If this rollout is cancelled or fails before alias swap, "
+            f"review or delete target index {target_index}."
+        ),
+        "rollback_hint": (
+            f"Manual rollback candidate: repoint alias {alias_name} to {rollback_candidate}."
+            if rollback_candidate
+            else "No single previous alias index was found for automatic rollback planning."
+        ),
+    }
+
+
+def _complete_reindex_rollout_metadata(
+    *,
+    rollout_metadata: dict[str, object],
+    alias_result: dict[str, object] | None,
+    new_alias_indices: list[str],
+) -> dict[str, object]:
+    return {
+        **rollout_metadata,
+        "status": "alias_swapped",
+        "new_alias_indices": new_alias_indices,
+        "alias_swap_completed": True,
+        "alias_swapped_at": utc_now().isoformat(),
         "alias_result": alias_result,
     }
 

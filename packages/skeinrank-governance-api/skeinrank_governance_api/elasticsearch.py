@@ -229,6 +229,40 @@ class ElasticsearchDiscoveryClient:
         payload = "\n".join(lines) + "\n"
         return self._post_ndjson("/_bulk?refresh=true", payload)
 
+    def alias_indices(self, *, alias_name: str) -> list[str]:
+        """Return indices currently attached to an alias.
+
+        Missing aliases are treated as an empty rollout source so first-time
+        alias swaps can still be audited without failing the enrichment job.
+        """
+
+        safe_alias = quote(alias_name, safe="")
+        try:
+            payload = self._get_json(f"/_alias/{safe_alias}")
+        except ElasticsearchDiscoveryError as exc:
+            message = str(exc).lower()
+            if (
+                "404" in message
+                or "alias" in message
+                and "not found" in message
+                or "aliases_not_found_exception" in message
+            ):
+                return []
+            raise
+        if not isinstance(payload, dict):
+            raise ElasticsearchDiscoveryError(
+                "Unexpected Elasticsearch alias metadata response"
+            )
+
+        indices: list[str] = []
+        for index_name, metadata in payload.items():
+            if not isinstance(metadata, dict):
+                continue
+            aliases = metadata.get("aliases")
+            if isinstance(aliases, dict) and alias_name in aliases:
+                indices.append(str(index_name))
+        return sorted(indices)
+
     def swap_alias(self, *, alias_name: str, target_index: str) -> dict[str, Any]:
         """Point an Elasticsearch alias at the target index.
 
