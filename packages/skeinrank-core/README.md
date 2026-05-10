@@ -15,6 +15,42 @@ python -m pip install -e .
 
 Optional extras are available, but they are not required for the current MVP.
 
+
+## Public Python SDK API
+
+Patch 41 adds a lightweight dictionary-first SDK API that can be used without running the governance API, Elasticsearch, Celery, or the UI. It accepts the same dictionary JSON shape exported by the User Console API and used by `skeinrank-migrate`.
+
+```python
+from skeinrank import load_dictionary, extract_terms, canonicalize_text
+
+dictionary = load_dictionary("../../examples/migration/console_dictionary.example.json")
+
+result = extract_terms(
+    "This instruction helps deploy 500 k8s servers backed by Postgres.",
+    dictionary=dictionary,
+)
+
+print(result.canonical_values)  # ["kubernetes", "postgresql"]
+print(result.matches[0].highlighted_fragment)
+
+canonicalized = canonicalize_text(
+    "k8s rollout uses pg database",
+    dictionary=dictionary,
+)
+print(canonicalized.text)  # "kubernetes rollout uses postgresql database"
+```
+
+The stable SDK exports:
+
+- `Dictionary`, `DictionaryTerm`, `DictionaryAlias`, `DictionaryStopListEntry`
+- `load_dictionary(...)`
+- `validate_dictionary(...)`
+- `extract_terms(...)`
+- `canonicalize_text(...)`
+- `ExtractionResult`, `TermMatch`, `CanonicalizedText`
+
+The SDK matcher is deterministic and local. It honors active/deprecated term and alias statuses, profile/global stop lists, returns offsets, and includes evidence snippets with `<mark>...</mark>` highlights.
+
 ## Minimal attribute extraction example
 
 ```python

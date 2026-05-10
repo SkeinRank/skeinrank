@@ -48,6 +48,21 @@ from .domain.types import (
     RerankResult,
     ScoreResult,
 )
+from .sdk import (
+    CanonicalizedText,
+    Dictionary,
+    DictionaryAlias,
+    DictionaryStopListEntry,
+    DictionaryTerm,
+    DictionaryValidationIssue,
+    DictionaryValidationReport,
+    ExtractionResult,
+    TermMatch,
+    canonicalize_text,
+    extract_terms,
+    load_dictionary,
+    validate_dictionary,
+)
 
 __all__ = [
     "RerankEngine",
@@ -94,9 +109,22 @@ __all__ = [
     "AttributeStageStatus",
     "AttributePassport",
     "AttributePack",
+    "Dictionary",
+    "DictionaryAlias",
+    "DictionaryTerm",
+    "DictionaryStopListEntry",
+    "DictionaryValidationIssue",
+    "DictionaryValidationReport",
+    "TermMatch",
+    "ExtractionResult",
+    "CanonicalizedText",
+    "load_dictionary",
+    "validate_dictionary",
+    "extract_terms",
+    "canonicalize_text",
     "SkeinRankError",
     "ContractError",
     "ModelUnavailable",
 ]
 
-__version__ = "0.0.11"
+__version__ = "0.0.12"

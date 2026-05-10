@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "skeinrank"
-version = "0.0.11"
+version = "0.0.12"
 description = "SkeinRank — production-grade reranking core (query + candidates → ranked results) with passports and strict contracts."
 authors = ["NkvMax"]
 license = "Apache-2.0"
