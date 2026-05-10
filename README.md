@@ -47,6 +47,18 @@ print(result.canonical_values)  # ["kubernetes", "postgresql"]
 
 Use this path when you want to test a company dictionary locally from a notebook, script, or future PyPI install before importing it into the governance platform.
 
+Patch 42 adds document text extraction helpers to the public SDK path. They can load text from TXT/Markdown/log/CSV/JSON/YAML-like files, HTML, DOCX, and PDF when `pypdf` is installed by the caller.
+
+```python
+from skeinrank import load_dictionary, extract_terms_from_document
+
+dictionary = load_dictionary("examples/migration/console_dictionary.example.json")
+result = extract_terms_from_document("docs/incident-runbook.md", dictionary=dictionary)
+
+print(result.document.file_name)
+print(result.extraction.canonical_values)
+```
+
 
 After installing the package you can use the small command-line tools directly:
 

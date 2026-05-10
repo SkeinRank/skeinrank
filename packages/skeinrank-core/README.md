@@ -51,6 +51,40 @@ The stable SDK exports:
 
 The SDK matcher is deterministic and local. It honors active/deprecated term and alias statuses, profile/global stop lists, returns offsets, and includes evidence snippets with `<mark>...</mark>` highlights.
 
+## Document text extraction utilities
+
+Patch 42 adds lightweight local helpers for extracting text from common document files before running the public SDK matcher. These helpers do not require the governance API, Elasticsearch, Celery, or a database.
+
+```python
+from skeinrank import load_dictionary, load_document_text, extract_terms_from_document
+
+dictionary = load_dictionary("../../examples/migration/console_dictionary.example.json")
+text = load_document_text("incident-runbook.md")
+
+result = extract_terms_from_document(
+    "incident-runbook.md",
+    dictionary=dictionary,
+)
+
+print(result.document.file_name)
+print(result.extraction.canonical_values)
+```
+
+Supported formats without extra dependencies:
+
+- text-like files: `.txt`, `.md`, `.rst`, `.log`, `.csv`, `.tsv`, `.json`, `.jsonl`, `.yaml`, `.yml`
+- `.html` / `.htm` with scripts/styles ignored
+- `.docx` via a small stdlib ZIP/XML reader
+
+PDF extraction is supported when the caller installs `pypdf` in the environment. The core package does not require it by default so the SDK stays lightweight.
+
+Stable public exports include:
+
+- `DocumentText`, `DocumentExtractionResult`, `DocumentExtractionError`
+- `load_document_text(...)`
+- `extract_document_text(...)`
+- `extract_terms_from_document(...)`
+
 ## Minimal attribute extraction example
 
 ```python
