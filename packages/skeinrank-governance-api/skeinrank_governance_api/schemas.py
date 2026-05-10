@@ -373,7 +373,7 @@ class SuggestionEvidenceRefreshRequest(BaseModel):
 
 
 class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
-    """Request body for starting a synchronous enrichment job."""
+    """Request body for starting an Elasticsearch enrichment job."""
 
     target_index_name: str | None = Field(default=None, min_length=1, max_length=256)
     alias_name: str | None = Field(default=None, min_length=1, max_length=256)

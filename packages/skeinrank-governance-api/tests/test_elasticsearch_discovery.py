@@ -5,13 +5,20 @@ from skeinrank_governance_api import GovernanceApiConfig, create_app
 from skeinrank_governance_api.elasticsearch import extract_mapping_fields
 
 
-def _client(tmp_path, *, elasticsearch_url: str | None = None) -> TestClient:
+def _client(
+    tmp_path,
+    *,
+    elasticsearch_url: str | None = None,
+    enrichment_jobs_backend: str = "sync",
+) -> TestClient:
     app = create_app(
         GovernanceApiConfig(
             database_url=f"sqlite:///{tmp_path / 'governance.db'}",
             create_tables_on_startup=True,
             service_version="test",
             elasticsearch_url=elasticsearch_url,
+            enrichment_jobs_backend=enrichment_jobs_backend,
+            celery_task_queue="test.enrichment",
         )
     )
     return TestClient(app)
@@ -738,6 +745,118 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
     detail_response = client.get(f"/v1/governance/elasticsearch/jobs/{payload['id']}")
     assert detail_response.status_code == 200
     assert detail_response.json()["status"] == "succeeded"
+
+
+def test_elasticsearch_enrichment_job_can_be_queued_for_celery(monkeypatch, tmp_path):
+    from skeinrank_governance_api.routes import governance
+    from skeinrank_governance_api.worker_queue import EnqueuedTask
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    enqueued: dict[str, int] = {}
+
+    def fake_enqueue_elasticsearch_enrichment_job(*, config, job_id):
+        enqueued["job_id"] = job_id
+        assert config.enrichment_jobs_backend == "celery"
+        return EnqueuedTask(task_id="task-123", queue=config.celery_task_queue)
+
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_job",
+        fake_enqueue_elasticsearch_enrichment_job,
+    )
+    client = _client(
+        tmp_path,
+        elasticsearch_url="http://es:9200",
+        enrichment_jobs_backend="celery",
+    )
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    assert binding_response.status_code == 201
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 2},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["status"] == "queued"
+    assert payload["started_at"] is None
+    assert payload["finished_at"] is None
+    assert payload["documents_seen"] == 0
+    assert payload["result_json"] == {
+        "job_backend": "celery",
+        "max_documents": 2,
+        "celery_task_id": "task-123",
+        "celery_queue": "test.enrichment",
+    }
+    assert enqueued["job_id"] == payload["id"]
+
+
+def test_elasticsearch_enrichment_job_queue_failure_marks_job_failed(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+    from skeinrank_governance_api.worker_queue import EnrichmentJobQueueError
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+
+    def fake_enqueue_elasticsearch_enrichment_job(*, config, job_id):
+        raise EnrichmentJobQueueError("RabbitMQ is unavailable")
+
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_job",
+        fake_enqueue_elasticsearch_enrichment_job,
+    )
+    client = _client(
+        tmp_path,
+        elasticsearch_url="http://es:9200",
+        enrichment_jobs_backend="celery",
+    )
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "mode": "write",
+        },
+    )
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 2},
+    )
+
+    assert response.status_code == 503
+    assert "RabbitMQ is unavailable" in response.json()["detail"]
+    jobs_response = client.get("/v1/governance/elasticsearch/jobs")
+    assert jobs_response.status_code == 200
+    assert jobs_response.json()[0]["status"] == "failed"
+    assert jobs_response.json()[0]["error_message"] == "RabbitMQ is unavailable"
 
 
 def test_elasticsearch_enrichment_job_requires_write_mode(monkeypatch, tmp_path):
