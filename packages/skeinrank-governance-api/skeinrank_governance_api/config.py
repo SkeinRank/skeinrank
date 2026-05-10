@@ -37,9 +37,12 @@ API_CELERY_BROKER_URL_ENV = "SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL"
 CELERY_BROKER_URL_ENV = "SKEINRANK_CELERY_BROKER_URL"
 API_CELERY_TASK_QUEUE_ENV = "SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE"
 CELERY_TASK_QUEUE_ENV = "SKEINRANK_CELERY_TASK_QUEUE"
+API_ENRICHMENT_CHUNK_SIZE_ENV = "SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE"
+ENRICHMENT_CHUNK_SIZE_ENV = "SKEINRANK_ENRICHMENT_CHUNK_SIZE"
 DEFAULT_ENRICHMENT_JOBS_BACKEND = "sync"
 DEFAULT_CELERY_BROKER_URL = "amqp://guest:guest@localhost:5672//"
 DEFAULT_CELERY_TASK_QUEUE = "skeinrank.enrichment"
+DEFAULT_ENRICHMENT_CHUNK_SIZE = 500
 DEFAULT_DATABASE_URL = "sqlite:///skeinrank_governance.db"
 DEFAULT_CORS_ORIGINS = ("http://127.0.0.1:5173", "http://localhost:5173")
 SERVICE_NAME = "skeinrank-governance-api"
@@ -91,6 +94,7 @@ class GovernanceApiConfig:
     enrichment_jobs_backend: str = DEFAULT_ENRICHMENT_JOBS_BACKEND
     celery_broker_url: str = DEFAULT_CELERY_BROKER_URL
     celery_task_queue: str = DEFAULT_CELERY_TASK_QUEUE
+    enrichment_chunk_size: int = DEFAULT_ENRICHMENT_CHUNK_SIZE
 
     @classmethod
     def from_env(cls) -> "GovernanceApiConfig":
@@ -151,6 +155,11 @@ class GovernanceApiConfig:
                 os.getenv(API_CELERY_TASK_QUEUE_ENV)
                 or os.getenv(CELERY_TASK_QUEUE_ENV)
                 or DEFAULT_CELERY_TASK_QUEUE
+            ),
+            enrichment_chunk_size=_int_from_env(
+                os.getenv(API_ENRICHMENT_CHUNK_SIZE_ENV)
+                or os.getenv(ENRICHMENT_CHUNK_SIZE_ENV),
+                default=DEFAULT_ENRICHMENT_CHUNK_SIZE,
             ),
         )
 

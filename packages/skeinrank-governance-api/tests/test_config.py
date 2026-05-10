@@ -75,12 +75,14 @@ def test_config_parses_enrichment_worker_env(monkeypatch):
         "SKEINRANK_CELERY_BROKER_URL", "amqp://guest:guest@rabbitmq:5672//"
     )
     monkeypatch.setenv("SKEINRANK_CELERY_TASK_QUEUE", "skeinrank.custom")
+    monkeypatch.setenv("SKEINRANK_ENRICHMENT_CHUNK_SIZE", "250")
 
     config = GovernanceApiConfig.from_env()
 
     assert config.enrichment_jobs_backend == "celery"
     assert config.celery_broker_url == "amqp://guest:guest@rabbitmq:5672//"
     assert config.celery_task_queue == "skeinrank.custom"
+    assert config.enrichment_chunk_size == 250
 
 
 def test_config_defaults_unknown_enrichment_backend_to_sync(monkeypatch):

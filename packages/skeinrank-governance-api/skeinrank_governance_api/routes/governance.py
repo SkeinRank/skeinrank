@@ -928,9 +928,14 @@ def start_elasticsearch_enrichment_job(
     ):
         job.target_index = _default_reindex_target_name(binding, job.id)
 
+    chunk_size = request_body.chunk_size or min(
+        request.app.state.config.enrichment_chunk_size,
+        request_body.max_documents,
+    )
     job.result_json = {
         "job_backend": request.app.state.config.enrichment_jobs_backend,
         "max_documents": request_body.max_documents,
+        "chunk_size": chunk_size,
     }
 
     if request.app.state.config.enrichment_jobs_backend == "celery":

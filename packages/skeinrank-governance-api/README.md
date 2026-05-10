@@ -543,7 +543,7 @@ sandbox/dev use cases.
 
 Patch 25g introduced synchronous MVP execution. Patch 35 keeps `sync` as the
 default backend and adds optional Celery/RabbitMQ dispatch for background worker
-execution.
+execution. Patch 36 extends the worker path with bounded parallel document chunks.
 
 ## Elasticsearch async worker backend
 
@@ -554,6 +554,7 @@ inline in the FastAPI request:
 export SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND=celery
 export SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
 export SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE=skeinrank.enrichment
+export SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE=500
 ```
 
 `sync` remains the default and requires no RabbitMQ:
@@ -563,9 +564,11 @@ export SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND=sync
 ```
 
 In celery mode the start-job endpoint creates a durable job row with
-`status=queued`, records the Celery task id in `result_json`, and returns
-immediately. A separate worker process executes the same enrichment executor and
-updates job state to `running`, `succeeded`, or `failed`.
+`status=queued`, records the coordinator Celery task id in `result_json`, and
+returns immediately. The coordinator worker marks the job `running`, prepares the
+target/reindex step when needed, and dispatches bounded chunk tasks. Chunk tasks
+update counters and per-chunk metadata in `result_json`; the final completed
+chunk marks the job `succeeded` and swaps the alias for `reindex_alias_swap` jobs.
 
 Run RabbitMQ separately, for example:
 
@@ -586,8 +589,13 @@ The direct Celery command is also supported:
 poetry run celery -A skeinrank_governance_api.worker:celery_app worker --loglevel=info
 ```
 
-This patch does not implement parallel document chunking, cancellation, retries
-UI, Flower, or scheduled jobs. It only adds the queue/worker foundation.
+Chunk size can also be passed per job as `chunk_size` in
+`POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs`. The global
+default is `SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE`, with the short alias
+`SKEINRANK_ENRICHMENT_CHUNK_SIZE`.
+
+Patch 36 adds parallel chunk execution, but it still leaves cancellation, retry
+UI, Flower, scheduled jobs, and rollback controls for follow-up patches.
 
 ## Elasticsearch enrichment job time filters
 

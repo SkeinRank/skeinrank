@@ -22,12 +22,7 @@ class EnrichmentJobQueueError(RuntimeError):
 def enqueue_elasticsearch_enrichment_job(
     *, config: GovernanceApiConfig, job_id: int
 ) -> EnqueuedTask:
-    """Dispatch an enrichment job to the configured asynchronous backend.
-
-    The governance API keeps ``sync`` as the default backend for local/dev use.
-    When ``celery`` is configured, this helper imports the Celery task lazily so
-    normal API startup and tests do not require a running RabbitMQ broker.
-    """
+    """Dispatch an enrichment job coordinator task to the configured backend."""
 
     if config.enrichment_jobs_backend != "celery":
         raise EnrichmentJobQueueError(
@@ -41,14 +36,57 @@ def enqueue_elasticsearch_enrichment_job(
     except ImportError as exc:  # pragma: no cover - defensive for partial installs
         raise EnrichmentJobQueueError(str(exc)) from exc
 
-    delay = getattr(run_elasticsearch_enrichment_job_task, "delay", None)
-    if delay is None:
+    return _enqueue_celery_task(
+        run_elasticsearch_enrichment_job_task,
+        config=config,
+        args=(job_id,),
+    )
+
+
+def enqueue_elasticsearch_enrichment_chunk(
+    *,
+    config: GovernanceApiConfig,
+    job_id: int,
+    chunk_index: int,
+    offset: int,
+    limit: int,
+) -> EnqueuedTask:
+    """Dispatch one bounded enrichment chunk task to Celery/RabbitMQ."""
+
+    if config.enrichment_jobs_backend != "celery":
+        raise EnrichmentJobQueueError(
+            f"Unsupported enrichment jobs backend: {config.enrichment_jobs_backend}"
+        )
+
+    try:
+        from .tasks import run_elasticsearch_enrichment_chunk_task
+    except RuntimeError as exc:
+        raise EnrichmentJobQueueError(str(exc)) from exc
+    except ImportError as exc:  # pragma: no cover - defensive for partial installs
+        raise EnrichmentJobQueueError(str(exc)) from exc
+
+    return _enqueue_celery_task(
+        run_elasticsearch_enrichment_chunk_task,
+        config=config,
+        args=(job_id, chunk_index, offset, limit),
+    )
+
+
+def _enqueue_celery_task(
+    task, *, config: GovernanceApiConfig, args: tuple
+) -> EnqueuedTask:
+    apply_async = getattr(task, "apply_async", None)
+    delay = getattr(task, "delay", None)
+    if apply_async is None and delay is None:
         raise EnrichmentJobQueueError(
             "Celery is not installed. Install the governance API worker dependencies "
             "before using SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND=celery."
         )
 
-    task = delay(job_id)
+    if apply_async is not None:
+        async_result = apply_async(args=args, queue=config.celery_task_queue)
+    else:  # pragma: no cover - compatibility fallback
+        async_result = delay(*args)
     return EnqueuedTask(
-        task_id=getattr(task, "id", None), queue=config.celery_task_queue
+        task_id=getattr(async_result, "id", None), queue=config.celery_task_queue
     )
