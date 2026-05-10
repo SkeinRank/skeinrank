@@ -1,4 +1,3 @@
-import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -6,44 +5,40 @@ REPO_ROOT = ROOT.parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
 
 
-def _pyproject():
-    return tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+def _pyproject_text() -> str:
+    return PYPROJECT.read_text(encoding="utf-8")
 
 
 def test_core_package_metadata_is_ready_for_pypi():
-    pyproject = _pyproject()
-    poetry = pyproject["tool"]["poetry"]
+    content = _pyproject_text()
 
-    assert poetry["name"] == "skeinrank"
-    assert poetry["version"] == "0.0.15"
-    assert "canonicalization" in poetry["keywords"]
-    assert "documents" in poetry["keywords"]
-    assert poetry["license"] == "Apache-2.0"
-    assert poetry["readme"] == "README.md"
-    assert poetry["packages"] == [{"include": "skeinrank"}]
-    assert "Development Status :: 3 - Alpha" in poetry["classifiers"]
-    assert (
-        "Topic :: Software Development :: Libraries :: Python Modules"
-        in poetry["classifiers"]
-    )
+    assert 'name = "skeinrank"' in content
+    assert 'version = "0.0.16"' in content
+    assert '"canonicalization"' in content
+    assert '"documents"' in content
+    assert 'license = "Apache-2.0"' in content
+    assert 'readme = "README.md"' in content
+    assert 'packages = [{ include = "skeinrank" }]' in content
+    assert 'python = ">=3.10,<4.0"' in content
+    assert '"Programming Language :: Python :: 3.10"' in content
+    assert '"Development Status :: 3 - Alpha"' in content
+    assert '"Topic :: Software Development :: Libraries :: Python Modules"' in content
 
 
 def test_core_package_exposes_local_cli_without_heavy_platform_dependencies():
-    pyproject = _pyproject()
-    poetry = pyproject["tool"]["poetry"]
+    content = _pyproject_text()
 
-    assert poetry["scripts"]["skeinrank"] == "skeinrank.cli:entrypoint"
-    assert "fastapi" not in poetry["dependencies"]
-    assert "sqlalchemy" not in poetry["dependencies"]
-    assert "celery" not in poetry["dependencies"]
+    assert 'skeinrank = "skeinrank.cli:entrypoint"' in content
+    assert "fastapi" not in content
+    assert "sqlalchemy" not in content
+    assert "celery" not in content
 
 
 def test_core_package_includes_runtime_data_and_typing_marker():
-    pyproject = _pyproject()
-    include_paths = {item["path"] for item in pyproject["tool"]["poetry"]["include"]}
+    content = _pyproject_text()
 
-    assert "skeinrank/attributes/config/*.json" in include_paths
-    assert "skeinrank/py.typed" in include_paths
+    assert "skeinrank/attributes/config/*.json" in content
+    assert "skeinrank/py.typed" in content
     assert (ROOT / "skeinrank" / "py.typed").exists()
 
 
