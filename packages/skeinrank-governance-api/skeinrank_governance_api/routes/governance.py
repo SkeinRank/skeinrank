@@ -98,6 +98,10 @@ from ..schemas import (
     TermResponse,
     TermUpdateRequest,
 )
+from ..worker_queue import (
+    EnrichmentJobQueueError,
+    enqueue_elasticsearch_enrichment_job,
+)
 
 router = APIRouter(prefix="/v1/governance", tags=["governance"])
 
@@ -883,7 +887,7 @@ def start_elasticsearch_enrichment_job(
     current_user: AuthContext = Depends(require_roles("admin", "moderator")),
     session: Session = Depends(get_session),
 ) -> ElasticsearchEnrichmentJobResponse:
-    """Start a synchronous MVP enrichment job for one Elasticsearch binding."""
+    """Start an enrichment job for one Elasticsearch binding."""
 
     request_body = request_body or ElasticsearchEnrichmentJobCreateRequest()
     binding = _get_elasticsearch_binding_or_404(session, binding_id)
@@ -924,6 +928,38 @@ def start_elasticsearch_enrichment_job(
     ):
         job.target_index = _default_reindex_target_name(binding, job.id)
 
+    job.result_json = {
+        "job_backend": request.app.state.config.enrichment_jobs_backend,
+        "max_documents": request_body.max_documents,
+    }
+
+    if request.app.state.config.enrichment_jobs_backend == "celery":
+        session.commit()
+        session.refresh(job)
+        try:
+            queued_task = enqueue_elasticsearch_enrichment_job(
+                config=request.app.state.config,
+                job_id=job.id,
+            )
+        except EnrichmentJobQueueError as exc:
+            job.status = "failed"
+            job.error_message = str(exc)
+            job.finished_at = utc_now()
+            session.commit()
+            session.refresh(job)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+        job.result_json = {
+            **(job.result_json or {}),
+            "celery_task_id": queued_task.task_id,
+            "celery_queue": queued_task.queue,
+        }
+        session.commit()
+        session.refresh(job)
+        return _elasticsearch_enrichment_job_response(job)
+
     job.status = "running"
     job.started_at = utc_now()
     session.commit()
@@ -945,6 +981,7 @@ def start_elasticsearch_enrichment_job(
         session.refresh(job)
         return _elasticsearch_enrichment_job_response(job)
 
+    result = {**result, "job_backend": "sync"}
     job.status = "succeeded"
     job.documents_seen = result["documents_seen"]
     job.documents_enriched = result["documents_enriched"]

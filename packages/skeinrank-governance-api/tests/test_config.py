@@ -67,3 +67,25 @@ def test_config_parses_elasticsearch_env(monkeypatch):
     assert config.elasticsearch_username == "elastic"
     assert config.elasticsearch_password == "secret"
     assert config.elasticsearch_timeout_seconds == 9
+
+
+def test_config_parses_enrichment_worker_env(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_ENRICHMENT_JOBS_BACKEND", "celery")
+    monkeypatch.setenv(
+        "SKEINRANK_CELERY_BROKER_URL", "amqp://guest:guest@rabbitmq:5672//"
+    )
+    monkeypatch.setenv("SKEINRANK_CELERY_TASK_QUEUE", "skeinrank.custom")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.enrichment_jobs_backend == "celery"
+    assert config.celery_broker_url == "amqp://guest:guest@rabbitmq:5672//"
+    assert config.celery_task_queue == "skeinrank.custom"
+
+
+def test_config_defaults_unknown_enrichment_backend_to_sync(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND", "unknown")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.enrichment_jobs_backend == "sync"

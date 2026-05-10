@@ -541,9 +541,53 @@ name, counters, result JSON, and error message. The default production-oriented
 write strategy is `reindex_alias_swap`; `in_place` remains available for
 sandbox/dev use cases.
 
-This patch intentionally does not add Celery/RabbitMQ yet. The API executes the
-MVP job inline and records a durable job row so a future worker implementation
-can reuse the same contract.
+Patch 25g introduced synchronous MVP execution. Patch 35 keeps `sync` as the
+default backend and adds optional Celery/RabbitMQ dispatch for background worker
+execution.
+
+## Elasticsearch async worker backend
+
+Set the enrichment backend to `celery` to enqueue jobs instead of executing them
+inline in the FastAPI request:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND=celery
+export SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
+export SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE=skeinrank.enrichment
+```
+
+`sync` remains the default and requires no RabbitMQ:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND=sync
+```
+
+In celery mode the start-job endpoint creates a durable job row with
+`status=queued`, records the Celery task id in `result_json`, and returns
+immediately. A separate worker process executes the same enrichment executor and
+updates job state to `running`, `succeeded`, or `failed`.
+
+Run RabbitMQ separately, for example:
+
+```bash
+docker run --rm -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+```
+
+Run API and worker separately:
+
+```bash
+poetry run skeinrank-governance-api --reload
+poetry run skeinrank-governance-worker --loglevel=info
+```
+
+The direct Celery command is also supported:
+
+```bash
+poetry run celery -A skeinrank_governance_api.worker:celery_app worker --loglevel=info
+```
+
+This patch does not implement parallel document chunking, cancellation, retries
+UI, Flower, or scheduled jobs. It only adds the queue/worker foundation.
 
 ## Elasticsearch enrichment job time filters
 

@@ -31,6 +31,15 @@ ELASTICSEARCH_TIMEOUT_SECONDS_ENV = "SKEINRANK_ELASTICSEARCH_TIMEOUT_SECONDS"
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_TOKEN_TTL_HOURS = 24
 DEFAULT_ELASTICSEARCH_TIMEOUT_SECONDS = 5
+API_ENRICHMENT_JOBS_BACKEND_ENV = "SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND"
+ENRICHMENT_JOBS_BACKEND_ENV = "SKEINRANK_ENRICHMENT_JOBS_BACKEND"
+API_CELERY_BROKER_URL_ENV = "SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL"
+CELERY_BROKER_URL_ENV = "SKEINRANK_CELERY_BROKER_URL"
+API_CELERY_TASK_QUEUE_ENV = "SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE"
+CELERY_TASK_QUEUE_ENV = "SKEINRANK_CELERY_TASK_QUEUE"
+DEFAULT_ENRICHMENT_JOBS_BACKEND = "sync"
+DEFAULT_CELERY_BROKER_URL = "amqp://guest:guest@localhost:5672//"
+DEFAULT_CELERY_TASK_QUEUE = "skeinrank.enrichment"
 DEFAULT_DATABASE_URL = "sqlite:///skeinrank_governance.db"
 DEFAULT_CORS_ORIGINS = ("http://127.0.0.1:5173", "http://localhost:5173")
 SERVICE_NAME = "skeinrank-governance-api"
@@ -79,6 +88,9 @@ class GovernanceApiConfig:
     elasticsearch_password: str | None = None
     elasticsearch_api_key: str | None = None
     elasticsearch_timeout_seconds: int = DEFAULT_ELASTICSEARCH_TIMEOUT_SECONDS
+    enrichment_jobs_backend: str = DEFAULT_ENRICHMENT_JOBS_BACKEND
+    celery_broker_url: str = DEFAULT_CELERY_BROKER_URL
+    celery_task_queue: str = DEFAULT_CELERY_TASK_QUEUE
 
     @classmethod
     def from_env(cls) -> "GovernanceApiConfig":
@@ -126,7 +138,28 @@ class GovernanceApiConfig:
                 or os.getenv(ELASTICSEARCH_TIMEOUT_SECONDS_ENV),
                 default=DEFAULT_ELASTICSEARCH_TIMEOUT_SECONDS,
             ),
+            enrichment_jobs_backend=_enrichment_backend_from_env(
+                os.getenv(API_ENRICHMENT_JOBS_BACKEND_ENV)
+                or os.getenv(ENRICHMENT_JOBS_BACKEND_ENV)
+            ),
+            celery_broker_url=(
+                os.getenv(API_CELERY_BROKER_URL_ENV)
+                or os.getenv(CELERY_BROKER_URL_ENV)
+                or DEFAULT_CELERY_BROKER_URL
+            ),
+            celery_task_queue=(
+                os.getenv(API_CELERY_TASK_QUEUE_ENV)
+                or os.getenv(CELERY_TASK_QUEUE_ENV)
+                or DEFAULT_CELERY_TASK_QUEUE
+            ),
         )
+
+
+def _enrichment_backend_from_env(value: str | None) -> str:
+    if value is None:
+        return DEFAULT_ENRICHMENT_JOBS_BACKEND
+    backend = value.strip().lower()
+    return backend if backend in {"sync", "celery"} else DEFAULT_ENRICHMENT_JOBS_BACKEND
 
 
 def _package_version() -> str:
