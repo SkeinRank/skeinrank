@@ -32,6 +32,22 @@ SkeinRank helps normalize that mess into reusable attributes that can later powe
 
 ### CLI commands
 
+### Public Python SDK
+
+Patch 41 adds a lightweight SDK API for local dictionary-driven extraction without starting the platform services. It accepts the same migration/export JSON shape used by the User Console API and `skeinrank-migrate`.
+
+```python
+from skeinrank import load_dictionary, extract_terms
+
+dictionary = load_dictionary("examples/migration/console_dictionary.example.json")
+result = extract_terms("k8s rollout uses pg database", dictionary=dictionary)
+
+print(result.canonical_values)  # ["kubernetes", "postgresql"]
+```
+
+Use this path when you want to test a company dictionary locally from a notebook, script, or future PyPI install before importing it into the governance platform.
+
+
 After installing the package you can use the small command-line tools directly:
 
 ```bash
