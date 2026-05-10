@@ -132,6 +132,35 @@ poetry run skeinrank document-text incident-runbook.docx --output incident-runbo
 
 The CLI returns JSON for `extract`, raw text by default for `canonicalize`/`document-text`, and supports `--output`, `--compact`, `--max-matches`, and `--context-chars` where relevant.
 
+## PyPI/TestPyPI publishing
+
+Patch 44 adds publishing polish for the lightweight `skeinrank` package. The recommended flow is:
+
+1. Build and test locally.
+2. Publish to TestPyPI.
+3. Install from TestPyPI in a clean environment.
+4. Publish to PyPI only after the TestPyPI smoke test passes.
+
+Local packaging checks:
+
+```bash
+poetry install
+poetry run pytest -q
+poetry build
+poetry run python -m pip install --upgrade twine
+poetry run twine check dist/*
+```
+
+The manual GitHub Actions workflow is `publish-skeinrank-core`. It defaults to `dry_run=true`, supports `testpypi` and `pypi` targets, and uses PyPI Trusted Publishing for the actual upload step.
+
+PDF extraction support stays optional. Install `pypdf` separately when needed:
+
+```bash
+pip install pypdf
+```
+
+See `docs/PUBLISHING.md` for the full release checklist.
+
 ## Minimal attribute extraction example
 
 ```python

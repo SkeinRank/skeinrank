@@ -4,22 +4,31 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "skeinrank"
-version = "0.0.14"
-description = "SkeinRank — production-grade reranking core (query + candidates → ranked results) with passports and strict contracts."
+version = "0.0.15"
+description = "Dictionary-first extraction, alias canonicalization, and lightweight reranking utilities for technical documents."
 authors = ["NkvMax"]
 license = "Apache-2.0"
 readme = "README.md"
 homepage = "https://github.com/SkeinRank"
 repository = "https://github.com/SkeinRank/skeinrank-core"
-keywords = ["search", "reranking", "retrieval", "bm25", "embedding", "rag"]
+keywords = ["search", "retrieval", "reranking", "rag", "canonicalization", "dictionary", "aliases", "documents"]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Text Processing :: Linguistic",
 ]
 packages = [{ include = "skeinrank" }]
 include = [
-  { path = "skeinrank/attributes/config/*.json", format = ["sdist", "wheel"] }
+  { path = "skeinrank/attributes/config/*.json", format = ["sdist", "wheel"] },
+  { path = "skeinrank/py.typed", format = ["sdist", "wheel"] },
+  { path = "docs/PUBLISHING.md", format = ["sdist"] }
 ]
 
 [tool.poetry.dependencies]
