@@ -268,6 +268,10 @@ export type ElasticsearchEnrichmentJobCancelRequest = {
   reason?: string | null;
 };
 
+export type ElasticsearchEnrichmentJobRollbackRequest = {
+  reason?: string | null;
+};
+
 export type ElasticsearchEnrichmentJob = {
   id: number;
   binding_id: number;

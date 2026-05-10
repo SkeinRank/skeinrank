@@ -771,6 +771,88 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
     assert detail_response.json()["status"] == "succeeded"
 
 
+def test_elasticsearch_reindex_alias_swap_job_can_be_rolled_back(monkeypatch, tmp_path):
+    from skeinrank_governance_api.routes import governance
+
+    class RollbackFakeElasticsearchClient(FakeElasticsearchClient):
+        alias_state = {"docs": ["docs_v1"]}
+
+        def alias_indices(self, *, alias_name):
+            return list(type(self).alias_state.get(alias_name, []))
+
+        def swap_alias(self, *, alias_name, target_index):
+            type(self).alias_state[alias_name] = [target_index]
+            return {
+                "acknowledged": True,
+                "alias": alias_name,
+                "target_index": target_index,
+            }
+
+    RollbackFakeElasticsearchClient.alias_state = {"docs": ["docs_v1"]}
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", RollbackFakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 0.97},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    assert binding_response.status_code == 201
+
+    job_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 2, "target_index_name": "docs_v2", "alias_name": "docs"},
+    )
+    assert job_response.status_code == 201
+    job_payload = job_response.json()
+    assert job_payload["status"] == "succeeded"
+    assert RollbackFakeElasticsearchClient.alias_state["docs"] == ["docs_v2"]
+
+    rollback_response = client.post(
+        f"/v1/governance/elasticsearch/jobs/{job_payload['id']}/rollback",
+        json={"reason": "bad rollout"},
+    )
+
+    assert rollback_response.status_code == 200
+    payload = rollback_response.json()
+    rollout = payload["result_json"]["rollout"]
+    assert rollout["status"] == "rolled_back"
+    assert rollout["rollback_available"] is False
+    assert rollout["rollback_completed"] is True
+    assert rollout["rollback"]["requested_by"] == "local_dev"
+    assert rollout["rollback"]["reason"] == "bad rollout"
+    assert rollout["rollback"]["from_indices"] == ["docs_v2"]
+    assert rollout["rollback"]["rollback_candidate_index"] == "docs_v1"
+    assert rollout["rollback"]["alias_indices_after_rollback"] == ["docs_v1"]
+    assert RollbackFakeElasticsearchClient.alias_state["docs"] == ["docs_v1"]
+
+    second_rollback_response = client.post(
+        f"/v1/governance/elasticsearch/jobs/{job_payload['id']}/rollback"
+    )
+    assert second_rollback_response.status_code == 409
+    assert "already been rolled back" in second_rollback_response.json()["detail"]
+
+
 def test_elasticsearch_enrichment_job_can_be_queued_for_celery(monkeypatch, tmp_path):
     from skeinrank_governance_api.routes import governance
     from skeinrank_governance_api.worker_queue import EnqueuedTask

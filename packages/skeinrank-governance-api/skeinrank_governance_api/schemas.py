@@ -387,6 +387,12 @@ class ElasticsearchEnrichmentJobCancelRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=512)
 
 
+class ElasticsearchEnrichmentJobRollbackRequest(BaseModel):
+    """Request body for rolling back a completed reindex alias-swap job."""
+
+    reason: str | None = Field(default=None, max_length=512)
+
+
 class ElasticsearchEnrichmentJobResponse(BaseModel):
     """Elasticsearch enrichment job status response."""
 

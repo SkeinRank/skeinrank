@@ -74,6 +74,7 @@ from ..schemas import (
     ElasticsearchEnrichmentJobCancelRequest,
     ElasticsearchEnrichmentJobCreateRequest,
     ElasticsearchEnrichmentJobResponse,
+    ElasticsearchEnrichmentJobRollbackRequest,
     ElasticsearchEvidenceDocument,
     ElasticsearchEvidenceRequest,
     ElasticsearchEvidenceResponse,
@@ -1084,6 +1085,83 @@ def cancel_elasticsearch_enrichment_job(
         **(job.result_json or {}),
         "cancellation": cancellation,
     }
+    session.commit()
+    session.refresh(job)
+    return _elasticsearch_enrichment_job_response(job)
+
+
+@router.post(
+    "/elasticsearch/jobs/{job_id}/rollback",
+    response_model=ElasticsearchEnrichmentJobResponse,
+)
+def rollback_elasticsearch_enrichment_job(
+    job_id: int,
+    request: Request,
+    request_body: ElasticsearchEnrichmentJobRollbackRequest | None = Body(default=None),
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ElasticsearchEnrichmentJobResponse:
+    """Safely roll back a completed reindex+alias-swap enrichment job."""
+
+    job = _get_elasticsearch_enrichment_job_or_404(session, job_id)
+    request_body = request_body or ElasticsearchEnrichmentJobRollbackRequest()
+    rollout = _validated_rollback_rollout(job)
+    alias_name = str(rollout["alias_name"])
+    rollback_index = str(rollout["rollback_candidate_index"])
+    expected_current_indices = _rollout_expected_current_indices(rollout, job)
+
+    try:
+        client = ElasticsearchDiscoveryClient(request.app.state.config)
+        if not client.is_configured:
+            raise ElasticsearchDiscoveryError("Elasticsearch URL is not configured.")
+        current_alias_indices = client.alias_indices(alias_name=alias_name)
+        if sorted(current_alias_indices) != sorted(expected_current_indices):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Cannot rollback alias because current alias indices do not "
+                    "match the expected post-rollout state."
+                ),
+            )
+        alias_result = client.swap_alias(
+            alias_name=alias_name,
+            target_index=rollback_index,
+        )
+        alias_indices_after = client.alias_indices(alias_name=alias_name)
+    except HTTPException:
+        raise
+    except ElasticsearchDiscoveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    now = utc_now()
+    rollback_metadata = {
+        "status": "rolled_back",
+        "requested_by": current_user.username,
+        "requested_at": now.isoformat(),
+        "completed_at": now.isoformat(),
+        "reason": request_body.reason,
+        "alias_name": alias_name,
+        "from_indices": current_alias_indices,
+        "rollback_candidate_index": rollback_index,
+        "alias_indices_after_rollback": alias_indices_after,
+        "alias_result": alias_result,
+    }
+    result_json = dict(job.result_json or {})
+    result_json["rollout"] = {
+        **rollout,
+        "status": "rolled_back",
+        "rollback_available": False,
+        "rollback_completed": True,
+        "rollback_completed_at": now.isoformat(),
+        "rollback": rollback_metadata,
+        "rollback_hint": (
+            f"Rollback completed: alias {alias_name} now points to {rollback_index}."
+        ),
+    }
+    job.result_json = result_json
     session.commit()
     session.refresh(job)
     return _elasticsearch_enrichment_job_response(job)
@@ -2206,6 +2284,80 @@ def _complete_reindex_rollout_metadata(
         "alias_swapped_at": utc_now().isoformat(),
         "alias_result": alias_result,
     }
+
+
+def _validated_rollback_rollout(job: ElasticsearchEnrichmentJob) -> dict[str, object]:
+    if job.write_strategy != "reindex_alias_swap":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only reindex_alias_swap jobs can be rolled back.",
+        )
+    if job.status != "succeeded":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot rollback enrichment job with status: {job.status}",
+        )
+    result_json = job.result_json or {}
+    rollout = result_json.get("rollout")
+    if not isinstance(rollout, dict):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Rollback metadata is not available for this job.",
+        )
+    if rollout.get("strategy") != "reindex_alias_swap":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Rollback metadata does not describe a reindex alias-swap rollout.",
+        )
+    if rollout.get("rollback_completed") is True or isinstance(
+        rollout.get("rollback"), dict
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This enrichment job has already been rolled back.",
+        )
+    alias_name = rollout.get("alias_name") or job.alias_name
+    rollback_candidate = rollout.get("rollback_candidate_index")
+    if not isinstance(alias_name, str) or not alias_name.strip():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Rollback alias name is missing.",
+        )
+    if not isinstance(rollback_candidate, str) or not rollback_candidate.strip():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Rollback candidate index is missing.",
+        )
+    if rollout.get("alias_swap_completed") is not True:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot rollback before alias swap has completed.",
+        )
+    if rollout.get("rollback_available") is not True:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Rollback is not available for this job.",
+        )
+    return {
+        **rollout,
+        "alias_name": alias_name,
+        "rollback_candidate_index": rollback_candidate,
+    }
+
+
+def _rollout_expected_current_indices(
+    rollout: dict[str, object], job: ElasticsearchEnrichmentJob
+) -> list[str]:
+    new_alias_indices = rollout.get("new_alias_indices")
+    if isinstance(new_alias_indices, list) and new_alias_indices:
+        return [str(index) for index in new_alias_indices]
+    target_index = rollout.get("target_index") or job.target_index
+    if isinstance(target_index, str) and target_index:
+        return [target_index]
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Expected post-rollout alias state is missing.",
+    )
 
 
 def _get_elasticsearch_enrichment_job_or_404(

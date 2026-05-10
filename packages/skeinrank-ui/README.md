@@ -204,4 +204,6 @@ The panel shows:
 - swap timestamp;
 - cleanup and rollback hints.
 
-This UI is read-only. It does not perform rollback yet.
+Patch 40 adds a `Rollback alias` action for admins/moderators when rollback is
+available. The UI shows a confirmation prompt, calls the safe rollback endpoint,
+and updates the rollout panel with completed rollback metadata.

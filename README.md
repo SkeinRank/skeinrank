@@ -229,7 +229,7 @@ Current UI scope:
 
 The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Guardrails page lets admins/moderators manage global stop-list entries inherited by every profile and profile-local stop-list entries for scoped cleanup. Global entries are displayed as read-only inherited guardrails while editing a profile stop list, so teams can see whether a value is blocked globally or locally.
 
-The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings, show job history/status/details, and expose bounded evidence lookups for reviewer validation. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, worker chunk retries, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings, show job history/status/details, and expose bounded evidence lookups for reviewer validation. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Worker chunk retries, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -714,5 +714,8 @@ For reindex alias-swap jobs, `result_json.rollout` includes:
 - `alias_swap_started_at` and `alias_swapped_at`;
 - `cleanup_hint` and `rollback_hint`.
 
-This patch does not perform rollback automatically. It only stores the metadata
-required to make a later rollback action safer and more transparent.
+Patch 40 adds a safe rollback action on top of this metadata. Operators can call
+`POST /v1/governance/elasticsearch/jobs/{job_id}/rollback` for a completed
+`reindex_alias_swap` job. The API checks that the alias still points to the
+expected post-rollout index before switching it back to the recorded rollback
+candidate. Rollback metadata is stored under `result_json.rollout.rollback`.
