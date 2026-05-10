@@ -39,6 +39,14 @@ from .attributes import (
     write_attribute_profile_template,
     write_jsonl,
 )
+from .documents import (
+    DocumentExtractionError,
+    DocumentExtractionResult,
+    DocumentText,
+    extract_document_text,
+    extract_terms_from_document,
+    load_document_text,
+)
 from .domain.errors import ContractError, ModelUnavailable, SkeinRankError
 from .domain.types import (
     Candidate,
@@ -109,6 +117,12 @@ __all__ = [
     "AttributeStageStatus",
     "AttributePassport",
     "AttributePack",
+    "DocumentText",
+    "DocumentExtractionResult",
+    "DocumentExtractionError",
+    "load_document_text",
+    "extract_document_text",
+    "extract_terms_from_document",
     "Dictionary",
     "DictionaryAlias",
     "DictionaryTerm",
@@ -127,4 +141,4 @@ __all__ = [
     "ModelUnavailable",
 ]
 
-__version__ = "0.0.12"
+__version__ = "0.0.13"
