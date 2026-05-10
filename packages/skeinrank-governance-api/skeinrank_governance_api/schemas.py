@@ -378,6 +378,7 @@ class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
     target_index_name: str | None = Field(default=None, min_length=1, max_length=256)
     alias_name: str | None = Field(default=None, min_length=1, max_length=256)
     max_documents: int = Field(default=1000, ge=1, le=10000)
+    chunk_size: int | None = Field(default=None, ge=1, le=1000)
 
 
 class ElasticsearchEnrichmentJobResponse(BaseModel):

@@ -229,7 +229,7 @@ Current UI scope:
 
 The API and UI now include the suggestions/approval workflow and manual Elasticsearch binding configuration. Contributors can propose aliases without mutating active terminology, while moderators/admins can approve or reject suggestions. Manual alias suggestions use a searchable canonical term picker, auto-fill the canonical slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The UI also supports canonical term suggestions so contributors can propose new canonical terms for moderator/admin review and approval into active terms. The Guardrails page lets admins/moderators manage global stop-list entries inherited by every profile and profile-local stop-list entries for scoped cleanup. Global entries are displayed as read-only inherited guardrails while editing a profile stop list, so teams can see whether a value is blocked globally or locally.
 
-The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings, show job history/status/details, and expose bounded evidence lookups for reviewer validation. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, parallel worker chunking, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
+The Integrations page lets admins/moderators save profile-to-index binding configs with text fields, target field, document discriminator field/value, optional timestamp/time-window filters, dry-run/write mode, write strategy, and enabled state. It can also run Elasticsearch enrichment jobs for write-mode bindings, show job history/status/details, and expose bounded evidence lookups for reviewer validation. When multiple profiles share the same index, the UI requires a document discriminator so enrichment does not mix documents across profiles. Publish/rollback, worker chunk retries, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Bring your own terminology
 
@@ -364,7 +364,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, profile/global stop lists, suggestions/approval, Elasticsearch binding configs, evidence lookups, and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, parallel worker chunking, and model-based discovery ingestion.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, profile/global stop lists, suggestions/approval, Elasticsearch binding configs, evidence lookups, and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, worker chunk retries, and model-based discovery ingestion.
 
 The intended architecture is:
 
@@ -524,7 +524,9 @@ sandbox/dev use cases.
 
 Patch 25g introduced synchronous MVP execution. Patch 35 keeps this `sync`
 backend as the default for local/dev use and adds an optional Celery/RabbitMQ
-background backend for the same job contract.
+background backend for the same job contract. Patch 36 extends the Celery backend
+with bounded parallel chunks so multiple workers can process different document
+windows for one large enrichment job.
 
 ### Patch 35 — Celery/RabbitMQ async worker foundation
 
@@ -544,9 +546,11 @@ export SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND=sync
 
 In `celery` mode, `POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs`
 still creates a durable `queued` job row, then dispatches a Celery task. A worker
-process loads the job, marks it `running`, executes the existing enrichment logic,
-and persists `succeeded` or `failed` with counters and result JSON. The UI can keep
-using the existing jobs list/details endpoints.
+process loads the job, marks it `running`, prepares the target index/reindex step,
+and dispatches bounded chunk tasks. Each chunk processes a document window and
+persists counters into the job `result_json`. When all chunks succeed, the worker
+finalizes the job and performs alias swap when needed. The UI can keep using the
+existing jobs list/details endpoints.
 
 Run RabbitMQ separately, for example through Docker:
 
@@ -562,8 +566,21 @@ poetry run skeinrank-governance-worker --loglevel=info
 # equivalent: poetry run celery -A skeinrank_governance_api.worker:celery_app worker --loglevel=info
 ```
 
-This patch is the async foundation only. It does not split one large index into
-parallel chunks yet; that belongs to the follow-up parallel chunking patch.
+### Patch 36 — Parallel enrichment chunks
+
+Patch 36 adds bounded chunk execution for the Celery backend. The start-job API
+accepts an optional `chunk_size` next to `max_documents`; otherwise it uses:
+
+```bash
+export SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE=500
+# short alias: SKEINRANK_ENRICHMENT_CHUNK_SIZE=500
+```
+
+The coordinator task records `execution_mode=chunked` and `chunked_enrichment`
+metadata in the job result JSON, then queues chunk tasks with offsets/limits.
+This is the first throughput-scaling step: running more workers lets RabbitMQ
+distribute chunk tasks across worker processes. Cancellation, retries UI, and
+rollout/rollback controls remain follow-up work.
 
 ### Patch 25h — enrichment job status UI
 

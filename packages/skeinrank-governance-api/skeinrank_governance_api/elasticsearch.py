@@ -107,6 +107,7 @@ class ElasticsearchDiscoveryClient:
         index_name: str,
         text_fields: list[str],
         limit: int,
+        offset: int = 0,
         filter_field: str | None = None,
         filter_value: str | None = None,
         timestamp_field: str | None = None,
@@ -135,6 +136,7 @@ class ElasticsearchDiscoveryClient:
             f"/{quote(index_name, safe='')}/_search",
             {
                 "query": query,
+                "from": max(0, offset),
                 "size": limit,
                 "sort": sort,
                 "_source": source_fields,
@@ -257,6 +259,7 @@ class ElasticsearchDiscoveryClient:
         text_fields: list[str],
         query_text: str,
         limit: int,
+        offset: int = 0,
         filter_field: str | None = None,
         filter_value: str | None = None,
         timestamp_field: str | None = None,
