@@ -365,3 +365,138 @@ def test_query_plan_can_use_binding_runtime_snapshot_after_alias_is_disabled(tmp
     assert payload["snapshot_version"] == snapshot["version"]
     assert payload["canonical_values"] == ["kubernetes"]
     assert payload["canonical_query"] == "kubernetes rollout"
+
+
+def test_query_plan_accepts_binding_id_only_and_uses_binding_config(tmp_path):
+    from skeinrank_governance.models import ElasticsearchBinding, TerminologyProfile
+    from skeinrank_governance_api.runtime_snapshots import (
+        build_runtime_snapshot_payload,
+    )
+
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra custom docs",
+            "profile_name": "infra_incidents",
+            "index_name": "kb_custom",
+            "text_fields": ["body", "summary^2"],
+            "target_field": "sr",
+            "mode": "write",
+            "write_strategy": "in_place",
+        },
+    )
+    assert binding_response.status_code == 201
+    binding_id = binding_response.json()["id"]
+
+    session_factory = client.app.state.governance_session_factory
+    with session_factory() as session:
+        profile = (
+            session.query(TerminologyProfile)
+            .filter_by(normalized_name="infra_incidents")
+            .one()
+        )
+        binding = session.get(ElasticsearchBinding, binding_id)
+        snapshot = build_runtime_snapshot_payload(session, profile)
+        binding.last_successful_snapshot_version = snapshot["version"]
+        binding.runtime_snapshot_json = snapshot
+        session.commit()
+
+    response = client.post(
+        "/v1/query/plan",
+        json={"binding_id": binding_id, "query": "k8s pg"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["profile_name"] == "infra_incidents"
+    assert payload["binding_id"] == binding_id
+    assert payload["snapshot_source"] == "binding_runtime_snapshot"
+    assert payload["text_fields"] == ["body", "summary^2"]
+    assert payload["target_field"] == "sr"
+    assert payload["elasticsearch"]["query"]["bool"]["should"][1]["terms"] == {
+        "sr.canonical_values": ["kubernetes", "postgresql"],
+        "boost": 3.0,
+    }
+
+
+def test_search_accepts_binding_id_only_and_uses_binding_index(tmp_path, monkeypatch):
+    from skeinrank_governance.models import ElasticsearchBinding, TerminologyProfile
+    from skeinrank_governance_api.runtime_snapshots import (
+        build_runtime_snapshot_payload,
+    )
+
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "infra_incidents",
+            "index_name": "kb",
+            "text_fields": ["title", "text"],
+            "target_field": "skeinrank",
+            "mode": "write",
+            "write_strategy": "in_place",
+        },
+    )
+    assert binding_response.status_code == 201
+    binding_id = binding_response.json()["id"]
+
+    session_factory = client.app.state.governance_session_factory
+    with session_factory() as session:
+        profile = (
+            session.query(TerminologyProfile)
+            .filter_by(normalized_name="infra_incidents")
+            .one()
+        )
+        binding = session.get(ElasticsearchBinding, binding_id)
+        snapshot = build_runtime_snapshot_payload(session, profile)
+        binding.last_successful_snapshot_version = snapshot["version"]
+        binding.runtime_snapshot_json = snapshot
+        session.commit()
+
+    monkeypatch.setattr(
+        "skeinrank_governance_api.routes.search.ElasticsearchDiscoveryClient",
+        _FakeElasticsearchClient,
+    )
+
+    response = client.post(
+        "/v1/search",
+        json={"binding_id": binding_id, "query": "k8s pg timeout"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["profile_name"] == "infra_incidents"
+    assert payload["index_name"] == "kb"
+    assert payload["binding_id"] == binding_id
+    assert payload["snapshot_source"] == "binding_runtime_snapshot"
+    assert payload["canonical_values"] == ["kubernetes", "postgresql"]
+    assert not any(
+        "binding_id was not provided" in item for item in payload["warnings"]
+    )
+
+
+def test_search_without_binding_id_returns_preview_warning(tmp_path, monkeypatch):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    monkeypatch.setattr(
+        "skeinrank_governance_api.routes.search.ElasticsearchDiscoveryClient",
+        _FakeElasticsearchClient,
+    )
+
+    response = client.post(
+        "/v1/search",
+        json={
+            "profile_name": "infra_incidents",
+            "index_name": "kb",
+            "query": "k8s pg timeout",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert any(
+        "binding_id was not provided" in item for item in response.json()["warnings"]
+    )

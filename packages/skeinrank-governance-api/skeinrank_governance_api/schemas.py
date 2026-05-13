@@ -511,7 +511,8 @@ class RuntimeSnapshotResponse(BaseModel):
 class TextCanonicalizeRequest(BaseModel):
     """Request body for runtime text canonicalization."""
 
-    profile_name: str = Field(..., min_length=1, max_length=128)
+    profile_name: str | None = Field(default=None, min_length=1, max_length=128)
+    binding_id: int | None = Field(default=None, ge=1)
     text: str = Field(..., min_length=1, max_length=20000)
     mode: str = Field(
         default="annotate", examples=["annotate", "replace", "attributes"]
@@ -553,6 +554,9 @@ class TextCanonicalizeResponse(BaseModel):
     profile_name: str
     normalized_profile_name: str
     mode: str
+    binding_id: int | None = None
+    snapshot_version: str | None = None
+    snapshot_source: str = "latest_profile"
     original_text: str
     canonical_text: str
     changed: bool
@@ -567,13 +571,11 @@ class TextCanonicalizeResponse(BaseModel):
 class QueryPlanRequest(BaseModel):
     """Request body for building a runtime Elasticsearch query plan."""
 
-    profile_name: str = Field(..., min_length=1, max_length=128)
+    profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
     query: str = Field(..., min_length=1, max_length=2000)
-    text_fields: list[str] = Field(
-        default_factory=lambda: ["title", "text"], min_length=1
-    )
-    target_field: str = Field(default="skeinrank", min_length=1, max_length=256)
+    text_fields: list[str] | None = Field(default=None, min_length=1)
+    target_field: str | None = Field(default=None, min_length=1, max_length=256)
     size: int = Field(default=10, ge=1, le=100)
     canonical_boost: float = Field(default=3.0, ge=0.0, le=100.0)
     include_evidence: bool = True
@@ -605,14 +607,12 @@ class QueryPlanResponse(BaseModel):
 class SearchRequest(BaseModel):
     """Request body for executing runtime search against Elasticsearch."""
 
-    profile_name: str = Field(..., min_length=1, max_length=128)
+    profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
-    index_name: str = Field(..., min_length=1, max_length=256)
+    index_name: str | None = Field(default=None, min_length=1, max_length=256)
     query: str = Field(..., min_length=1, max_length=2000)
-    text_fields: list[str] = Field(
-        default_factory=lambda: ["title", "text"], min_length=1
-    )
-    target_field: str = Field(default="skeinrank", min_length=1, max_length=256)
+    text_fields: list[str] | None = Field(default=None, min_length=1)
+    target_field: str | None = Field(default=None, min_length=1, max_length=256)
     size: int = Field(default=10, ge=1, le=100)
     canonical_boost: float = Field(default=3.0, ge=0.0, le=100.0)
     include_source: bool = True
