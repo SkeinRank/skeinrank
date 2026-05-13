@@ -654,6 +654,65 @@ class SearchResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class MultiSearchRequest(BaseModel):
+    """Request body for executing runtime search across multiple bindings."""
+
+    binding_ids: list[int] = Field(..., min_length=1, max_length=20)
+    query: str = Field(..., min_length=1, max_length=2000)
+    size: int = Field(default=10, ge=1, le=100)
+    per_binding_size: int | None = Field(default=None, ge=1, le=100)
+    canonical_boost: float = Field(default=3.0, ge=0.0, le=100.0)
+    include_source: bool = True
+    source_fields: list[str] | None = None
+    include_evidence: bool = True
+    max_matches: int = Field(default=100, ge=1, le=1000)
+
+
+class MultiSearchHitResponse(SearchHitResponse):
+    """One merged runtime search hit with binding context."""
+
+    binding_id: int
+    profile_name: str
+    snapshot_version: str | None = None
+    snapshot_source: str = "latest_profile"
+
+
+class MultiSearchBindingResponse(BaseModel):
+    """Per-binding runtime search result included in a multi-search response."""
+
+    binding_id: int
+    status: str
+    profile_name: str | None = None
+    normalized_profile_name: str | None = None
+    index_name: str | None = None
+    snapshot_version: str | None = None
+    snapshot_source: str | None = None
+    canonical_query: str | None = None
+    changed: bool | None = None
+    canonical_values: list[str] = Field(default_factory=list)
+    slots: dict[str, list[str]] = Field(default_factory=dict)
+    matched_aliases: list[str] = Field(default_factory=list)
+    total: dict[str, Any] | int | None = None
+    hits_count: int = 0
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class MultiSearchResponse(BaseModel):
+    """Runtime multi-binding search response."""
+
+    query: str
+    binding_ids: list[int]
+    size: int
+    per_binding_size: int
+    total_bindings: int
+    succeeded_bindings: int
+    failed_bindings: int
+    results: list[MultiSearchBindingResponse] = Field(default_factory=list)
+    hits: list[MultiSearchHitResponse] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ConsoleDictionaryAliasInput(BaseModel):
     """Alias entry accepted by the user console import API."""
 
