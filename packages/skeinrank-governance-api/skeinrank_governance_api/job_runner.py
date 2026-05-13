@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from typing import Any
 
 from skeinrank_governance.models import ElasticsearchEnrichmentJob, utc_now
@@ -13,6 +12,7 @@ from .dependencies import create_engine_for_config
 from .elasticsearch import (
     ElasticsearchDiscoveryClient,
     ElasticsearchDiscoveryError,
+    ElasticsearchDocumentRef,
     compose_source_text,
 )
 
@@ -45,7 +45,7 @@ def run_elasticsearch_enrichment_job(
         from skeinrank_governance import create_session_factory
 
         session_factory = create_session_factory(engine)
-        chunk_specs: list[dict[str, int]] = []
+        chunk_specs: list[dict[str, Any]] = []
         with session_factory() as session:
             job = session.scalar(
                 select(ElasticsearchEnrichmentJob).where(
@@ -99,8 +99,14 @@ def run_elasticsearch_enrichment_job(
                 )
                 max_documents = _job_max_documents(job)
                 chunk_size = _job_chunk_size(job, config)
+                candidate_refs = _collect_candidate_document_refs(
+                    client=client,
+                    job=job,
+                    update_index=update_index,
+                    max_documents=max_documents,
+                )
                 chunk_specs = _build_chunk_specs(
-                    max_documents=max_documents, chunk_size=chunk_size
+                    document_refs=candidate_refs, chunk_size=chunk_size
                 )
                 job.result_json = _initial_chunked_result_json(
                     job=job,
@@ -111,7 +117,10 @@ def run_elasticsearch_enrichment_job(
                     reindex_result=reindex_result,
                     rollout_metadata=rollout_metadata,
                     backend=config.enrichment_jobs_backend,
+                    chunk_specs=chunk_specs,
                 )
+                if not chunk_specs:
+                    _finalize_empty_chunked_job(job)
                 session.commit()
                 session.refresh(job)
                 if job.status == JOB_STATUS_CANCEL_REQUESTED:
@@ -122,6 +131,12 @@ def run_elasticsearch_enrichment_job(
                     session.commit()
                     session.refresh(job)
                     return {"job_id": job_id, "status": job.status, "cancelled": True}
+                if job.status == "succeeded" and not chunk_specs:
+                    return {
+                        "job_id": job_id,
+                        "status": "succeeded",
+                        "chunks_queued": 0,
+                    }
             except ElasticsearchDiscoveryError as exc:
                 job.status = "failed"
                 job.error_message = str(exc)
@@ -385,16 +400,26 @@ def _execute_enrichment_chunk(
     binding = job.binding
     update_index = _chunked_update_index(job)
     alias_entries = _active_alias_entries_for_profile(session, binding.profile)
-    hits = client.search_documents(
-        index_name=update_index,
-        text_fields=list(binding.text_fields),
-        limit=limit,
-        offset=offset,
-        filter_field=binding.filter_field,
-        filter_value=binding.filter_value,
-        timestamp_field=binding.timestamp_field,
-        time_window_days=binding.time_window_days,
-    )
+    document_refs = _document_refs_for_chunk(job=job, chunk_index=chunk_index)
+    if document_refs is None:
+        # Backward-compatible fallback for jobs queued by an older coordinator.
+        hits = client.search_documents(
+            index_name=update_index,
+            text_fields=list(binding.text_fields),
+            limit=limit,
+            offset=offset,
+            filter_field=binding.filter_field,
+            filter_value=binding.filter_value,
+            timestamp_field=binding.timestamp_field,
+            time_window_days=binding.time_window_days,
+        )
+    else:
+        hits = client.get_documents_by_refs(
+            document_refs=document_refs,
+            text_fields=list(binding.text_fields),
+            filter_field=binding.filter_field,
+            timestamp_field=binding.timestamp_field,
+        )
 
     updates: list[tuple[str, dict[str, object]]] = []
     matched_documents: list[dict[str, object]] = []
@@ -560,6 +585,7 @@ def _initial_chunked_result_json(
     reindex_result: dict[str, Any] | None,
     rollout_metadata: dict[str, Any] | None,
     backend: str,
+    chunk_specs: list[dict[str, Any]],
 ) -> dict[str, Any]:
     result_json = job.result_json or {}
     return {
@@ -578,10 +604,25 @@ def _initial_chunked_result_json(
         "rollout": rollout_metadata,
         "chunked_enrichment": {
             "update_index": update_index,
+            "candidate_documents_total": sum(
+                len(spec.get("document_refs") or []) for spec in chunk_specs
+            ),
             "chunks_total": chunks_total,
             "chunks_completed": 0,
             "chunks_failed": 0,
             "chunks_cancelled": 0,
+            "chunk_specs": [
+                {
+                    "chunk_index": int(spec["chunk_index"]),
+                    "offset": int(spec["offset"]),
+                    "limit": int(spec["limit"]),
+                    "document_refs": [
+                        {"id": ref.id, "index": ref.index}
+                        for ref in spec.get("document_refs") or []
+                    ],
+                }
+                for spec in chunk_specs
+            ],
             "chunks": [],
             "queued_chunks": [],
             "started_at": utc_now().isoformat(),
@@ -714,16 +755,96 @@ def _mark_job_failed(*, config: GovernanceApiConfig, job_id: int, error: str) ->
         engine.dispose()
 
 
-def _build_chunk_specs(*, max_documents: int, chunk_size: int) -> list[dict[str, int]]:
-    chunks_total = max(1, math.ceil(max_documents / chunk_size))
-    specs: list[dict[str, int]] = []
-    for chunk_index in range(chunks_total):
-        offset = chunk_index * chunk_size
-        limit = min(chunk_size, max_documents - offset)
-        if limit <= 0:
-            break
-        specs.append({"chunk_index": chunk_index, "offset": offset, "limit": limit})
+def _collect_candidate_document_refs(
+    *,
+    client: ElasticsearchDiscoveryClient,
+    job: ElasticsearchEnrichmentJob,
+    update_index: str,
+    max_documents: int,
+) -> list[ElasticsearchDocumentRef]:
+    binding = job.binding
+    return client.search_document_refs(
+        index_name=update_index,
+        limit=max_documents,
+        filter_field=binding.filter_field,
+        filter_value=binding.filter_value,
+        timestamp_field=binding.timestamp_field,
+        time_window_days=binding.time_window_days,
+    )
+
+
+def _build_chunk_specs(
+    *, document_refs: list[ElasticsearchDocumentRef], chunk_size: int
+) -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
+    for chunk_index, offset in enumerate(range(0, len(document_refs), chunk_size)):
+        refs = document_refs[offset : offset + chunk_size]
+        if not refs:
+            continue
+        specs.append(
+            {
+                "chunk_index": chunk_index,
+                "offset": offset,
+                "limit": len(refs),
+                "document_refs": refs,
+            }
+        )
     return specs
+
+
+def _document_refs_for_chunk(
+    *, job: ElasticsearchEnrichmentJob, chunk_index: int
+) -> list[ElasticsearchDocumentRef] | None:
+    result_json = job.result_json or {}
+    chunked = result_json.get("chunked_enrichment") or {}
+    chunk_specs = chunked.get("chunk_specs")
+    if not isinstance(chunk_specs, list):
+        return None
+
+    for spec in chunk_specs:
+        if not isinstance(spec, dict):
+            continue
+        if int(spec.get("chunk_index", -1)) != int(chunk_index):
+            continue
+        refs_payload = spec.get("document_refs")
+        if not isinstance(refs_payload, list):
+            return []
+        refs: list[ElasticsearchDocumentRef] = []
+        for item in refs_payload:
+            if not isinstance(item, dict):
+                continue
+            document_id = str(item.get("id") or "").strip()
+            index_name = str(item.get("index") or "").strip()
+            if document_id and index_name:
+                refs.append(ElasticsearchDocumentRef(id=document_id, index=index_name))
+        return refs
+    return []
+
+
+def _finalize_empty_chunked_job(job: ElasticsearchEnrichmentJob) -> None:
+    now = utc_now()
+    result_json = dict(job.result_json or {})
+    chunked = dict(result_json.get("chunked_enrichment") or {})
+    chunked["chunks_completed"] = 0
+    chunked["chunks_failed"] = 0
+    chunked["chunks_cancelled"] = 0
+    chunked["finalized_at"] = now.isoformat()
+    job.documents_seen = 0
+    job.documents_enriched = 0
+    job.documents_failed = 0
+    job.status = "succeeded"
+    job.error_message = None
+    job.finished_at = now
+    job.result_json = {
+        **result_json,
+        "documents_seen": 0,
+        "documents_enriched": 0,
+        "documents_failed": 0,
+        "updated_document_ids": [],
+        "matched_documents": [],
+        "alias_result": None,
+        "chunked_enrichment": chunked,
+    }
 
 
 def _chunked_update_index(job: ElasticsearchEnrichmentJob) -> str:
