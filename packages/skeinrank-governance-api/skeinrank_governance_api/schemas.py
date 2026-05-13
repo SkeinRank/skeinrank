@@ -556,6 +556,88 @@ class TextCanonicalizeResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class QueryPlanRequest(BaseModel):
+    """Request body for building a runtime Elasticsearch query plan."""
+
+    profile_name: str = Field(..., min_length=1, max_length=128)
+    query: str = Field(..., min_length=1, max_length=2000)
+    text_fields: list[str] = Field(
+        default_factory=lambda: ["title", "text"], min_length=1
+    )
+    target_field: str = Field(default="skeinrank", min_length=1, max_length=256)
+    size: int = Field(default=10, ge=1, le=100)
+    canonical_boost: float = Field(default=3.0, ge=0.0, le=100.0)
+    include_evidence: bool = True
+    max_matches: int = Field(default=100, ge=1, le=1000)
+
+
+class QueryPlanResponse(BaseModel):
+    """Runtime query understanding and Elasticsearch DSL preview."""
+
+    profile_name: str
+    normalized_profile_name: str
+    query: str
+    canonical_query: str
+    changed: bool
+    text_fields: list[str]
+    target_field: str
+    canonical_values: list[str] = Field(default_factory=list)
+    slots: dict[str, list[str]] = Field(default_factory=dict)
+    matched_aliases: list[str] = Field(default_factory=list)
+    replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
+    evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    elasticsearch: dict[str, Any]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class SearchRequest(BaseModel):
+    """Request body for executing runtime search against Elasticsearch."""
+
+    profile_name: str = Field(..., min_length=1, max_length=128)
+    index_name: str = Field(..., min_length=1, max_length=256)
+    query: str = Field(..., min_length=1, max_length=2000)
+    text_fields: list[str] = Field(
+        default_factory=lambda: ["title", "text"], min_length=1
+    )
+    target_field: str = Field(default="skeinrank", min_length=1, max_length=256)
+    size: int = Field(default=10, ge=1, le=100)
+    canonical_boost: float = Field(default=3.0, ge=0.0, le=100.0)
+    include_source: bool = True
+    source_fields: list[str] | None = None
+    include_evidence: bool = True
+    max_matches: int = Field(default=100, ge=1, le=1000)
+
+
+class SearchHitResponse(BaseModel):
+    """One runtime search hit returned from Elasticsearch."""
+
+    id: str
+    index: str
+    score: float | None = None
+    source: dict[str, Any] = Field(default_factory=dict)
+    skeinrank: dict[str, Any] | None = None
+
+
+class SearchResponse(BaseModel):
+    """Runtime search response with query understanding metadata."""
+
+    profile_name: str
+    normalized_profile_name: str
+    index_name: str
+    query: str
+    canonical_query: str
+    changed: bool
+    canonical_values: list[str] = Field(default_factory=list)
+    slots: dict[str, list[str]] = Field(default_factory=dict)
+    matched_aliases: list[str] = Field(default_factory=list)
+    replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
+    evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    elasticsearch: dict[str, Any]
+    total: dict[str, Any] | int | None = None
+    hits: list[SearchHitResponse] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ConsoleDictionaryAliasInput(BaseModel):
     """Alias entry accepted by the user console import API."""
 
