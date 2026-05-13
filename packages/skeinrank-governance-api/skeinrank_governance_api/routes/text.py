@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Depends, HTTPException, status
 from skeinrank_governance.models import (
     CanonicalTerm,
+    ElasticsearchBinding,
     GovernanceGlobalStopListEntry,
     GovernanceStopListEntry,
     TermAlias,
@@ -20,6 +21,11 @@ from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
+from ..runtime_snapshots import (
+    active_runtime_alias_entries,
+    alias_entries_from_snapshot,
+    build_runtime_snapshot_payload,
+)
 from ..schemas import (
     TextCanonicalizeEvidence,
     TextCanonicalizeMatch,
@@ -53,6 +59,16 @@ class _CandidateMatch:
     confidence: float
 
 
+@dataclass(frozen=True)
+class _RuntimeAliasContext:
+    profile: TerminologyProfile
+    binding: ElasticsearchBinding | None
+    alias_entries: list[_AliasEntry]
+    snapshot_version: str | None
+    snapshot_source: str
+    warnings: list[str]
+
+
 @router.post("/canonicalize", response_model=TextCanonicalizeResponse)
 def canonicalize_text(
     request: TextCanonicalizeRequest,
@@ -61,7 +77,7 @@ def canonicalize_text(
     ),
     session: Session = Depends(get_session),
 ) -> TextCanonicalizeResponse:
-    """Canonicalize aliases and jargon in a text using one terminology profile."""
+    """Canonicalize aliases and jargon in a text using profile or binding context."""
 
     mode = request.mode.strip().lower()
     if mode not in _CANONICALIZE_MODES:
@@ -73,9 +89,12 @@ def canonicalize_text(
             ),
         )
 
-    profile = _get_profile_or_404(session, request.profile_name)
-    alias_entries = _active_alias_entries_for_profile(session, profile)
-    candidate_matches = _find_alias_matches(request.text, alias_entries)
+    context = _resolve_runtime_alias_context(
+        session=session,
+        profile_name=request.profile_name,
+        binding_id=request.binding_id,
+    )
+    candidate_matches = _find_alias_matches(request.text, context.alias_entries)
     matches = _select_non_overlapping_matches(candidate_matches, request.max_matches)
 
     canonical_text = request.text
@@ -108,20 +127,23 @@ def canonicalize_text(
         else []
     )
 
-    warnings: list[str] = []
+    warnings: list[str] = list(context.warnings)
     if candidate_matches and len(matches) < len(candidate_matches):
         warnings.append(
             "Some overlapping or extra matches were omitted from replacements."
         )
-    if not alias_entries:
-        warnings.append("No active aliases are available for this profile.")
+    if not context.alias_entries:
+        warnings.append("No active aliases are available for this runtime context.")
     if not matches:
         warnings.append("No active aliases matched the input text.")
 
     return TextCanonicalizeResponse(
-        profile_name=profile.name,
-        normalized_profile_name=profile.normalized_name,
+        profile_name=context.profile.name,
+        normalized_profile_name=context.profile.normalized_name,
         mode=mode,
+        binding_id=context.binding.id if context.binding is not None else None,
+        snapshot_version=context.snapshot_version,
+        snapshot_source=context.snapshot_source,
         original_text=request.text,
         canonical_text=canonical_text,
         changed=canonical_text != request.text,
@@ -132,6 +154,99 @@ def canonicalize_text(
         evidence=evidence,
         warnings=warnings,
     )
+
+
+def _resolve_runtime_alias_context(
+    *, session: Session, profile_name: str | None, binding_id: int | None
+) -> _RuntimeAliasContext:
+    """Resolve aliases for latest profile preview or binding-pinned runtime mode."""
+
+    warnings: list[str] = []
+    if binding_id is not None:
+        binding = _get_binding_or_404(session, binding_id)
+        if profile_name is not None and (
+            binding.profile.normalized_name != normalize_profile_name(profile_name)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Binding does not belong to the requested profile.",
+            )
+        alias_entries = _alias_entries_from_binding_snapshot(binding)
+        if alias_entries:
+            return _RuntimeAliasContext(
+                profile=binding.profile,
+                binding=binding,
+                alias_entries=alias_entries,
+                snapshot_version=binding.last_successful_snapshot_version,
+                snapshot_source="binding_runtime_snapshot",
+                warnings=warnings,
+            )
+        warnings.append(
+            "Binding has no runtime snapshot yet; latest profile state was used."
+        )
+        latest_snapshot = build_runtime_snapshot_payload(session, binding.profile)
+        return _RuntimeAliasContext(
+            profile=binding.profile,
+            binding=binding,
+            alias_entries=_alias_entries_from_runtime_entries(
+                active_runtime_alias_entries(session, binding.profile)
+            ),
+            snapshot_version=str(latest_snapshot["version"]),
+            snapshot_source="latest_profile",
+            warnings=warnings,
+        )
+
+    if profile_name is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Either binding_id or profile_name is required.",
+        )
+    profile = _get_profile_or_404(session, profile_name)
+    latest_snapshot = build_runtime_snapshot_payload(session, profile)
+    return _RuntimeAliasContext(
+        profile=profile,
+        binding=None,
+        alias_entries=_active_alias_entries_for_profile(session, profile),
+        snapshot_version=str(latest_snapshot["version"]),
+        snapshot_source="latest_profile",
+        warnings=warnings,
+    )
+
+
+def _get_binding_or_404(session: Session, binding_id: int) -> ElasticsearchBinding:
+    binding = session.scalar(
+        select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
+    )
+    if binding is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Elasticsearch binding not found: {binding_id}",
+        )
+    return binding
+
+
+def _alias_entries_from_binding_snapshot(
+    binding: ElasticsearchBinding,
+) -> list[_AliasEntry]:
+    if not isinstance(binding.runtime_snapshot_json, dict):
+        return []
+    return _alias_entries_from_runtime_entries(
+        alias_entries_from_snapshot(binding.runtime_snapshot_json)
+    )
+
+
+def _alias_entries_from_runtime_entries(entries) -> list[_AliasEntry]:
+    return [
+        _AliasEntry(
+            alias_value=entry.alias_value,
+            normalized_alias=entry.normalized_alias,
+            canonical_value=entry.canonical_value,
+            normalized_canonical=entry.normalized_canonical,
+            slot=entry.slot,
+            confidence=entry.confidence,
+        )
+        for entry in entries
+    ]
 
 
 def _get_profile_or_404(session: Session, profile_name: str) -> TerminologyProfile:
@@ -269,21 +384,14 @@ def _ranges_overlap(left: range, right: range) -> bool:
 def _replace_matches(text: str, matches: list[_CandidateMatch]) -> str:
     if not matches:
         return text
-    pieces: list[str] = []
+    result: list[str] = []
     cursor = 0
-    for match in sorted(matches, key=lambda item: item.start):
-        pieces.append(text[cursor : match.start])
-        pieces.append(match.canonical_value)
-        cursor = match.end
-    pieces.append(text[cursor:])
-    return "".join(pieces)
-
-
-def _slots_for_matches(matches: list[_CandidateMatch]) -> dict[str, list[str]]:
-    slots: dict[str, set[str]] = {}
     for match in matches:
-        slots.setdefault(match.slot, set()).add(match.canonical_value)
-    return {slot: sorted(values) for slot, values in sorted(slots.items())}
+        result.append(text[cursor : match.start])
+        result.append(match.canonical_value)
+        cursor = match.end
+    result.append(text[cursor:])
+    return "".join(result)
 
 
 def _match_response(match: _CandidateMatch) -> TextCanonicalizeMatch:
@@ -297,3 +405,10 @@ def _match_response(match: _CandidateMatch) -> TextCanonicalizeMatch:
         confidence=match.confidence,
         source="alias",
     )
+
+
+def _slots_for_matches(matches: list[_CandidateMatch]) -> dict[str, list[str]]:
+    slots: dict[str, set[str]] = {}
+    for match in matches:
+        slots.setdefault(match.slot, set()).add(match.canonical_value)
+    return {slot: sorted(values) for slot, values in sorted(slots.items())}

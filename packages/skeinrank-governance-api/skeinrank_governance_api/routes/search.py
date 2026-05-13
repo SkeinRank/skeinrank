@@ -5,18 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from skeinrank_governance.models import ElasticsearchBinding, normalize_profile_name
-from sqlalchemy import select
+from skeinrank_governance.models import ElasticsearchBinding
 from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
 from ..elasticsearch import ElasticsearchDiscoveryClient, ElasticsearchDiscoveryError
-from ..runtime_snapshots import (
-    active_runtime_alias_entries,
-    alias_entries_from_snapshot,
-    build_runtime_snapshot_payload,
-)
 from ..schemas import (
     QueryPlanRequest,
     QueryPlanResponse,
@@ -27,9 +21,9 @@ from ..schemas import (
 )
 from .text import (
     _find_alias_matches,
-    _get_profile_or_404,
     _match_response,
     _replace_matches,
+    _resolve_runtime_alias_context,
     _select_non_overlapping_matches,
     _slots_for_matches,
 )
@@ -54,10 +48,13 @@ def build_query_plan(
         query_text=request.query,
         text_fields=request.text_fields,
         target_field=request.target_field,
+        index_name=None,
         size=request.size,
         canonical_boost=request.canonical_boost,
         include_evidence=request.include_evidence,
         max_matches=request.max_matches,
+        warn_without_binding=False,
+        require_index=False,
     )
     return QueryPlanResponse(**plan)
 
@@ -80,10 +77,13 @@ def search_documents(
         query_text=request.query,
         text_fields=request.text_fields,
         target_field=request.target_field,
+        index_name=request.index_name,
         size=request.size,
         canonical_boost=request.canonical_boost,
         include_evidence=request.include_evidence,
         max_matches=request.max_matches,
+        warn_without_binding=True,
+        require_index=True,
     )
     search_body = dict(plan["elasticsearch"])
     source_filter = _source_filter(
@@ -100,7 +100,7 @@ def search_documents(
             detail="Elasticsearch URL is not configured.",
         )
     try:
-        payload = client.execute_search(index_name=request.index_name, body=search_body)
+        payload = client.execute_search(index_name=plan["index_name"], body=search_body)
     except ElasticsearchDiscoveryError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -110,12 +110,12 @@ def search_documents(
     hits_root = payload.get("hits") if isinstance(payload, dict) else None
     hits_payload = hits_root.get("hits", []) if isinstance(hits_root, dict) else []
     total = hits_root.get("total") if isinstance(hits_root, dict) else None
-    hits = [_search_hit_response(item, request.target_field) for item in hits_payload]
+    hits = [_search_hit_response(item, plan["target_field"]) for item in hits_payload]
 
     return SearchResponse(
         profile_name=plan["profile_name"],
         normalized_profile_name=plan["normalized_profile_name"],
-        index_name=request.index_name,
+        index_name=plan["index_name"],
         query=plan["query"],
         canonical_query=plan["canonical_query"],
         changed=plan["changed"],
@@ -137,29 +137,30 @@ def search_documents(
 def _build_runtime_plan(
     *,
     session: Session,
-    profile_name: str,
+    profile_name: str | None,
     binding_id: int | None,
     query_text: str,
-    text_fields: list[str],
-    target_field: str,
+    text_fields: list[str] | None,
+    target_field: str | None,
+    index_name: str | None,
     size: int,
     canonical_boost: float,
     include_evidence: bool,
     max_matches: int,
+    warn_without_binding: bool,
+    require_index: bool,
 ) -> dict[str, Any]:
-    profile = _get_profile_or_404(session, profile_name)
-    binding = _runtime_binding_or_none(
+    context = _resolve_runtime_alias_context(
         session=session, profile_name=profile_name, binding_id=binding_id
     )
-    if binding is not None and binding.profile_id != profile.id:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Binding does not belong to the requested profile.",
-        )
-    alias_entries, snapshot_version, snapshot_source = _runtime_alias_entries(
-        session=session, profile=profile, binding=binding
+    profile = context.profile
+    binding = context.binding
+    resolved_text_fields = _resolve_text_fields(text_fields, binding)
+    resolved_target_field = _resolve_target_field(target_field, binding)
+    resolved_index_name = _resolve_index_name(
+        index_name, binding, required=require_index
     )
-    candidate_matches = _find_alias_matches(query_text, alias_entries)
+    candidate_matches = _find_alias_matches(query_text, context.alias_entries)
     matches = _select_non_overlapping_matches(candidate_matches, max_matches)
 
     canonical_query = _replace_matches(query_text, matches)
@@ -186,13 +187,18 @@ def _build_runtime_plan(
         else []
     )
 
-    warnings: list[str] = []
+    warnings: list[str] = list(context.warnings)
+    if warn_without_binding and binding is None:
+        warnings.append(
+            "binding_id was not provided; runtime search used latest profile state. "
+            "Pass binding_id to use the binding-pinned runtime snapshot."
+        )
     if candidate_matches and len(matches) < len(candidate_matches):
         warnings.append(
             "Some overlapping or extra matches were omitted from query planning."
         )
-    if not alias_entries:
-        warnings.append("No active aliases are available for this profile.")
+    if not context.alias_entries:
+        warnings.append("No active aliases are available for this runtime context.")
     if not matches:
         warnings.append("No active aliases matched the query.")
 
@@ -202,11 +208,12 @@ def _build_runtime_plan(
         "query": query_text,
         "canonical_query": canonical_query,
         "changed": canonical_query != query_text,
-        "text_fields": _normalize_text_fields(text_fields),
-        "target_field": target_field,
+        "text_fields": resolved_text_fields,
+        "target_field": resolved_target_field,
+        "index_name": resolved_index_name,
         "binding_id": binding.id if binding is not None else None,
-        "snapshot_version": snapshot_version,
-        "snapshot_source": snapshot_source,
+        "snapshot_version": context.snapshot_version,
+        "snapshot_source": context.snapshot_source,
         "canonical_values": canonical_values,
         "slots": slots,
         "matched_aliases": matched_aliases,
@@ -215,56 +222,13 @@ def _build_runtime_plan(
         "elasticsearch": _build_elasticsearch_query(
             query_text=query_text,
             canonical_values=canonical_values,
-            text_fields=_normalize_text_fields(text_fields),
-            target_field=target_field,
+            text_fields=resolved_text_fields,
+            target_field=resolved_target_field,
             size=size,
             canonical_boost=canonical_boost,
         ),
         "warnings": warnings,
     }
-
-
-def _runtime_binding_or_none(
-    *, session: Session, profile_name: str, binding_id: int | None
-) -> ElasticsearchBinding | None:
-    if binding_id is None:
-        return None
-    binding = session.scalar(
-        select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
-    )
-    if binding is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Elasticsearch binding not found: {binding_id}",
-        )
-    if binding.profile.normalized_name != normalize_profile_name(profile_name):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Binding does not belong to the requested profile.",
-        )
-    return binding
-
-
-def _runtime_alias_entries(
-    *,
-    session: Session,
-    profile,
-    binding: ElasticsearchBinding | None,
-):
-    if binding is not None and isinstance(binding.runtime_snapshot_json, dict):
-        alias_entries = alias_entries_from_snapshot(binding.runtime_snapshot_json)
-        if alias_entries:
-            return (
-                alias_entries,
-                binding.last_successful_snapshot_version,
-                "binding_runtime_snapshot",
-            )
-    latest_snapshot = build_runtime_snapshot_payload(session, profile)
-    return (
-        active_runtime_alias_entries(session, profile),
-        str(latest_snapshot["version"]),
-        "latest_profile",
-    )
 
 
 def _build_elasticsearch_query(
@@ -304,7 +268,25 @@ def _build_elasticsearch_query(
     }
 
 
-def _normalize_text_fields(text_fields: list[str]) -> list[str]:
+def _resolve_index_name(
+    index_name: str | None, binding: ElasticsearchBinding | None, *, required: bool
+) -> str | None:
+    value = str(
+        index_name or (binding.index_name if binding is not None else "")
+    ).strip()
+    if not value and required:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Either index_name or binding_id is required for runtime search.",
+        )
+    return value or None
+
+
+def _resolve_text_fields(
+    text_fields: list[str] | None, binding: ElasticsearchBinding | None
+) -> list[str]:
+    if text_fields is None:
+        text_fields = binding.text_fields if binding is not None else ["title", "text"]
     normalized: list[str] = []
     for field in text_fields:
         value = str(field).strip()
@@ -316,6 +298,20 @@ def _normalize_text_fields(text_fields: list[str]) -> list[str]:
             detail="At least one text field is required.",
         )
     return normalized
+
+
+def _resolve_target_field(
+    target_field: str | None, binding: ElasticsearchBinding | None
+) -> str:
+    value = str(
+        target_field or (binding.target_field if binding is not None else "skeinrank")
+    ).strip()
+    if not value:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Target field is required.",
+        )
+    return value
 
 
 def _source_filter(

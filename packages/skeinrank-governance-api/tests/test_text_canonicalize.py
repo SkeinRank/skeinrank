@@ -246,3 +246,66 @@ def test_text_canonicalize_is_protected_when_auth_enabled(tmp_path):
     )
     assert authorized.status_code == 200
     assert authorized.json()["canonical_text"] == "kubernetes"
+
+
+def test_text_canonicalize_accepts_binding_id_and_uses_runtime_snapshot(tmp_path):
+    from skeinrank_governance.models import ElasticsearchBinding, TerminologyProfile
+    from skeinrank_governance_api.runtime_snapshots import (
+        build_runtime_snapshot_payload,
+    )
+
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "infra_incidents",
+            "index_name": "kb",
+            "text_fields": ["title", "text"],
+            "target_field": "skeinrank",
+            "mode": "write",
+            "write_strategy": "in_place",
+        },
+    )
+    assert binding_response.status_code == 201
+    binding_id = binding_response.json()["id"]
+
+    session_factory = client.app.state.governance_session_factory
+    with session_factory() as session:
+        profile = (
+            session.query(TerminologyProfile)
+            .filter_by(normalized_name="infra_incidents")
+            .one()
+        )
+        binding = session.get(ElasticsearchBinding, binding_id)
+        snapshot = build_runtime_snapshot_payload(session, profile)
+        binding.last_successful_snapshot_version = snapshot["version"]
+        binding.runtime_snapshot_json = snapshot
+        session.commit()
+
+    created_alias = client.post(
+        "/v1/governance/profiles/infra_incidents/terms/postgresql/aliases",
+        json={"alias_value": "pgx"},
+    )
+    assert created_alias.status_code == 201
+
+    latest_response = client.post(
+        "/v1/text/canonicalize",
+        json={"profile_name": "infra_incidents", "text": "pgx migration"},
+    )
+    assert latest_response.status_code == 200, latest_response.text
+    assert latest_response.json()["matched_aliases"] == ["pgx"]
+    assert latest_response.json()["snapshot_source"] == "latest_profile"
+
+    binding_response = client.post(
+        "/v1/text/canonicalize",
+        json={"binding_id": binding_id, "text": "pgx migration"},
+    )
+    assert binding_response.status_code == 200, binding_response.text
+    payload = binding_response.json()
+    assert payload["profile_name"] == "infra_incidents"
+    assert payload["binding_id"] == binding_id
+    assert payload["snapshot_source"] == "binding_runtime_snapshot"
+    assert payload["canonical_values"] == []
+    assert payload["matched_aliases"] == []
