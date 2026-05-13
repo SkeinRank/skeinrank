@@ -500,3 +500,154 @@ def test_search_without_binding_id_returns_preview_warning(tmp_path, monkeypatch
     assert any(
         "binding_id was not provided" in item for item in response.json()["warnings"]
     )
+
+
+class _MultiBindingFakeElasticsearchClient:
+    def __init__(self, _config):
+        self.is_configured = True
+
+    def execute_search(self, *, index_name: str, body: dict):
+        assert body["query"]["bool"]["should"][1]["terms"] == {
+            "skeinrank.canonical_values": ["kubernetes", "postgresql"],
+            "boost": 3.0,
+        }
+        if index_name == "kb_a":
+            return {
+                "hits": {
+                    "total": {"value": 1, "relation": "eq"},
+                    "hits": [
+                        {
+                            "_index": "kb_a",
+                            "_id": "doc_a",
+                            "_score": 1.0,
+                            "_source": {
+                                "title": "A incident",
+                                "skeinrank": {
+                                    "canonical_values": ["kubernetes"],
+                                },
+                            },
+                        }
+                    ],
+                }
+            }
+        if index_name == "kb_b":
+            return {
+                "hits": {
+                    "total": {"value": 1, "relation": "eq"},
+                    "hits": [
+                        {
+                            "_index": "kb_b",
+                            "_id": "doc_b",
+                            "_score": 4.0,
+                            "_source": {
+                                "title": "B runbook",
+                                "skeinrank": {
+                                    "canonical_values": ["postgresql"],
+                                },
+                            },
+                        }
+                    ],
+                }
+            }
+        raise AssertionError(f"unexpected index: {index_name}")
+
+
+def _create_binding(client: TestClient, *, name: str, index_name: str) -> int:
+    response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": name,
+            "profile_name": "infra_incidents",
+            "index_name": index_name,
+            "text_fields": ["title", "text"],
+            "target_field": "skeinrank",
+            "mode": "write",
+            "write_strategy": "in_place",
+        },
+    )
+    assert response.status_code == 201, response.text
+    return int(response.json()["id"])
+
+
+def _pin_binding_snapshot(client: TestClient, binding_id: int) -> str:
+    from skeinrank_governance.models import ElasticsearchBinding, TerminologyProfile
+    from skeinrank_governance_api.runtime_snapshots import (
+        build_runtime_snapshot_payload,
+    )
+
+    session_factory = client.app.state.governance_session_factory
+    with session_factory() as session:
+        profile = (
+            session.query(TerminologyProfile)
+            .filter_by(normalized_name="infra_incidents")
+            .one()
+        )
+        binding = session.get(ElasticsearchBinding, binding_id)
+        snapshot = build_runtime_snapshot_payload(session, profile)
+        binding.last_successful_snapshot_version = snapshot["version"]
+        binding.runtime_snapshot_json = snapshot
+        session.commit()
+    return str(snapshot["version"])
+
+
+def test_multi_search_executes_each_binding_and_merges_hits(tmp_path, monkeypatch):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding_a = _create_binding(client, name="binding a", index_name="kb_a")
+    binding_b = _create_binding(client, name="binding b", index_name="kb_b")
+    snapshot_a = _pin_binding_snapshot(client, binding_a)
+    snapshot_b = _pin_binding_snapshot(client, binding_b)
+    monkeypatch.setattr(
+        "skeinrank_governance_api.routes.search.ElasticsearchDiscoveryClient",
+        _MultiBindingFakeElasticsearchClient,
+    )
+
+    response = client.post(
+        "/v1/search/multi",
+        json={"binding_ids": [binding_a, binding_b], "query": "k8s pg", "size": 10},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["binding_ids"] == [binding_a, binding_b]
+    assert payload["total_bindings"] == 2
+    assert payload["succeeded_bindings"] == 2
+    assert payload["failed_bindings"] == 0
+    assert [item["status"] for item in payload["results"]] == [
+        "succeeded",
+        "succeeded",
+    ]
+    assert payload["results"][0]["snapshot_source"] == "binding_runtime_snapshot"
+    assert payload["results"][0]["snapshot_version"] == snapshot_a
+    assert payload["results"][1]["snapshot_version"] == snapshot_b
+    assert [hit["id"] for hit in payload["hits"]] == ["doc_b", "doc_a"]
+    assert payload["hits"][0]["binding_id"] == binding_b
+    assert payload["hits"][1]["binding_id"] == binding_a
+
+
+def test_multi_search_deduplicates_binding_ids_and_reports_partial_failures(
+    tmp_path, monkeypatch
+):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding_id = _create_binding(client, name="binding a", index_name="kb_a")
+    _pin_binding_snapshot(client, binding_id)
+    monkeypatch.setattr(
+        "skeinrank_governance_api.routes.search.ElasticsearchDiscoveryClient",
+        _MultiBindingFakeElasticsearchClient,
+    )
+
+    response = client.post(
+        "/v1/search/multi",
+        json={"binding_ids": [binding_id, binding_id, 999], "query": "k8s pg"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["binding_ids"] == [binding_id, 999]
+    assert payload["succeeded_bindings"] == 1
+    assert payload["failed_bindings"] == 1
+    assert payload["results"][0]["status"] == "succeeded"
+    assert payload["results"][1]["status"] == "failed"
+    assert "binding not found" in payload["results"][1]["error"]
+    assert any("Duplicate binding_id" in item for item in payload["warnings"])

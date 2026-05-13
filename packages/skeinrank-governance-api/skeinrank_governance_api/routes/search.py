@@ -12,6 +12,10 @@ from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
 from ..elasticsearch import ElasticsearchDiscoveryClient, ElasticsearchDiscoveryError
 from ..schemas import (
+    MultiSearchBindingResponse,
+    MultiSearchHitResponse,
+    MultiSearchRequest,
+    MultiSearchResponse,
     QueryPlanRequest,
     QueryPlanResponse,
     SearchHitResponse,
@@ -131,6 +135,127 @@ def search_documents(
         total=total,
         hits=hits,
         warnings=plan["warnings"],
+    )
+
+
+@router.post("/search/multi", response_model=MultiSearchResponse)
+def search_multiple_bindings(
+    request: MultiSearchRequest,
+    http_request: Request,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> MultiSearchResponse:
+    """Execute runtime search across multiple binding-specific search contexts."""
+
+    binding_ids, warnings = _deduplicate_binding_ids(request.binding_ids)
+    per_binding_size = request.per_binding_size or request.size
+    client = ElasticsearchDiscoveryClient(http_request.app.state.config)
+    if not client.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Elasticsearch URL is not configured.",
+        )
+
+    source_filter = _source_filter(
+        include_source=request.include_source,
+        source_fields=request.source_fields,
+    )
+    binding_results: list[MultiSearchBindingResponse] = []
+    merged_hits: list[MultiSearchHitResponse] = []
+
+    for binding_id in binding_ids:
+        try:
+            plan = _build_runtime_plan(
+                session=session,
+                profile_name=None,
+                binding_id=binding_id,
+                query_text=request.query,
+                text_fields=None,
+                target_field=None,
+                index_name=None,
+                size=per_binding_size,
+                canonical_boost=request.canonical_boost,
+                include_evidence=request.include_evidence,
+                max_matches=request.max_matches,
+                warn_without_binding=False,
+                require_index=True,
+            )
+            search_body = dict(plan["elasticsearch"])
+            if source_filter is not None:
+                search_body["_source"] = source_filter
+            payload = client.execute_search(
+                index_name=plan["index_name"], body=search_body
+            )
+            hits_root = payload.get("hits") if isinstance(payload, dict) else None
+            hits_payload = (
+                hits_root.get("hits", []) if isinstance(hits_root, dict) else []
+            )
+            total = hits_root.get("total") if isinstance(hits_root, dict) else None
+            hits = [_multi_search_hit_response(item, plan) for item in hits_payload]
+            merged_hits.extend(hits)
+            binding_results.append(
+                MultiSearchBindingResponse(
+                    binding_id=binding_id,
+                    status="succeeded",
+                    profile_name=plan["profile_name"],
+                    normalized_profile_name=plan["normalized_profile_name"],
+                    index_name=plan["index_name"],
+                    snapshot_version=plan["snapshot_version"],
+                    snapshot_source=plan["snapshot_source"],
+                    canonical_query=plan["canonical_query"],
+                    changed=plan["changed"],
+                    canonical_values=plan["canonical_values"],
+                    slots=plan["slots"],
+                    matched_aliases=plan["matched_aliases"],
+                    total=total,
+                    hits_count=len(hits),
+                    warnings=plan["warnings"],
+                )
+            )
+        except HTTPException as exc:
+            binding_results.append(
+                MultiSearchBindingResponse(
+                    binding_id=binding_id,
+                    status="failed",
+                    hits_count=0,
+                    error=str(exc.detail),
+                )
+            )
+        except ElasticsearchDiscoveryError as exc:
+            binding_results.append(
+                MultiSearchBindingResponse(
+                    binding_id=binding_id,
+                    status="failed",
+                    hits_count=0,
+                    error=str(exc),
+                )
+            )
+
+    merged_hits.sort(
+        key=lambda hit: hit.score if hit.score is not None else 0.0,
+        reverse=True,
+    )
+    merged_hits = merged_hits[: request.size]
+    succeeded_bindings = sum(
+        1 for item in binding_results if item.status == "succeeded"
+    )
+    failed_bindings = len(binding_results) - succeeded_bindings
+    if failed_bindings:
+        warnings.append(f"{failed_bindings} binding search request(s) failed.")
+
+    return MultiSearchResponse(
+        query=request.query,
+        binding_ids=binding_ids,
+        size=request.size,
+        per_binding_size=per_binding_size,
+        total_bindings=len(binding_ids),
+        succeeded_bindings=succeeded_bindings,
+        failed_bindings=failed_bindings,
+        results=binding_results,
+        hits=merged_hits,
+        warnings=warnings,
     )
 
 
@@ -312,6 +437,42 @@ def _resolve_target_field(
             detail="Target field is required.",
         )
     return value
+
+
+def _deduplicate_binding_ids(binding_ids: list[int]) -> tuple[list[int], list[str]]:
+    normalized: list[int] = []
+    seen: set[int] = set()
+    duplicates: list[int] = []
+    for binding_id in binding_ids:
+        if binding_id in seen:
+            duplicates.append(binding_id)
+            continue
+        seen.add(binding_id)
+        normalized.append(binding_id)
+    warnings: list[str] = []
+    if duplicates:
+        duplicate_values = ", ".join(str(value) for value in sorted(set(duplicates)))
+        warnings.append(
+            f"Duplicate binding_id values were ignored: {duplicate_values}."
+        )
+    return normalized, warnings
+
+
+def _multi_search_hit_response(
+    item: Any, plan: dict[str, Any]
+) -> MultiSearchHitResponse:
+    base_hit = _search_hit_response(item, plan["target_field"])
+    return MultiSearchHitResponse(
+        id=base_hit.id,
+        index=base_hit.index,
+        score=base_hit.score,
+        source=base_hit.source,
+        skeinrank=base_hit.skeinrank,
+        binding_id=int(plan["binding_id"]),
+        profile_name=str(plan["profile_name"]),
+        snapshot_version=plan.get("snapshot_version"),
+        snapshot_source=str(plan.get("snapshot_source") or "latest_profile"),
+    )
 
 
 def _source_filter(
