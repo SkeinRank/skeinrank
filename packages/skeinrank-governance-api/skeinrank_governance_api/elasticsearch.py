@@ -464,6 +464,21 @@ class ElasticsearchDiscoveryClient:
             )
         return hits
 
+    def execute_search(
+        self,
+        *,
+        index_name: str,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Execute a runtime Elasticsearch search request."""
+
+        payload = self._post_json(f"/{quote(index_name, safe='')}/_search", body)
+        if not isinstance(payload, dict):
+            raise ElasticsearchDiscoveryError(
+                "Unexpected Elasticsearch search response"
+            )
+        return payload
+
     def _get_json(self, path: str) -> Any:
         if not self.url:
             raise ElasticsearchDiscoveryError("Elasticsearch URL is not configured")
