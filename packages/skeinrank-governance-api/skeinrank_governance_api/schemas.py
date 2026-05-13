@@ -238,6 +238,11 @@ class ElasticsearchBindingResponse(BaseModel):
     mode: str
     write_strategy: str
     is_enabled: bool
+    last_successful_snapshot_version: str | None = None
+    last_successful_snapshot_at: datetime | None = None
+    last_successful_job_id: int | None = None
+    pending_snapshot_version: str | None = None
+    snapshot_status: str = "uninitialized"
     created_at: datetime
     updated_at: datetime
 
@@ -377,6 +382,7 @@ class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
 
     target_index_name: str | None = Field(default=None, min_length=1, max_length=256)
     alias_name: str | None = Field(default=None, min_length=1, max_length=256)
+    snapshot_version: str | None = Field(default=None, min_length=1, max_length=128)
     max_documents: int = Field(default=1000, ge=1, le=10000)
     chunk_size: int | None = Field(default=None, ge=1, le=1000)
 
@@ -406,6 +412,8 @@ class ElasticsearchEnrichmentJobResponse(BaseModel):
     source_index: str
     target_index: str | None = None
     alias_name: str | None = None
+    snapshot_version: str | None = None
+    previous_snapshot_version: str | None = None
     requested_by: str | None = None
     documents_seen: int
     documents_enriched: int
@@ -560,6 +568,7 @@ class QueryPlanRequest(BaseModel):
     """Request body for building a runtime Elasticsearch query plan."""
 
     profile_name: str = Field(..., min_length=1, max_length=128)
+    binding_id: int | None = Field(default=None, ge=1)
     query: str = Field(..., min_length=1, max_length=2000)
     text_fields: list[str] = Field(
         default_factory=lambda: ["title", "text"], min_length=1
@@ -581,6 +590,9 @@ class QueryPlanResponse(BaseModel):
     changed: bool
     text_fields: list[str]
     target_field: str
+    binding_id: int | None = None
+    snapshot_version: str | None = None
+    snapshot_source: str = "latest_profile"
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
@@ -594,6 +606,7 @@ class SearchRequest(BaseModel):
     """Request body for executing runtime search against Elasticsearch."""
 
     profile_name: str = Field(..., min_length=1, max_length=128)
+    binding_id: int | None = Field(default=None, ge=1)
     index_name: str = Field(..., min_length=1, max_length=256)
     query: str = Field(..., min_length=1, max_length=2000)
     text_fields: list[str] = Field(
@@ -627,6 +640,9 @@ class SearchResponse(BaseModel):
     query: str
     canonical_query: str
     changed: bool
+    binding_id: int | None = None
+    snapshot_version: str | None = None
+    snapshot_source: str = "latest_profile"
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)

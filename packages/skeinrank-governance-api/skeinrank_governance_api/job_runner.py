@@ -15,6 +15,11 @@ from .elasticsearch import (
     ElasticsearchDocumentRef,
     compose_source_text,
 )
+from .runtime_snapshots import (
+    alias_tuples_from_snapshot,
+    clear_binding_pending_snapshot,
+    mark_binding_snapshot_success,
+)
 
 CHUNK_RESULT_STATUS_SUCCEEDED = "succeeded"
 CHUNK_RESULT_STATUS_FAILED = "failed"
@@ -141,6 +146,7 @@ def run_elasticsearch_enrichment_job(
                 job.status = "failed"
                 job.error_message = str(exc)
                 job.finished_at = utc_now()
+                clear_binding_pending_snapshot(job.binding)
                 session.commit()
                 session.refresh(job)
                 return {"job_id": job_id, "status": "failed", "error": str(exc)}
@@ -269,6 +275,7 @@ def run_elasticsearch_enrichment_chunk(
                 job.status = "failed"
                 job.error_message = str(exc)
                 job.finished_at = utc_now()
+                clear_binding_pending_snapshot(job.binding)
                 session.commit()
                 session.refresh(job)
                 return {"job_id": job_id, "status": "failed", "chunk": result}
@@ -332,6 +339,7 @@ def _mark_job_cancelled_in_session(
         result_json["chunked_enrichment"] = chunked
 
     job.status = JOB_STATUS_CANCELLED
+    clear_binding_pending_snapshot(job.binding)
     job.error_message = None
     if job.finished_at is None:
         job.finished_at = now
@@ -399,7 +407,9 @@ def _execute_enrichment_chunk(
 
     binding = job.binding
     update_index = _chunked_update_index(job)
-    alias_entries = _active_alias_entries_for_profile(session, binding.profile)
+    alias_entries = alias_tuples_from_snapshot(job.snapshot_json)
+    if not alias_entries:
+        alias_entries = _active_alias_entries_for_profile(session, binding.profile)
     document_refs = _document_refs_for_chunk(job=job, chunk_index=chunk_index)
     if document_refs is None:
         # Backward-compatible fallback for jobs queued by an older coordinator.
@@ -428,7 +438,9 @@ def _execute_enrichment_chunk(
         matched_aliases = _match_alias_entries(text, alias_entries)
         if not matched_aliases:
             continue
-        would_write_payload = _dry_run_payload(binding, matched_aliases)
+        would_write_payload = _dry_run_payload(
+            binding, matched_aliases, snapshot_version=job.snapshot_version
+        )
         updates.append((hit.id, {binding.target_field: would_write_payload}))
         matched_documents.append(
             {
@@ -511,6 +523,7 @@ def _maybe_finalize_chunked_job(
         job.error_message = (
             failed[0].get("error") or "One or more enrichment chunks failed."
         )
+        clear_binding_pending_snapshot(job.binding)
         job.finished_at = utc_now()
         return
 
@@ -556,6 +569,11 @@ def _maybe_finalize_chunked_job(
         chunked["chunks_cancelled"] = 0
         job.result_json = {
             **result_json,
+            "snapshot_version": job.snapshot_version,
+            "previous_snapshot_version": job.previous_snapshot_version,
+            "snapshot_aliases_total": len(
+                (job.snapshot_json or {}).get("alias_entries") or []
+            ),
             "documents_seen": job.documents_seen,
             "documents_enriched": job.documents_enriched,
             "documents_failed": job.documents_failed,
@@ -568,6 +586,9 @@ def _maybe_finalize_chunked_job(
         job.status = "succeeded"
         job.error_message = None
         job.finished_at = utc_now()
+        mark_binding_snapshot_success(
+            binding=job.binding, job=job, completed_at=job.finished_at
+        )
     else:
         chunked["chunks_completed"] = len(completed)
         chunked["chunks_failed"] = len(failed)
@@ -596,6 +617,11 @@ def _initial_chunked_result_json(
         "source_index": job.source_index,
         "target_index": update_index,
         "alias_name": job.alias_name,
+        "snapshot_version": job.snapshot_version,
+        "previous_snapshot_version": job.previous_snapshot_version,
+        "snapshot_aliases_total": len(
+            (job.snapshot_json or {}).get("alias_entries") or []
+        ),
         "timestamp_field": job.binding.timestamp_field,
         "time_window_days": job.binding.time_window_days,
         "max_documents": max_documents,
@@ -750,6 +776,7 @@ def _mark_job_failed(*, config: GovernanceApiConfig, job_id: int, error: str) ->
             job.status = "failed"
             job.error_message = error
             job.finished_at = utc_now()
+            clear_binding_pending_snapshot(job.binding)
             session.commit()
     finally:
         engine.dispose()

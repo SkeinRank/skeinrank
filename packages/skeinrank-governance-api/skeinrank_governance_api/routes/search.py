@@ -5,11 +5,18 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from skeinrank_governance.models import ElasticsearchBinding, normalize_profile_name
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
 from ..elasticsearch import ElasticsearchDiscoveryClient, ElasticsearchDiscoveryError
+from ..runtime_snapshots import (
+    active_runtime_alias_entries,
+    alias_entries_from_snapshot,
+    build_runtime_snapshot_payload,
+)
 from ..schemas import (
     QueryPlanRequest,
     QueryPlanResponse,
@@ -19,7 +26,6 @@ from ..schemas import (
     TextCanonicalizeEvidence,
 )
 from .text import (
-    _active_alias_entries_for_profile,
     _find_alias_matches,
     _get_profile_or_404,
     _match_response,
@@ -44,6 +50,7 @@ def build_query_plan(
     plan = _build_runtime_plan(
         session=session,
         profile_name=request.profile_name,
+        binding_id=request.binding_id,
         query_text=request.query,
         text_fields=request.text_fields,
         target_field=request.target_field,
@@ -69,6 +76,7 @@ def search_documents(
     plan = _build_runtime_plan(
         session=session,
         profile_name=request.profile_name,
+        binding_id=request.binding_id,
         query_text=request.query,
         text_fields=request.text_fields,
         target_field=request.target_field,
@@ -111,6 +119,9 @@ def search_documents(
         query=plan["query"],
         canonical_query=plan["canonical_query"],
         changed=plan["changed"],
+        binding_id=plan["binding_id"],
+        snapshot_version=plan["snapshot_version"],
+        snapshot_source=plan["snapshot_source"],
         canonical_values=plan["canonical_values"],
         slots=plan["slots"],
         matched_aliases=plan["matched_aliases"],
@@ -127,6 +138,7 @@ def _build_runtime_plan(
     *,
     session: Session,
     profile_name: str,
+    binding_id: int | None,
     query_text: str,
     text_fields: list[str],
     target_field: str,
@@ -136,7 +148,17 @@ def _build_runtime_plan(
     max_matches: int,
 ) -> dict[str, Any]:
     profile = _get_profile_or_404(session, profile_name)
-    alias_entries = _active_alias_entries_for_profile(session, profile)
+    binding = _runtime_binding_or_none(
+        session=session, profile_name=profile_name, binding_id=binding_id
+    )
+    if binding is not None and binding.profile_id != profile.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Binding does not belong to the requested profile.",
+        )
+    alias_entries, snapshot_version, snapshot_source = _runtime_alias_entries(
+        session=session, profile=profile, binding=binding
+    )
     candidate_matches = _find_alias_matches(query_text, alias_entries)
     matches = _select_non_overlapping_matches(candidate_matches, max_matches)
 
@@ -182,6 +204,9 @@ def _build_runtime_plan(
         "changed": canonical_query != query_text,
         "text_fields": _normalize_text_fields(text_fields),
         "target_field": target_field,
+        "binding_id": binding.id if binding is not None else None,
+        "snapshot_version": snapshot_version,
+        "snapshot_source": snapshot_source,
         "canonical_values": canonical_values,
         "slots": slots,
         "matched_aliases": matched_aliases,
@@ -197,6 +222,49 @@ def _build_runtime_plan(
         ),
         "warnings": warnings,
     }
+
+
+def _runtime_binding_or_none(
+    *, session: Session, profile_name: str, binding_id: int | None
+) -> ElasticsearchBinding | None:
+    if binding_id is None:
+        return None
+    binding = session.scalar(
+        select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
+    )
+    if binding is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Elasticsearch binding not found: {binding_id}",
+        )
+    if binding.profile.normalized_name != normalize_profile_name(profile_name):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Binding does not belong to the requested profile.",
+        )
+    return binding
+
+
+def _runtime_alias_entries(
+    *,
+    session: Session,
+    profile,
+    binding: ElasticsearchBinding | None,
+):
+    if binding is not None and isinstance(binding.runtime_snapshot_json, dict):
+        alias_entries = alias_entries_from_snapshot(binding.runtime_snapshot_json)
+        if alias_entries:
+            return (
+                alias_entries,
+                binding.last_successful_snapshot_version,
+                "binding_runtime_snapshot",
+            )
+    latest_snapshot = build_runtime_snapshot_payload(session, profile)
+    return (
+        active_runtime_alias_entries(session, profile),
+        str(latest_snapshot["version"]),
+        "latest_profile",
+    )
 
 
 def _build_elasticsearch_query(

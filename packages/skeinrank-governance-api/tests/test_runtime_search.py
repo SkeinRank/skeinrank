@@ -298,3 +298,70 @@ def test_runtime_search_endpoints_are_protected_when_auth_enabled(tmp_path):
     )
     assert authorized_plan.status_code == 200
     assert authorized_plan.json()["canonical_values"] == ["kubernetes"]
+
+
+def test_query_plan_can_use_binding_runtime_snapshot_after_alias_is_disabled(tmp_path):
+    from skeinrank_governance.models import (
+        ElasticsearchBinding,
+        TermAlias,
+        TerminologyProfile,
+    )
+    from skeinrank_governance_api.runtime_snapshots import (
+        build_runtime_snapshot_payload,
+    )
+
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "infra_incidents",
+            "index_name": "kb",
+            "text_fields": ["title", "text"],
+            "target_field": "skeinrank",
+            "mode": "write",
+            "write_strategy": "in_place",
+        },
+    )
+    assert binding_response.status_code == 201
+    binding_id = binding_response.json()["id"]
+
+    session_factory = client.app.state.governance_session_factory
+    with session_factory() as session:
+        profile = (
+            session.query(TerminologyProfile)
+            .filter_by(normalized_name="infra_incidents")
+            .one()
+        )
+        binding = session.get(ElasticsearchBinding, binding_id)
+        snapshot = build_runtime_snapshot_payload(session, profile)
+        binding.last_successful_snapshot_version = snapshot["version"]
+        binding.runtime_snapshot_json = snapshot
+        alias = session.query(TermAlias).filter_by(normalized_alias="k8s").one()
+        alias.status = "disabled"
+        session.commit()
+
+    latest_response = client.post(
+        "/v1/query/plan",
+        json={"profile_name": "infra_incidents", "query": "k8s rollout"},
+    )
+    assert latest_response.status_code == 200
+    assert latest_response.json()["canonical_values"] == []
+    assert latest_response.json()["snapshot_source"] == "latest_profile"
+
+    binding_response = client.post(
+        "/v1/query/plan",
+        json={
+            "profile_name": "infra_incidents",
+            "binding_id": binding_id,
+            "query": "k8s rollout",
+        },
+    )
+    assert binding_response.status_code == 200
+    payload = binding_response.json()
+    assert payload["binding_id"] == binding_id
+    assert payload["snapshot_source"] == "binding_runtime_snapshot"
+    assert payload["snapshot_version"] == snapshot["version"]
+    assert payload["canonical_values"] == ["kubernetes"]
+    assert payload["canonical_query"] == "kubernetes rollout"

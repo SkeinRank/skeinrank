@@ -59,6 +59,14 @@ from ..elasticsearch import (
     get_source_values,
     source_preview,
 )
+from ..runtime_snapshots import (
+    alias_tuples_from_snapshot,
+    binding_snapshot_status,
+    build_runtime_snapshot_payload,
+    clear_binding_pending_snapshot,
+    mark_binding_snapshot_success,
+    restore_binding_previous_snapshot,
+)
 from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
@@ -816,11 +824,16 @@ def dry_run_elasticsearch_binding(
         ) from exc
 
     alias_entries = _active_alias_entries_for_profile(session, binding.profile)
+    snapshot_payload = build_runtime_snapshot_payload(session, binding.profile)
     documents: list[ElasticsearchBindingDryRunDocument] = []
     for hit in hits:
         text = compose_source_text(hit.source, list(binding.text_fields))
         matched_aliases = _match_alias_entries(text, alias_entries)
-        would_write_payload = _dry_run_payload(binding, matched_aliases)
+        would_write_payload = _dry_run_payload(
+            binding,
+            matched_aliases,
+            snapshot_version=str(snapshot_payload["version"]),
+        )
         preview_fields = list(binding.text_fields)
         if binding.filter_field:
             preview_fields = [*preview_fields, binding.filter_field]
@@ -911,6 +924,12 @@ def start_elasticsearch_enrichment_job(
             detail="Elasticsearch URL is not configured.",
         )
 
+    snapshot_payload = build_runtime_snapshot_payload(
+        session,
+        binding.profile,
+        snapshot_version=request_body.snapshot_version,
+    )
+    previous_successful_job_id = binding.last_successful_job_id
     job = ElasticsearchEnrichmentJob(
         binding=binding,
         profile=binding.profile,
@@ -919,9 +938,14 @@ def start_elasticsearch_enrichment_job(
         source_index=binding.index_name,
         target_index=_job_target_index(binding, request_body.target_index_name),
         alias_name=_job_alias_name(binding, request_body.alias_name),
+        snapshot_version=str(snapshot_payload["version"]),
+        snapshot_json=snapshot_payload,
+        previous_snapshot_version=binding.last_successful_snapshot_version,
+        previous_snapshot_json=binding.runtime_snapshot_json,
         requested_by=current_user.username,
         result_json={},
     )
+    binding.pending_snapshot_version = job.snapshot_version
     session.add(job)
     session.flush()
     if (
@@ -938,6 +962,12 @@ def start_elasticsearch_enrichment_job(
         "job_backend": request.app.state.config.enrichment_jobs_backend,
         "max_documents": request_body.max_documents,
         "chunk_size": chunk_size,
+        "snapshot_version": job.snapshot_version,
+        "snapshot_aliases_total": len(
+            (job.snapshot_json or {}).get("alias_entries") or []
+        ),
+        "previous_snapshot_version": job.previous_snapshot_version,
+        "previous_successful_job_id": previous_successful_job_id,
     }
 
     if request.app.state.config.enrichment_jobs_backend == "celery":
@@ -952,6 +982,7 @@ def start_elasticsearch_enrichment_job(
             job.status = "failed"
             job.error_message = str(exc)
             job.finished_at = utc_now()
+            clear_binding_pending_snapshot(binding)
             session.commit()
             session.refresh(job)
             raise HTTPException(
@@ -984,6 +1015,7 @@ def start_elasticsearch_enrichment_job(
         job.status = "failed"
         job.error_message = str(exc)
         job.finished_at = utc_now()
+        clear_binding_pending_snapshot(binding)
         session.commit()
         session.refresh(job)
         return _elasticsearch_enrichment_job_response(job)
@@ -995,6 +1027,9 @@ def start_elasticsearch_enrichment_job(
     job.documents_failed = result.get("documents_failed", 0)
     job.result_json = result
     job.finished_at = utc_now()
+    mark_binding_snapshot_success(
+        binding=binding, job=job, completed_at=job.finished_at
+    )
     session.commit()
     session.refresh(job)
     return _elasticsearch_enrichment_job_response(job)
@@ -1162,6 +1197,7 @@ def rollback_elasticsearch_enrichment_job(
         ),
     }
     job.result_json = result_json
+    restore_binding_previous_snapshot(binding=job.binding, job=job)
     session.commit()
     session.refresh(job)
     return _elasticsearch_enrichment_job_response(job)
@@ -2054,7 +2090,10 @@ def _contains_alias(normalized_text: str, normalized_alias: str) -> bool:
 
 
 def _dry_run_payload(
-    binding: ElasticsearchBinding, matches: list[ElasticsearchDryRunMatchedAlias]
+    binding: ElasticsearchBinding,
+    matches: list[ElasticsearchDryRunMatchedAlias],
+    *,
+    snapshot_version: str | None = None,
 ) -> dict[str, object]:
     canonical_values = sorted({match.canonical_value for match in matches})
     slots: dict[str, set[str]] = {}
@@ -2068,6 +2107,7 @@ def _dry_run_payload(
         "profile_id": binding.profile.name,
         "binding_id": binding.id,
         "binding_name": binding.name,
+        "snapshot_version": snapshot_version,
         "canonical_values": canonical_values,
         "slots": {slot: sorted(values) for slot, values in sorted(slots.items())},
         "matched_aliases": sorted({match.alias_value for match in matches}),
@@ -2145,7 +2185,9 @@ def _execute_elasticsearch_enrichment_job(
             f"Unsupported write strategy: {binding.write_strategy}"
         )
 
-    alias_entries = _active_alias_entries_for_profile(session, binding.profile)
+    alias_entries = alias_tuples_from_snapshot(job.snapshot_json)
+    if not alias_entries:
+        alias_entries = _active_alias_entries_for_profile(session, binding.profile)
     hits = client.search_documents(
         index_name=update_index,
         text_fields=list(binding.text_fields),
@@ -2163,7 +2205,9 @@ def _execute_elasticsearch_enrichment_job(
         matched_aliases = _match_alias_entries(text, alias_entries)
         if not matched_aliases:
             continue
-        would_write_payload = _dry_run_payload(binding, matched_aliases)
+        would_write_payload = _dry_run_payload(
+            binding, matched_aliases, snapshot_version=job.snapshot_version
+        )
         updates.append((hit.id, {binding.target_field: would_write_payload}))
         matched_documents.append(
             {
@@ -2213,6 +2257,11 @@ def _execute_elasticsearch_enrichment_job(
         "source_index": binding.index_name,
         "target_index": update_index,
         "alias_name": job.alias_name,
+        "snapshot_version": job.snapshot_version,
+        "previous_snapshot_version": job.previous_snapshot_version,
+        "snapshot_aliases_total": len(
+            (job.snapshot_json or {}).get("alias_entries") or []
+        ),
         "timestamp_field": binding.timestamp_field,
         "time_window_days": binding.time_window_days,
         "documents_seen": len(hits),
@@ -2390,6 +2439,8 @@ def _elasticsearch_enrichment_job_response(
         source_index=job.source_index,
         target_index=job.target_index,
         alias_name=job.alias_name,
+        snapshot_version=job.snapshot_version,
+        previous_snapshot_version=job.previous_snapshot_version,
         requested_by=job.requested_by,
         documents_seen=job.documents_seen,
         documents_enriched=job.documents_enriched,
@@ -2911,6 +2962,11 @@ def _elasticsearch_binding_response(
         mode=binding.mode,
         write_strategy=binding.write_strategy,
         is_enabled=binding.is_enabled,
+        last_successful_snapshot_version=binding.last_successful_snapshot_version,
+        last_successful_snapshot_at=binding.last_successful_snapshot_at,
+        last_successful_job_id=binding.last_successful_job_id,
+        pending_snapshot_version=binding.pending_snapshot_version,
+        snapshot_status=binding_snapshot_status(binding),
         created_at=binding.created_at,
         updated_at=binding.updated_at,
     )

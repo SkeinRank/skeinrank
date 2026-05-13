@@ -799,6 +799,14 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
     assert payload["documents_seen"] == 2
     assert payload["documents_enriched"] == 1
     assert payload["result_json"]["updated_document_ids"] == ["1"]
+    assert payload["snapshot_version"].startswith("default_it@")
+    assert payload["result_json"]["snapshot_version"] == payload["snapshot_version"]
+    assert (
+        payload["result_json"]["matched_documents"][0]["would_write"]["skeinrank"][
+            "snapshot_version"
+        ]
+        == payload["snapshot_version"]
+    )
     assert payload["result_json"]["timestamp_field"] == "created_at"
     assert payload["result_json"]["time_window_days"] == 30
     rollout = payload["result_json"]["rollout"]
@@ -820,6 +828,17 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
     detail_response = client.get(f"/v1/governance/elasticsearch/jobs/{payload['id']}")
     assert detail_response.status_code == 200
     assert detail_response.json()["status"] == "succeeded"
+
+    bindings_response = client.get("/v1/governance/elasticsearch/bindings")
+    assert bindings_response.status_code == 200
+    binding_payload = bindings_response.json()[0]
+    assert (
+        binding_payload["last_successful_snapshot_version"]
+        == payload["snapshot_version"]
+    )
+    assert binding_payload["last_successful_job_id"] == payload["id"]
+    assert binding_payload["pending_snapshot_version"] is None
+    assert binding_payload["snapshot_status"] == "ready"
 
 
 def test_elasticsearch_reindex_alias_swap_job_can_be_rolled_back(monkeypatch, tmp_path):
@@ -896,6 +915,10 @@ def test_elasticsearch_reindex_alias_swap_job_can_be_rolled_back(monkeypatch, tm
     assert rollout["rollback"]["rollback_candidate_index"] == "docs_v1"
     assert rollout["rollback"]["alias_indices_after_rollback"] == ["docs_v1"]
     assert RollbackFakeElasticsearchClient.alias_state["docs"] == ["docs_v1"]
+    bindings_after_rollback = client.get("/v1/governance/elasticsearch/bindings")
+    assert bindings_after_rollback.status_code == 200
+    assert bindings_after_rollback.json()[0]["last_successful_snapshot_version"] is None
+    assert bindings_after_rollback.json()[0]["snapshot_status"] == "uninitialized"
 
     second_rollback_response = client.post(
         f"/v1/governance/elasticsearch/jobs/{job_payload['id']}/rollback"
@@ -957,13 +980,13 @@ def test_elasticsearch_enrichment_job_can_be_queued_for_celery(monkeypatch, tmp_
     assert payload["started_at"] is None
     assert payload["finished_at"] is None
     assert payload["documents_seen"] == 0
-    assert payload["result_json"] == {
-        "job_backend": "celery",
-        "max_documents": 2,
-        "chunk_size": 2,
-        "celery_task_id": "task-123",
-        "celery_queue": "test.enrichment",
-    }
+    assert payload["result_json"]["job_backend"] == "celery"
+    assert payload["result_json"]["max_documents"] == 2
+    assert payload["result_json"]["chunk_size"] == 2
+    assert payload["result_json"]["celery_task_id"] == "task-123"
+    assert payload["result_json"]["celery_queue"] == "test.enrichment"
+    assert payload["snapshot_version"].startswith("default_it@")
+    assert payload["result_json"]["snapshot_version"] == payload["snapshot_version"]
     assert enqueued["job_id"] == payload["id"]
 
 
