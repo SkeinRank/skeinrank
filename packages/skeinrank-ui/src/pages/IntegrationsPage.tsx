@@ -814,6 +814,7 @@ function BindingsTable({
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Index</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Discriminator</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Strategy</th>
+                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Runtime snapshot</th>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">Status</th>
               </tr>
             </thead>
@@ -829,12 +830,20 @@ function BindingsTable({
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><code>{binding.index_name}</code></td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">{formatDiscriminator(binding)}</td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><BindingWriteStrategyBadge strategy={binding.write_strategy} /></td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    <div className="space-y-1">
+                      <BindingSnapshotStatusBadge status={binding.snapshot_status} />
+                      <div className="max-w-[180px] truncate font-mono text-xs text-slate-500 dark:text-slate-400" title={binding.last_successful_snapshot_version ?? undefined}>
+                        {formatSnapshotVersion(binding.last_successful_snapshot_version)}
+                      </div>
+                    </div>
+                  </td>
                   <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800"><BindingStatusBadge isEnabled={binding.is_enabled} /></td>
                 </tr>
               ))}
               {bindings.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={6}>No bindings found for this profile.</td>
+                  <td className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={7}>No bindings found for this profile.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -1023,6 +1032,9 @@ function BindingDetailsPanel({
             Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.
           </div>
         ) : null}
+
+        <BindingSnapshotPanel binding={binding} latestJob={jobs[0] ?? null} />
+
         <form className="space-y-4" onSubmit={handleSubmit}>
           <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit binding name</span><Input disabled={!canManage || isUpdating || isDeleting} onChange={(event) => setName(event.target.value)} value={name} /></label>
           <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700 dark:text-slate-200">Edit profile</span><select className={selectClassName} disabled={!canManage || isUpdating || isDeleting || profiles.length === 0} onChange={(event) => setProfileName(event.target.value)} value={profileName}>{profiles.map((profile) => <option key={profile.id} value={profile.name}>{profile.name}</option>)}</select></label>
@@ -1084,6 +1096,67 @@ function BindingDetailsPanel({
   );
 }
 
+
+
+function BindingSnapshotPanel({ binding, latestJob }: { binding: ElasticsearchBinding; latestJob: ElasticsearchEnrichmentJob | null }) {
+  const latestJobProgress = latestJob ? getJobProgress(latestJob) : null;
+  const isUpdating = binding.snapshot_status === "updating" || latestJob?.status === "running" || latestJob?.status === "queued";
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-medium text-slate-950 dark:text-slate-50">Runtime snapshot</div>
+            <BindingSnapshotStatusBadge status={binding.snapshot_status} />
+          </div>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Runtime search should use this binding snapshot until a new enrichment job succeeds.
+          </p>
+        </div>
+        <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">binding #{binding.id}</Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+        <SnapshotInfoItem label="Current runtime snapshot" value={formatSnapshotVersion(binding.last_successful_snapshot_version)} title={binding.last_successful_snapshot_version ?? undefined} />
+        <SnapshotInfoItem label="Last successful job" value={binding.last_successful_job_id ? `#${binding.last_successful_job_id}` : "—"} />
+        <SnapshotInfoItem label="Last successful at" value={formatDateTime(binding.last_successful_snapshot_at ?? null)} />
+        <SnapshotInfoItem label="Pending snapshot" value={formatSnapshotVersion(binding.pending_snapshot_version)} title={binding.pending_snapshot_version ?? undefined} />
+      </div>
+
+      {binding.snapshot_status === "stale" ? (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          Profile changes are not applied to this binding yet. Run enrichment before using the latest terminology in production runtime search.
+        </div>
+      ) : null}
+
+      {binding.snapshot_status === "never_enriched" ? (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          This binding has no successful runtime snapshot yet. Runtime search will fall back to the latest profile snapshot until enrichment succeeds.
+        </div>
+      ) : null}
+
+      {isUpdating && latestJobProgress ? (
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+            <span>Latest job progress</span>
+            <span>{latestJobProgress.label}</span>
+          </div>
+          <ProgressBar value={latestJobProgress.percent} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SnapshotInfoItem({ label, title, value }: { label: string; title?: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-1 truncate font-mono text-sm text-slate-800 dark:text-slate-100" title={title ?? value}>{value}</div>
+    </div>
+  );
+}
 
 function EnrichmentJobsPanel({
   binding,
@@ -1220,6 +1293,7 @@ function EnrichmentJobsPanel({
                 <tr>
                   <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Job</th>
                   <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Status</th>
+                  <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Snapshot</th>
                   <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Docs</th>
                   <th className="border-b border-slate-200 px-3 py-2 font-semibold dark:border-slate-800">Finished</th>
                 </tr>
@@ -1229,6 +1303,7 @@ function EnrichmentJobsPanel({
                   <tr className={selectedJobId === job.id ? "bg-slate-50 dark:bg-slate-900" : ""} key={job.id}>
                     <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800"><button className="font-medium text-slate-950 underline-offset-2 hover:underline dark:text-slate-50" onClick={() => onSelectJob(job.id)} type="button">#{job.id}</button></td>
                     <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800"><JobStatusBadge status={job.status} /></td>
+                    <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800"><span className="font-mono text-[11px] text-slate-500 dark:text-slate-400" title={job.snapshot_version ?? undefined}>{formatSnapshotVersion(job.snapshot_version)}</span></td>
                     <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{job.documents_enriched}/{job.documents_seen}</td>
                     <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{formatDateTime(job.finished_at)}</td>
                   </tr>
@@ -1273,6 +1348,7 @@ function JobDetails({
 }) {
   const cancellation = job.result_json?.cancellation as Record<string, unknown> | undefined;
   const rollout = job.result_json?.rollout as Record<string, unknown> | undefined;
+  const progress = getJobProgress(job);
 
   return (
     <div className="mt-5 space-y-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
@@ -1292,6 +1368,13 @@ function JobDetails({
           </Button>
         ) : null}
       </div>
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/40">
+        <div className="flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <span>Progress</span>
+          <span>{progress.label}</span>
+        </div>
+        <ProgressBar value={progress.percent} />
+      </div>
       <div className="grid gap-2 text-slate-600 dark:text-slate-300 sm:grid-cols-2">
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Binding:</span> {job.binding_name}</div>
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Profile:</span> {job.profile_name}</div>
@@ -1300,6 +1383,8 @@ function JobDetails({
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Source index:</span> <code>{job.source_index}</code></div>
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Target index:</span> {job.target_index ? <code>{job.target_index}</code> : "—"}</div>
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Alias:</span> {job.alias_name ? <code>{job.alias_name}</code> : "—"}</div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Snapshot:</span> <code>{formatSnapshotVersion(job.snapshot_version)}</code></div>
+        <div><span className="font-medium text-slate-700 dark:text-slate-200">Previous snapshot:</span> <code>{formatSnapshotVersion(job.previous_snapshot_version)}</code></div>
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Failed docs:</span> {job.documents_failed}</div>
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Started:</span> {formatDateTime(job.started_at)}</div>
         <div><span className="font-medium text-slate-700 dark:text-slate-200">Finished:</span> {formatDateTime(job.finished_at)}</div>
@@ -1527,6 +1612,87 @@ function BindingValidationMessages({ validation }: { validation: BindingValidati
   }
 
   return null;
+}
+
+
+function BindingSnapshotStatusBadge({ status }: { status?: string | null }) {
+  const normalizedStatus = status ?? "never_enriched";
+  const className =
+    normalizedStatus === "ready"
+      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
+      : normalizedStatus === "stale"
+        ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
+        : normalizedStatus === "updating"
+          ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200"
+          : normalizedStatus === "failed"
+            ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200"
+            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+  return <Badge className={className}>{formatSnapshotStatus(normalizedStatus)}</Badge>;
+}
+
+function formatSnapshotStatus(status: string) {
+  if (status === "never_enriched") return "never enriched";
+  return status.replace(/_/g, " ");
+}
+
+function formatSnapshotVersion(value?: string | null) {
+  if (!value) return "—";
+  return value;
+}
+
+type JobProgress = {
+  percent: number;
+  label: string;
+};
+
+function getJobProgress(job: ElasticsearchEnrichmentJob): JobProgress {
+  const chunked = job.result_json?.chunked_enrichment as Record<string, unknown> | undefined;
+  const chunksTotal = asNumber(chunked?.chunks_total);
+  const chunksCompleted = asNumber(chunked?.chunks_completed);
+  const chunksFailed = asNumber(chunked?.chunks_failed);
+  const chunksCancelled = asNumber(chunked?.chunks_cancelled);
+  if (chunksTotal && chunksTotal > 0) {
+    const completedUnits = (chunksCompleted ?? 0) + (chunksFailed ?? 0) + (chunksCancelled ?? 0);
+    return {
+      percent: clampPercent(Math.round((completedUnits / chunksTotal) * 100)),
+      label: `${completedUnits}/${chunksTotal} chunks`,
+    };
+  }
+
+  if (job.status === "succeeded" || job.status === "failed" || job.status === "cancelled") {
+    return { percent: 100, label: `${job.documents_enriched}/${job.documents_seen} docs enriched` };
+  }
+
+  if (job.status === "queued") {
+    return { percent: 0, label: "queued" };
+  }
+
+  const maxDocuments = asNumber(job.result_json?.max_documents);
+  if (maxDocuments && maxDocuments > 0) {
+    return {
+      percent: clampPercent(Math.round((job.documents_seen / maxDocuments) * 100)),
+      label: `${job.documents_seen}/${maxDocuments} docs seen`,
+    };
+  }
+
+  return { percent: job.status === "running" ? 50 : 0, label: `${job.documents_enriched}/${job.documents_seen} docs enriched` };
+}
+
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
+      <div className="h-full rounded-full bg-slate-950 transition-all dark:bg-slate-100" style={{ width: `${clampPercent(value)}%` }} />
+    </div>
+  );
+}
+
+function asNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
 }
 
 function BindingStatusBadge({ isEnabled }: { isEnabled: boolean }) {
