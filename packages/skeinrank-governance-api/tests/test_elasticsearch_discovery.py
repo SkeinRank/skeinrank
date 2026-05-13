@@ -68,6 +68,32 @@ class FakeElasticsearchClient:
     last_search_args = None
     last_reindex_args = None
 
+    def _all_hits(self, *, index_name: str = "docs"):
+        from skeinrank_governance_api.elasticsearch import ElasticsearchSearchHit
+
+        return [
+            ElasticsearchSearchHit(
+                id="1",
+                index=index_name,
+                source={
+                    "title": "K8s outage",
+                    "body": "Kube rollout failed",
+                    "team": "infra",
+                    "created_at": "2026-05-08T00:00:00Z",
+                },
+            ),
+            ElasticsearchSearchHit(
+                id="2",
+                index=index_name,
+                source={"title": "Postgres note", "body": "No match"},
+            ),
+            ElasticsearchSearchHit(
+                id="3",
+                index=index_name,
+                source={"title": "K8s runbook", "body": "k8s recovery steps"},
+            ),
+        ]
+
     def search_documents(
         self,
         *,
@@ -94,32 +120,57 @@ class FakeElasticsearchClient:
             or index_name == "docs_v2"
         )
         assert text_fields == ["title", "body"]
-        assert limit in {1, 2}
-        from skeinrank_governance_api.elasticsearch import ElasticsearchSearchHit
-
-        hits = [
-            ElasticsearchSearchHit(
-                id="1",
-                index="docs",
-                source={
-                    "title": "K8s outage",
-                    "body": "Kube rollout failed",
-                    "team": "infra",
-                    "created_at": "2026-05-08T00:00:00Z",
-                },
-            ),
-            ElasticsearchSearchHit(
-                id="2",
-                index="docs",
-                source={"title": "Postgres note", "body": "No match"},
-            ),
-            ElasticsearchSearchHit(
-                id="3",
-                index="docs",
-                source={"title": "K8s runbook", "body": "k8s recovery steps"},
-            ),
-        ]
+        assert limit in {1, 2, 3, 10}
+        hits = self._all_hits(index_name=index_name)
         return hits[offset : offset + limit]
+
+    def search_document_refs(
+        self,
+        *,
+        index_name,
+        limit,
+        filter_field=None,
+        filter_value=None,
+        timestamp_field=None,
+        time_window_days=None,
+    ):
+        from skeinrank_governance_api.elasticsearch import ElasticsearchDocumentRef
+
+        assert (
+            index_name == "docs"
+            or index_name.startswith("docs__skeinrank_job_")
+            or index_name == "docs_v2"
+        )
+        type(self).last_search_args = {
+            "filter_field": filter_field,
+            "filter_value": filter_value,
+            "timestamp_field": timestamp_field,
+            "time_window_days": time_window_days,
+            "offset": 0,
+            "limit": limit,
+        }
+        return [
+            ElasticsearchDocumentRef(id=hit.id, index=hit.index)
+            for hit in self._all_hits(index_name=index_name)[:limit]
+        ]
+
+    def get_documents_by_refs(
+        self,
+        *,
+        document_refs,
+        text_fields,
+        filter_field=None,
+        timestamp_field=None,
+    ):
+        assert text_fields == ["title", "body"]
+        hits_by_id = {hit.id: hit for hit in self._all_hits()}
+        hits = []
+        for ref in document_refs:
+            hit = hits_by_id.get(ref.id)
+            if hit is None:
+                continue
+            hits.append(type(hit)(id=hit.id, index=ref.index, source=hit.source))
+        return hits
 
     last_evidence_args = None
 
@@ -1142,6 +1193,131 @@ def test_celery_enrichment_job_is_split_into_parallel_chunks(monkeypatch, tmp_pa
     assert rollout["rollback_candidate_index"] == "docs_v1"
     assert rollout["rollback_available"] is True
     assert rollout["alias_swap_completed"] is True
+
+
+def test_celery_chunked_enrichment_uses_stable_document_snapshot(monkeypatch, tmp_path):
+    from skeinrank_governance_api import job_runner
+    from skeinrank_governance_api.routes import governance
+    from skeinrank_governance_api.worker_queue import EnqueuedTask
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    monkeypatch.setattr(
+        job_runner, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+
+    def fake_enqueue_elasticsearch_enrichment_job(*, config, job_id):
+        return EnqueuedTask(task_id="coordinator-task", queue=config.celery_task_queue)
+
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_job",
+        fake_enqueue_elasticsearch_enrichment_job,
+    )
+
+    enqueued_chunks: list[dict[str, int]] = []
+
+    def fake_enqueue_elasticsearch_enrichment_chunk(
+        *, config, job_id, chunk_index, offset, limit
+    ):
+        enqueued_chunks.append(
+            {
+                "job_id": job_id,
+                "chunk_index": chunk_index,
+                "offset": offset,
+                "limit": limit,
+            }
+        )
+        return EnqueuedTask(
+            task_id=f"chunk-task-{chunk_index}", queue=config.celery_task_queue
+        )
+
+    import skeinrank_governance_api.worker_queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue,
+        "enqueue_elasticsearch_enrichment_chunk",
+        fake_enqueue_elasticsearch_enrichment_chunk,
+    )
+
+    client = _client(
+        tmp_path,
+        elasticsearch_url="http://es:9200",
+        enrichment_jobs_backend="celery",
+    )
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 0.97},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "in_place",
+        },
+    )
+
+    job_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 10, "chunk_size": 1},
+    )
+    assert job_response.status_code == 201
+    job_id = job_response.json()["id"]
+
+    coordinator_result = job_runner.run_elasticsearch_enrichment_job(
+        job_id=job_id,
+        config=client.app.state.config,
+    )
+
+    assert coordinator_result == {
+        "job_id": job_id,
+        "status": "running",
+        "chunks_queued": 3,
+    }
+    assert enqueued_chunks == [
+        {"job_id": job_id, "chunk_index": 0, "offset": 0, "limit": 1},
+        {"job_id": job_id, "chunk_index": 1, "offset": 1, "limit": 1},
+        {"job_id": job_id, "chunk_index": 2, "offset": 2, "limit": 1},
+    ]
+
+    for spec in enqueued_chunks:
+        job_runner.run_elasticsearch_enrichment_chunk(
+            job_id=job_id,
+            chunk_index=spec["chunk_index"],
+            offset=spec["offset"],
+            limit=spec["limit"],
+            config=client.app.state.config,
+        )
+
+    detail_response = client.get(f"/v1/governance/elasticsearch/jobs/{job_id}")
+    assert detail_response.status_code == 200
+    payload = detail_response.json()
+    assert payload["status"] == "succeeded"
+    assert payload["documents_seen"] == 3
+    assert payload["documents_enriched"] == 2
+    assert payload["result_json"]["updated_document_ids"] == ["1", "3"]
+
+    chunked = payload["result_json"]["chunked_enrichment"]
+    assert chunked["candidate_documents_total"] == 3
+    assert chunked["chunks_total"] == 3
+    assert chunked["chunks_completed"] == 3
+    assert [chunk["documents_seen"] for chunk in chunked["chunks"]] == [1, 1, 1]
+    assert [
+        [ref["id"] for ref in spec["document_refs"]] for spec in chunked["chunk_specs"]
+    ] == [["1"], ["2"], ["3"]]
 
 
 def test_elasticsearch_enrichment_job_can_be_cancelled_while_queued(

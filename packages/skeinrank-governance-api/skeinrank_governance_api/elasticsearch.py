@@ -35,6 +35,14 @@ class ElasticsearchDiscoveryError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class ElasticsearchDocumentRef:
+    """Stable Elasticsearch document reference captured before chunk writes."""
+
+    id: str
+    index: str
+
+
+@dataclass(frozen=True)
 class ElasticsearchSearchHit:
     """Small Elasticsearch hit shape used by dry-run preview endpoints."""
 
@@ -157,6 +165,111 @@ class ElasticsearchDiscoveryClient:
                 ElasticsearchSearchHit(
                     id=str(item.get("_id") or ""),
                     index=str(item.get("_index") or index_name),
+                    source=source if isinstance(source, dict) else {},
+                )
+            )
+        return hits
+
+    def search_document_refs(
+        self,
+        *,
+        index_name: str,
+        limit: int,
+        filter_field: str | None = None,
+        filter_value: str | None = None,
+        timestamp_field: str | None = None,
+        time_window_days: int | None = None,
+    ) -> list[ElasticsearchDocumentRef]:
+        """Return a stable candidate document reference snapshot for chunked jobs.
+
+        Chunked enrichment writes back to the same index in ``in_place`` mode.
+        Capturing IDs before the first write avoids unstable ``from``/``size``
+        pagination against a mutating index, which can otherwise duplicate or
+        skip documents between chunks.
+        """
+
+        query = _document_query(
+            filter_field=filter_field,
+            filter_value=filter_value,
+            timestamp_field=timestamp_field,
+            time_window_days=time_window_days,
+        )
+        sort: list[Any] = ["_doc"]
+        if timestamp_field and time_window_days is not None:
+            sort = [{timestamp_field: {"order": "desc"}}, "_doc"]
+
+        payload = self._post_json(
+            f"/{quote(index_name, safe='')}/_search",
+            {
+                "query": query,
+                "size": max(0, limit),
+                "sort": sort,
+                "_source": False,
+            },
+        )
+        hits_payload = (payload or {}).get("hits", {}).get("hits", [])
+        if not isinstance(hits_payload, list):
+            raise ElasticsearchDiscoveryError(
+                "Unexpected Elasticsearch search response"
+            )
+
+        refs: list[ElasticsearchDocumentRef] = []
+        for item in hits_payload:
+            if not isinstance(item, dict):
+                continue
+            document_id = str(item.get("_id") or "").strip()
+            if not document_id:
+                continue
+            refs.append(
+                ElasticsearchDocumentRef(
+                    id=document_id,
+                    index=str(item.get("_index") or index_name),
+                )
+            )
+        return refs
+
+    def get_documents_by_refs(
+        self,
+        *,
+        document_refs: list[ElasticsearchDocumentRef],
+        text_fields: list[str],
+        filter_field: str | None = None,
+        timestamp_field: str | None = None,
+    ) -> list[ElasticsearchSearchHit]:
+        """Fetch documents by a previously captured reference snapshot."""
+
+        if not document_refs:
+            return []
+
+        source_fields = sorted(
+            {
+                field
+                for field in [*text_fields, filter_field or "", timestamp_field or ""]
+                if field
+            }
+        )
+        docs = [
+            {
+                "_index": ref.index,
+                "_id": ref.id,
+                "_source": source_fields,
+            }
+            for ref in document_refs
+        ]
+        payload = self._post_json("/_mget", {"docs": docs})
+        docs_payload = (payload or {}).get("docs", [])
+        if not isinstance(docs_payload, list):
+            raise ElasticsearchDiscoveryError("Unexpected Elasticsearch mget response")
+
+        hits: list[ElasticsearchSearchHit] = []
+        for item in docs_payload:
+            if not isinstance(item, dict) or not item.get("found", False):
+                continue
+            source = item.get("_source")
+            hits.append(
+                ElasticsearchSearchHit(
+                    id=str(item.get("_id") or ""),
+                    index=str(item.get("_index") or ""),
                     source=source if isinstance(source, dict) else {},
                 )
             )
