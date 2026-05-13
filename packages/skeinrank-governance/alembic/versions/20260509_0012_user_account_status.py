@@ -35,8 +35,15 @@ def upgrade() -> None:
         )
         batch_op.create_index("ix_governance_users_status", ["status"], unique=False)
 
+    governance_users = sa.table(
+        "governance_users",
+        sa.column("status", sa.String(length=32)),
+        sa.column("is_active", sa.Boolean()),
+    )
     op.execute(
-        "UPDATE governance_users SET status = 'suspended' " "WHERE is_active = 0"
+        governance_users.update()
+        .where(governance_users.c.is_active.is_(False))
+        .values(status="suspended")
     )
 
 
