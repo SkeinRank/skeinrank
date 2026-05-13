@@ -500,6 +500,62 @@ class RuntimeSnapshotResponse(BaseModel):
     rules: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class TextCanonicalizeRequest(BaseModel):
+    """Request body for runtime text canonicalization."""
+
+    profile_name: str = Field(..., min_length=1, max_length=128)
+    text: str = Field(..., min_length=1, max_length=20000)
+    mode: str = Field(
+        default="annotate", examples=["annotate", "replace", "attributes"]
+    )
+    include_evidence: bool = True
+    max_matches: int = Field(default=100, ge=1, le=1000)
+
+
+class TextCanonicalizeMatch(BaseModel):
+    """One alias span detected in a runtime canonicalization request."""
+
+    alias_value: str
+    canonical_value: str
+    slot: str
+    matched_text: str
+    start: int
+    end: int
+    confidence: float
+    source: str = "alias"
+
+
+class TextCanonicalizeEvidence(BaseModel):
+    """Explainable evidence for one runtime text canonicalization match."""
+
+    reason: str
+    alias_value: str
+    canonical_value: str
+    slot: str
+    matched_text: str
+    start: int
+    end: int
+    confidence: float
+    source: str = "alias"
+
+
+class TextCanonicalizeResponse(BaseModel):
+    """Runtime text canonicalization response with optional replacement output."""
+
+    profile_name: str
+    normalized_profile_name: str
+    mode: str
+    original_text: str
+    canonical_text: str
+    changed: bool
+    canonical_values: list[str] = Field(default_factory=list)
+    slots: dict[str, list[str]] = Field(default_factory=dict)
+    matched_aliases: list[str] = Field(default_factory=list)
+    replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
+    evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ConsoleDictionaryAliasInput(BaseModel):
     """Alias entry accepted by the user console import API."""
 
