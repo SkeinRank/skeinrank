@@ -122,6 +122,8 @@ export type ElasticsearchBindingWriteStrategy = "in_place" | "reindex_alias_swap
 
 export type ElasticsearchEnrichmentJobStatus = "queued" | "running" | "cancel_requested" | "cancelled" | "succeeded" | "failed";
 
+export type ElasticsearchBindingSnapshotStatus = "never_enriched" | "ready" | "stale" | "updating" | "failed";
+
 export type ElasticsearchBinding = {
   id: number;
   profile_id: number;
@@ -140,6 +142,11 @@ export type ElasticsearchBinding = {
   mode: ElasticsearchBindingMode;
   write_strategy: ElasticsearchBindingWriteStrategy;
   is_enabled: boolean;
+  last_successful_snapshot_version?: string | null;
+  last_successful_snapshot_at?: string | null;
+  last_successful_job_id?: number | null;
+  pending_snapshot_version?: string | null;
+  snapshot_status?: ElasticsearchBindingSnapshotStatus | string | null;
   created_at: string;
   updated_at: string;
 };
@@ -283,6 +290,8 @@ export type ElasticsearchEnrichmentJob = {
   source_index: string;
   target_index: string | null;
   alias_name: string | null;
+  snapshot_version?: string | null;
+  previous_snapshot_version?: string | null;
   requested_by: string | null;
   documents_seen: number;
   documents_enriched: number;

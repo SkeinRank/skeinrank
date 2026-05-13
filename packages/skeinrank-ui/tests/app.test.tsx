@@ -201,6 +201,11 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     mode: "write",
     write_strategy: "reindex_alias_swap",
     is_enabled: true,
+    last_successful_snapshot_version: "default_it@abc123",
+    last_successful_snapshot_at: "2026-05-08T10:01:00Z",
+    last_successful_job_id: 101,
+    pending_snapshot_version: null,
+    snapshot_status: "ready",
     created_at: "2026-05-07T00:00:00Z",
     updated_at: "2026-05-07T00:00:00Z",
   },
@@ -222,6 +227,11 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     mode: "dry_run",
     write_strategy: "reindex_alias_swap",
     is_enabled: true,
+    last_successful_snapshot_version: "ml_platform@old456",
+    last_successful_snapshot_at: "2026-05-07T10:01:00Z",
+    last_successful_job_id: null,
+    pending_snapshot_version: "ml_platform@new789",
+    snapshot_status: "stale",
     created_at: "2026-05-07T00:00:00Z",
     updated_at: "2026-05-07T00:00:00Z",
   },
@@ -278,6 +288,8 @@ const elasticsearchJobs: ElasticsearchEnrichmentJob[] = [
     source_index: "docs",
     target_index: "docs__skeinrank_job_101",
     alias_name: "docs",
+    snapshot_version: "default_it@abc123",
+    previous_snapshot_version: "default_it@old001",
     requested_by: "admin",
     documents_seen: 12,
     documents_enriched: 10,
@@ -287,6 +299,12 @@ const elasticsearchJobs: ElasticsearchEnrichmentJob[] = [
       errors: ["doc-2 failed"],
       timestamp_field: "created_at",
       time_window_days: 1825,
+      chunked_enrichment: {
+        chunks_total: 4,
+        chunks_completed: 4,
+        chunks_failed: 0,
+        chunks_cancelled: 0,
+      },
       rollout: {
         strategy: "reindex_alias_swap",
         status: "alias_swapped",
@@ -1080,6 +1098,11 @@ function stubGovernanceApi(options: StubOptions = {}) {
           mode: payload.mode ?? "dry_run",
           write_strategy: payload.write_strategy ?? "reindex_alias_swap",
           is_enabled: payload.is_enabled ?? true,
+          last_successful_snapshot_version: null,
+          last_successful_snapshot_at: null,
+          last_successful_job_id: null,
+          pending_snapshot_version: null,
+          snapshot_status: "never_enriched",
           created_at: "2026-05-07T00:00:00Z",
           updated_at: "2026-05-07T00:00:00Z",
         };
@@ -1223,6 +1246,8 @@ function stubGovernanceApi(options: StubOptions = {}) {
             payload.target_index_name ??
             `${existingBinding.index_name}__skeinrank_job_${jobId}`,
           alias_name: payload.alias_name ?? existingBinding.index_name,
+          snapshot_version: existingBinding.last_successful_snapshot_version ?? "default_it@abc123",
+          previous_snapshot_version: existingBinding.last_successful_snapshot_version ?? null,
           requested_by: currentUser.username,
           documents_seen: payload.max_documents ?? 1000,
           documents_enriched: 3,
@@ -2572,6 +2597,10 @@ describe("App", () => {
         "Apply default IT terms to docs.",
       );
     });
+    expect(screen.getAllByText("Runtime snapshot").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ready").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("#101").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Run dry-run" }));
 
@@ -2590,6 +2619,8 @@ describe("App", () => {
     expect(await screen.findByText("Job history")).toBeInTheDocument();
     expect(await screen.findByText("Job #101")).toBeInTheDocument();
     expect(screen.getByText("10/12")).toBeInTheDocument();
+    expect(screen.getByText("4/4 chunks")).toBeInTheDocument();
+    expect(screen.getAllByText("default_it@old001").length).toBeGreaterThan(0);
     expect(screen.getByText("Rollout metadata")).toBeInTheDocument();
     expect(screen.getAllByText("docs_v1").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Rollback alias" }));
