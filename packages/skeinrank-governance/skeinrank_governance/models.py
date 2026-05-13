@@ -638,6 +638,19 @@ class ElasticsearchBinding(TimestampMixin, Base):
         String(32), default="reindex_alias_swap", nullable=False
     )
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_successful_snapshot_version: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    last_successful_snapshot_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_successful_job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pending_snapshot_version: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    runtime_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )
 
     profile: Mapped[TerminologyProfile] = relationship(
         back_populates="elasticsearch_bindings"
@@ -697,6 +710,14 @@ class ElasticsearchEnrichmentJob(TimestampMixin, Base):
     source_index: Mapped[str] = mapped_column(String(256), nullable=False)
     target_index: Mapped[str | None] = mapped_column(String(256), nullable=True)
     alias_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    snapshot_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    previous_snapshot_version: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    previous_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )
     requested_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     documents_seen: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     documents_enriched: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
