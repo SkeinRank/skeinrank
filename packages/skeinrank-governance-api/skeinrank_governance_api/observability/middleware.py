@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from .context import reset_request_id, set_request_id
+from .metrics import record_http_exception, record_http_request
 
 logger = logging.getLogger("skeinrank_governance_api.observability.http")
 
@@ -48,6 +49,13 @@ class RequestObservabilityMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
         except Exception:
             duration_ms = _duration_ms(started_at)
+            record_http_exception(method=request.method, path=request.url.path)
+            record_http_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=500,
+                duration_seconds=duration_ms / 1000,
+            )
             logger.exception(
                 "Unhandled request exception",
                 extra={
@@ -64,6 +72,13 @@ class RequestObservabilityMiddleware(BaseHTTPMiddleware):
             reset_request_id(context_token)
 
         response.headers[self.request_id_header] = request_id
+        duration_ms = _duration_ms(started_at)
+        record_http_request(
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_seconds=duration_ms / 1000,
+        )
         if self.access_log_enabled:
             logger.info(
                 "HTTP request completed",
@@ -72,7 +87,7 @@ class RequestObservabilityMiddleware(BaseHTTPMiddleware):
                     "http_method": request.method,
                     "http_path": request.url.path,
                     "http_status_code": response.status_code,
-                    "duration_ms": _duration_ms(started_at),
+                    "duration_ms": duration_ms,
                     "client_host": _client_host(request),
                 },
             )

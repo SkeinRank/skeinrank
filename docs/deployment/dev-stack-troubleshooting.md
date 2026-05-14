@@ -147,3 +147,47 @@ deploy/docker/scripts/dev-smoke-test.sh
 ```
 
 It checks liveness, readiness, admin login, authenticated `/v1/auth/me`, and Elasticsearch connection status.
+
+## Prometheus or Grafana ports are busy
+
+The observability profile publishes:
+
+```text
+127.0.0.1:9090 -> Prometheus
+127.0.0.1:3000 -> Grafana
+```
+
+Check port usage:
+
+```bash
+lsof -nP -iTCP:9090 -sTCP:LISTEN
+lsof -nP -iTCP:3000 -sTCP:LISTEN
+```
+
+Override ports in `.env`:
+
+```text
+PROMETHEUS_PORT=19090
+GRAFANA_PORT=13000
+```
+
+Then start the observability profile again:
+
+```bash
+docker compose -f docker-compose.dev.yml --profile observability up --build
+```
+
+## Metrics endpoint is empty or unavailable
+
+Check that metrics are enabled:
+
+```text
+SKEINRANK_GOVERNANCE_API_METRICS_ENABLED=true
+SKEINRANK_GOVERNANCE_API_METRICS_PATH=/metrics
+```
+
+Then call:
+
+```bash
+curl http://127.0.0.1:8010/metrics
+```

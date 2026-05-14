@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: skeinrank-governance-api
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - governance-api:8010
