@@ -56,6 +56,8 @@ def test_production_env_example_documents_required_secrets() -> None:
         "SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD=CHANGE_ME_STRONG_BOOTSTRAP_ADMIN_PASSWORD",
         "SKEINRANK_GOVERNANCE_API_CORS_ORIGINS=https://skeinrank.example.com",
         "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=https://elasticsearch.example.com:9200",
+        "SKEINRANK_GOVERNANCE_API_LOG_FORMAT=json",
+        "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER=X-Request-ID",
     )
     for fragment in required_fragments:
         assert fragment in env_example
@@ -75,6 +77,7 @@ def test_security_guide_documents_production_guardrails() -> None:
         "Celery uses default broker credentials",
         "Elasticsearch URL is missing",
         "PostgreSQL, RabbitMQ, and Elasticsearch should not be exposed directly",
+        "Observability privacy baseline",
     )
     for fragment in expected_fragments:
         assert fragment in guide

@@ -49,6 +49,20 @@ DEFAULT_CELERY_TASK_QUEUE = "skeinrank.enrichment"
 DEFAULT_ENRICHMENT_CHUNK_SIZE = 500
 DEFAULT_DATABASE_URL = "sqlite:///skeinrank_governance.db"
 DEFAULT_CORS_ORIGINS = ("http://127.0.0.1:5173", "http://localhost:5173")
+
+API_OBSERVABILITY_ENABLED_ENV = "SKEINRANK_GOVERNANCE_API_OBSERVABILITY_ENABLED"
+OBSERVABILITY_ENABLED_ENV = "SKEINRANK_OBSERVABILITY_ENABLED"
+API_LOG_FORMAT_ENV = "SKEINRANK_GOVERNANCE_API_LOG_FORMAT"
+LOG_FORMAT_ENV = "SKEINRANK_LOG_FORMAT"
+API_LOG_LEVEL_ENV = "SKEINRANK_GOVERNANCE_API_LOG_LEVEL"
+LOG_LEVEL_ENV = "SKEINRANK_LOG_LEVEL"
+API_ACCESS_LOG_ENABLED_ENV = "SKEINRANK_GOVERNANCE_API_ACCESS_LOG_ENABLED"
+ACCESS_LOG_ENABLED_ENV = "SKEINRANK_ACCESS_LOG_ENABLED"
+API_REQUEST_ID_HEADER_ENV = "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER"
+REQUEST_ID_HEADER_ENV = "SKEINRANK_REQUEST_ID_HEADER"
+DEFAULT_LOG_FORMAT = "plain"
+DEFAULT_LOG_LEVEL = "info"
+DEFAULT_REQUEST_ID_HEADER = "X-Request-ID"
 SERVICE_NAME = "skeinrank-governance-api"
 
 
@@ -101,6 +115,12 @@ class GovernanceApiConfig:
     celery_broker_url: str = DEFAULT_CELERY_BROKER_URL
     celery_task_queue: str = DEFAULT_CELERY_TASK_QUEUE
     enrichment_chunk_size: int = DEFAULT_ENRICHMENT_CHUNK_SIZE
+
+    observability_enabled: bool = True
+    log_format: str = DEFAULT_LOG_FORMAT
+    log_level: str = DEFAULT_LOG_LEVEL
+    access_log_enabled: bool = True
+    request_id_header: str = DEFAULT_REQUEST_ID_HEADER
 
     @classmethod
     def from_env(cls) -> "GovernanceApiConfig":
@@ -180,6 +200,28 @@ class GovernanceApiConfig:
                 or os.getenv(ENRICHMENT_CHUNK_SIZE_ENV),
                 default=DEFAULT_ENRICHMENT_CHUNK_SIZE,
             ),
+            observability_enabled=_bool_from_env(
+                os.getenv(API_OBSERVABILITY_ENABLED_ENV)
+                or os.getenv(OBSERVABILITY_ENABLED_ENV),
+                default=True,
+            ),
+            log_format=_log_format_from_env(
+                os.getenv(API_LOG_FORMAT_ENV) or os.getenv(LOG_FORMAT_ENV)
+            ),
+            log_level=_log_level_from_env(
+                os.getenv(API_LOG_LEVEL_ENV) or os.getenv(LOG_LEVEL_ENV)
+            ),
+            access_log_enabled=_bool_from_env(
+                os.getenv(API_ACCESS_LOG_ENABLED_ENV)
+                or os.getenv(ACCESS_LOG_ENABLED_ENV),
+                default=True,
+            ),
+            request_id_header=(
+                os.getenv(API_REQUEST_ID_HEADER_ENV)
+                or os.getenv(REQUEST_ID_HEADER_ENV)
+                or DEFAULT_REQUEST_ID_HEADER
+            ).strip()
+            or DEFAULT_REQUEST_ID_HEADER,
         )
 
     @property
@@ -228,6 +270,24 @@ class GovernanceApiConfig:
         if problems:
             details = "; ".join(problems)
             raise ValueError(f"Unsafe SkeinRank production configuration: {details}")
+
+
+def _log_format_from_env(value: str | None) -> str:
+    if value is None:
+        return DEFAULT_LOG_FORMAT
+    normalized = value.strip().lower()
+    return normalized if normalized in {"plain", "json"} else DEFAULT_LOG_FORMAT
+
+
+def _log_level_from_env(value: str | None) -> str:
+    if value is None:
+        return DEFAULT_LOG_LEVEL
+    normalized = value.strip().lower()
+    return (
+        normalized
+        if normalized in {"debug", "info", "warning", "error", "critical"}
+        else DEFAULT_LOG_LEVEL
+    )
 
 
 def _enrichment_backend_from_env(value: str | None) -> str:

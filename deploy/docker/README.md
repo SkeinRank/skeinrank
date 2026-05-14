@@ -153,3 +153,7 @@ docker compose -f docker-compose.dev.yml down -v
 - Elasticsearch security is disabled in this dev stack.
 - PostgreSQL, Elasticsearch, RabbitMQ, API, and UI ports are bound to `127.0.0.1`.
 - For production, use `docker-compose.prod.yml`, `.env.production.example`, and `docs/deployment/security.md`.
+
+## Observability
+
+The dev and production Compose profiles include the Governance API observability foundation. JSON logs are enabled by default in Compose. See `docs/deployment/observability.md` for request IDs, access logs, job lifecycle logs, and future OpenTelemetry/Sentry integration notes.

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import GovernanceApiConfig
 from .dependencies import configure_database
+from .observability import RequestObservabilityMiddleware, configure_logging
 from .routes.auth import router as auth_router
 from .routes.console import router as console_router
 from .routes.governance import router as governance_router
@@ -20,6 +21,7 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
 
     config = config or GovernanceApiConfig.from_env()
     config.validate_production_security()
+    configure_logging(config)
     app = FastAPI(
         title="SkeinRank Governance API",
         description="HTTP control-plane API for SkeinRank terminology governance.",
@@ -32,7 +34,14 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
             allow_origins=list(config.cors_allow_origins),
             allow_methods=["*"],
             allow_headers=["*"],
+            expose_headers=[config.request_id_header],
         )
+    app.add_middleware(
+        RequestObservabilityMiddleware,
+        enabled=config.observability_enabled,
+        access_log_enabled=config.access_log_enabled,
+        request_id_header=config.request_id_header,
+    )
     configure_database(app, config)
     app.include_router(health_router)
     app.include_router(auth_router)

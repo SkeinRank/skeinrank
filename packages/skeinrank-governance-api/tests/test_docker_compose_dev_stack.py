@@ -40,6 +40,9 @@ def test_dev_compose_wires_governance_runtime_environment() -> None:
         "SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL",
         "SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE",
         "SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND",
+        "SKEINRANK_GOVERNANCE_API_OBSERVABILITY_ENABLED",
+        "SKEINRANK_GOVERNANCE_API_LOG_FORMAT",
+        "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER",
         "VITE_SKEINRANK_GOVERNANCE_API_URL",
     )
     for env_name in expected_env_names:
@@ -63,6 +66,9 @@ def test_dev_env_example_contains_required_settings() -> None:
         "SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME=admin",
         "SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD=change-me",
         "SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND=celery",
+        "SKEINRANK_GOVERNANCE_API_OBSERVABILITY_ENABLED=true",
+        "SKEINRANK_GOVERNANCE_API_LOG_FORMAT=json",
+        "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER=X-Request-ID",
         "VITE_SKEINRANK_GOVERNANCE_API_URL=http://127.0.0.1:8010",
     )
     for setting in required_settings:

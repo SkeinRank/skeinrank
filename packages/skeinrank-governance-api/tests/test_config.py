@@ -104,6 +104,32 @@ def test_config_parses_deployment_environment(monkeypatch):
     assert config.production_security_enabled is False
 
 
+def test_config_parses_observability_env(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_OBSERVABILITY_ENABLED", "true")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_LOG_FORMAT", "json")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_LOG_LEVEL", "debug")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ACCESS_LOG_ENABLED", "false")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER", "X-Correlation-ID")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.observability_enabled is True
+    assert config.log_format == "json"
+    assert config.log_level == "debug"
+    assert config.access_log_enabled is False
+    assert config.request_id_header == "X-Correlation-ID"
+
+
+def test_config_defaults_unknown_observability_values(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_LOG_FORMAT", "xml")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_LOG_LEVEL", "verbose")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.log_format == "plain"
+    assert config.log_level == "info"
+
+
 def test_production_security_rejects_unsafe_defaults():
     config = GovernanceApiConfig(
         deployment_environment="production",
