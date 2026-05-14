@@ -12,7 +12,24 @@ dictionary import
 -> UI validation
 ```
 
-For production security hardening, see the upcoming production security profile. Do not expose this development stack directly to the internet.
+For production security hardening, see `docs/deployment/security.md` and `docker-compose.prod.yml`. Do not expose this development stack directly to the internet.
+
+## Production-oriented profile
+
+The development stack is not a production security profile. For a production-oriented starting point, use:
+
+```bash
+cp .env.production.example .env
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Read the security guide first:
+
+```text
+docs/deployment/security.md
+```
+
+The production profile enables fail-fast configuration checks when `SKEINRANK_ENV=production` or `SKEINRANK_GOVERNANCE_API_ENV=production`. It does not publish PostgreSQL or RabbitMQ ports, requires auth, requires a configured Elasticsearch URL, rejects wildcard CORS, and refuses unsafe default secrets.
 
 ## What the dev stack starts
 

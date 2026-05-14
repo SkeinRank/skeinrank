@@ -12,7 +12,7 @@ The development stack starts:
 - SkeinRank UI through Vite;
 - a one-shot migration service.
 
-This stack is intended for local development and smoke testing. It is not a production security profile.
+The dev stack is intended for local development and smoke testing. It is not a production security profile. Use `docker-compose.prod.yml` together with `docs/deployment/security.md` for the production-oriented profile.
 
 ## Quick start
 
@@ -47,6 +47,23 @@ RabbitMQ:
 ```
 
 The `governance-migrate` service runs Alembic migrations before the API and worker start.
+
+## Production-oriented profile
+
+Start from:
+
+```bash
+cp .env.production.example .env
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Before running it, replace every `CHANGE_ME` value and review:
+
+```text
+docs/deployment/security.md
+```
+
+The production profile keeps PostgreSQL and RabbitMQ internal to the Compose network, requires auth, requires a configured Elasticsearch endpoint, and enables fail-fast security guardrails.
 
 ## Full install guide
 
@@ -127,4 +144,4 @@ docker compose -f docker-compose.dev.yml down -v
 
 - Elasticsearch security is disabled in this dev stack.
 - PostgreSQL, Elasticsearch, RabbitMQ, API, and UI ports are bound to `127.0.0.1`.
-- For production, use a separate security profile with external secrets, restricted network exposure, TLS/credentials for Elasticsearch, and non-default admin credentials.
+- For production, use `docker-compose.prod.yml`, `.env.production.example`, and `docs/deployment/security.md`.

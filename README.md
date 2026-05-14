@@ -825,4 +825,4 @@ Troubleshooting notes are documented in:
 docs/deployment/dev-stack-troubleshooting.md
 ```
 
-This compose file is a development-only stack. Production security hardening is handled separately.
+This compose file is a development-only stack. Production security hardening is documented in `docs/deployment/security.md` and the production-oriented profile is `docker-compose.prod.yml`.
