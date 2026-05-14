@@ -210,7 +210,7 @@ poetry run skeinrank-governance-api --reload
 Health check:
 
 ```bash
-curl http://127.0.0.1:8010/healthz
+curl http://127.0.0.1:8010/readyz
 ```
 
 The API reads `SKEINRANK_GOVERNANCE_API_DATABASE_URL` first and falls back to `SKEINRANK_GOVERNANCE_DATABASE_URL`. Before running the service in a production-like setup, upgrade the governance schema with Alembic:
@@ -438,7 +438,7 @@ That profile currently controls:
 
 `packages/skeinrank-governance` is the first platform-foundation package. It contains SQLAlchemy models, Alembic migrations, and the `skeinrank-admin` CLI for a future Postgres-backed terminology control plane.
 
-`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/healthz`, CRUD REST endpoints for profiles, canonical terms, aliases, profile/global stop lists, suggestions/approval, Elasticsearch binding configs, evidence lookups, and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, worker chunk retries, and model-based discovery ingestion.
+`packages/skeinrank-governance-api` is the HTTP layer for that control plane. It exposes configuration, database session wiring, `/livez`, `/healthz`, `/readyz`, CRUD REST endpoints for profiles, canonical terms, aliases, profile/global stop lists, suggestions/approval, Elasticsearch binding configs, evidence lookups, and enrichment jobs, runtime-compatible snapshot export, local auth, users, and role-aware API permissions. Future patches will add snapshot publishing lifecycle, worker chunk retries, and model-based discovery ingestion.
 
 The intended architecture is:
 
@@ -479,7 +479,7 @@ The initial schema includes profiles, canonical terms, aliases, profile snapshot
 - The default demo path is intentionally **rules-first** and explainable.
 - Experimental model adapters are kept out of the default passport; the current MVP presents the rules-first runtime by default.
 - The `/v1/attributes/extract` endpoint works without Elasticsearch.
-- `/healthz` may still show `degraded` when Elasticsearch is not configured because the server also exposes an optional rerank route.
+- `/readyz` reports database and configured Elasticsearch readiness for deployments.
 
 ## Roadmap
 
@@ -825,4 +825,4 @@ Troubleshooting notes are documented in:
 docs/deployment/dev-stack-troubleshooting.md
 ```
 
-This compose file is a development-only stack. Production security hardening is documented in `docs/deployment/security.md` and the production-oriented profile is `docker-compose.prod.yml`.
+This compose file is a development-only stack. Production security hardening is documented in `docs/deployment/security.md` and the production-oriented profile is `docker-compose.prod.yml`. After the stack is up, run `deploy/docker/scripts/dev-smoke-test.sh` for a quick liveness/readiness/login/Elasticsearch smoke check.
