@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 
-from .worker import MissingCeleryApp
+from .worker import MissingCeleryApp, celery_app
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -17,23 +17,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--loglevel", default="info")
     parser.add_argument("--queues", default=None)
+    parser.add_argument("--pool", default=None)
+    parser.add_argument("--concurrency", default=None)
     args = parser.parse_args(argv)
 
-    try:
-        from celery.bin.celery import main as celery_main
-    except ImportError as exc:  # pragma: no cover - depends on optional dependency
-        raise RuntimeError(MissingCeleryApp.missing_reason) from exc
+    if isinstance(celery_app, MissingCeleryApp) or not hasattr(
+        celery_app, "worker_main"
+    ):
+        raise RuntimeError(MissingCeleryApp.missing_reason)
 
-    command = [
-        "celery",
-        "-A",
-        "skeinrank_governance_api.worker:celery_app",
-        "worker",
-        f"--loglevel={args.loglevel}",
-    ]
+    command = ["worker", f"--loglevel={args.loglevel}"]
     if args.queues:
         command.append(f"--queues={args.queues}")
-    return int(celery_main(command) or 0)
+    if args.pool:
+        command.append(f"--pool={args.pool}")
+    if args.concurrency:
+        command.append(f"--concurrency={args.concurrency}")
+    return int(celery_app.worker_main(argv=command) or 0)
 
 
 if __name__ == "__main__":  # pragma: no cover
