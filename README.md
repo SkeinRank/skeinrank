@@ -793,3 +793,36 @@ Patch 40 adds a safe rollback action on top of this metadata. Operators can call
 `reindex_alias_swap` job. The API checks that the alias still points to the
 expected post-rollout index before switching it back to the recorded rollback
 candidate. Rollback metadata is stored under `result_json.rollout.rollback`.
+
+## Docker Compose dev stack
+
+A local full-stack Docker Compose setup is available for end-to-end smoke testing.
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.dev.yml up --build
+```
+
+Default local URLs:
+
+```text
+UI:        http://127.0.0.1:5173
+API:       http://127.0.0.1:8010
+RabbitMQ:  http://127.0.0.1:15672
+ES:        http://127.0.0.1:19200
+Postgres: 127.0.0.1:15432
+```
+
+Full first-search instructions are documented in:
+
+```text
+docs/deployment/docker-compose.md
+```
+
+Troubleshooting notes are documented in:
+
+```text
+docs/deployment/dev-stack-troubleshooting.md
+```
+
+This compose file is a development-only stack. Production security hardening is handled separately.
