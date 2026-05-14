@@ -23,12 +23,39 @@ class DatabaseHealth(BaseModel):
     error: str | None = None
 
 
+class ExternalDependencyHealth(BaseModel):
+    """External dependency connectivity status."""
+
+    ok: bool
+    configured: bool = True
+    url: str | None = None
+    name: str | None = None
+    version: str | None = None
+    error: str | None = None
+
+
 class HealthzResponse(BaseModel):
     """Health check response."""
 
     status: str = Field(..., examples=["ok", "degraded"])
     service: ServiceInfo
     database: DatabaseHealth
+
+
+class LivezResponse(BaseModel):
+    """Liveness check response."""
+
+    status: str = Field(..., examples=["ok"])
+    service: ServiceInfo
+
+
+class ReadyzResponse(BaseModel):
+    """Readiness check response with external dependency status."""
+
+    status: str = Field(..., examples=["ok", "degraded"])
+    service: ServiceInfo
+    database: DatabaseHealth
+    elasticsearch: ExternalDependencyHealth
 
 
 class ProfileCreateRequest(BaseModel):

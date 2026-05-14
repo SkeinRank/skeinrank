@@ -15,7 +15,7 @@ def test_docker_compose_install_guide_documents_first_search_flow() -> None:
     expected_fragments = (
         "cp .env.example .env",
         "docker compose -f docker-compose.dev.yml up --build",
-        "GET /healthz",
+        "GET /readyz",
         "/v1/auth/login",
         "/v1/console/dictionary/import",
         "examples/migration/console_dictionary.example.json",

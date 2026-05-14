@@ -37,7 +37,7 @@ docker compose -f docker-compose.prod.yml up --build -d
 Check API health:
 
 ```bash
-curl http://127.0.0.1:8010/healthz | python -m json.tool
+curl http://127.0.0.1:8010/readyz | python -m json.tool
 ```
 
 The production compose file binds the UI and API to `127.0.0.1` by default. Put a reverse proxy, VPN, or private ingress in front of the API/UI if users need remote access.

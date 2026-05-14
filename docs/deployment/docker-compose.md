@@ -80,18 +80,27 @@ The default credentials are for local development only.
 
 ## Verify service health
 
-The health endpoint is `GET /healthz`. In a second terminal:
+Use `GET /livez` for process liveness and `GET /readyz` for deployment readiness in a second terminal:
 
 ```bash
-curl http://127.0.0.1:8010/healthz | python -m json.tool
+curl http://127.0.0.1:8010/livez | python -m json.tool
+curl http://127.0.0.1:8010/readyz | python -m json.tool
 ```
 
-Expected result:
+Expected high-level result:
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "database": {"ok": true},
+  "elasticsearch": {"ok": true, "configured": true}
 }
+```
+
+You can also run the bundled smoke helper:
+
+```bash
+deploy/docker/scripts/dev-smoke-test.sh
 ```
 
 Get an admin token:

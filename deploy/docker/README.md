@@ -98,7 +98,8 @@ docs/deployment/dev-stack-troubleshooting.md
 Health:
 
 ```bash
-curl http://127.0.0.1:8010/healthz | python -m json.tool
+curl http://127.0.0.1:8010/livez | python -m json.tool
+curl http://127.0.0.1:8010/readyz | python -m json.tool
 ```
 
 Login:
@@ -112,6 +113,13 @@ export ADMIN_TOKEN=$(
 )
 
 echo "$ADMIN_TOKEN"
+```
+
+
+Run the bundled smoke helper after the stack is up:
+
+```bash
+deploy/docker/scripts/dev-smoke-test.sh
 ```
 
 Elasticsearch connection:

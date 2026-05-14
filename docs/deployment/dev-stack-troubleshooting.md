@@ -79,7 +79,7 @@ docker compose -f docker-compose.dev.yml up --build
 Check API health:
 
 ```bash
-curl http://127.0.0.1:8010/healthz | python -m json.tool
+curl http://127.0.0.1:8010/readyz | python -m json.tool
 ```
 
 Check the admin password in `.env`:
@@ -136,3 +136,14 @@ docker compose -f docker-compose.dev.yml logs -f governance-api
 docker compose -f docker-compose.dev.yml logs -f governance-worker
 docker compose -f docker-compose.dev.yml logs -f ui
 ```
+
+
+## Run the smoke helper
+
+After the stack is up, run the deployment smoke helper from the repository root:
+
+```bash
+deploy/docker/scripts/dev-smoke-test.sh
+```
+
+It checks liveness, readiness, admin login, authenticated `/v1/auth/me`, and Elasticsearch connection status.
