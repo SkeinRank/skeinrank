@@ -346,3 +346,31 @@ Do not use this file as a production security profile. Production deployment sho
 ## Observability
 
 The Compose stack enables the Governance API observability foundation by default. API responses include `X-Request-ID`, and API/worker containers emit structured logs when `SKEINRANK_GOVERNANCE_API_LOG_FORMAT=json`. See `docs/deployment/observability.md`.
+
+## Optional Prometheus and Grafana
+
+For local observability testing, start the dev stack with the `observability` profile:
+
+```bash
+docker compose -f docker-compose.dev.yml --profile observability up --build
+```
+
+This starts:
+
+- Prometheus on `http://127.0.0.1:9090`
+- Grafana on `http://127.0.0.1:3000`
+- Governance API metrics on `http://127.0.0.1:8010/metrics`
+
+Grafana is provisioned with a `SkeinRank Overview` dashboard. The dashboard JSON lives at:
+
+```text
+deploy/grafana/dashboards/skeinrank-overview.json
+```
+
+Prometheus scrape config lives at:
+
+```text
+deploy/prometheus/prometheus.yml
+```
+
+More details: `docs/deployment/observability.md`.

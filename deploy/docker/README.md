@@ -157,3 +157,21 @@ docker compose -f docker-compose.dev.yml down -v
 ## Observability
 
 The dev and production Compose profiles include the Governance API observability foundation. JSON logs are enabled by default in Compose. See `docs/deployment/observability.md` for request IDs, access logs, job lifecycle logs, and future OpenTelemetry/Sentry integration notes.
+
+## Optional observability profile
+
+The development stack can also start Prometheus and Grafana:
+
+```bash
+docker compose -f docker-compose.dev.yml --profile observability up --build
+```
+
+Services:
+
+- Prometheus: `http://127.0.0.1:9090`
+- Grafana: `http://127.0.0.1:3000`
+- Governance API metrics: `http://127.0.0.1:8010/metrics`
+
+Prometheus scrapes the Governance API `/metrics` endpoint. Grafana is provisioned with the `SkeinRank Overview` dashboard from `deploy/grafana/dashboards/skeinrank-overview.json`.
+
+See `docs/deployment/observability.md` for metric names and dashboard details.

@@ -830,3 +830,17 @@ This compose file is a development-only stack. Production security hardening is 
 ### Observability foundation
 
 The Governance API includes request IDs, configurable plain/JSON logs, access logs, and enrichment job lifecycle logs. Docker Compose enables JSON logs by default. See `docs/deployment/observability.md`.
+
+### Optional observability profile
+
+The Docker Compose development stack can also start Prometheus and Grafana:
+
+```bash
+docker compose -f docker-compose.dev.yml --profile observability up --build
+```
+
+- Prometheus: `http://127.0.0.1:9090`
+- Grafana: `http://127.0.0.1:3000`
+- Metrics: `http://127.0.0.1:8010/metrics`
+
+See `docs/deployment/observability.md` for metric names and dashboard details.

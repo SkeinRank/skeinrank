@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from skeinrank_governance.models import ElasticsearchEnrichmentJob, utc_now
@@ -16,6 +17,7 @@ from .elasticsearch import (
     ElasticsearchDocumentRef,
     compose_source_text,
 )
+from .observability.metrics import record_enrichment_job
 from .runtime_snapshots import (
     alias_tuples_from_snapshot,
     clear_binding_pending_snapshot,
@@ -163,6 +165,7 @@ def run_elasticsearch_enrichment_job(
                 job.error_message = str(exc)
                 job.finished_at = utc_now()
                 clear_binding_pending_snapshot(job.binding)
+                _record_job_metrics(job, status="failed")
                 session.commit()
                 session.refresh(job)
                 logger.warning(
@@ -561,6 +564,7 @@ def _maybe_finalize_chunked_job(
         )
         clear_binding_pending_snapshot(job.binding)
         job.finished_at = utc_now()
+        _record_job_metrics(job, status="failed")
         return
 
     if (
@@ -625,6 +629,7 @@ def _maybe_finalize_chunked_job(
         mark_binding_snapshot_success(
             binding=job.binding, job=job, completed_at=job.finished_at
         )
+        _record_job_metrics(job, status="succeeded")
         logger.info(
             "Elasticsearch enrichment job succeeded",
             extra={
@@ -832,6 +837,30 @@ def _mark_job_failed(*, config: GovernanceApiConfig, job_id: int, error: str) ->
         engine.dispose()
 
 
+def _as_utc_aware(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _record_job_metrics(job: ElasticsearchEnrichmentJob, *, status: str) -> None:
+    duration_seconds = None
+    started_at = _as_utc_aware(job.started_at)
+    finished_at = _as_utc_aware(job.finished_at)
+    if started_at and finished_at:
+        duration_seconds = max((finished_at - started_at).total_seconds(), 0.0)
+    record_enrichment_job(
+        status=status,
+        write_strategy=job.write_strategy,
+        duration_seconds=duration_seconds,
+        documents_seen=job.documents_seen or 0,
+        documents_enriched=job.documents_enriched or 0,
+        documents_failed=job.documents_failed or 0,
+    )
+
+
 def _collect_candidate_document_refs(
     *,
     client: ElasticsearchDiscoveryClient,
@@ -922,6 +951,7 @@ def _finalize_empty_chunked_job(job: ElasticsearchEnrichmentJob) -> None:
         "alias_result": None,
         "chunked_enrichment": chunked,
     }
+    _record_job_metrics(job, status="succeeded")
 
 
 def _chunked_update_index(job: ElasticsearchEnrichmentJob) -> str:

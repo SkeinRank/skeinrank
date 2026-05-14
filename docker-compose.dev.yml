@@ -94,6 +94,8 @@ services:
       SKEINRANK_GOVERNANCE_API_LOG_LEVEL: ${SKEINRANK_GOVERNANCE_API_LOG_LEVEL:-info}
       SKEINRANK_GOVERNANCE_API_ACCESS_LOG_ENABLED: ${SKEINRANK_GOVERNANCE_API_ACCESS_LOG_ENABLED:-true}
       SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER: ${SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER:-X-Request-ID}
+      SKEINRANK_GOVERNANCE_API_METRICS_ENABLED: ${SKEINRANK_GOVERNANCE_API_METRICS_ENABLED:-true}
+      SKEINRANK_GOVERNANCE_API_METRICS_PATH: ${SKEINRANK_GOVERNANCE_API_METRICS_PATH:-/metrics}
     command: ["python", "-m", "skeinrank_governance_api.migrations", "upgrade", "head"]
     depends_on:
       postgres:
@@ -177,7 +179,45 @@ services:
       governance-api:
         condition: service_healthy
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: skeinrank-prometheus-dev
+    profiles: ["observability"]
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - skeinrank_prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      governance-api:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: skeinrank-grafana-dev
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - skeinrank_grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   skeinrank_postgres_data:
   skeinrank_rabbitmq_data:
   skeinrank_elasticsearch_data:
+  skeinrank_prometheus_data:
+  skeinrank_grafana_data:

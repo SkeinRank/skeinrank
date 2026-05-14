@@ -60,9 +60,14 @@ API_ACCESS_LOG_ENABLED_ENV = "SKEINRANK_GOVERNANCE_API_ACCESS_LOG_ENABLED"
 ACCESS_LOG_ENABLED_ENV = "SKEINRANK_ACCESS_LOG_ENABLED"
 API_REQUEST_ID_HEADER_ENV = "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER"
 REQUEST_ID_HEADER_ENV = "SKEINRANK_REQUEST_ID_HEADER"
+API_METRICS_ENABLED_ENV = "SKEINRANK_GOVERNANCE_API_METRICS_ENABLED"
+METRICS_ENABLED_ENV = "SKEINRANK_METRICS_ENABLED"
+API_METRICS_PATH_ENV = "SKEINRANK_GOVERNANCE_API_METRICS_PATH"
+METRICS_PATH_ENV = "SKEINRANK_METRICS_PATH"
 DEFAULT_LOG_FORMAT = "plain"
 DEFAULT_LOG_LEVEL = "info"
 DEFAULT_REQUEST_ID_HEADER = "X-Request-ID"
+DEFAULT_METRICS_PATH = "/metrics"
 SERVICE_NAME = "skeinrank-governance-api"
 
 
@@ -121,6 +126,8 @@ class GovernanceApiConfig:
     log_level: str = DEFAULT_LOG_LEVEL
     access_log_enabled: bool = True
     request_id_header: str = DEFAULT_REQUEST_ID_HEADER
+    metrics_enabled: bool = True
+    metrics_path: str = DEFAULT_METRICS_PATH
 
     @classmethod
     def from_env(cls) -> "GovernanceApiConfig":
@@ -222,6 +229,13 @@ class GovernanceApiConfig:
                 or DEFAULT_REQUEST_ID_HEADER
             ).strip()
             or DEFAULT_REQUEST_ID_HEADER,
+            metrics_enabled=_bool_from_env(
+                os.getenv(API_METRICS_ENABLED_ENV) or os.getenv(METRICS_ENABLED_ENV),
+                default=True,
+            ),
+            metrics_path=_metrics_path_from_env(
+                os.getenv(API_METRICS_PATH_ENV) or os.getenv(METRICS_PATH_ENV)
+            ),
         )
 
     @property
@@ -270,6 +284,15 @@ class GovernanceApiConfig:
         if problems:
             details = "; ".join(problems)
             raise ValueError(f"Unsafe SkeinRank production configuration: {details}")
+
+
+def _metrics_path_from_env(value: str | None) -> str:
+    if value is None:
+        return DEFAULT_METRICS_PATH
+    normalized = value.strip()
+    if not normalized:
+        return DEFAULT_METRICS_PATH
+    return normalized if normalized.startswith("/") else f"/{normalized}"
 
 
 def _log_format_from_env(value: str | None) -> str:

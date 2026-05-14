@@ -104,3 +104,66 @@ def test_json_log_formatter_includes_service_and_extra_fields():
         "name": "skeinrank-governance-api",
         "version": "test",
     }
+
+
+def test_metrics_endpoint_exports_prometheus_text(tmp_path):
+    from skeinrank_governance_api.observability.metrics import registry
+
+    registry.reset()
+    app = create_app(
+        GovernanceApiConfig(
+            database_url=f"sqlite:///{tmp_path / 'governance.db'}",
+            create_tables_on_startup=True,
+            service_version="test",
+            access_log_enabled=False,
+        )
+    )
+    client = TestClient(app)
+
+    livez_response = client.get("/livez", headers={"X-Request-ID": "metrics-1"})
+    metrics_response = client.get("/metrics")
+
+    assert livez_response.status_code == 200
+    assert metrics_response.status_code == 200
+    assert metrics_response.headers["content-type"].startswith("text/plain")
+    body = metrics_response.text
+    assert "# HELP skeinrank_http_requests_total" in body
+    assert (
+        'skeinrank_build_info{service="skeinrank-governance-api",version="test"} 1'
+        in body
+    )
+    assert (
+        'skeinrank_http_requests_total{method="GET",path="/livez",status_code="200"} 1'
+        in body
+    )
+
+
+def test_metrics_endpoint_can_be_disabled(tmp_path):
+    app = create_app(
+        GovernanceApiConfig(
+            database_url=f"sqlite:///{tmp_path / 'governance.db'}",
+            create_tables_on_startup=True,
+            service_version="test",
+            metrics_enabled=False,
+        )
+    )
+
+    response = TestClient(app).get("/metrics")
+
+    assert response.status_code == 404
+
+
+def test_custom_metrics_path_can_be_configured(tmp_path):
+    app = create_app(
+        GovernanceApiConfig(
+            database_url=f"sqlite:///{tmp_path / 'governance.db'}",
+            create_tables_on_startup=True,
+            service_version="test",
+            metrics_path="/internal/metrics",
+        )
+    )
+
+    response = TestClient(app).get("/internal/metrics")
+
+    assert response.status_code == 200
+    assert "skeinrank_build_info" in response.text

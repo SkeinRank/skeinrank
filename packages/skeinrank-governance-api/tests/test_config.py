@@ -110,6 +110,8 @@ def test_config_parses_observability_env(monkeypatch):
     monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_LOG_LEVEL", "debug")
     monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ACCESS_LOG_ENABLED", "false")
     monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER", "X-Correlation-ID")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_METRICS_ENABLED", "true")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_METRICS_PATH", "metrics")
 
     config = GovernanceApiConfig.from_env()
 
@@ -118,6 +120,8 @@ def test_config_parses_observability_env(monkeypatch):
     assert config.log_level == "debug"
     assert config.access_log_enabled is False
     assert config.request_id_header == "X-Correlation-ID"
+    assert config.metrics_enabled is True
+    assert config.metrics_path == "/metrics"
 
 
 def test_config_defaults_unknown_observability_values(monkeypatch):
