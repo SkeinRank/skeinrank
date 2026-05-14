@@ -1,13 +1,16 @@
 # SkeinRank Docker Compose dev stack
 
-This dev stack starts the local services needed to test the SkeinRank governance platform end-to-end:
+This directory contains Docker assets for running the SkeinRank governance platform locally.
 
-- PostgreSQL 16 for governance state
-- Elasticsearch 8.12.2 for searchable documents and enrichment fields
-- RabbitMQ with the management UI for Celery enrichment jobs
-- SkeinRank Governance API
-- SkeinRank Governance Celery worker
-- SkeinRank UI through Vite
+The development stack starts:
+
+- PostgreSQL 16 for governance state;
+- Elasticsearch 8.12.2 for searchable documents and enrichment fields;
+- RabbitMQ with the management UI for Celery enrichment jobs;
+- SkeinRank Governance API;
+- SkeinRank Governance Celery worker;
+- SkeinRank UI through Vite;
+- a one-shot migration service.
 
 This stack is intended for local development and smoke testing. It is not a production security profile.
 
@@ -45,6 +48,34 @@ RabbitMQ:
 
 The `governance-migrate` service runs Alembic migrations before the API and worker start.
 
+## Full install guide
+
+Use the full install guide for the complete first-search workflow:
+
+```text
+docs/deployment/docker-compose.md
+```
+
+It covers:
+
+```text
+start stack
+-> health check
+-> login
+-> create demo Elasticsearch index
+-> import dictionary
+-> create binding
+-> run enrichment job
+-> runtime search
+-> UI validation
+```
+
+Troubleshooting notes are in:
+
+```text
+docs/deployment/dev-stack-troubleshooting.md
+```
+
 ## Smoke checks
 
 Health:
@@ -74,13 +105,7 @@ curl -s http://127.0.0.1:8010/v1/governance/elasticsearch/connection/status \
   | python -m json.tool
 ```
 
-RabbitMQ management UI:
-
-```text
-http://127.0.0.1:15672
-```
-
-## Import the example dictionary
+Import the example dictionary:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8010/v1/console/dictionary/import \
