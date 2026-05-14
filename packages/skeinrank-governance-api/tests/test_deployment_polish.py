@@ -47,3 +47,22 @@ def test_deployment_docs_reference_smoke_helper_and_readiness() -> None:
 
     assert "GET /readyz" in docker_guide
     assert "GET /livez" in docker_guide
+
+
+def test_deployment_docs_reference_observability_foundation() -> None:
+    observability = _read("docs/deployment/observability.md")
+    docker_guide = _read("docs/deployment/docker-compose.md")
+    docker_readme = _read("deploy/docker/README.md")
+
+    expected_fragments = (
+        "Observability foundation",
+        "SKEINRANK_GOVERNANCE_API_LOG_FORMAT",
+        "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER",
+        "X-Request-ID",
+        "JSON logs",
+    )
+    for fragment in expected_fragments:
+        assert fragment in observability
+
+    assert "docs/deployment/observability.md" in docker_guide
+    assert "docs/deployment/observability.md" in docker_readme

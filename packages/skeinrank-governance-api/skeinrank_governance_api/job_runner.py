@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from skeinrank_governance.models import ElasticsearchEnrichmentJob, utc_now
@@ -27,6 +28,7 @@ CHUNK_RESULT_STATUS_CANCELLED = "cancelled"
 JOB_STATUS_CANCEL_REQUESTED = "cancel_requested"
 JOB_STATUS_CANCELLED = "cancelled"
 TERMINAL_JOB_STATUSES = {"succeeded", "failed", JOB_STATUS_CANCELLED}
+logger = logging.getLogger("skeinrank_governance_api.jobs")
 
 
 def run_elasticsearch_enrichment_job(
@@ -88,6 +90,20 @@ def run_elasticsearch_enrichment_job(
                 job.started_at = utc_now()
             session.commit()
             session.refresh(job)
+            logger.info(
+                "Elasticsearch enrichment job started",
+                extra={
+                    "job_id": job.id,
+                    "binding_id": job.binding_id,
+                    "profile_id": job.profile_id,
+                    "job_status": job.status,
+                    "write_strategy": job.write_strategy,
+                    "snapshot_version": job.snapshot_version,
+                    "source_index": job.source_index,
+                    "target_index": job.target_index,
+                    "alias_name": job.alias_name,
+                },
+            )
 
             try:
                 client = ElasticsearchDiscoveryClient(config)
@@ -149,6 +165,18 @@ def run_elasticsearch_enrichment_job(
                 clear_binding_pending_snapshot(job.binding)
                 session.commit()
                 session.refresh(job)
+                logger.warning(
+                    "Elasticsearch enrichment job failed during preparation",
+                    extra={
+                        "job_id": job.id,
+                        "binding_id": job.binding_id,
+                        "profile_id": job.profile_id,
+                        "job_status": job.status,
+                        "write_strategy": job.write_strategy,
+                        "snapshot_version": job.snapshot_version,
+                        "error": str(exc),
+                    },
+                )
                 return {"job_id": job_id, "status": "failed", "error": str(exc)}
 
         if config.enrichment_jobs_backend == "celery":
@@ -175,6 +203,14 @@ def run_elasticsearch_enrichment_job(
                     config=config,
                     job_id=job_id,
                     queued_chunks=queued_chunks,
+                )
+                logger.info(
+                    "Elasticsearch enrichment chunks queued",
+                    extra={
+                        "job_id": job_id,
+                        "chunks_queued": len(queued_chunks),
+                        "queue": config.celery_task_queue,
+                    },
                 )
                 return {
                     "job_id": job_id,
@@ -588,6 +624,20 @@ def _maybe_finalize_chunked_job(
         job.finished_at = utc_now()
         mark_binding_snapshot_success(
             binding=job.binding, job=job, completed_at=job.finished_at
+        )
+        logger.info(
+            "Elasticsearch enrichment job succeeded",
+            extra={
+                "job_id": job.id,
+                "binding_id": job.binding_id,
+                "profile_id": job.profile_id,
+                "job_status": job.status,
+                "write_strategy": job.write_strategy,
+                "snapshot_version": job.snapshot_version,
+                "documents_seen": job.documents_seen,
+                "documents_enriched": job.documents_enriched,
+                "documents_failed": job.documents_failed,
+            },
         )
     else:
         chunked["chunks_completed"] = len(completed)

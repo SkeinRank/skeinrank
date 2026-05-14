@@ -826,3 +826,7 @@ docs/deployment/dev-stack-troubleshooting.md
 ```
 
 This compose file is a development-only stack. Production security hardening is documented in `docs/deployment/security.md` and the production-oriented profile is `docker-compose.prod.yml`. After the stack is up, run `deploy/docker/scripts/dev-smoke-test.sh` for a quick liveness/readiness/login/Elasticsearch smoke check.
+
+### Observability foundation
+
+The Governance API includes request IDs, configurable plain/JSON logs, access logs, and enrichment job lifecycle logs. Docker Compose enables JSON logs by default. See `docs/deployment/observability.md`.

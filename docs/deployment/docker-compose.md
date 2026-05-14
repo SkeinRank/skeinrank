@@ -342,3 +342,7 @@ This guide uses the development stack. It intentionally keeps local setup simple
 - Secrets are stored in `.env`.
 
 Do not use this file as a production security profile. Production deployment should use non-default secrets, restricted network exposure, Elasticsearch security/TLS, backups, and external secret management.
+
+## Observability
+
+The Compose stack enables the Governance API observability foundation by default. API responses include `X-Request-ID`, and API/worker containers emit structured logs when `SKEINRANK_GOVERNANCE_API_LOG_FORMAT=json`. See `docs/deployment/observability.md`.

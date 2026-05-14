@@ -161,3 +161,7 @@ Back up Elasticsearch indices according to your organization's search/data reten
 - `docs/deployment/docker-compose.md`
 - `docs/deployment/dev-stack-troubleshooting.md`
 - `deploy/docker/README.md`
+
+## Observability privacy baseline
+
+Production logging should avoid request bodies, document snippets, and sensitive query payloads by default. The built-in observability foundation logs request metadata, request ids, status codes, durations, and job lifecycle metadata only. See `docs/deployment/observability.md`.

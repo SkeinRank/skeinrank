@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .config import GovernanceApiConfig
+from .observability import configure_logging
 
 
 class MissingCeleryApp:
@@ -31,6 +32,7 @@ def create_celery_app(config: GovernanceApiConfig | None = None):
         raise RuntimeError(MissingCeleryApp.missing_reason) from exc
 
     config = config or GovernanceApiConfig.from_env()
+    configure_logging(config)
     app = Celery(
         "skeinrank_governance_api",
         broker=config.celery_broker_url,
