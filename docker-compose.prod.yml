@@ -1,0 +1,145 @@
+# Production-oriented Compose profile for SkeinRank.
+# Copy .env.production.example to .env, replace every CHANGE_ME value, and review
+# docs/deployment/security.md before using this file outside local testing.
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - skeinrank_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
+    volumes:
+      - skeinrank_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  governance-migrate:
+    build:
+      context: .
+      dockerfile: deploy/docker/governance-api.Dockerfile
+    image: skeinrank-governance-api:prod
+    restart: "no"
+    environment: &governance_env
+      SKEINRANK_ENV: production
+      SKEINRANK_GOVERNANCE_API_ENV: production
+      SKEINRANK_GOVERNANCE_API_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      SKEINRANK_GOVERNANCE_API_AUTH_ENABLED: "true"
+      SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN: ${SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN:-true}
+      SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME: ${SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME:-admin}
+      SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD: ${SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD:?SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD is required}
+      SKEINRANK_GOVERNANCE_API_ADMIN_DISPLAY_NAME: ${SKEINRANK_GOVERNANCE_API_ADMIN_DISPLAY_NAME:-SkeinRank Admin}
+      SKEINRANK_GOVERNANCE_API_TOKEN_TTL_HOURS: ${SKEINRANK_GOVERNANCE_API_TOKEN_TTL_HOURS:-12}
+      SKEINRANK_GOVERNANCE_API_CORS_ORIGINS: ${SKEINRANK_GOVERNANCE_API_CORS_ORIGINS:?SKEINRANK_GOVERNANCE_API_CORS_ORIGINS is required}
+      SKEINRANK_GOVERNANCE_API_PRODUCTION_SECURITY_ENABLED: ${SKEINRANK_GOVERNANCE_API_PRODUCTION_SECURITY_ENABLED:-true}
+      SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL:?SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL is required}
+      SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME:-}
+      SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD:-}
+      SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY:-}
+      SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_TIMEOUT_SECONDS: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_TIMEOUT_SECONDS:-10}
+      SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND: celery
+      SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}:${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}@rabbitmq:5672//
+      SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE: ${SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE:-skeinrank.enrichment}
+      SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE: ${SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE:-500}
+    command: ["python", "-m", "skeinrank_governance_api.migrations", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  governance-api:
+    image: skeinrank-governance-api:prod
+    build:
+      context: .
+      dockerfile: deploy/docker/governance-api.Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *governance_env
+    command:
+      ["skeinrank-governance-api", "--host", "0.0.0.0", "--port", "8010"]
+    ports:
+      - "127.0.0.1:${GOVERNANCE_API_PORT:-8010}:8010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      governance-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c 'import json, urllib.request; data=json.load(urllib.request.urlopen(\"http://127.0.0.1:8010/healthz\", timeout=5)); raise SystemExit(0 if data.get(\"status\") == \"ok\" else 1)'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  governance-worker:
+    image: skeinrank-governance-api:prod
+    build:
+      context: .
+      dockerfile: deploy/docker/governance-api.Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *governance_env
+    command:
+      [
+        "skeinrank-governance-worker",
+        "--loglevel",
+        "info",
+        "--queues",
+        "${SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE:-skeinrank.enrichment}",
+        "--pool",
+        "solo",
+        "--concurrency",
+        "1",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      governance-migrate:
+        condition: service_completed_successfully
+
+  ui:
+    build:
+      context: .
+      dockerfile: deploy/docker/ui.Dockerfile
+    image: skeinrank-ui:prod
+    restart: unless-stopped
+    environment:
+      VITE_SKEINRANK_GOVERNANCE_API_URL: ${VITE_SKEINRANK_GOVERNANCE_API_URL:?VITE_SKEINRANK_GOVERNANCE_API_URL is required}
+    ports:
+      - "127.0.0.1:${UI_PORT:-5173}:5173"
+    depends_on:
+      governance-api:
+        condition: service_healthy
+
+volumes:
+  skeinrank_postgres_data:
+  skeinrank_rabbitmq_data:

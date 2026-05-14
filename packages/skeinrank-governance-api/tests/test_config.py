@@ -91,3 +91,58 @@ def test_config_defaults_unknown_enrichment_backend_to_sync(monkeypatch):
     config = GovernanceApiConfig.from_env()
 
     assert config.enrichment_jobs_backend == "sync"
+
+
+def test_config_parses_deployment_environment(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_ENV", "production")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_PRODUCTION_SECURITY_ENABLED", "false")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.deployment_environment == "production"
+    assert config.is_production is True
+    assert config.production_security_enabled is False
+
+
+def test_production_security_rejects_unsafe_defaults():
+    config = GovernanceApiConfig(
+        deployment_environment="production",
+        database_url="sqlite:///dev.db",
+        auth_enabled=False,
+        bootstrap_admin=True,
+        admin_password="change-me",
+        cors_allow_origins=("*",),
+        enrichment_jobs_backend="celery",
+        celery_broker_url="amqp://guest:guest@rabbitmq:5672//",
+        elasticsearch_url=None,
+    )
+
+    try:
+        config.validate_production_security()
+    except ValueError as exc:
+        message = str(exc)
+    else:  # pragma: no cover - defensive assertion
+        raise AssertionError("expected production security validation to fail")
+
+    assert "auth must be enabled" in message
+    assert "SQLite database URLs" in message
+    assert "unsafe default value" in message
+    assert "wildcard CORS" in message
+    assert "unsafe default credentials" in message
+    assert "Elasticsearch URL" in message
+
+
+def test_production_security_accepts_hardened_config():
+    config = GovernanceApiConfig(
+        deployment_environment="production",
+        database_url="postgresql+psycopg://user:strong@postgres:5432/skeinrank",
+        auth_enabled=True,
+        bootstrap_admin=True,
+        admin_password="long-unique-admin-password",
+        cors_allow_origins=("https://skeinrank.example.com",),
+        enrichment_jobs_backend="celery",
+        celery_broker_url="amqp://skeinrank:long-unique-rabbit-password@rabbitmq:5672//",
+        elasticsearch_url="https://elasticsearch.example.com:9200",
+    )
+
+    config.validate_production_security()

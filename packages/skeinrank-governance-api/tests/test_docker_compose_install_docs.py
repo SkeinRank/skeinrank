@@ -75,4 +75,5 @@ def test_root_readme_mentions_docker_compose_docs() -> None:
     assert "## Docker Compose dev stack" in readme
     assert "docs/deployment/docker-compose.md" in readme
     assert "docs/deployment/dev-stack-troubleshooting.md" in readme
-    assert "Production security hardening is handled separately" in readme
+    assert "docs/deployment/security.md" in readme
+    assert "docker-compose.prod.yml" in readme

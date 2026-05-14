@@ -43,6 +43,7 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Poetry / uv / pyenv local markers
 .python-version

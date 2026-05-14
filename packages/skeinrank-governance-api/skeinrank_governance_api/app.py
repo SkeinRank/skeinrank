@@ -19,6 +19,7 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
     """Create the governance API application."""
 
     config = config or GovernanceApiConfig.from_env()
+    config.validate_production_security()
     app = FastAPI(
         title="SkeinRank Governance API",
         description="HTTP control-plane API for SkeinRank terminology governance.",

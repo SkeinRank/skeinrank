@@ -9,6 +9,9 @@ from importlib import metadata
 DATABASE_URL_ENV = "SKEINRANK_GOVERNANCE_DATABASE_URL"
 API_DATABASE_URL_ENV = "SKEINRANK_GOVERNANCE_API_DATABASE_URL"
 CREATE_TABLES_ENV = "SKEINRANK_GOVERNANCE_API_CREATE_TABLES"
+DEPLOYMENT_ENV_ENV = "SKEINRANK_GOVERNANCE_API_ENV"
+GLOBAL_DEPLOYMENT_ENV_ENV = "SKEINRANK_ENV"
+PRODUCTION_SECURITY_ENABLED_ENV = "SKEINRANK_GOVERNANCE_API_PRODUCTION_SECURITY_ENABLED"
 CORS_ORIGINS_ENV = "SKEINRANK_GOVERNANCE_API_CORS_ORIGINS"
 AUTH_ENABLED_ENV = "SKEINRANK_GOVERNANCE_API_AUTH_ENABLED"
 BOOTSTRAP_ADMIN_ENV = "SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN"
@@ -29,6 +32,7 @@ API_ELASTICSEARCH_TIMEOUT_SECONDS_ENV = (
 )
 ELASTICSEARCH_TIMEOUT_SECONDS_ENV = "SKEINRANK_ELASTICSEARCH_TIMEOUT_SECONDS"
 DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_DEPLOYMENT_ENV = "development"
 DEFAULT_TOKEN_TTL_HOURS = 24
 DEFAULT_ELASTICSEARCH_TIMEOUT_SECONDS = 5
 API_ENRICHMENT_JOBS_BACKEND_ENV = "SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND"
@@ -77,6 +81,8 @@ class GovernanceApiConfig:
 
     database_url: str = DEFAULT_DATABASE_URL
     create_tables_on_startup: bool = False
+    deployment_environment: str = DEFAULT_DEPLOYMENT_ENV
+    production_security_enabled: bool = True
     cors_allow_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS
     auth_enabled: bool = False
     bootstrap_admin: bool = False
@@ -105,9 +111,22 @@ class GovernanceApiConfig:
             or os.getenv(DATABASE_URL_ENV)
             or DEFAULT_DATABASE_URL
         )
+        deployment_environment = (
+            (
+                os.getenv(DEPLOYMENT_ENV_ENV)
+                or os.getenv(GLOBAL_DEPLOYMENT_ENV_ENV)
+                or DEFAULT_DEPLOYMENT_ENV
+            )
+            .strip()
+            .lower()
+        )
         return cls(
             database_url=database_url,
             create_tables_on_startup=_bool_from_env(os.getenv(CREATE_TABLES_ENV)),
+            deployment_environment=deployment_environment,
+            production_security_enabled=_bool_from_env(
+                os.getenv(PRODUCTION_SECURITY_ENABLED_ENV), default=True
+            ),
             cors_allow_origins=_tuple_from_csv(
                 os.getenv(CORS_ORIGINS_ENV),
                 default=DEFAULT_CORS_ORIGINS,
@@ -163,12 +182,87 @@ class GovernanceApiConfig:
             ),
         )
 
+    @property
+    def is_production(self) -> bool:
+        """Return whether the API is running in a production deployment profile."""
+
+        return self.deployment_environment in {"prod", "production"}
+
+    def validate_production_security(self) -> None:
+        """Validate production-only security guardrails.
+
+        Development and test deployments keep the existing permissive defaults.
+        When ``SKEINRANK_ENV`` or ``SKEINRANK_GOVERNANCE_API_ENV`` is set to
+        ``production``, the API should fail fast on unsafe defaults instead of
+        starting with a misleading production label.
+        """
+
+        if not self.is_production or not self.production_security_enabled:
+            return
+
+        problems: list[str] = []
+        if not self.auth_enabled:
+            problems.append("auth must be enabled in production")
+        if self.database_url.startswith("sqlite:"):
+            problems.append("SQLite database URLs are not allowed in production")
+        if self.create_tables_on_startup:
+            problems.append(
+                "automatic table creation is not allowed in production; run migrations explicitly"
+            )
+        if self.bootstrap_admin:
+            if not self.admin_password:
+                problems.append(
+                    "bootstrap admin requires SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD"
+                )
+            elif _is_unsafe_default_secret(self.admin_password):
+                problems.append("bootstrap admin password uses an unsafe default value")
+        if "*" in self.cors_allow_origins:
+            problems.append("wildcard CORS origins are not allowed in production")
+        if self.enrichment_jobs_backend == "celery" and _has_unsafe_broker_secret(
+            self.celery_broker_url
+        ):
+            problems.append("Celery broker URL uses unsafe default credentials")
+        if not self.elasticsearch_url:
+            problems.append("Elasticsearch URL must be configured in production")
+
+        if problems:
+            details = "; ".join(problems)
+            raise ValueError(f"Unsafe SkeinRank production configuration: {details}")
+
 
 def _enrichment_backend_from_env(value: str | None) -> str:
     if value is None:
         return DEFAULT_ENRICHMENT_JOBS_BACKEND
     backend = value.strip().lower()
     return backend if backend in {"sync", "celery"} else DEFAULT_ENRICHMENT_JOBS_BACKEND
+
+
+_UNSAFE_DEFAULT_SECRETS = {
+    "",
+    "admin",
+    "change-me",
+    "changeme",
+    "password",
+    "secret",
+    "skeinrank",
+    "skeinrank_dev_password",
+    "guest",
+}
+
+
+def _is_unsafe_default_secret(value: str | None) -> bool:
+    if value is None:
+        return True
+    return value.strip().lower() in _UNSAFE_DEFAULT_SECRETS
+
+
+def _has_unsafe_broker_secret(url: str) -> bool:
+    normalized = url.strip().lower()
+    return (
+        "guest:guest@" in normalized
+        or "skeinrank:skeinrank_dev_password@" in normalized
+        or ":change-me@" in normalized
+    )
 
 
 def _package_version() -> str:
