@@ -10,6 +10,7 @@ from .dependencies import configure_database
 from .observability import (
     RequestObservabilityMiddleware,
     configure_logging,
+    configure_tracing,
     set_build_info,
 )
 from .routes.auth import router as auth_router
@@ -28,6 +29,7 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
     config = config or GovernanceApiConfig.from_env()
     config.validate_production_security()
     configure_logging(config)
+    app_tracing_status = configure_tracing(config)
     set_build_info(service=config.service_name, version=config.service_version)
     app = FastAPI(
         title="SkeinRank Governance API",
@@ -35,6 +37,7 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
         version=config.service_version,
     )
     app.state.config = config
+    app.state.tracing_status = app_tracing_status
     if config.cors_allow_origins:
         app.add_middleware(
             CORSMiddleware,

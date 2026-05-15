@@ -374,3 +374,8 @@ deploy/prometheus/prometheus.yml
 ```
 
 More details: `docs/deployment/observability.md`.
+
+
+## OpenTelemetry tracing
+
+SkeinRank supports optional OpenTelemetry tracing hooks for the Governance API and worker. See `docs/deployment/observability.md` for `SKEINRANK_GOVERNANCE_API_TRACING_ENABLED`, OTLP exporter settings, and privacy defaults.

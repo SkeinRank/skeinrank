@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from skeinrank_governance.models import (
     CanonicalTerm,
     ElasticsearchBinding,
@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
+from ..observability import start_span, trace_query_text
 from ..runtime_snapshots import (
     active_runtime_alias_entries,
     alias_entries_from_snapshot,
@@ -72,6 +73,7 @@ class _RuntimeAliasContext:
 @router.post("/canonicalize", response_model=TextCanonicalizeResponse)
 def canonicalize_text(
     request: TextCanonicalizeRequest,
+    http_request: Request,
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
@@ -89,13 +91,26 @@ def canonicalize_text(
             ),
         )
 
-    context = _resolve_runtime_alias_context(
-        session=session,
-        profile_name=request.profile_name,
-        binding_id=request.binding_id,
-    )
-    candidate_matches = _find_alias_matches(request.text, context.alias_entries)
-    matches = _select_non_overlapping_matches(candidate_matches, request.max_matches)
+    config = http_request.app.state.config
+    with start_span(
+        "runtime.text_canonicalize",
+        {
+            "skeinrank.runtime.endpoint": "text_canonicalize",
+            "skeinrank.binding_id": request.binding_id,
+            "skeinrank.profile_name": request.profile_name,
+            "skeinrank.canonicalize_mode": mode,
+            **trace_query_text(config, request.text),
+        },
+    ):
+        context = _resolve_runtime_alias_context(
+            session=session,
+            profile_name=request.profile_name,
+            binding_id=request.binding_id,
+        )
+        candidate_matches = _find_alias_matches(request.text, context.alias_entries)
+        matches = _select_non_overlapping_matches(
+            candidate_matches, request.max_matches
+        )
 
     canonical_text = request.text
     replacements: list[TextCanonicalizeMatch] = []

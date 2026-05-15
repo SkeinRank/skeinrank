@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
 from ..elasticsearch import ElasticsearchDiscoveryClient, ElasticsearchDiscoveryError
+from ..observability import start_span, trace_query_text
 from ..observability.metrics import (
     current_time,
     elapsed_seconds,
@@ -44,6 +45,7 @@ router = APIRouter(prefix="/v1", tags=["runtime"])
 @router.post("/query/plan", response_model=QueryPlanResponse)
 def build_query_plan(
     request: QueryPlanRequest,
+    http_request: Request,
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
@@ -54,22 +56,32 @@ def build_query_plan(
     started_at = current_time()
     status_label = "succeeded"
     try:
-        plan = _build_runtime_plan(
-            session=session,
-            profile_name=request.profile_name,
-            binding_id=request.binding_id,
-            query_text=request.query,
-            text_fields=request.text_fields,
-            target_field=request.target_field,
-            index_name=None,
-            size=request.size,
-            canonical_boost=request.canonical_boost,
-            include_evidence=request.include_evidence,
-            max_matches=request.max_matches,
-            warn_without_binding=False,
-            require_index=False,
-        )
-        return QueryPlanResponse(**plan)
+        config = http_request.app.state.config
+        with start_span(
+            "runtime.query_plan",
+            {
+                "skeinrank.runtime.endpoint": "query_plan",
+                "skeinrank.binding_id": request.binding_id,
+                "skeinrank.profile_name": request.profile_name,
+                **trace_query_text(config, request.query),
+            },
+        ):
+            plan = _build_runtime_plan(
+                session=session,
+                profile_name=request.profile_name,
+                binding_id=request.binding_id,
+                query_text=request.query,
+                text_fields=request.text_fields,
+                target_field=request.target_field,
+                index_name=None,
+                size=request.size,
+                canonical_boost=request.canonical_boost,
+                include_evidence=request.include_evidence,
+                max_matches=request.max_matches,
+                warn_without_binding=False,
+                require_index=False,
+            )
+            return QueryPlanResponse(**plan)
     except Exception:
         status_label = "failed"
         raise
@@ -96,73 +108,87 @@ def search_documents(
     status_label = "succeeded"
     hits_count = 0
     try:
-        plan = _build_runtime_plan(
-            session=session,
-            profile_name=request.profile_name,
-            binding_id=request.binding_id,
-            query_text=request.query,
-            text_fields=request.text_fields,
-            target_field=request.target_field,
-            index_name=request.index_name,
-            size=request.size,
-            canonical_boost=request.canonical_boost,
-            include_evidence=request.include_evidence,
-            max_matches=request.max_matches,
-            warn_without_binding=True,
-            require_index=True,
-        )
-        search_body = dict(plan["elasticsearch"])
-        source_filter = _source_filter(
-            include_source=request.include_source,
-            source_fields=request.source_fields,
-        )
-        if source_filter is not None:
-            search_body["_source"] = source_filter
-
-        client = ElasticsearchDiscoveryClient(http_request.app.state.config)
-        if not client.is_configured:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Elasticsearch URL is not configured.",
+        config = http_request.app.state.config
+        with start_span(
+            "runtime.search",
+            {
+                "skeinrank.runtime.endpoint": "search",
+                "skeinrank.binding_id": request.binding_id,
+                "skeinrank.profile_name": request.profile_name,
+                "skeinrank.index_name": request.index_name,
+                **trace_query_text(config, request.query),
+            },
+        ):
+            plan = _build_runtime_plan(
+                session=session,
+                profile_name=request.profile_name,
+                binding_id=request.binding_id,
+                query_text=request.query,
+                text_fields=request.text_fields,
+                target_field=request.target_field,
+                index_name=request.index_name,
+                size=request.size,
+                canonical_boost=request.canonical_boost,
+                include_evidence=request.include_evidence,
+                max_matches=request.max_matches,
+                warn_without_binding=True,
+                require_index=True,
             )
-        try:
-            payload = client.execute_search(
-                index_name=plan["index_name"], body=search_body
+            search_body = dict(plan["elasticsearch"])
+            source_filter = _source_filter(
+                include_source=request.include_source,
+                source_fields=request.source_fields,
             )
-        except ElasticsearchDiscoveryError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=str(exc),
-            ) from exc
+            if source_filter is not None:
+                search_body["_source"] = source_filter
 
-        hits_root = payload.get("hits") if isinstance(payload, dict) else None
-        hits_payload = hits_root.get("hits", []) if isinstance(hits_root, dict) else []
-        total = hits_root.get("total") if isinstance(hits_root, dict) else None
-        hits = [
-            _search_hit_response(item, plan["target_field"]) for item in hits_payload
-        ]
-        hits_count = len(hits)
+            client = ElasticsearchDiscoveryClient(config)
+            if not client.is_configured:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Elasticsearch URL is not configured.",
+                )
+            try:
+                payload = client.execute_search(
+                    index_name=plan["index_name"], body=search_body
+                )
+            except ElasticsearchDiscoveryError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(exc),
+                ) from exc
 
-        return SearchResponse(
-            profile_name=plan["profile_name"],
-            normalized_profile_name=plan["normalized_profile_name"],
-            index_name=plan["index_name"],
-            query=plan["query"],
-            canonical_query=plan["canonical_query"],
-            changed=plan["changed"],
-            binding_id=plan["binding_id"],
-            snapshot_version=plan["snapshot_version"],
-            snapshot_source=plan["snapshot_source"],
-            canonical_values=plan["canonical_values"],
-            slots=plan["slots"],
-            matched_aliases=plan["matched_aliases"],
-            replacements=plan["replacements"],
-            evidence=plan["evidence"],
-            elasticsearch=search_body,
-            total=total,
-            hits=hits,
-            warnings=plan["warnings"],
-        )
+            hits_root = payload.get("hits") if isinstance(payload, dict) else None
+            hits_payload = (
+                hits_root.get("hits", []) if isinstance(hits_root, dict) else []
+            )
+            total = hits_root.get("total") if isinstance(hits_root, dict) else None
+            hits = [
+                _search_hit_response(item, plan["target_field"])
+                for item in hits_payload
+            ]
+            hits_count = len(hits)
+
+            return SearchResponse(
+                profile_name=plan["profile_name"],
+                normalized_profile_name=plan["normalized_profile_name"],
+                index_name=plan["index_name"],
+                query=plan["query"],
+                canonical_query=plan["canonical_query"],
+                changed=plan["changed"],
+                binding_id=plan["binding_id"],
+                snapshot_version=plan["snapshot_version"],
+                snapshot_source=plan["snapshot_source"],
+                canonical_values=plan["canonical_values"],
+                slots=plan["slots"],
+                matched_aliases=plan["matched_aliases"],
+                replacements=plan["replacements"],
+                evidence=plan["evidence"],
+                elasticsearch=search_body,
+                total=total,
+                hits=hits,
+                warnings=plan["warnings"],
+            )
     except Exception:
         status_label = "failed"
         raise

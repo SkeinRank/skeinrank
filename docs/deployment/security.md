@@ -165,3 +165,8 @@ Back up Elasticsearch indices according to your organization's search/data reten
 ## Observability privacy baseline
 
 Production logging should avoid request bodies, document snippets, and sensitive query payloads by default. The built-in observability foundation logs request metadata, request ids, status codes, durations, and job lifecycle metadata only. See `docs/deployment/observability.md`.
+
+
+## OpenTelemetry tracing
+
+SkeinRank supports optional OpenTelemetry tracing hooks for the Governance API and worker. See `docs/deployment/observability.md` for `SKEINRANK_GOVERNANCE_API_TRACING_ENABLED`, OTLP exporter settings, and privacy defaults.

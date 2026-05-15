@@ -176,3 +176,36 @@ def test_production_security_accepts_hardened_config():
     )
 
     config.validate_production_security()
+
+
+def test_config_parses_tracing_env(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_TRACING_ENABLED", "true")
+    monkeypatch.setenv(
+        "SKEINRANK_GOVERNANCE_API_OTEL_SERVICE_NAME", "skeinrank-test-api"
+    )
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER", "otlp")
+    monkeypatch.setenv(
+        "SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT",
+        "http://collector:4317",
+    )
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO", "0.25")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT", "true")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.tracing_enabled is True
+    assert config.otel_service_name == "skeinrank-test-api"
+    assert config.otel_traces_exporter == "otlp"
+    assert config.otel_exporter_otlp_endpoint == "http://collector:4317"
+    assert config.otel_sampling_ratio == 0.25
+    assert config.otel_capture_query_text is True
+
+
+def test_config_defaults_unknown_tracing_values(monkeypatch):
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER", "vendor")
+    monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO", "2.0")
+
+    config = GovernanceApiConfig.from_env()
+
+    assert config.otel_traces_exporter == "none"
+    assert config.otel_sampling_ratio == 1.0

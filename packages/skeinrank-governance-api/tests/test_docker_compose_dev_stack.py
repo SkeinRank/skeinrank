@@ -43,6 +43,8 @@ def test_dev_compose_wires_governance_runtime_environment() -> None:
         "SKEINRANK_GOVERNANCE_API_OBSERVABILITY_ENABLED",
         "SKEINRANK_GOVERNANCE_API_LOG_FORMAT",
         "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER",
+        "SKEINRANK_GOVERNANCE_API_TRACING_ENABLED",
+        "SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER",
         "VITE_SKEINRANK_GOVERNANCE_API_URL",
     )
     for env_name in expected_env_names:
@@ -69,6 +71,9 @@ def test_dev_env_example_contains_required_settings() -> None:
         "SKEINRANK_GOVERNANCE_API_OBSERVABILITY_ENABLED=true",
         "SKEINRANK_GOVERNANCE_API_LOG_FORMAT=json",
         "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER=X-Request-ID",
+        "SKEINRANK_GOVERNANCE_API_TRACING_ENABLED=false",
+        "SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER=none",
+        "SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317",
         "VITE_SKEINRANK_GOVERNANCE_API_URL=http://127.0.0.1:8010",
     )
     for setting in required_settings:

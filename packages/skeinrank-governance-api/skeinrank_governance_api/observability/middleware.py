@@ -13,6 +13,7 @@ from starlette.responses import Response
 
 from .context import reset_request_id, set_request_id
 from .metrics import record_http_exception, record_http_request
+from .tracing import start_span
 
 logger = logging.getLogger("skeinrank_governance_api.observability.http")
 
@@ -45,8 +46,20 @@ class RequestObservabilityMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
         context_token = set_request_id(request_id)
         started_at = time.perf_counter()
+        span_attributes = {
+            "http.request.method": request.method,
+            "url.path": request.url.path,
+            "url.scheme": request.url.scheme,
+            "skeinrank.request_id": request_id,
+            "client.address": _client_host(request),
+        }
         try:
-            response = await call_next(request)
+            with start_span("http.request", span_attributes) as span:
+                response = await call_next(request)
+                if span is not None:
+                    span.set_attribute(
+                        "http.response.status_code", response.status_code
+                    )
         except Exception:
             duration_ms = _duration_ms(started_at)
             record_http_exception(method=request.method, path=request.url.path)

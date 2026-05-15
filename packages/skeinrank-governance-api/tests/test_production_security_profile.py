@@ -58,6 +58,8 @@ def test_production_env_example_documents_required_secrets() -> None:
         "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=https://elasticsearch.example.com:9200",
         "SKEINRANK_GOVERNANCE_API_LOG_FORMAT=json",
         "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER=X-Request-ID",
+        "SKEINRANK_GOVERNANCE_API_TRACING_ENABLED=false",
+        "SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER=none",
     )
     for fragment in required_fragments:
         assert fragment in env_example

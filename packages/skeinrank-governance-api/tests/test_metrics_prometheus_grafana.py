@@ -27,6 +27,9 @@ def test_dev_compose_declares_observability_profile() -> None:
     assert "./deploy/grafana/provisioning:/etc/grafana/provisioning:ro" in compose
     assert "SKEINRANK_GOVERNANCE_API_METRICS_ENABLED" in compose
     assert "SKEINRANK_GOVERNANCE_API_METRICS_PATH" in compose
+    assert "otel/opentelemetry-collector-contrib:0.116.1" in compose
+    assert "SKEINRANK_GOVERNANCE_API_TRACING_ENABLED" in compose
+    assert "SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT" in compose
 
 
 def test_prometheus_scrapes_governance_api_metrics() -> None:
@@ -61,6 +64,9 @@ def test_observability_docs_reference_metrics_stack() -> None:
         "docker compose -f docker-compose.dev.yml --profile observability up --build",
         "deploy/prometheus/prometheus.yml",
         "deploy/grafana/dashboards/skeinrank-overview.json",
+        "OpenTelemetry tracing",
+        "SKEINRANK_GOVERNANCE_API_TRACING_ENABLED",
+        "deploy/otel/collector.yml",
     )
     for fragment in expected:
         assert fragment in observability
@@ -100,3 +106,12 @@ def test_enrichment_job_metrics_handle_mixed_datetime_awareness(monkeypatch) -> 
             "documents_failed": 0,
         }
     ]
+
+
+def test_otel_collector_uses_supported_debug_exporter() -> None:
+    collector = _read("deploy/otel/collector.yml")
+
+    assert "exporters:" in collector
+    assert "debug:" in collector
+    assert "exporters: [debug]" in collector
+    assert "logging:" not in collector
