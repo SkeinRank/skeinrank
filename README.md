@@ -844,3 +844,8 @@ docker compose -f docker-compose.dev.yml --profile observability up --build
 - Metrics: `http://127.0.0.1:8010/metrics`
 
 See `docs/deployment/observability.md` for metric names and dashboard details.
+
+
+## OpenTelemetry tracing
+
+SkeinRank supports optional OpenTelemetry tracing hooks for the Governance API and worker. See `docs/deployment/observability.md` for `SKEINRANK_GOVERNANCE_API_TRACING_ENABLED`, OTLP exporter settings, and privacy defaults.

@@ -64,10 +64,28 @@ API_METRICS_ENABLED_ENV = "SKEINRANK_GOVERNANCE_API_METRICS_ENABLED"
 METRICS_ENABLED_ENV = "SKEINRANK_METRICS_ENABLED"
 API_METRICS_PATH_ENV = "SKEINRANK_GOVERNANCE_API_METRICS_PATH"
 METRICS_PATH_ENV = "SKEINRANK_METRICS_PATH"
+API_TRACING_ENABLED_ENV = "SKEINRANK_GOVERNANCE_API_TRACING_ENABLED"
+TRACING_ENABLED_ENV = "SKEINRANK_TRACING_ENABLED"
+API_OTEL_SERVICE_NAME_ENV = "SKEINRANK_GOVERNANCE_API_OTEL_SERVICE_NAME"
+OTEL_SERVICE_NAME_ENV = "SKEINRANK_OTEL_SERVICE_NAME"
+API_OTEL_TRACES_EXPORTER_ENV = "SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER"
+OTEL_TRACES_EXPORTER_ENV = "SKEINRANK_OTEL_TRACES_EXPORTER"
+API_OTEL_EXPORTER_OTLP_ENDPOINT_ENV = (
+    "SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT"
+)
+OTEL_EXPORTER_OTLP_ENDPOINT_ENV = "SKEINRANK_OTEL_EXPORTER_OTLP_ENDPOINT"
+API_OTEL_SAMPLING_RATIO_ENV = "SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO"
+OTEL_SAMPLING_RATIO_ENV = "SKEINRANK_OTEL_SAMPLING_RATIO"
+API_OTEL_CAPTURE_QUERY_TEXT_ENV = "SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT"
+OTEL_CAPTURE_QUERY_TEXT_ENV = "SKEINRANK_OTEL_CAPTURE_QUERY_TEXT"
 DEFAULT_LOG_FORMAT = "plain"
 DEFAULT_LOG_LEVEL = "info"
 DEFAULT_REQUEST_ID_HEADER = "X-Request-ID"
 DEFAULT_METRICS_PATH = "/metrics"
+DEFAULT_OTEL_SERVICE_NAME = "skeinrank-governance-api"
+DEFAULT_OTEL_TRACES_EXPORTER = "none"
+DEFAULT_OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-collector:4317"
+DEFAULT_OTEL_SAMPLING_RATIO = 1.0
 SERVICE_NAME = "skeinrank-governance-api"
 
 
@@ -85,6 +103,26 @@ def _int_from_env(value: str | None, *, default: int) -> int:
     except ValueError:
         return default
     return parsed if parsed > 0 else default
+
+
+def _float_from_env(
+    value: str | None,
+    *,
+    default: float,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
+    if value is None:
+        return default
+    try:
+        parsed = float(value.strip())
+    except ValueError:
+        return default
+    if minimum is not None and parsed < minimum:
+        return default
+    if maximum is not None and parsed > maximum:
+        return default
+    return parsed
 
 
 def _tuple_from_csv(value: str | None, *, default: tuple[str, ...]) -> tuple[str, ...]:
@@ -128,6 +166,12 @@ class GovernanceApiConfig:
     request_id_header: str = DEFAULT_REQUEST_ID_HEADER
     metrics_enabled: bool = True
     metrics_path: str = DEFAULT_METRICS_PATH
+    tracing_enabled: bool = False
+    otel_service_name: str = DEFAULT_OTEL_SERVICE_NAME
+    otel_traces_exporter: str = DEFAULT_OTEL_TRACES_EXPORTER
+    otel_exporter_otlp_endpoint: str | None = DEFAULT_OTEL_EXPORTER_OTLP_ENDPOINT
+    otel_sampling_ratio: float = DEFAULT_OTEL_SAMPLING_RATIO
+    otel_capture_query_text: bool = False
 
     @classmethod
     def from_env(cls) -> "GovernanceApiConfig":
@@ -236,6 +280,38 @@ class GovernanceApiConfig:
             metrics_path=_metrics_path_from_env(
                 os.getenv(API_METRICS_PATH_ENV) or os.getenv(METRICS_PATH_ENV)
             ),
+            tracing_enabled=_bool_from_env(
+                os.getenv(API_TRACING_ENABLED_ENV) or os.getenv(TRACING_ENABLED_ENV),
+                default=False,
+            ),
+            otel_service_name=(
+                os.getenv(API_OTEL_SERVICE_NAME_ENV)
+                or os.getenv(OTEL_SERVICE_NAME_ENV)
+                or DEFAULT_OTEL_SERVICE_NAME
+            ).strip()
+            or DEFAULT_OTEL_SERVICE_NAME,
+            otel_traces_exporter=_otel_traces_exporter_from_env(
+                os.getenv(API_OTEL_TRACES_EXPORTER_ENV)
+                or os.getenv(OTEL_TRACES_EXPORTER_ENV)
+            ),
+            otel_exporter_otlp_endpoint=(
+                os.getenv(API_OTEL_EXPORTER_OTLP_ENDPOINT_ENV)
+                or os.getenv(OTEL_EXPORTER_OTLP_ENDPOINT_ENV)
+                or DEFAULT_OTEL_EXPORTER_OTLP_ENDPOINT
+            ).strip()
+            or None,
+            otel_sampling_ratio=_float_from_env(
+                os.getenv(API_OTEL_SAMPLING_RATIO_ENV)
+                or os.getenv(OTEL_SAMPLING_RATIO_ENV),
+                default=DEFAULT_OTEL_SAMPLING_RATIO,
+                minimum=0.0,
+                maximum=1.0,
+            ),
+            otel_capture_query_text=_bool_from_env(
+                os.getenv(API_OTEL_CAPTURE_QUERY_TEXT_ENV)
+                or os.getenv(OTEL_CAPTURE_QUERY_TEXT_ENV),
+                default=False,
+            ),
         )
 
     @property
@@ -293,6 +369,17 @@ def _metrics_path_from_env(value: str | None) -> str:
     if not normalized:
         return DEFAULT_METRICS_PATH
     return normalized if normalized.startswith("/") else f"/{normalized}"
+
+
+def _otel_traces_exporter_from_env(value: str | None) -> str:
+    if value is None:
+        return DEFAULT_OTEL_TRACES_EXPORTER
+    normalized = value.strip().lower()
+    return (
+        normalized
+        if normalized in {"none", "console", "otlp"}
+        else DEFAULT_OTEL_TRACES_EXPORTER
+    )
 
 
 def _log_format_from_env(value: str | None) -> str:

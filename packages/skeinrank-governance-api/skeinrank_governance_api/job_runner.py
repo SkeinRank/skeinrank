@@ -17,6 +17,7 @@ from .elasticsearch import (
     ElasticsearchDocumentRef,
     compose_source_text,
 )
+from .observability import start_span
 from .observability.metrics import record_enrichment_job
 from .runtime_snapshots import (
     alias_tuples_from_snapshot,
@@ -108,7 +109,18 @@ def run_elasticsearch_enrichment_job(
             )
 
             try:
-                client = ElasticsearchDiscoveryClient(config)
+                span_attrs = {
+                    "skeinrank.job_id": job.id,
+                    "skeinrank.binding_id": job.binding_id,
+                    "skeinrank.profile_id": job.profile_id,
+                    "skeinrank.write_strategy": job.write_strategy,
+                    "skeinrank.snapshot_version": job.snapshot_version,
+                    "skeinrank.source_index": job.source_index,
+                    "skeinrank.target_index": job.target_index,
+                    "skeinrank.alias_name": job.alias_name,
+                }
+                with start_span("enrichment.coordinator.prepare", span_attrs):
+                    client = ElasticsearchDiscoveryClient(config)
                 if not client.is_configured:
                     raise ElasticsearchDiscoveryError(
                         "Elasticsearch URL is not configured."

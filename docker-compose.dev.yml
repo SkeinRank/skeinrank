@@ -96,6 +96,12 @@ services:
       SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER: ${SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER:-X-Request-ID}
       SKEINRANK_GOVERNANCE_API_METRICS_ENABLED: ${SKEINRANK_GOVERNANCE_API_METRICS_ENABLED:-true}
       SKEINRANK_GOVERNANCE_API_METRICS_PATH: ${SKEINRANK_GOVERNANCE_API_METRICS_PATH:-/metrics}
+      SKEINRANK_GOVERNANCE_API_TRACING_ENABLED: ${SKEINRANK_GOVERNANCE_API_TRACING_ENABLED:-false}
+      SKEINRANK_GOVERNANCE_API_OTEL_SERVICE_NAME: ${SKEINRANK_GOVERNANCE_API_OTEL_SERVICE_NAME:-skeinrank-governance-api}
+      SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER: ${SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER:-none}
+      SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT: ${SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+      SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO: ${SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO:-1.0}
+      SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT: ${SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT:-false}
     command: ["python", "-m", "skeinrank_governance_api.migrations", "upgrade", "head"]
     depends_on:
       postgres:
@@ -196,6 +202,21 @@ services:
     depends_on:
       governance-api:
         condition: service_healthy
+
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: skeinrank-otel-collector-dev
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yml"]
+    volumes:
+      - ./deploy/otel/collector.yml:/etc/otelcol/config.yml:ro
+    ports:
+      - "127.0.0.1:${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"
+    depends_on:
+      - prometheus
 
   grafana:
     image: grafana/grafana:11.5.2

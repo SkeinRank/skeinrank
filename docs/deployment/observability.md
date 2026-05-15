@@ -9,9 +9,10 @@ The current stack covers:
 - request IDs and structured logs;
 - Prometheus-compatible metrics at `GET /metrics`;
 - optional Prometheus + Grafana services for the Docker Compose dev stack;
-- a pre-provisioned Grafana dashboard for API, runtime search, and enrichment job signals.
+- a pre-provisioned Grafana dashboard for API, runtime search, and enrichment job signals;
+- optional OpenTelemetry tracing hooks for HTTP requests, runtime search, and Celery enrichment tasks.
 
-OpenTelemetry tracing and optional Sentry reporting are intentionally left for later patches.
+Optional Sentry reporting is intentionally left for a later patch.
 
 ## Request IDs and logs
 
@@ -72,6 +73,12 @@ The built-in metrics include:
 | `SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER` | `X-Request-ID` | Header used to accept and return request ids. |
 | `SKEINRANK_GOVERNANCE_API_METRICS_ENABLED` | `true` | Enables the Prometheus metrics endpoint. |
 | `SKEINRANK_GOVERNANCE_API_METRICS_PATH` | `/metrics` | Metrics endpoint path. |
+| `SKEINRANK_GOVERNANCE_API_TRACING_ENABLED` | `false` | Enables optional OpenTelemetry tracing hooks. |
+| `SKEINRANK_GOVERNANCE_API_OTEL_SERVICE_NAME` | `skeinrank-governance-api` | Service name used in OTEL resources. |
+| `SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER` | `none` | Trace exporter: `none`, `console`, or `otlp`. |
+| `SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OTLP endpoint for trace export. |
+| `SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO` | `1.0` | Trace sampling ratio from `0.0` to `1.0`. |
+| `SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT` | `false` | Captures raw query text in spans only when explicitly enabled. |
 
 Global aliases are also supported:
 
@@ -83,6 +90,12 @@ SKEINRANK_ACCESS_LOG_ENABLED
 SKEINRANK_REQUEST_ID_HEADER
 SKEINRANK_METRICS_ENABLED
 SKEINRANK_METRICS_PATH
+SKEINRANK_TRACING_ENABLED
+SKEINRANK_OTEL_SERVICE_NAME
+SKEINRANK_OTEL_TRACES_EXPORTER
+SKEINRANK_OTEL_EXPORTER_OTLP_ENDPOINT
+SKEINRANK_OTEL_SAMPLING_RATIO
+SKEINRANK_OTEL_CAPTURE_QUERY_TEXT
 ```
 
 The `SKEINRANK_GOVERNANCE_API_*` variables take precedence.
@@ -172,14 +185,47 @@ deploy/grafana/provisioning/
 deploy/grafana/dashboards/skeinrank-overview.json
 ```
 
+
+## OpenTelemetry tracing
+
+Patch 31C adds dependency-optional OpenTelemetry tracing hooks. The core package does not require OTEL libraries at import time. If tracing is enabled but OpenTelemetry packages are not installed, the API logs a warning and continues with no-op spans.
+
+To enable tracing in an environment that has OpenTelemetry SDK/exporter packages installed:
+
+```text
+SKEINRANK_GOVERNANCE_API_TRACING_ENABLED=true
+SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER=otlp
+SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO=1.0
+```
+
+The dev Compose observability profile includes an OpenTelemetry Collector config at:
+
+```text
+deploy/otel/collector.yml
+```
+
+Tracing spans are emitted for:
+
+- HTTP requests;
+- `/v1/query/plan`;
+- `/v1/search`;
+- Celery enrichment coordinator tasks;
+- Celery enrichment chunk tasks.
+
+By default, raw query text is not added to spans. Set this only for safe test environments:
+
+```text
+SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT=true
+```
+
 ## Privacy baseline
 
-The foundation does not log request bodies or document snippets. Runtime query text and document contents should remain out of logs by default. Later OpenTelemetry/Sentry integrations should preserve this baseline unless a deployment explicitly opts in to capturing additional payload fields.
+The foundation does not log request bodies or document snippets. Runtime query text and document contents remain out of logs and spans by default. OpenTelemetry query text capture is opt-in through `SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT=true` and should only be used in safe environments.
 
 ## Future integrations
 
 The next observability patches can build on this foundation:
 
-- OpenTelemetry tracing with OTLP exporters;
 - optional Sentry error reporting;
 - deployment dashboards for enrichment jobs and runtime search.
