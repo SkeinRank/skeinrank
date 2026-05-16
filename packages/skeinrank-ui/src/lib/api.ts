@@ -32,6 +32,7 @@ import type {
   ProfileUpdateRequest,
   RuntimeSnapshot,
   SnapshotExportRequest,
+  SnapshotSummary,
   ServiceAccount,
   ServiceAccountCreateRequest,
   ServiceAccountUpdateRequest,
@@ -248,6 +249,10 @@ export function revokeServiceAccountToken(accountName: string, tokenId: number) 
 
 export function getDashboardSummary() {
   return requestJson<DashboardSummary>("/v1/dashboard/summary");
+}
+
+export function getSnapshotSummary() {
+  return requestJson<SnapshotSummary>("/v1/snapshots/summary");
 }
 
 export function listProfiles() {

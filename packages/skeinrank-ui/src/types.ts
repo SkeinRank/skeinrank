@@ -71,6 +71,77 @@ export type DashboardSummary = {
   recent_jobs: DashboardRecentJob[];
 };
 
+export type SnapshotDiffSummary = {
+  active_checksum: string | null;
+  current_checksum: string | null;
+  active_aliases: number;
+  current_aliases: number;
+  added_aliases: number;
+  removed_aliases: number;
+  changed_aliases: number;
+  changed: boolean;
+};
+
+export type SnapshotBindingState = {
+  id: number;
+  name: string;
+  profile_name: string;
+  index_name: string;
+  filter_field: string | null;
+  filter_value: string | null;
+  is_enabled: boolean;
+  status: string;
+  active_snapshot_version: string | null;
+  pending_snapshot_version: string | null;
+  last_successful_snapshot_at: string | null;
+  last_successful_job_id: number | null;
+  latest_job_id: number | null;
+  latest_job_status: string | null;
+  latest_job_error: string | null;
+  rollback_available: boolean;
+  snapshot_aliases_total: number;
+  current_aliases_total: number;
+  diff: SnapshotDiffSummary;
+  updated_at: string;
+};
+
+export type SnapshotHistoryItem = {
+  job_id: number;
+  binding_id: number;
+  binding_name: string;
+  profile_name: string;
+  status: string;
+  snapshot_version: string | null;
+  previous_snapshot_version: string | null;
+  checksum: string | null;
+  alias_entries_total: number;
+  documents_seen: number;
+  documents_enriched: number;
+  documents_failed: number;
+  target_index: string | null;
+  alias_name: string | null;
+  rollback_available: boolean;
+  error_message: string | null;
+  created_at: string;
+  finished_at: string | null;
+};
+
+export type SnapshotCounts = {
+  bindings: number;
+  active_snapshots: number;
+  stale_snapshots: number;
+  pending_snapshots: number;
+  failed_updates: number;
+  never_enriched: number;
+  rollback_available: number;
+};
+
+export type SnapshotSummary = {
+  counts: SnapshotCounts;
+  bindings: SnapshotBindingState[];
+  history: SnapshotHistoryItem[];
+};
+
 export type Profile = {
   id: number;
   name: string;

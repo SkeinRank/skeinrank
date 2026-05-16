@@ -21,6 +21,7 @@ from .routes.health import router as health_router
 from .routes.metrics import metrics_response
 from .routes.metrics import router as metrics_router
 from .routes.search import router as search_router
+from .routes.snapshots import router as snapshots_router
 from .routes.text import router as text_router
 
 
@@ -68,6 +69,7 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
     app.include_router(dashboard_router)
     app.include_router(text_router)
     app.include_router(search_router)
+    app.include_router(snapshots_router)
     app.include_router(governance_router)
     app.include_router(console_router)
     return app

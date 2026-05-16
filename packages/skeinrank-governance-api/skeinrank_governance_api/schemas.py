@@ -143,6 +143,87 @@ class DashboardSummaryResponse(BaseModel):
     recent_jobs: list[DashboardRecentJob] = Field(default_factory=list)
 
 
+class SnapshotDiffSummary(BaseModel):
+    """Difference between the active runtime snapshot and current profile state."""
+
+    active_checksum: str | None = None
+    current_checksum: str | None = None
+    active_aliases: int
+    current_aliases: int
+    added_aliases: int
+    removed_aliases: int
+    changed_aliases: int
+    changed: bool
+
+
+class SnapshotBindingState(BaseModel):
+    """Runtime snapshot state for one binding."""
+
+    id: int
+    name: str
+    profile_name: str
+    index_name: str
+    filter_field: str | None = None
+    filter_value: str | None = None
+    is_enabled: bool
+    status: str
+    active_snapshot_version: str | None = None
+    pending_snapshot_version: str | None = None
+    last_successful_snapshot_at: datetime | None = None
+    last_successful_job_id: int | None = None
+    latest_job_id: int | None = None
+    latest_job_status: str | None = None
+    latest_job_error: str | None = None
+    rollback_available: bool
+    snapshot_aliases_total: int
+    current_aliases_total: int
+    diff: SnapshotDiffSummary
+    updated_at: datetime
+
+
+class SnapshotHistoryItem(BaseModel):
+    """One enrichment job that produced or attempted a runtime snapshot."""
+
+    job_id: int
+    binding_id: int
+    binding_name: str
+    profile_name: str
+    status: str
+    snapshot_version: str | None = None
+    previous_snapshot_version: str | None = None
+    checksum: str | None = None
+    alias_entries_total: int
+    documents_seen: int
+    documents_enriched: int
+    documents_failed: int
+    target_index: str | None = None
+    alias_name: str | None = None
+    rollback_available: bool
+    error_message: str | None = None
+    created_at: datetime
+    finished_at: datetime | None = None
+
+
+class SnapshotCounts(BaseModel):
+    """Aggregate runtime snapshot counters."""
+
+    bindings: int
+    active_snapshots: int
+    stale_snapshots: int
+    pending_snapshots: int
+    failed_updates: int
+    never_enriched: int
+    rollback_available: int
+
+
+class SnapshotSummaryResponse(BaseModel):
+    """Product runtime snapshot summary for the Snapshots UI tab."""
+
+    counts: SnapshotCounts
+    bindings: list[SnapshotBindingState] = Field(default_factory=list)
+    history: list[SnapshotHistoryItem] = Field(default_factory=list)
+
+
 class ProfileCreateRequest(BaseModel):
     """Request body for creating a terminology profile."""
 

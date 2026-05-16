@@ -6,7 +6,7 @@ import type { AuthUser } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
-export type AppSection = "dashboard" | "terms" | "suggestions" | "guardrails" | "integrations" | "api-access" | "users";
+export type AppSection = "dashboard" | "terms" | "suggestions" | "guardrails" | "integrations" | "snapshots" | "api-access" | "users";
 
 type AppShellProps = {
   activeSection: AppSection;
@@ -40,6 +40,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
     { label: "Suggestions", icon: Search, section: "suggestions" as const, available: true },
     { label: "Guardrails", icon: ShieldCheck, section: "guardrails" as const, available: true },
     { label: "Integrations", icon: Plug, section: "integrations" as const, available: true },
+    { label: "Snapshots", icon: GitBranch, section: "snapshots" as const, available: true },
     { label: "API Access", icon: KeyRound, section: "api-access" as const, available: canManageApiTokens },
     { label: "Users", icon: Users, section: "users" as const, available: canManageUsers },
   ];
@@ -70,7 +71,6 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                 {item.label}
               </button>
             ))}
-          <DisabledNavItem icon={GitBranch} label="Snapshots" />
         </nav>
       </aside>
 
@@ -83,6 +83,8 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                   ? "Dashboard"
                   : activeSection === "users"
                   ? "Users and roles"
+                  : activeSection === "snapshots"
+                    ? "Runtime snapshots"
                   : activeSection === "suggestions"
                     ? "Suggestions and approvals"
                     : activeSection === "guardrails"
@@ -98,6 +100,8 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                   ? "Product readiness, setup checklist, and runtime status for SkeinRank."
                   : activeSection === "users"
                   ? "Manage local users, roles, and access to governance workflows."
+                  : activeSection === "snapshots"
+                    ? "Audit active runtime snapshots, stale bindings, and enrichment history."
                   : activeSection === "suggestions"
                     ? "Propose aliases, review pending changes, and approve terminology updates."
                     : activeSection === "guardrails"
