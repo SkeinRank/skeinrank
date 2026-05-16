@@ -44,6 +44,8 @@ import type {
   AuthUser,
 } from "../types";
 
+type TermsSection = "terms" | "profiles";
+
 export function GovernanceDashboard({
   currentUser,
 }: {
@@ -58,6 +60,7 @@ export function GovernanceDashboard({
 
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
+  const [activeSection, setActiveSection] = useState<TermsSection>("terms");
 
   useEffect(() => {
     if (!profilesQuery.data || profilesQuery.data.length === 0) {
@@ -457,46 +460,28 @@ export function GovernanceDashboard({
     evidenceMutation.reset();
   }
 
+  const selectedAliasCount = useMemo(
+    () =>
+      (termsQuery.data ?? []).reduce(
+        (total, term) => total + term.aliases.length,
+        0,
+      ),
+    [termsQuery.data],
+  );
+
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Profiles</CardTitle>
-            <CardDescription>Terminology namespaces.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
-              {profilesQuery.data?.length ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Canonical terms</CardTitle>
-            <CardDescription>
-              Typed entities in the selected profile.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
-              {termsQuery.data?.length ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Runtime model</CardTitle>
-            <CardDescription>Snapshot-based extraction path.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Badge>Postgres → Snapshot → Aho-Corasick</Badge>
-          </CardContent>
-        </Card>
-      </section>
+      <TermsSectionTabs
+        activeSection={activeSection}
+        aliasCount={selectedAliasCount}
+        onSelectSection={setActiveSection}
+        profileCount={profilesQuery.data?.length ?? 0}
+        selectedProfile={selectedProfile}
+        termCount={termsQuery.data?.length ?? 0}
+      />
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-6">
+      {activeSection === "profiles" ? (
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <ProfileManager
             createErrorMessage={errorMessage(createProfileMutation.error)}
             deleteErrorMessage={errorMessage(deleteProfileMutation.error)}
@@ -521,78 +506,284 @@ export function GovernanceDashboard({
             selectedProfileName={selectedProfile}
             updateErrorMessage={errorMessage(updateProfileMutation.error)}
           />
-
-          <AddTermForm
-            disabled={!selectedProfile || !permissions.canManageTerms}
-            errorMessage={errorMessage(createTermMutation.error)}
-            isSubmitting={createTermMutation.isPending}
-            readOnlyMessage={
-              permissions.canManageTerms
-                ? null
-                : "Your role can inspect terms, but cannot create canonical terms."
-            }
-            onSubmit={handleCreateTerm}
-          />
-
-          {termsQuery.isError ? (
-            <ErrorMessage message={termsQuery.error.message} />
-          ) : termsQuery.isLoading && selectedProfile ? (
-            <Card>
-              <CardContent>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Loading terms...
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <TermsTable
-              onSelectTerm={(term) => handleTermSelect(term.id)}
-              selectedTermId={selectedTermId}
-              terms={termsQuery.data ?? []}
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile contents</CardTitle>
+              <CardDescription>
+                Compact summary for the selected terminology namespace.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm">
+              <MetricRow
+                label="Selected profile"
+                value={selectedProfile ?? "—"}
+              />
+              <MetricRow
+                label="Canonical terms"
+                value={String(termsQuery.data?.length ?? 0)}
+              />
+              <MetricRow label="Aliases" value={String(selectedAliasCount)} />
+              <MetricRow
+                label="Bindings"
+                value={String(bindingsQuery.data?.length ?? 0)}
+              />
+            </CardContent>
+          </Card>
+        </section>
+      ) : (
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="space-y-6">
+            <TermsProfileToolbar
+              bindingsCount={bindingsQuery.data?.length ?? 0}
+              isLoading={profilesQuery.isLoading}
+              loadErrorMessage={
+                profilesQuery.isError ? profilesQuery.error.message : null
+              }
+              onSelectProfile={handleProfileSelect}
+              profiles={profilesQuery.data ?? []}
+              selectedProfile={selectedProfile}
+              termsCount={termsQuery.data?.length ?? 0}
             />
-          )}
-        </div>
 
-        <div className="space-y-6">
-          <TermDetailsPanel
-            aliasErrorMessage={
-              errorMessage(updateAliasMutation.error) ??
-              errorMessage(deleteAliasMutation.error)
-            }
-            bindings={bindingsQuery.data ?? []}
-            bindingsErrorMessage={
-              bindingsQuery.isError ? bindingsQuery.error.message : null
-            }
-            bindingsLoading={
-              bindingsQuery.isLoading && Boolean(selectedProfile)
-            }
-            evidence={
-              evidenceMutation.data as ElasticsearchEvidenceResponse | undefined
-            }
-            evidenceErrorMessage={errorMessage(evidenceMutation.error)}
-            errorMessage={errorMessage(createAliasMutation.error)}
-            isAddingAlias={createAliasMutation.isPending}
-            isDeletingAlias={deleteAliasMutation.isPending}
-            isDeletingTerm={deleteTermMutation.isPending}
-            isCheckingEvidence={evidenceMutation.isPending}
-            isUpdatingAlias={updateAliasMutation.isPending}
-            isUpdatingTerm={updateTermMutation.isPending}
-            canManageAliases={permissions.canManageAliases}
-            canManageTerm={permissions.canManageTerms}
-            onAddAlias={handleCreateAlias}
-            onDeleteAlias={handleDeleteAlias}
-            onDeleteTerm={handleDeleteTerm}
-            onCheckEvidence={handleCheckEvidence}
-            onUpdateAlias={handleUpdateAlias}
-            onUpdateTerm={handleUpdateTerm}
-            term={selectedTerm}
-            termErrorMessage={
-              errorMessage(updateTermMutation.error) ??
-              errorMessage(deleteTermMutation.error)
-            }
+            <AddTermForm
+              disabled={!selectedProfile || !permissions.canManageTerms}
+              errorMessage={errorMessage(createTermMutation.error)}
+              isSubmitting={createTermMutation.isPending}
+              readOnlyMessage={
+                permissions.canManageTerms
+                  ? null
+                  : "Your role can inspect terms, but cannot create canonical terms."
+              }
+              onSubmit={handleCreateTerm}
+            />
+
+            {termsQuery.isError ? (
+              <ErrorMessage message={termsQuery.error.message} />
+            ) : termsQuery.isLoading && selectedProfile ? (
+              <Card>
+                <CardContent>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Loading terms...
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <TermsTable
+                onSelectTerm={(term) => handleTermSelect(term.id)}
+                selectedTermId={selectedTermId}
+                terms={termsQuery.data ?? []}
+              />
+            )}
+          </div>
+
+          <div className="space-y-6">
+            <TermDetailsPanel
+              aliasErrorMessage={
+                errorMessage(updateAliasMutation.error) ??
+                errorMessage(deleteAliasMutation.error)
+              }
+              bindings={bindingsQuery.data ?? []}
+              bindingsErrorMessage={
+                bindingsQuery.isError ? bindingsQuery.error.message : null
+              }
+              bindingsLoading={
+                bindingsQuery.isLoading && Boolean(selectedProfile)
+              }
+              evidence={
+                evidenceMutation.data as
+                  | ElasticsearchEvidenceResponse
+                  | undefined
+              }
+              evidenceErrorMessage={errorMessage(evidenceMutation.error)}
+              errorMessage={errorMessage(createAliasMutation.error)}
+              isAddingAlias={createAliasMutation.isPending}
+              isDeletingAlias={deleteAliasMutation.isPending}
+              isDeletingTerm={deleteTermMutation.isPending}
+              isCheckingEvidence={evidenceMutation.isPending}
+              isUpdatingAlias={updateAliasMutation.isPending}
+              isUpdatingTerm={updateTermMutation.isPending}
+              canManageAliases={permissions.canManageAliases}
+              canManageTerm={permissions.canManageTerms}
+              onAddAlias={handleCreateAlias}
+              onDeleteAlias={handleDeleteAlias}
+              onDeleteTerm={handleDeleteTerm}
+              onCheckEvidence={handleCheckEvidence}
+              onUpdateAlias={handleUpdateAlias}
+              onUpdateTerm={handleUpdateTerm}
+              term={selectedTerm}
+              termErrorMessage={
+                errorMessage(updateTermMutation.error) ??
+                errorMessage(deleteTermMutation.error)
+              }
+            />
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function TermsSectionTabs({
+  activeSection,
+  aliasCount,
+  onSelectSection,
+  profileCount,
+  selectedProfile,
+  termCount,
+}: {
+  activeSection: TermsSection;
+  aliasCount: number;
+  onSelectSection: (section: TermsSection) => void;
+  profileCount: number;
+  selectedProfile: string | null;
+  termCount: number;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+            Terminology workspace
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Edit active terms or manage profile namespaces without leaving this
+            page.
+          </p>
+        </div>
+        <div
+          aria-label="Terminology section"
+          className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 lg:w-auto"
+          role="tablist"
+        >
+          <TermsTabButton
+            isActive={activeSection === "terms"}
+            label="Terms"
+            meta={`${selectedProfile ?? "No profile"} · ${termCount} terms · ${aliasCount} aliases`}
+            onClick={() => onSelectSection("terms")}
+          />
+          <TermsTabButton
+            isActive={activeSection === "profiles"}
+            label="Profiles"
+            meta={`${profileCount} namespaces`}
+            onClick={() => onSelectSection("profiles")}
           />
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
+
+function TermsTabButton({
+  isActive,
+  label,
+  meta,
+  onClick,
+}: {
+  isActive: boolean;
+  label: string;
+  meta: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-selected={isActive}
+      className={`flex min-w-0 flex-1 flex-col rounded-xl px-4 py-2 text-left transition-colors lg:min-w-40 lg:flex-none ${
+        isActive
+          ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-slate-50"
+          : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-100"
+      }`}
+      onClick={onClick}
+      role="tab"
+      type="button"
+    >
+      <span className="text-sm font-semibold">{label}</span>
+      <span className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+        {meta}
+      </span>
+    </button>
+  );
+}
+
+function TermsProfileToolbar({
+  bindingsCount,
+  isLoading,
+  loadErrorMessage,
+  onSelectProfile,
+  profiles,
+  selectedProfile,
+  termsCount,
+}: {
+  bindingsCount: number;
+  isLoading: boolean;
+  loadErrorMessage?: string | null;
+  onSelectProfile: (profileName: string) => void;
+  profiles: Profile[];
+  selectedProfile: string | null;
+  termsCount: number;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle>Profile scope</CardTitle>
+          <CardDescription>
+            Choose the terminology namespace before editing terms and aliases.
+          </CardDescription>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <Badge>{termsCount} terms</Badge>
+          <Badge>{bindingsCount} bindings</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
+        {isLoading ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Loading profiles...
+          </p>
+        ) : profiles.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {profiles.map((profile) => (
+              <button
+                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  selectedProfile === profile.name
+                    ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
+                }`}
+                key={profile.id}
+                onClick={() => onSelectProfile(profile.name)}
+                type="button"
+              >
+                {profile.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            No profiles yet. Open the Profiles tab to create a terminology
+            namespace.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MetricRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800">
+      <span className="text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="font-medium text-slate-950 dark:text-slate-50">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function InlineError({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+      {message}
     </div>
   );
 }

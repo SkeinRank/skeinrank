@@ -241,7 +241,6 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
   },
 ];
 
-
 const runtimeQueryPlanResponse: RuntimeQueryPlanResponse = {
   profile_name: "default_it",
   normalized_profile_name: "default_it",
@@ -281,8 +280,19 @@ const runtimeQueryPlanResponse: RuntimeQueryPlanResponse = {
     query: {
       bool: {
         should: [
-          { multi_match: { query: "k8s pg timeout", fields: ["title", "body"], type: "best_fields" } },
-          { terms: { "skeinrank.canonical_values": ["kubernetes", "postgresql"], boost: 3 } },
+          {
+            multi_match: {
+              query: "k8s pg timeout",
+              fields: ["title", "body"],
+              type: "best_fields",
+            },
+          },
+          {
+            terms: {
+              "skeinrank.canonical_values": ["kubernetes", "postgresql"],
+              boost: 3,
+            },
+          },
         ],
         minimum_should_match: 1,
       },
@@ -399,8 +409,10 @@ const elasticsearchJobs: ElasticsearchEnrichmentJob[] = [
         alias_swap_completed: true,
         alias_swap_started_at: "2026-05-08T10:00:50Z",
         alias_swapped_at: "2026-05-08T10:00:55Z",
-        rollback_hint: "Manual rollback candidate: repoint alias docs to docs_v1.",
-        cleanup_hint: "If this rollout is cancelled or fails before alias swap, review or delete target index docs__skeinrank_job_101.",
+        rollback_hint:
+          "Manual rollback candidate: repoint alias docs to docs_v1.",
+        cleanup_hint:
+          "If this rollout is cancelled or fails before alias swap, review or delete target index docs__skeinrank_job_101.",
       },
     },
     error_message: null,
@@ -595,7 +607,9 @@ function dashboardSummaryFromState(
   const succeededJobs = currentElasticsearchJobs.filter(
     (job) => job.status === "succeeded",
   ).length;
-  const readyBindings = bindings.filter((binding) => binding.status === "ready").length;
+  const readyBindings = bindings.filter(
+    (binding) => binding.status === "ready",
+  ).length;
 
   return {
     readiness: {
@@ -643,15 +657,28 @@ function dashboardSummaryFromState(
     counts: {
       profiles: currentProfiles.length,
       canonical_terms: currentTerms.length,
-      aliases: currentTerms.reduce((total, term) => total + term.aliases.length, 0),
+      aliases: currentTerms.reduce(
+        (total, term) => total + term.aliases.length,
+        0,
+      ),
       bindings: bindings.length,
       ready_bindings: readyBindings,
-      stale_bindings: bindings.filter((binding) => binding.status === "stale").length,
-      updating_bindings: bindings.filter((binding) => binding.status === "updating").length,
-      failed_bindings: bindings.filter((binding) => binding.status === "failed").length,
-      never_enriched_bindings: bindings.filter((binding) => binding.status === "never_enriched").length,
-      running_jobs: currentElasticsearchJobs.filter((job) => ["queued", "running", "cancel_requested"].includes(job.status)).length,
-      failed_jobs: currentElasticsearchJobs.filter((job) => job.status === "failed").length,
+      stale_bindings: bindings.filter((binding) => binding.status === "stale")
+        .length,
+      updating_bindings: bindings.filter(
+        (binding) => binding.status === "updating",
+      ).length,
+      failed_bindings: bindings.filter((binding) => binding.status === "failed")
+        .length,
+      never_enriched_bindings: bindings.filter(
+        (binding) => binding.status === "never_enriched",
+      ).length,
+      running_jobs: currentElasticsearchJobs.filter((job) =>
+        ["queued", "running", "cancel_requested"].includes(job.status),
+      ).length,
+      failed_jobs: currentElasticsearchJobs.filter(
+        (job) => job.status === "failed",
+      ).length,
     },
     setup: {
       has_profile: currentProfiles.length > 0,
@@ -670,9 +697,17 @@ function dashboardBindingStatus(
   latestJob: ElasticsearchEnrichmentJob | null,
 ) {
   if (!binding.is_enabled) return "disabled";
-  if (latestJob && ["queued", "running", "cancel_requested"].includes(latestJob.status)) return "updating";
+  if (
+    latestJob &&
+    ["queued", "running", "cancel_requested"].includes(latestJob.status)
+  )
+    return "updating";
   if (latestJob?.status === "failed") return "failed";
-  if (binding.pending_snapshot_version && binding.last_successful_snapshot_version) return "stale";
+  if (
+    binding.pending_snapshot_version &&
+    binding.last_successful_snapshot_version
+  )
+    return "stale";
   if (binding.pending_snapshot_version) return "updating";
   if (binding.last_successful_snapshot_version) return "ready";
   return "never_enriched";
@@ -713,8 +748,11 @@ function snapshotSummaryFromState(
 
   const bindings = currentElasticsearchBindings.map((binding) => {
     const latestJob = latestJobByBinding.get(binding.id) ?? null;
-    const activeSnapshotVersion = binding.last_successful_snapshot_version ?? null;
-    const isStale = Boolean(binding.pending_snapshot_version) || binding.snapshot_status === "stale";
+    const activeSnapshotVersion =
+      binding.last_successful_snapshot_version ?? null;
+    const isStale =
+      Boolean(binding.pending_snapshot_version) ||
+      binding.snapshot_status === "stale";
     const status = !binding.is_enabled
       ? "disabled"
       : latestJob?.status === "failed" && !activeSnapshotVersion
@@ -728,7 +766,11 @@ function snapshotSummaryFromState(
               : "ready";
     const rollbackAvailable = Boolean(
       latestJob?.status === "succeeded" &&
-        (latestJob.result_json.rollout as { rollback_available?: boolean } | undefined)?.rollback_available,
+      (
+        latestJob.result_json.rollout as
+          | { rollback_available?: boolean }
+          | undefined
+      )?.rollback_available,
     );
     return {
       id: binding.id,
@@ -748,10 +790,12 @@ function snapshotSummaryFromState(
       latest_job_error: latestJob?.error_message ?? null,
       rollback_available: rollbackAvailable,
       snapshot_aliases_total: activeSnapshotVersion ? 1 : 0,
-      current_aliases_total: binding.id === 2 ? 2 : activeSnapshotVersion ? 1 : 0,
+      current_aliases_total:
+        binding.id === 2 ? 2 : activeSnapshotVersion ? 1 : 0,
       diff: {
         active_checksum: activeSnapshotVersion ? "abc123" : null,
-        current_checksum: binding.id === 2 ? "new789" : activeSnapshotVersion ? "abc123" : null,
+        current_checksum:
+          binding.id === 2 ? "new789" : activeSnapshotVersion ? "abc123" : null,
         active_aliases: activeSnapshotVersion ? 1 : 0,
         current_aliases: binding.id === 2 ? 2 : activeSnapshotVersion ? 1 : 0,
         added_aliases: binding.id === 2 ? 1 : 0,
@@ -780,7 +824,8 @@ function snapshotSummaryFromState(
     alias_name: job.alias_name,
     rollback_available: Boolean(
       job.status === "succeeded" &&
-        (job.result_json.rollout as { rollback_available?: boolean } | undefined)?.rollback_available,
+      (job.result_json.rollout as { rollback_available?: boolean } | undefined)
+        ?.rollback_available,
     ),
     error_message: job.error_message,
     created_at: job.created_at,
@@ -790,12 +835,22 @@ function snapshotSummaryFromState(
   return {
     counts: {
       bindings: bindings.length,
-      active_snapshots: bindings.filter((binding) => binding.active_snapshot_version).length,
-      stale_snapshots: bindings.filter((binding) => binding.status === "stale").length,
-      pending_snapshots: bindings.filter((binding) => binding.pending_snapshot_version).length,
-      failed_updates: bindings.filter((binding) => binding.status === "failed").length,
-      never_enriched: bindings.filter((binding) => binding.status === "never_enriched").length,
-      rollback_available: bindings.filter((binding) => binding.rollback_available).length,
+      active_snapshots: bindings.filter(
+        (binding) => binding.active_snapshot_version,
+      ).length,
+      stale_snapshots: bindings.filter((binding) => binding.status === "stale")
+        .length,
+      pending_snapshots: bindings.filter(
+        (binding) => binding.pending_snapshot_version,
+      ).length,
+      failed_updates: bindings.filter((binding) => binding.status === "failed")
+        .length,
+      never_enriched: bindings.filter(
+        (binding) => binding.status === "never_enriched",
+      ).length,
+      rollback_available: bindings.filter(
+        (binding) => binding.rollback_available,
+      ).length,
     },
     bindings,
     history,
@@ -1491,15 +1546,28 @@ function stubGovernanceApi(options: StubOptions = {}) {
         url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/rollback$/) &&
         method === "POST"
       ) {
-        const jobId = Number(url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/rollback$/)?.[1]);
-        const payload = JSON.parse(init?.body?.toString() ?? "{}") as { reason?: string | null };
-        const job = currentElasticsearchJobs.find((currentJob) => currentJob.id === jobId);
+        const jobId = Number(
+          url.match(
+            /\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/rollback$/,
+          )?.[1],
+        );
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          reason?: string | null;
+        };
+        const job = currentElasticsearchJobs.find(
+          (currentJob) => currentJob.id === jobId,
+        );
         if (!job) {
           return Response.json({ detail: "not found" }, { status: 404 });
         }
-        const rollout = job.result_json.rollout as Record<string, unknown> | undefined;
+        const rollout = job.result_json.rollout as
+          | Record<string, unknown>
+          | undefined;
         if (!rollout || job.status !== "succeeded") {
-          return Response.json({ detail: "Rollback is not available for this job." }, { status: 409 });
+          return Response.json(
+            { detail: "Rollback is not available for this job." },
+            { status: 409 },
+          );
         }
         const nextRollout = {
           ...rollout,
@@ -1539,14 +1607,27 @@ function stubGovernanceApi(options: StubOptions = {}) {
         url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/cancel$/) &&
         method === "POST"
       ) {
-        const jobId = Number(url.match(/\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/cancel$/)?.[1]);
-        const payload = JSON.parse(init?.body?.toString() ?? "{}") as { reason?: string | null };
-        const job = currentElasticsearchJobs.find((currentJob) => currentJob.id === jobId);
+        const jobId = Number(
+          url.match(
+            /\/v1\/governance\/elasticsearch\/jobs\/(\d+)\/cancel$/,
+          )?.[1],
+        );
+        const payload = JSON.parse(init?.body?.toString() ?? "{}") as {
+          reason?: string | null;
+        };
+        const job = currentElasticsearchJobs.find(
+          (currentJob) => currentJob.id === jobId,
+        );
         if (!job) {
           return Response.json({ detail: "not found" }, { status: 404 });
         }
         if (!["queued", "running", "cancel_requested"].includes(job.status)) {
-          return Response.json({ detail: `Cannot cancel enrichment job with status: ${job.status}` }, { status: 409 });
+          return Response.json(
+            {
+              detail: `Cannot cancel enrichment job with status: ${job.status}`,
+            },
+            { status: 409 },
+          );
         }
         const nextJob: ElasticsearchEnrichmentJob = {
           ...job,
@@ -1596,8 +1677,11 @@ function stubGovernanceApi(options: StubOptions = {}) {
             payload.target_index_name ??
             `${existingBinding.index_name}__skeinrank_job_${jobId}`,
           alias_name: payload.alias_name ?? existingBinding.index_name,
-          snapshot_version: existingBinding.last_successful_snapshot_version ?? "default_it@abc123",
-          previous_snapshot_version: existingBinding.last_successful_snapshot_version ?? null,
+          snapshot_version:
+            existingBinding.last_successful_snapshot_version ??
+            "default_it@abc123",
+          previous_snapshot_version:
+            existingBinding.last_successful_snapshot_version ?? null,
           requested_by: currentUser.username,
           documents_seen: payload.max_documents ?? 1000,
           documents_enriched: 3,
@@ -1611,7 +1695,9 @@ function stubGovernanceApi(options: StubOptions = {}) {
               status: "prepared",
               alias_name: payload.alias_name ?? existingBinding.index_name,
               source_index: existingBinding.index_name,
-              target_index: payload.target_index_name ?? `${existingBinding.index_name}__skeinrank_job_${jobId}`,
+              target_index:
+                payload.target_index_name ??
+                `${existingBinding.index_name}__skeinrank_job_${jobId}`,
               previous_alias_indices: ["docs_v1"],
               new_alias_indices: [],
               rollback_candidate_index: "docs_v1",
@@ -1619,8 +1705,10 @@ function stubGovernanceApi(options: StubOptions = {}) {
               alias_swap_completed: false,
               alias_swap_started_at: "2026-05-08T11:00:30Z",
               alias_swapped_at: null,
-              rollback_hint: "Manual rollback candidate: repoint alias docs to docs_v1.",
-              cleanup_hint: "If this rollout is cancelled or fails before alias swap, review or delete target index docs__skeinrank_candidate.",
+              rollback_hint:
+                "Manual rollback candidate: repoint alias docs to docs_v1.",
+              cleanup_hint:
+                "If this rollout is cancelled or fails before alias swap, review or delete target index docs__skeinrank_candidate.",
             },
           },
           error_message: null,
@@ -2127,7 +2215,6 @@ function stubGovernanceApi(options: StubOptions = {}) {
   return fetchMock;
 }
 
-
 async function openTermsPage() {
   fireEvent.click(await screen.findByRole("button", { name: "Terms" }));
   await screen.findByText("Terminology control plane");
@@ -2139,7 +2226,9 @@ async function openSnapshotsPage() {
 }
 
 async function openSearchPlaygroundPage() {
-  fireEvent.click(await screen.findByRole("button", { name: "Search Playground" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search Playground" }),
+  );
   await screen.findByRole("heading", { name: "Search Playground" });
 }
 
@@ -2157,7 +2246,9 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Dashboard" }),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Welcome to SkeinRank")).toBeInTheDocument();
     expect(screen.getByText("Ready bindings")).toBeInTheDocument();
 
@@ -2171,9 +2262,9 @@ describe("App", () => {
       expect(screen.getAllByText("kubernetes").length).toBeGreaterThan(0);
     });
     expect(screen.getAllByText("k8s").length).toBeGreaterThan(0);
-    expect(
-      screen.getByText("Postgres → Snapshot → Aho-Corasick"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Terminology workspace")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Terms/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Profiles/ })).toBeInTheDocument();
     expect(screen.getByText("MVP")).toBeInTheDocument();
     expect(screen.queryByText("UI skeleton")).not.toBeInTheDocument();
   });
@@ -2185,7 +2276,9 @@ describe("App", () => {
 
     await openSnapshotsPage();
 
-    expect(await screen.findByText("Runtime snapshot control")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Runtime snapshot control"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Active runtime snapshots")).toBeInTheDocument();
     expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
     expect(screen.getByText("ml_platform@old456")).toBeInTheDocument();
@@ -2210,7 +2303,9 @@ describe("App", () => {
 
     await openSearchPlaygroundPage();
 
-    expect(await screen.findByText("Runtime search playground")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Runtime search playground"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Binding context")).toBeInTheDocument();
     expect(screen.getByText("default_it → docs")).toBeInTheDocument();
 
@@ -2233,7 +2328,9 @@ describe("App", () => {
     });
 
     expect(await screen.findByText("Query plan")).toBeInTheDocument();
-    expect(screen.getByText("kubernetes postgresql timeout")).toBeInTheDocument();
+    expect(
+      screen.getByText("kubernetes postgresql timeout"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("k8s").length).toBeGreaterThan(0);
     expect(screen.getAllByText("pg").length).toBeGreaterThan(0);
     expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
@@ -2264,24 +2361,36 @@ describe("App", () => {
     expect(screen.getByText("K8s pg timeout incident")).toBeInTheDocument();
   });
 
-
   it("collapses the sidebar into a compact rail and keeps navigation accessible", async () => {
     stubGovernanceApi();
 
     render(<App />);
 
-    const collapseButton = await screen.findByRole("button", { name: "Collapse sidebar" });
+    const collapseButton = await screen.findByRole("button", {
+      name: "Collapse sidebar",
+    });
     fireEvent.click(collapseButton);
 
-    expect(window.localStorage.getItem("skeinrank-ui-sidebar-mode")).toBe("collapsed");
-    expect(screen.getByRole("img", { name: "SkeinRank logo" })).toHaveAttribute("src", "/skeinrank-logo.png");
-    expect(screen.queryByRole("button", { name: "Pin sidebar open" })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("skeinrank-ui-sidebar-mode")).toBe(
+      "collapsed",
+    );
+    expect(screen.getByRole("img", { name: "SkeinRank logo" })).toHaveAttribute(
+      "src",
+      "/skeinrank-logo.png",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Pin sidebar open" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.mouseEnter(screen.getByLabelText("Primary navigation"));
-    expect(screen.getByRole("button", { name: "Pin sidebar open" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Pin sidebar open" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Terms" }));
-    expect(await screen.findByRole("heading", { name: "Terminology control plane" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Terminology control plane" }),
+    ).toBeInTheDocument();
   });
 
   it("cycles the governance console theme", async () => {
@@ -2310,6 +2419,7 @@ describe("App", () => {
     render(<App />);
 
     await openTermsPage();
+    fireEvent.click(screen.getByRole("tab", { name: /Profiles/ }));
     await screen.findByRole("button", { name: "Create profile" });
 
     fireEvent.change(screen.getByLabelText("New profile name"), {
@@ -2367,6 +2477,7 @@ describe("App", () => {
     render(<App />);
 
     await openTermsPage();
+    fireEvent.click(screen.getByRole("tab", { name: /Profiles/ }));
     fireEvent.click(await screen.findByRole("button", { name: "default_it" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "Delete profile" }),
@@ -2602,7 +2713,9 @@ describe("App", () => {
     });
     expect(await screen.findByText(/Evidence mentions/)).toBeInTheDocument();
     expect(screen.getAllByText("kubernetes").length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Export draft snapshot" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Export draft snapshot" }),
+    ).not.toBeInTheDocument();
   });
 
   it("signs in when auth is enabled and sends bearer tokens", async () => {
@@ -2881,9 +2994,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
     fireEvent.click(await screen.findByRole("tab", { name: /Profile/ }));
 
-    expect(
-      await screen.findByText("Profile scope"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Profile scope")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("service").length).toBeGreaterThan(0);
     });
@@ -3008,15 +3119,23 @@ describe("App", () => {
       await screen.findByText("Elasticsearch bindings"),
     ).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hide details" })).toBeInTheDocument();
-    expect(screen.getByText("Profile → index mapping → dry-run → enrichment → runtime snapshot.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Hide details" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Profile → index mapping → dry-run → enrichment → runtime snapshot.",
+      ),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });
     fireEvent.click(screen.getAllByText("infra docs")[0]);
     expect(await screen.findByText("Selected binding")).toBeInTheDocument();
     expect(screen.getByText("Binding setup flow")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create binding" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create binding" }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit binding" }));
     await waitFor(() => {
       expect(screen.getByLabelText("Edit description")).toHaveValue(
@@ -3054,12 +3173,16 @@ describe("App", () => {
       expect(fetchMock).toHaveBeenCalledWith(
         "http://127.0.0.1:8010/v1/governance/elasticsearch/jobs/101/rollback",
         expect.objectContaining({
-          body: JSON.stringify({ reason: "Rollback requested from Integrations UI." }),
+          body: JSON.stringify({
+            reason: "Rollback requested from Integrations UI.",
+          }),
           method: "POST",
         }),
       );
     });
-    expect((await screen.findAllByText(/Rollback completed/)).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText(/Rollback completed/)).length,
+    ).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText("Job target index"), {
       target: { value: "docs__skeinrank_candidate" },
     });
@@ -3096,10 +3219,14 @@ describe("App", () => {
         }),
       );
     });
-    expect((await screen.findAllByText("cancel_requested")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("cancel_requested")).length,
+    ).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
-    expect(await screen.findByText("Profile and binding identity")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Profile and binding identity"),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Binding name"), {
       target: { value: "runbook docs" },
     });
@@ -3225,7 +3352,9 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
-    expect(await screen.findByText("Profile and binding identity")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Profile and binding identity"),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Profile"), {
       target: { value: "ml_platform" },
     });
@@ -3296,8 +3425,12 @@ describe("App", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit binding" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Save binding" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete binding" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save binding" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete binding" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps contributor users in read-only governance mode", async () => {
@@ -3314,9 +3447,6 @@ describe("App", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add term" })).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Create profile" }),
-    ).toBeDisabled();
-    expect(
       screen.queryByRole("button", { name: "Edit alias" }),
     ).not.toBeInTheDocument();
     expect(
@@ -3324,6 +3454,11 @@ describe("App", () => {
         "Your role has read-only access to this terminology profile. Use the Suggestions tab to propose changes for review.",
       ),
     ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Profiles/ }));
+    expect(
+      screen.getByRole("button", { name: "Create profile" }),
+    ).toBeDisabled();
   });
 
   it("lets contributors create suggestions without review actions", async () => {
