@@ -2264,6 +2264,26 @@ describe("App", () => {
     expect(screen.getByText("K8s pg timeout incident")).toBeInTheDocument();
   });
 
+
+  it("collapses the sidebar into a compact rail and keeps navigation accessible", async () => {
+    stubGovernanceApi();
+
+    render(<App />);
+
+    const collapseButton = await screen.findByRole("button", { name: "Collapse sidebar" });
+    fireEvent.click(collapseButton);
+
+    expect(window.localStorage.getItem("skeinrank-ui-sidebar-mode")).toBe("collapsed");
+    expect(screen.getByRole("img", { name: "SkeinRank logo" })).toHaveAttribute("src", "/skeinrank-logo.png");
+    expect(screen.queryByRole("button", { name: "Pin sidebar open" })).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(screen.getByLabelText("Primary navigation"));
+    expect(screen.getByRole("button", { name: "Pin sidebar open" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Terms" }));
+    expect(await screen.findByRole("heading", { name: "Terminology control plane" })).toBeInTheDocument();
+  });
+
   it("cycles the governance console theme", async () => {
     stubGovernanceApi();
 

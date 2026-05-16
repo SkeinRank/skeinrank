@@ -23,6 +23,7 @@ export function SearchPlaygroundPage() {
   const [activeMode, setActiveMode] = useState<"plan" | "search" | null>(null);
 
   const bindings = useMemo(() => bindingsQuery.data ?? [], [bindingsQuery.data]);
+  const effectiveBindingId = selectedBindingId ?? bindings[0]?.id ?? null;
 
   useEffect(() => {
     if (bindings.length === 0) {
@@ -35,14 +36,14 @@ export function SearchPlaygroundPage() {
   }, [bindings, selectedBindingId]);
 
   const selectedBinding = useMemo(
-    () => bindings.find((binding) => binding.id === selectedBindingId) ?? null,
-    [bindings, selectedBindingId],
+    () => bindings.find((binding) => binding.id === effectiveBindingId) ?? null,
+    [bindings, effectiveBindingId],
   );
 
   const queryPlanMutation = useMutation({
     mutationFn: () =>
       buildRuntimeQueryPlan({
-        binding_id: selectedBindingId,
+        binding_id: effectiveBindingId,
         query: queryText.trim(),
         size: parseInteger(size, 10),
         canonical_boost: parseFloatOrDefault(canonicalBoost, 3),
@@ -57,7 +58,7 @@ export function SearchPlaygroundPage() {
   const searchMutation = useMutation({
     mutationFn: () =>
       searchRuntimeDocuments({
-        binding_id: selectedBindingId,
+        binding_id: effectiveBindingId,
         query: queryText.trim(),
         size: parseInteger(size, 10),
         canonical_boost: parseFloatOrDefault(canonicalBoost, 3),
@@ -70,7 +71,7 @@ export function SearchPlaygroundPage() {
     },
   });
 
-  const canSubmit = Boolean(selectedBindingId) && queryText.trim().length > 0;
+  const canSubmit = Boolean(effectiveBindingId) && queryText.trim().length > 0;
 
   async function handlePlanSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -129,7 +130,7 @@ export function SearchPlaygroundPage() {
                         setActiveResult(null);
                         setActiveMode(null);
                       }}
-                      value={selectedBindingId ?? ""}
+                      value={effectiveBindingId ?? ""}
                     >
                       {bindings.length === 0 ? <option value="">No bindings available</option> : null}
                       {bindings.map((binding) => (
