@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AddTermForm } from "../components/AddTermForm";
 import { ProfileManager } from "../components/ProfileManager";
-import { SnapshotPanel } from "../components/SnapshotPanel";
 import { TermDetailsPanel } from "../components/TermDetailsPanel";
 import { TermsTable } from "../components/TermsTable";
 import { Badge } from "../components/ui/badge";
@@ -590,15 +589,6 @@ export function GovernanceDashboard({
             termErrorMessage={
               errorMessage(updateTermMutation.error) ??
               errorMessage(deleteTermMutation.error)
-            }
-          />
-          <SnapshotPanel
-            disabled={!permissions.canExportSnapshots}
-            profileName={selectedProfile}
-            readOnlyMessage={
-              permissions.canExportSnapshots
-                ? null
-                : "Snapshot export requires an admin or moderator role."
             }
           />
         </div>

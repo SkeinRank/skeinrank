@@ -2429,70 +2429,7 @@ describe("App", () => {
     });
     expect(await screen.findByText(/Evidence mentions/)).toBeInTheDocument();
     expect(screen.getAllByText("kubernetes").length).toBeGreaterThan(0);
-  });
-
-  it("exports and downloads the runtime snapshot JSON", async () => {
-    const fetchMock = stubGovernanceApi();
-    const createObjectUrl = vi.fn(() => "blob:skeinrank-snapshot");
-    const revokeObjectUrl = vi.fn();
-    const clickAnchor = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
-    Object.defineProperty(URL, "createObjectURL", {
-      configurable: true,
-      value: createObjectUrl,
-    });
-    Object.defineProperty(URL, "revokeObjectURL", {
-      configurable: true,
-      value: revokeObjectUrl,
-    });
-
-    render(<App />);
-
-    await openTermsPage();
-    await screen.findByText("default_it");
-    await screen.findByText("kubernetes");
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "Export draft snapshot" }),
-      ).not.toBeDisabled();
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Export draft snapshot" }),
-    );
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/export",
-        expect.objectContaining({
-          body: JSON.stringify({
-            snapshot_version: "default_it@draft",
-            description:
-              "Runtime snapshot exported from the governance console.",
-          }),
-          method: "POST",
-        }),
-      );
-    });
-
-    const snapshotPreview = await screen.findByText((_content, element) => {
-      return (
-        element?.tagName.toLowerCase() === "pre" &&
-        Boolean(element.textContent?.includes('"profile_id": "default_it"'))
-      );
-    });
-    expect(snapshotPreview).toBeInTheDocument();
-
-    const downloadButton = screen.getByRole("button", {
-      name: "Download JSON",
-    });
-    await waitFor(() => expect(downloadButton).not.toBeDisabled());
-    fireEvent.click(downloadButton);
-
-    expect(createObjectUrl).toHaveBeenCalledTimes(1);
-    expect(clickAnchor).toHaveBeenCalledTimes(1);
-    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:skeinrank-snapshot");
+    expect(screen.queryByRole("button", { name: "Export draft snapshot" })).not.toBeInTheDocument();
   });
 
   it("signs in when auth is enabled and sends bearer tokens", async () => {
@@ -3192,9 +3129,6 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Add term" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Create profile" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Export draft snapshot" }),
     ).toBeDisabled();
     expect(
       screen.queryByRole("button", { name: "Edit alias" }),
