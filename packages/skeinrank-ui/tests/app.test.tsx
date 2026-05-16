@@ -2837,6 +2837,10 @@ describe("App", () => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });
     fireEvent.click(screen.getAllByText("infra docs")[0]);
+    expect(await screen.findByText("Selected binding")).toBeInTheDocument();
+    expect(screen.getByText("Binding setup flow")).toBeInTheDocument();
+    expect(screen.getByText("Create binding wizard")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit binding" }));
     await waitFor(() => {
       expect(screen.getByLabelText("Edit description")).toHaveValue(
         "Apply default IT terms to docs.",
@@ -2968,6 +2972,7 @@ describe("App", () => {
     ).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(screen.getAllByText("infra docs")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Edit binding" }));
     fireEvent.change(screen.getByLabelText("Edit binding name"), {
       target: { value: "infra docs v2" },
     });
@@ -3017,6 +3022,7 @@ describe("App", () => {
       );
     });
 
+    fireEvent.click(screen.getByRole("button", { name: "Edit binding" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete binding" }));
 
     await waitFor(() => {
@@ -3108,10 +3114,9 @@ describe("App", () => {
         "Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save binding" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Delete binding" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit binding" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save binding" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete binding" })).not.toBeInTheDocument();
   });
 
   it("keeps contributor users in read-only governance mode", async () => {
