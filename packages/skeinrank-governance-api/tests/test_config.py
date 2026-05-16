@@ -56,6 +56,8 @@ def test_config_parses_auth_env(monkeypatch):
 
 
 def test_config_parses_elasticsearch_env(monkeypatch):
+    monkeypatch.delenv("SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL", raising=False)
+    monkeypatch.delenv("SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY", raising=False)
     monkeypatch.setenv("SKEINRANK_ELASTICSEARCH_URL", "http://localhost:9200")
     monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME", "elastic")
     monkeypatch.setenv("SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD", "secret")
@@ -70,6 +72,12 @@ def test_config_parses_elasticsearch_env(monkeypatch):
 
 
 def test_config_parses_enrichment_worker_env(monkeypatch):
+    monkeypatch.delenv(
+        "SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND", raising=False
+    )
+    monkeypatch.delenv("SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL", raising=False)
+    monkeypatch.delenv("SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE", raising=False)
+    monkeypatch.delenv("SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE", raising=False)
     monkeypatch.setenv("SKEINRANK_ENRICHMENT_JOBS_BACKEND", "celery")
     monkeypatch.setenv(
         "SKEINRANK_CELERY_BROKER_URL", "amqp://guest:guest@rabbitmq:5672//"

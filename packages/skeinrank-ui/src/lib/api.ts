@@ -6,6 +6,7 @@ import type {
   ApiTokenCreateResponse,
   AuthTokenResponse,
   AuthUser,
+  DashboardSummary,
   ElasticsearchBinding,
   ElasticsearchBindingCreateRequest,
   ElasticsearchBindingDryRunRequest,
@@ -243,6 +244,10 @@ export function revokeServiceAccountToken(accountName: string, tokenId: number) 
   return requestJson<void>(`/v1/auth/service-accounts/${encodePathSegment(accountName)}/tokens/${tokenId}`, {
     method: "DELETE",
   });
+}
+
+export function getDashboardSummary() {
+  return requestJson<DashboardSummary>("/v1/dashboard/summary");
 }
 
 export function listProfiles() {

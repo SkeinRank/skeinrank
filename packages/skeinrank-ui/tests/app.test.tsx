@@ -6,6 +6,7 @@ import type {
   ApiToken,
   AuthUser,
   CanonicalTerm,
+  DashboardSummary,
   ElasticsearchBinding,
   ElasticsearchBindingDryRunResponse,
   ElasticsearchEnrichmentJob,
@@ -480,6 +481,145 @@ function cloneElasticsearchJobs() {
   ) as ElasticsearchEnrichmentJob[];
 }
 
+function dashboardSummaryFromState(
+  currentProfiles: Profile[],
+  currentTerms: CanonicalTerm[],
+  currentElasticsearchBindings: ElasticsearchBinding[],
+  currentElasticsearchJobs: ElasticsearchEnrichmentJob[],
+): DashboardSummary {
+  const latestJobByBinding = new Map<number, ElasticsearchEnrichmentJob>();
+  for (const job of currentElasticsearchJobs) {
+    if (!latestJobByBinding.has(job.binding_id)) {
+      latestJobByBinding.set(job.binding_id, job);
+    }
+  }
+
+  const bindings = currentElasticsearchBindings.map((binding) => {
+    const latestJob = latestJobByBinding.get(binding.id) ?? null;
+    const status = dashboardBindingStatus(binding, latestJob);
+    return {
+      id: binding.id,
+      name: binding.name,
+      profile_name: binding.profile_name,
+      index_name: binding.index_name,
+      is_enabled: binding.is_enabled,
+      status,
+      snapshot_version: binding.last_successful_snapshot_version ?? null,
+      pending_snapshot_version: binding.pending_snapshot_version ?? null,
+      last_successful_job_id: binding.last_successful_job_id ?? null,
+      latest_job: latestJob ? dashboardRecentJob(latestJob) : null,
+      updated_at: binding.updated_at,
+    };
+  });
+
+  const succeededJobs = currentElasticsearchJobs.filter(
+    (job) => job.status === "succeeded",
+  ).length;
+  const readyBindings = bindings.filter((binding) => binding.status === "ready").length;
+
+  return {
+    readiness: {
+      database: {
+        status: "ok",
+        configured: true,
+        message: "Database is reachable.",
+        url: "sqlite:///test.db",
+        name: null,
+        version: null,
+      },
+      elasticsearch: {
+        status: "ok",
+        configured: true,
+        message: "Elasticsearch is reachable.",
+        url: "http://localhost:9200",
+        name: "skeinrank-dev",
+        version: "8.13.4",
+      },
+      rabbitmq: {
+        status: "not_required",
+        configured: false,
+        message: "Synchronous enrichment backend is active.",
+        url: null,
+        name: null,
+        version: null,
+      },
+      worker: {
+        status: "not_required",
+        configured: false,
+        message: "Worker is not required for synchronous enrichment jobs.",
+        url: null,
+        name: null,
+        version: null,
+      },
+      auth: {
+        status: "enabled",
+        configured: true,
+        message: "Authentication is enabled.",
+        url: null,
+        name: null,
+        version: null,
+      },
+    },
+    counts: {
+      profiles: currentProfiles.length,
+      canonical_terms: currentTerms.length,
+      aliases: currentTerms.reduce((total, term) => total + term.aliases.length, 0),
+      bindings: bindings.length,
+      ready_bindings: readyBindings,
+      stale_bindings: bindings.filter((binding) => binding.status === "stale").length,
+      updating_bindings: bindings.filter((binding) => binding.status === "updating").length,
+      failed_bindings: bindings.filter((binding) => binding.status === "failed").length,
+      never_enriched_bindings: bindings.filter((binding) => binding.status === "never_enriched").length,
+      running_jobs: currentElasticsearchJobs.filter((job) => ["queued", "running", "cancel_requested"].includes(job.status)).length,
+      failed_jobs: currentElasticsearchJobs.filter((job) => job.status === "failed").length,
+    },
+    setup: {
+      has_profile: currentProfiles.length > 0,
+      has_terms: currentTerms.length > 0,
+      has_binding: bindings.length > 0,
+      has_successful_enrichment: succeededJobs > 0,
+      has_runtime_snapshot: readyBindings > 0,
+    },
+    bindings,
+    recent_jobs: currentElasticsearchJobs.slice(0, 5).map(dashboardRecentJob),
+  };
+}
+
+function dashboardBindingStatus(
+  binding: ElasticsearchBinding,
+  latestJob: ElasticsearchEnrichmentJob | null,
+) {
+  if (!binding.is_enabled) return "disabled";
+  if (latestJob && ["queued", "running", "cancel_requested"].includes(latestJob.status)) return "updating";
+  if (latestJob?.status === "failed") return "failed";
+  if (binding.pending_snapshot_version && binding.last_successful_snapshot_version) return "stale";
+  if (binding.pending_snapshot_version) return "updating";
+  if (binding.last_successful_snapshot_version) return "ready";
+  return "never_enriched";
+}
+
+function dashboardRecentJob(job: ElasticsearchEnrichmentJob) {
+  return {
+    id: job.id,
+    binding_id: job.binding_id,
+    binding_name: job.binding_name,
+    profile_name: job.profile_name,
+    status: job.status,
+    source_index: job.source_index,
+    target_index: job.target_index,
+    alias_name: job.alias_name,
+    snapshot_version: job.snapshot_version ?? null,
+    documents_seen: job.documents_seen,
+    documents_enriched: job.documents_enriched,
+    documents_failed: job.documents_failed,
+    error_message: job.error_message,
+    started_at: job.started_at,
+    finished_at: job.finished_at,
+    created_at: job.created_at,
+    updated_at: job.updated_at,
+  };
+}
+
 function cloneElasticsearchIndices() {
   return JSON.parse(
     JSON.stringify(elasticsearchIndices),
@@ -813,6 +953,17 @@ function stubGovernanceApi(options: StubOptions = {}) {
               : token,
         );
         return new Response(null, { status: 204 });
+      }
+
+      if (url.endsWith("/v1/dashboard/summary") && method === "GET") {
+        return Response.json(
+          dashboardSummaryFromState(
+            currentProfiles,
+            currentTerms,
+            currentElasticsearchBindings,
+            currentElasticsearchJobs,
+          ),
+        );
       }
 
       if (url.endsWith("/v1/governance/profiles") && method === "GET") {
@@ -1777,6 +1928,12 @@ function stubGovernanceApi(options: StubOptions = {}) {
   return fetchMock;
 }
 
+
+async function openTermsPage() {
+  fireEvent.click(await screen.findByRole("button", { name: "Terms" }));
+  await screen.findByText("Terminology control plane");
+}
+
 describe("App", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -1791,9 +1948,11 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByText("Terminology control plane"),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    expect(await screen.findByText("Welcome to SkeinRank")).toBeInTheDocument();
+    expect(screen.getByText("Ready bindings")).toBeInTheDocument();
+
+    await openTermsPage();
 
     await waitFor(() => {
       expect(screen.getAllByText("default_it").length).toBeGreaterThan(0);
@@ -1835,6 +1994,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await openTermsPage();
     await screen.findByRole("button", { name: "Create profile" });
 
     fireEvent.change(screen.getByLabelText("New profile name"), {
@@ -1891,6 +2051,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await openTermsPage();
     fireEvent.click(await screen.findByRole("button", { name: "default_it" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "Delete profile" }),
@@ -1913,6 +2074,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await openTermsPage();
     await screen.findByText("default_it");
 
     fireEvent.change(screen.getByLabelText("Canonical value"), {
@@ -1950,6 +2112,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await openTermsPage();
     await screen.findByText("default_it");
     await screen.findByLabelText("Edit canonical value");
 
@@ -2001,6 +2164,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await openTermsPage();
     await screen.findByText("default_it");
     const aliasInput = await screen.findByLabelText("Alias");
 
@@ -2036,6 +2200,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await openTermsPage();
     await screen.findByText("default_it");
     await screen.findByText("k8s");
 
@@ -2098,7 +2263,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     expect(await screen.findByText("Evidence check")).toBeInTheDocument();
     expect(await screen.findByText("infra docs · docs")).toBeInTheDocument();
 
@@ -2142,6 +2307,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await openTermsPage();
     await screen.findByText("default_it");
     await screen.findByText("kubernetes");
 
@@ -2201,7 +2367,7 @@ describe("App", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     await screen.findByText("default_it");
 
     const profileRequest = fetchMock.mock.calls.find(([url]) =>
@@ -2222,7 +2388,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Users" }));
 
     expect(await screen.findByText("Governance users")).toBeInTheDocument();
@@ -2336,7 +2502,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
 
     expect(await screen.findByText("Global stop list")).toBeInTheDocument();
@@ -2426,7 +2592,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
 
     expect(
@@ -2457,7 +2623,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
 
     expect(
@@ -2548,7 +2714,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
 
     await waitFor(() => {
@@ -2581,7 +2747,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
     expect(
@@ -2787,7 +2953,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
     expect(
@@ -2841,7 +3007,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
     await waitFor(() => {
@@ -2874,7 +3040,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     await screen.findByText("default_it");
     await screen.findByText("kubernetes");
 
@@ -2903,7 +3069,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
     expect(
@@ -2966,7 +3132,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
     expect(
@@ -2995,7 +3161,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
     expect(
@@ -3048,7 +3214,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
     expect(
@@ -3075,7 +3241,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
     expect(
@@ -3114,7 +3280,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
     expect(
@@ -3156,7 +3322,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Suggestions" }));
 
     expect(
@@ -3197,6 +3363,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await openTermsPage();
     await screen.findByText("default_it");
 
     fireEvent.change(screen.getByLabelText("Canonical value"), {
@@ -3219,7 +3386,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
     expect(await screen.findByText("My API tokens")).toBeInTheDocument();
@@ -3272,7 +3439,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
     expect(
@@ -3380,7 +3547,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("Terminology control plane");
+    await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
     expect(await screen.findByText("My API tokens")).toBeInTheDocument();

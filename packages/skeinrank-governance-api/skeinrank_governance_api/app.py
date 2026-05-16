@@ -15,6 +15,7 @@ from .observability import (
 )
 from .routes.auth import router as auth_router
 from .routes.console import router as console_router
+from .routes.dashboard import router as dashboard_router
 from .routes.governance import router as governance_router
 from .routes.health import router as health_router
 from .routes.metrics import metrics_response
@@ -64,6 +65,7 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
                 include_in_schema=False,
             )
     app.include_router(auth_router)
+    app.include_router(dashboard_router)
     app.include_router(text_router)
     app.include_router(search_router)
     app.include_router(governance_router)

@@ -1,4 +1,4 @@
-import { Database, GitBranch, KeyRound, LogOut, Moon, Monitor, Plug, Search, ShieldCheck, Sun, Users } from "lucide-react";
+import { Database, GitBranch, Home, KeyRound, LogOut, Moon, Monitor, Plug, Search, ShieldCheck, Sun, Users } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useTheme } from "../../theme";
@@ -6,7 +6,7 @@ import type { AuthUser } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
-export type AppSection = "terms" | "suggestions" | "guardrails" | "integrations" | "api-access" | "users";
+export type AppSection = "dashboard" | "terms" | "suggestions" | "guardrails" | "integrations" | "api-access" | "users";
 
 type AppShellProps = {
   activeSection: AppSection;
@@ -35,6 +35,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
   const ThemeIcon = themeIcon[theme];
 
   const navigation = [
+    { label: "Dashboard", icon: Home, section: "dashboard" as const, available: true },
     { label: "Terms", icon: Database, section: "terms" as const, available: true },
     { label: "Suggestions", icon: Search, section: "suggestions" as const, available: true },
     { label: "Guardrails", icon: ShieldCheck, section: "guardrails" as const, available: true },
@@ -78,7 +79,9 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">
-                {activeSection === "users"
+                {activeSection === "dashboard"
+                  ? "Dashboard"
+                  : activeSection === "users"
                   ? "Users and roles"
                   : activeSection === "suggestions"
                     ? "Suggestions and approvals"
@@ -91,7 +94,9 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                           : "Terminology control plane"}
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {activeSection === "users"
+                {activeSection === "dashboard"
+                  ? "Product readiness, setup checklist, and runtime status for SkeinRank."
+                  : activeSection === "users"
                   ? "Manage local users, roles, and access to governance workflows."
                   : activeSection === "suggestions"
                     ? "Propose aliases, review pending changes, and approve terminology updates."
