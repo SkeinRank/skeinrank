@@ -42,6 +42,24 @@ const migrationScopes: ApiTokenScope[] = [
 const userRoles: UserRole[] = ["admin", "moderator", "contributor"];
 
 type TokenOwner = "personal" | "service";
+type ApiAccessSection = "personal" | "service";
+
+const apiAccessSections: Array<{
+  id: ApiAccessSection;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "personal",
+    label: "Personal tokens",
+    description: "Bearer tokens for your own CLI, notebooks, and local scripts.",
+  },
+  {
+    id: "service",
+    label: "Service accounts",
+    description: "Admin-managed bot identities for CI and scheduled automation.",
+  },
+];
 
 type CopyOnceToken = {
   owner: TokenOwner;
@@ -58,6 +76,8 @@ export function ApiAccessPage({ currentUser }: { currentUser: AuthUser }) {
   const [copyOnceToken, setCopyOnceToken] = useState<CopyOnceToken | null>(
     null,
   );
+  const [activeSection, setActiveSection] =
+    useState<ApiAccessSection>("personal");
 
   const personalTokensQuery = useQuery({
     queryKey: ["auth", "api-tokens", "personal"],
@@ -255,26 +275,59 @@ export function ApiAccessPage({ currentUser }: { currentUser: AuthUser }) {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          description="Tokens owned by your signed-in user."
-          title="My active tokens"
-          value={String(countActiveTokens(personalTokensQuery.data ?? []))}
-        />
-        <StatCard
-          description="Available token permissions for migration workflows."
-          title="Migration scopes"
-          value="3"
-        />
-        <StatCard
-          description="Admin-managed non-human identities."
-          title="Service accounts"
-          value={
-            canManageServiceAccounts
-              ? String(serviceAccountsQuery.data?.length ?? 0)
-              : "Admin only"
-          }
-        />
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">
+              API access workspace
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Create human-owned tokens or manage automation identities.
+            </p>
+          </div>
+          <div
+            aria-label="API access sections"
+            className="inline-flex w-full rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-950 lg:w-auto"
+            role="tablist"
+          >
+            {apiAccessSections.map((section) => (
+              <button
+                aria-selected={activeSection === section.id}
+                className={`flex-1 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors lg:min-w-44 ${
+                  activeSection === section.id
+                    ? "bg-white text-slate-950 shadow-sm dark:bg-slate-800 dark:text-slate-50"
+                    : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-50"
+                }`}
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                role="tab"
+                type="button"
+              >
+                <span className="block">{section.label}</span>
+                <span className="mt-0.5 block text-xs font-normal text-slate-500 dark:text-slate-400">
+                  {section.id === "service" && !canManageServiceAccounts
+                    ? "Admin only"
+                    : section.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          <AccessMetric
+            label="My active tokens"
+            value={String(countActiveTokens(personalTokensQuery.data ?? []))}
+          />
+          <AccessMetric label="Migration scopes" value="3" />
+          <AccessMetric
+            label="Service accounts"
+            value={
+              canManageServiceAccounts
+                ? String(serviceAccountsQuery.data?.length ?? 0)
+                : "Admin"
+            }
+          />
+        </div>
       </section>
 
       {copyOnceToken ? (
@@ -284,109 +337,132 @@ export function ApiAccessPage({ currentUser }: { currentUser: AuthUser }) {
         />
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,460px)]">
+      {activeSection === "personal" ? (
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
+          <Card>
+            <CardHeader>
+              <CardTitle>My API tokens</CardTitle>
+              <CardDescription>
+                Create bearer tokens for your own notebooks, CLI scripts, and
+                migration workflows. Tokens are shown only once.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <TokenCreateForm
+                defaultName="Jupyter migration token"
+                errorMessage={errorMessage(createPersonalTokenMutation.error)}
+                isSubmitting={createPersonalTokenMutation.isPending}
+                onSubmit={handleCreatePersonalToken}
+                submitLabel="Create personal token"
+              />
+              <TokenTable
+                isLoading={personalTokensQuery.isLoading}
+                onRevoke={handleRevokePersonalToken}
+                revokeDisabled={revokePersonalTokenMutation.isPending}
+                tokens={personalTokensQuery.data ?? []}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Token usage</CardTitle>
+              <CardDescription>
+                Copy the token once, then use it with the migration CLI or direct
+                HTTP requests.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-slate-600 dark:text-slate-300">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
+                export SKEINRANK_API_TOKEN=&quot;sk_pat_...&quot;
+                <br />
+                poetry run skeinrank-migrate validate dictionary.json
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Available scopes
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {migrationScopes.map((scope) => (
+                    <Badge key={scope}>{scope}</Badge>
+                  ))}
+                </div>
+              </div>
+              <p>
+                Scopes limit what the token can do. Your user role is still
+                checked by the API, so write scopes do not bypass governance
+                roles.
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
+
+      {activeSection === "service" ? (
         <Card>
           <CardHeader>
-            <CardTitle>My API tokens</CardTitle>
+            <CardTitle>Service accounts</CardTitle>
             <CardDescription>
-              Create personal bearer tokens for Jupyter, CLI scripts, and
-              migration tooling. Tokens are shown only once.
+              Bot identities for CI imports, scheduled sync jobs, and dictionary
+              migration automation.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <TokenCreateForm
-              defaultName="Jupyter migration token"
-              errorMessage={errorMessage(createPersonalTokenMutation.error)}
-              isSubmitting={createPersonalTokenMutation.isPending}
-              onSubmit={handleCreatePersonalToken}
-              submitLabel="Create personal token"
-            />
-            <TokenTable
-              isLoading={personalTokensQuery.isLoading}
-              onRevoke={handleRevokePersonalToken}
-              revokeDisabled={revokePersonalTokenMutation.isPending}
-              tokens={personalTokensQuery.data ?? []}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>API token usage</CardTitle>
-            <CardDescription>
-              Use personal tokens with the migration CLI or direct HTTP
-              requests.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm text-slate-600 dark:text-slate-300">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
-              export SKEINRANK_API_TOKEN=&quot;sk_pat_...&quot;
-              <br />
-              poetry run skeinrank-migrate validate dictionary.json
-            </div>
-            <p>
-              Scopes limit what the token can do. Your user role is still
-              checked by the API, so write scopes do not bypass governance
-              roles.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {migrationScopes.map((scope) => (
-                <Badge key={scope}>{scope}</Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Service accounts</CardTitle>
-          <CardDescription>
-            Admin-managed bot identities for CI imports, scheduled sync jobs,
-            and dictionary migration automation.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {canManageServiceAccounts ? (
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,480px)]">
-              <div className="space-y-5">
-                <ServiceAccountCreateForm
-                  errorMessage={errorMessage(
-                    createServiceAccountMutation.error,
+          <CardContent>
+            {canManageServiceAccounts ? (
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,480px)]">
+                <div className="space-y-5">
+                  <ServiceAccountCreateForm
+                    errorMessage={errorMessage(
+                      createServiceAccountMutation.error,
+                    )}
+                    isSubmitting={createServiceAccountMutation.isPending}
+                    onSubmit={handleCreateServiceAccount}
+                  />
+                  <ServiceAccountsTable
+                    accounts={serviceAccountsQuery.data ?? []}
+                    isLoading={serviceAccountsQuery.isLoading}
+                    onSelect={setSelectedServiceAccountName}
+                    selectedName={selectedServiceAccountName}
+                  />
+                </div>
+                <ServiceAccountDetailsPanel
+                  account={selectedServiceAccount}
+                  createErrorMessage={errorMessage(
+                    createServiceTokenMutation.error,
                   )}
-                  isSubmitting={createServiceAccountMutation.isPending}
-                  onSubmit={handleCreateServiceAccount}
-                />
-                <ServiceAccountsTable
-                  accounts={serviceAccountsQuery.data ?? []}
-                  isLoading={serviceAccountsQuery.isLoading}
-                  onSelect={setSelectedServiceAccountName}
-                  selectedName={selectedServiceAccountName}
+                  isCreatingToken={createServiceTokenMutation.isPending}
+                  isToggling={updateServiceAccountMutation.isPending}
+                  isRevokingToken={revokeServiceTokenMutation.isPending}
+                  onCreateToken={handleCreateServiceToken}
+                  onRevokeToken={handleRevokeServiceToken}
+                  onToggleAccount={handleToggleServiceAccount}
+                  tokens={serviceAccountTokensQuery.data ?? []}
+                  tokensLoading={serviceAccountTokensQuery.isLoading}
                 />
               </div>
-              <ServiceAccountDetailsPanel
-                account={selectedServiceAccount}
-                createErrorMessage={errorMessage(
-                  createServiceTokenMutation.error,
-                )}
-                isCreatingToken={createServiceTokenMutation.isPending}
-                isToggling={updateServiceAccountMutation.isPending}
-                isRevokingToken={revokeServiceTokenMutation.isPending}
-                onCreateToken={handleCreateServiceToken}
-                onRevokeToken={handleRevokeServiceToken}
-                onToggleAccount={handleToggleServiceAccount}
-                tokens={serviceAccountTokensQuery.data ?? []}
-                tokensLoading={serviceAccountTokensQuery.isLoading}
-              />
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-              Service accounts are visible to admins only. You can still create
-              and revoke your own personal API tokens above.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                Service accounts are visible to admins only. You can still create
+                and revoke your own personal API tokens from the Personal tokens
+                section.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function AccessMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
+      <div className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-50">
+        {value}
+      </div>
     </div>
   );
 }
@@ -940,28 +1016,6 @@ function ServiceAccountStatusBadge({ account }: { account: ServiceAccount }) {
     <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
       Suspended
     </Badge>
-  );
-}
-
-function StatCard({
-  description,
-  title,
-  value,
-}: {
-  description: string;
-  title: string;
-  value: string;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-semibold tracking-tight">{value}</div>
-      </CardContent>
-    </Card>
   );
 }
 

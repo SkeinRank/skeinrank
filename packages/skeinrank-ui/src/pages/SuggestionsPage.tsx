@@ -1227,12 +1227,14 @@ function SuggestionDetailsPanel({
     );
   }
 
+  const effectiveEvidenceQuery =
+    evidenceQuery.trim() || defaultEvidenceQuery.trim();
   const canReviewPending = canReview && suggestion.status === "pending";
   const canCheckEvidence =
     suggestion.status === "pending" &&
     bindings.length > 0 &&
     Boolean(selectedBindingId) &&
-    evidenceQuery.trim().length > 0 &&
+    effectiveEvidenceQuery.length > 0 &&
     !isRefreshingEvidence;
 
   async function handleApprove() {
@@ -1256,7 +1258,7 @@ function SuggestionDetailsPanel({
     await onRefreshEvidence(
       suggestion,
       selectedBindingId,
-      evidenceQuery.trim(),
+      effectiveEvidenceQuery,
       maxDocuments,
     );
   }

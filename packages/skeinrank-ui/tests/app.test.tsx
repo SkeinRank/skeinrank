@@ -3850,9 +3850,8 @@ describe("App", () => {
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
-    expect(
-      (await screen.findAllByText("Service accounts")).length,
-    ).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("tab", { name: /Service accounts/ }));
+
     expect(await screen.findByText("Migration Bot")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Service account name"), {
@@ -3940,7 +3939,7 @@ describe("App", () => {
       }),
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[0]);
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -3959,9 +3958,10 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
     expect(await screen.findByText("My API tokens")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Service accounts/ }));
     expect(
       screen.getByText(
-        "Service accounts are visible to admins only. You can still create and revoke your own personal API tokens above.",
+        "Service accounts are visible to admins only. You can still create and revoke your own personal API tokens from the Personal tokens section.",
       ),
     ).toBeInTheDocument();
     expect(
