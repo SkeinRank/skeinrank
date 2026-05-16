@@ -38,6 +38,7 @@ import type {
 const stopListTargets: StopListTarget[] = ["alias", "canonical", "both"];
 
 type StopListEntryLike = GlobalStopListEntry | StopListEntry;
+type GuardrailSection = "global" | "profile";
 
 export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
   const permissions = permissionsForUser(currentUser);
@@ -56,6 +57,8 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
   const [selectedGlobalEntryId, setSelectedGlobalEntryId] = useState<
     number | null
   >(null);
+  const [activeSection, setActiveSection] =
+    useState<GuardrailSection>("global");
 
   useEffect(() => {
     if (!profilesQuery.data || profilesQuery.data.length === 0) {
@@ -251,114 +254,47 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          description="Profile-scoped terminology namespace."
-          title="Profile"
-          value={selectedProfile ?? "None"}
-        />
-        <StatCard
-          description="Inherited across every profile."
-          title="Global stop-list entries"
-          value={String(globalStopListQuery.data?.length ?? 0)}
-        />
-        <StatCard
-          description="Local active and disabled blocked values."
-          title="Profile stop-list entries"
-          value={String(stopListQuery.data?.length ?? 0)}
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle>Guardrail model</CardTitle>
-            <CardDescription>
-              Block noisy terms before they enter suggestions or runtime
-              dictionaries.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Badge>Global → Profile → API guardrail</Badge>
-          </CardContent>
-        </Card>
-      </section>
+    <div className="space-y-5">
+      <GuardrailsScopeTabs
+        activeSection={activeSection}
+        globalCount={globalStopListQuery.data?.length ?? 0}
+        onSelectSection={setActiveSection}
+        profileCount={stopListQuery.data?.length ?? 0}
+        selectedProfile={selectedProfile}
+      />
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-6">
-          <GuardrailsToolbar
-            isLoading={profilesQuery.isLoading}
-            loadErrorMessage={
-              profilesQuery.isError ? profilesQuery.error.message : null
-            }
-            onSelectProfile={(profileName) => {
-              setSelectedProfile(profileName);
-              setSelectedEntryId(null);
-              createMutation.reset();
-              updateMutation.reset();
-              deleteMutation.reset();
-            }}
-            profiles={profilesQuery.data ?? []}
-            selectedProfile={selectedProfile}
-          />
+      {activeSection === "global" ? (
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="space-y-5">
+            <CreateGlobalStopListEntryForm
+              disabled={!permissions.canManageStopLists}
+              errorMessage={errorMessage(createGlobalMutation.error)}
+              isSubmitting={createGlobalMutation.isPending}
+              onSubmit={handleCreateGlobalEntry}
+              readOnlyMessage={
+                permissions.canManageStopLists
+                  ? null
+                  : "Your role can inspect global guardrails, but only admins and moderators can update global stop lists."
+              }
+            />
 
-          <CreateGlobalStopListEntryForm
-            disabled={!permissions.canManageStopLists}
-            errorMessage={errorMessage(createGlobalMutation.error)}
-            isSubmitting={createGlobalMutation.isPending}
-            onSubmit={handleCreateGlobalEntry}
-            readOnlyMessage={
-              permissions.canManageStopLists
-                ? null
-                : "Your role can inspect global guardrails, but only admins and moderators can update global stop lists."
-            }
-          />
+            <GlobalStopListTable
+              entries={globalStopListQuery.data ?? []}
+              isLoading={globalStopListQuery.isLoading}
+              loadErrorMessage={
+                globalStopListQuery.isError
+                  ? globalStopListQuery.error.message
+                  : null
+              }
+              onSelectEntry={(entry) => {
+                setSelectedGlobalEntryId(entry.id);
+                updateGlobalMutation.reset();
+                deleteGlobalMutation.reset();
+              }}
+              selectedEntryId={selectedGlobalEntryId}
+            />
+          </div>
 
-          <GlobalStopListTable
-            entries={globalStopListQuery.data ?? []}
-            isLoading={globalStopListQuery.isLoading}
-            loadErrorMessage={
-              globalStopListQuery.isError
-                ? globalStopListQuery.error.message
-                : null
-            }
-            onSelectEntry={(entry) => {
-              setSelectedGlobalEntryId(entry.id);
-              updateGlobalMutation.reset();
-              deleteGlobalMutation.reset();
-            }}
-            selectedEntryId={selectedGlobalEntryId}
-          />
-
-          <InheritedGlobalStopListPanel entries={activeGlobalEntries} />
-
-          <CreateStopListEntryForm
-            disabled={!selectedProfile || !permissions.canManageStopLists}
-            errorMessage={errorMessage(createMutation.error)}
-            globalEntries={activeGlobalEntries}
-            isSubmitting={createMutation.isPending}
-            onSubmit={handleCreateEntry}
-            readOnlyMessage={
-              permissions.canManageStopLists
-                ? null
-                : "Your role can inspect guardrails, but only admins and moderators can update stop lists."
-            }
-          />
-
-          <StopListTable
-            entries={stopListQuery.data ?? []}
-            isLoading={stopListQuery.isLoading && Boolean(selectedProfile)}
-            loadErrorMessage={
-              stopListQuery.isError ? stopListQuery.error.message : null
-            }
-            onSelectEntry={(entry) => {
-              setSelectedEntryId(entry.id);
-              updateMutation.reset();
-              deleteMutation.reset();
-            }}
-            selectedEntryId={selectedEntryId}
-          />
-        </div>
-
-        <div className="space-y-6">
           <GlobalStopListEntryDetailsPanel
             canManage={permissions.canManageStopLists}
             deleteErrorMessage={errorMessage(deleteGlobalMutation.error)}
@@ -369,6 +305,56 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
             onUpdate={handleUpdateGlobalEntry}
             updateErrorMessage={errorMessage(updateGlobalMutation.error)}
           />
+        </section>
+      ) : (
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="space-y-5">
+            <ProfileScopeToolbar
+              isLoading={profilesQuery.isLoading}
+              loadErrorMessage={
+                profilesQuery.isError ? profilesQuery.error.message : null
+              }
+              onSelectProfile={(profileName) => {
+                setSelectedProfile(profileName);
+                setSelectedEntryId(null);
+                createMutation.reset();
+                updateMutation.reset();
+                deleteMutation.reset();
+              }}
+              profiles={profilesQuery.data ?? []}
+              selectedProfile={selectedProfile}
+            />
+
+            <InheritedGlobalStopListPanel entries={activeGlobalEntries} />
+
+            <CreateStopListEntryForm
+              disabled={!selectedProfile || !permissions.canManageStopLists}
+              errorMessage={errorMessage(createMutation.error)}
+              globalEntries={activeGlobalEntries}
+              isSubmitting={createMutation.isPending}
+              onSubmit={handleCreateEntry}
+              readOnlyMessage={
+                permissions.canManageStopLists
+                  ? null
+                  : "Your role can inspect guardrails, but only admins and moderators can update stop lists."
+              }
+            />
+
+            <StopListTable
+              entries={stopListQuery.data ?? []}
+              isLoading={stopListQuery.isLoading && Boolean(selectedProfile)}
+              loadErrorMessage={
+                stopListQuery.isError ? stopListQuery.error.message : null
+              }
+              onSelectEntry={(entry) => {
+                setSelectedEntryId(entry.id);
+                updateMutation.reset();
+                deleteMutation.reset();
+              }}
+              selectedEntryId={selectedEntryId}
+            />
+          </div>
+
           <StopListEntryDetailsPanel
             canManage={permissions.canManageStopLists}
             deleteErrorMessage={errorMessage(deleteMutation.error)}
@@ -379,35 +365,91 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
             onUpdate={handleUpdateEntry}
             updateErrorMessage={errorMessage(updateMutation.error)}
           />
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
 
-function StatCard({
-  description,
-  title,
-  value,
+function GuardrailsScopeTabs({
+  activeSection,
+  globalCount,
+  onSelectSection,
+  profileCount,
+  selectedProfile,
 }: {
-  description: string;
-  title: string;
-  value: string;
+  activeSection: GuardrailSection;
+  globalCount: number;
+  onSelectSection: (section: GuardrailSection) => void;
+  profileCount: number;
+  selectedProfile: string | null;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-semibold">{value}</div>
-      </CardContent>
-    </Card>
+    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+            Stop-list scope
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Switch between inherited global guardrails and profile-local blocks.
+          </p>
+        </div>
+        <div
+          aria-label="Guardrail scope"
+          className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 lg:w-auto"
+          role="tablist"
+        >
+          <GuardrailTabButton
+            isActive={activeSection === "global"}
+            label="Global"
+            meta={`${globalCount} entries`}
+            onClick={() => onSelectSection("global")}
+          />
+          <GuardrailTabButton
+            isActive={activeSection === "profile"}
+            label="Profile"
+            meta={selectedProfile ? `${selectedProfile} · ${profileCount}` : "No profile"}
+            onClick={() => onSelectSection("profile")}
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
-function GuardrailsToolbar({
+function GuardrailTabButton({
+  isActive,
+  label,
+  meta,
+  onClick,
+}: {
+  isActive: boolean;
+  label: string;
+  meta: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-selected={isActive}
+      className={`flex min-w-0 flex-1 flex-col rounded-xl px-4 py-2 text-left transition-colors lg:min-w-36 lg:flex-none ${
+        isActive
+          ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-slate-50"
+          : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-100"
+      }`}
+      onClick={onClick}
+      role="tab"
+      type="button"
+    >
+      <span className="text-sm font-semibold">{label}</span>
+      <span className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+        {meta}
+      </span>
+    </button>
+  );
+}
+
+function ProfileScopeToolbar({
   isLoading,
   loadErrorMessage,
   onSelectProfile,
@@ -423,10 +465,9 @@ function GuardrailsToolbar({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Guardrails</CardTitle>
+        <CardTitle>Profile scope</CardTitle>
         <CardDescription>
-          Manage global and profile stop lists that block noisy aliases and
-          canonical terms before they enter governance workflows.
+          Choose which terminology profile receives local stop-list rules.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

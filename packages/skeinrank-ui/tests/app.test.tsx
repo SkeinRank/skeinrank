@@ -2761,7 +2761,8 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getAllByText("unknown").length).toBeGreaterThan(0);
     });
-    expect(screen.getByText("Inherited global stop list")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Global/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Profile/ })).toBeInTheDocument();
     expect(
       screen.getByText("Too generic across every profile"),
     ).toBeInTheDocument();
@@ -2846,6 +2847,7 @@ describe("App", () => {
 
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Profile/ }));
 
     expect(
       await screen.findByText("Inherited global stop list"),
@@ -2877,11 +2879,10 @@ describe("App", () => {
 
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Profile/ }));
 
     expect(
-      await screen.findByText(
-        "Manage stop lists that block noisy or unsafe terminology changes.",
-      ),
+      await screen.findByText("Profile scope"),
     ).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("service").length).toBeGreaterThan(0);
@@ -2968,6 +2969,7 @@ describe("App", () => {
 
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Profile/ }));
 
     await waitFor(() => {
       expect(screen.getAllByText("service").length).toBeGreaterThan(0);
