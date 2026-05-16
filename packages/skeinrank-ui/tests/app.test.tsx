@@ -3006,6 +3006,8 @@ describe("App", () => {
       await screen.findByText("Elasticsearch bindings"),
     ).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide details" })).toBeInTheDocument();
+    expect(screen.getByText("Profile → index mapping → dry-run → enrichment → runtime snapshot.")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });

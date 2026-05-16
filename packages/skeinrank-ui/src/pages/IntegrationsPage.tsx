@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Info } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { Badge } from "../components/ui/badge";
@@ -270,23 +271,23 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
   return (
     <div className="space-y-6">
       <Card className="border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-950/80">
-        <CardHeader>
-          <CardTitle>Binding setup flow</CardTitle>
-          <CardDescription>
-            Create one atomic runtime context, test it with a dry-run, run enrichment, then verify the active snapshot.
-          </CardDescription>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <CardTitle>Binding setup flow</CardTitle>
+              <CardDescription>Profile → index mapping → dry-run → enrichment → runtime snapshot.</CardDescription>
+            </div>
+            <SetupFlowSteps />
+          </div>
         </CardHeader>
-        <CardContent>
-          <SetupFlowSteps />
-        </CardContent>
       </Card>
 
-      <section className="grid gap-4 md:grid-cols-4">
-        <StatCard description="Currently selected terminology profile." title="Profile" value={selectedProfile ?? "None"} />
-        <StatCard description="Bindings for the selected profile." title="Selected profile bindings" value={String(selectedProfileBindings.length)} />
-        <StatCard description="Ready runtime contexts across all profiles." title="Ready bindings" value={String(readyBindings)} />
-        <StatCard description="Need enrichment or operator attention." title="Stale / failed" value={String(staleBindings)} />
-      </section>
+      <IntegrationSummaryBar
+        profileName={selectedProfile ?? "None"}
+        readyBindings={readyBindings}
+        selectedProfileBindings={selectedProfileBindings.length}
+        staleBindings={staleBindings}
+      />
 
       <ElasticsearchDiscoveryPanel
         connection={connectionQuery.data ?? null}
@@ -392,38 +393,81 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
   );
 }
 
-function StatCard({ description, title, value }: { description: string; title: string; value: string }) {
+function IntegrationSummaryBar({
+  profileName,
+  readyBindings,
+  selectedProfileBindings,
+  staleBindings,
+}: {
+  profileName: string;
+  readyBindings: number;
+  selectedProfileBindings: number;
+  staleBindings: number;
+}) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-semibold">{value}</div>
+      <CardContent className="grid gap-3 py-4 sm:grid-cols-2 xl:grid-cols-4">
+        <CompactMetric help="The terminology profile currently used to filter this page." label="Profile" value={profileName} />
+        <CompactMetric help="Bindings that belong to the selected terminology profile." label="Selected bindings" value={String(selectedProfileBindings)} />
+        <CompactMetric help="Bindings with an active runtime snapshot ready for search." label="Ready" value={String(readyBindings)} />
+        <CompactMetric help="Bindings that need enrichment, failed, or need operator attention." label="Attention" value={String(staleBindings)} />
       </CardContent>
     </Card>
   );
 }
 
+function CompactMetric({ help, label, value }: { help: string; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50">
+      <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <span>{label}</span>
+        <HelpTooltip text={help} />
+      </div>
+      <div className="mt-2 truncate text-2xl font-semibold text-slate-950 dark:text-slate-50" title={value}>{value}</div>
+    </div>
+  );
+}
+
 function SetupFlowSteps() {
   const steps = [
-    { label: "1. Choose profile", description: "Select the terminology namespace." },
-    { label: "2. Map index", description: "Choose index, text fields, and target field." },
-    { label: "3. Scope documents", description: "Add discriminator when one index contains multiple domains." },
-    { label: "4. Validate", description: "Run dry-run before writing enrichment output." },
-    { label: "5. Roll out", description: "Run enrichment and verify the runtime snapshot." },
+    { label: "Profile", description: "Choose the terminology namespace." },
+    { label: "Map", description: "Connect index, text fields, and target field." },
+    { label: "Scope", description: "Use a discriminator when one index contains several domains." },
+    { label: "Dry-run", description: "Preview enrichment output before writes." },
+    { label: "Roll out", description: "Run enrichment and verify the active snapshot." },
   ];
 
   return (
-    <div className="grid gap-3 text-sm md:grid-cols-5">
-      {steps.map((step) => (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60" key={step.label}>
-          <div className="font-medium text-slate-950 dark:text-slate-50">{step.label}</div>
-          <div className="mt-1 text-slate-500 dark:text-slate-400">{step.description}</div>
+    <div className="flex flex-wrap gap-2 text-xs">
+      {steps.map((step, index) => (
+        <div className="group relative rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200" key={step.label}>
+          {index + 1}. {step.label}
+          <span aria-hidden="true" className="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden w-56 rounded-lg border border-slate-200 bg-white p-2 text-xs font-normal text-slate-600 shadow-lg group-hover:block group-focus-within:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+            {step.description}
+          </span>
         </div>
       ))}
     </div>
+  );
+}
+
+function HelpTooltip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex items-center align-middle">
+      <Info aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" />
+      <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 text-xs font-normal normal-case tracking-normal text-slate-600 shadow-lg group-hover:block group-focus-within:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function FieldLabel({ children, help }: { children: string; help?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+      {children}
+      {help ? <HelpTooltip text={help} /> : null}
+    </span>
   );
 }
 
@@ -442,6 +486,7 @@ function ElasticsearchDiscoveryPanel({
   isLoadingIndices: boolean;
   onRefresh: () => void;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
   const statusText = isLoadingConnection
     ? "Checking..."
     : connection?.ok
@@ -449,48 +494,60 @@ function ElasticsearchDiscoveryPanel({
       : connection?.configured
         ? "Connection failed"
         : "Manual mode";
+  const shouldShowDetails = isOpen || Boolean(connection?.ok);
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle>Elasticsearch discovery</CardTitle>
-            <CardDescription>Test the configured connection, list indices, and use mapping fields as input suggestions. Manual config still works without a connection.</CardDescription>
+      <CardHeader className="py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle>Elasticsearch discovery</CardTitle>
+              <Badge className={connection?.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200" : undefined}>{statusText}</Badge>
+              <HelpTooltip text="Optional helper for checking the Elasticsearch connection and reusing discovered index fields. Manual binding setup still works without it." />
+            </div>
+            <CardDescription className="mt-1">Optional connection check and field suggestions.</CardDescription>
           </div>
-          <Button onClick={onRefresh} type="button" variant="secondary">
-            Test connection
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setIsOpen((value) => !value)} type="button" variant="secondary">
+              {shouldShowDetails ? "Hide details" : "Show details"}
+            </Button>
+            <Button onClick={onRefresh} type="button" variant="secondary">
+              Test connection
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        {errorMessage ? <InlineError message={errorMessage} /> : null}
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge className={connection?.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200" : undefined}>{statusText}</Badge>
-          {connection?.url ? <span className="text-slate-500 dark:text-slate-400">{connection.url}</span> : null}
-          {connection?.cluster_name ? <span className="text-slate-500 dark:text-slate-400">{connection.cluster_name}</span> : null}
-          {connection?.cluster_version ? <span className="text-slate-500 dark:text-slate-400">v{connection.cluster_version}</span> : null}
-        </div>
-        {connection?.error ? <p className="text-sm text-slate-500 dark:text-slate-400">{connection.error}</p> : null}
-        {connection?.ok ? (
-          <div>
-            <div className="font-medium text-slate-700 dark:text-slate-200">Discovered indices</div>
-            {isLoadingIndices ? (
-              <p className="mt-1 text-slate-500 dark:text-slate-400">Loading indices...</p>
-            ) : indices.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {indices.map((index) => (
-                  <Badge key={index.name} className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                    {index.name}{index.docs_count !== null ? ` · ${index.docs_count} docs` : ""}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-1 text-slate-500 dark:text-slate-400">No indices returned by Elasticsearch.</p>
-            )}
+      {shouldShowDetails ? (
+        <CardContent className="space-y-3 border-t border-slate-100 py-4 text-sm dark:border-slate-800">
+          {errorMessage ? <InlineError message={errorMessage} /> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {connection?.url ? <span className="text-slate-500 dark:text-slate-400">{connection.url}</span> : null}
+            {connection?.cluster_name ? <span className="text-slate-500 dark:text-slate-400">{connection.cluster_name}</span> : null}
+            {connection?.cluster_version ? <span className="text-slate-500 dark:text-slate-400">v{connection.cluster_version}</span> : null}
+            {!connection?.url ? <span className="text-slate-500 dark:text-slate-400">Elasticsearch URL is not configured.</span> : null}
           </div>
-        ) : null}
-      </CardContent>
+          {connection?.error ? <p className="text-sm text-slate-500 dark:text-slate-400">{connection.error}</p> : null}
+          {connection?.ok ? (
+            <div>
+              <div className="font-medium text-slate-700 dark:text-slate-200">Discovered indices</div>
+              {isLoadingIndices ? (
+                <p className="mt-1 text-slate-500 dark:text-slate-400">Loading indices...</p>
+              ) : indices.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {indices.map((index) => (
+                    <Badge key={index.name} className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      {index.name}{index.docs_count !== null ? ` · ${index.docs_count} docs` : ""}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-slate-500 dark:text-slate-400">No indices returned by Elasticsearch.</p>
+              )}
+            </div>
+          ) : null}
+        </CardContent>
+      ) : null}
     </Card>
   );
 }
@@ -500,13 +557,14 @@ function BindingPatternsHelp() {
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <CardHeader className="py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Binding patterns</CardTitle>
-            <CardDescription>
-              Optional guidance for shared indices and discriminator-based routing. Keep closed during day-to-day work.
-            </CardDescription>
+            <div className="flex items-center gap-2">
+              <CardTitle>Binding patterns</CardTitle>
+              <HelpTooltip text="Use this only when mapping several profiles or indices. Day-to-day work usually starts from Saved bindings." />
+            </div>
+            <CardDescription>Shared index guidance. Keep closed during routine work.</CardDescription>
           </div>
           <Button onClick={() => setIsOpen((value) => !value)} type="button" variant="secondary">
             {isOpen ? "Hide patterns" : "Show patterns"}
@@ -704,7 +762,7 @@ function CreateBindingForm({
           <div>
             <CardTitle>Create binding</CardTitle>
             <CardDescription>
-              Open the wizard only when you need a new profile-to-index runtime context. Existing bindings stay visible above.
+              Create only when you need another runtime search context.
             </CardDescription>
           </div>
           <Button disabled={disabled || isSubmitting} onClick={() => setIsOpen((value) => !value)} type="button" variant={isOpen ? "secondary" : undefined}>
@@ -720,20 +778,20 @@ function CreateBindingForm({
         ) : null}
         {!isOpen ? (
           <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
-            Select an existing binding above for dry-run, enrichment, and runtime status. Create a new binding only when you need another Elasticsearch search scope.
+            Pick a saved binding for dry-run, enrichment, and runtime state. Open the wizard only for a new search scope.
           </p>
         ) : (
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <WizardStepHeader description="Name the runtime context and choose the terminology profile it should use." step="Step 1" title="Profile and binding identity" />
+            <WizardStepHeader description="Name the context and choose terminology." step="Step 1" title="Profile and binding identity" />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Binding name</span>
-                <Input disabled={disabled || isSubmitting} onChange={(event) => setName(event.target.value)} placeholder="infra docs" value={name} />
+                <FieldLabel help="Human-readable name for this profile-to-index search context.">Binding name</FieldLabel>
+                <Input aria-label="Binding name" disabled={disabled || isSubmitting} onChange={(event) => setName(event.target.value)} placeholder="infra docs" value={name} />
               </label>
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Profile</span>
-                <select className={selectClassName} disabled={disabled || isSubmitting || profiles.length === 0} onChange={(event) => setProfileName(event.target.value)} value={profileName}>
+                <FieldLabel help="Terminology profile used by this binding.">Profile</FieldLabel>
+                <select aria-label="Profile" className={selectClassName} disabled={disabled || isSubmitting || profiles.length === 0} onChange={(event) => setProfileName(event.target.value)} value={profileName}>
                   {profiles.map((profile) => (
                     <option key={profile.id} value={profile.name}>{profile.name}</option>
                   ))}
@@ -741,31 +799,31 @@ function CreateBindingForm({
               </label>
             </div>
             <label className="mt-4 block space-y-1.5">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Description</span>
-              <Input disabled={disabled || isSubmitting} onChange={(event) => setDescription(event.target.value)} placeholder="Optional binding note" value={description} />
+              <FieldLabel help="Optional note for operators. It does not affect runtime behavior.">Description</FieldLabel>
+              <Input aria-label="Description" disabled={disabled || isSubmitting} onChange={(event) => setDescription(event.target.value)} placeholder="Optional binding note" value={description} />
             </label>
           </div>
 
           <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <WizardStepHeader description="Point the binding to an Elasticsearch index and choose where enrichment output should be written." step="Step 2" title="Index and output field" />
+            <WizardStepHeader description="Map Elasticsearch input and output." step="Step 2" title="Index and output field" />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Index</span>
-                <Input disabled={disabled || isSubmitting} list="create-es-indices" onChange={(event) => setIndexName(event.target.value)} placeholder="docs" value={indexName} />
+                <FieldLabel help="Elasticsearch index or alias that this binding reads and enriches.">Index</FieldLabel>
+                <Input aria-label="Index" disabled={disabled || isSubmitting} list="create-es-indices" onChange={(event) => setIndexName(event.target.value)} placeholder="docs" value={indexName} />
                 <IndexDatalist id="create-es-indices" indices={discoveredIndices} />
               </label>
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Target field</span>
-                <Input disabled={disabled || isSubmitting} list="create-es-target-fields" onChange={(event) => setTargetField(event.target.value)} placeholder="skeinrank" value={targetField} />
+                <FieldLabel help="Field where enrichment output is written or previewed.">Target field</FieldLabel>
+                <Input aria-label="Target field" disabled={disabled || isSubmitting} list="create-es-target-fields" onChange={(event) => setTargetField(event.target.value)} placeholder="skeinrank" value={targetField} />
                 <FieldsDatalist id="create-es-target-fields" fields={mappingFields} />
               </label>
             </div>
           </div>
 
           <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <WizardStepHeader description="Choose source text fields and optionally scope this profile to a document subset." step="Step 3" title="Fields and discriminator" />
+            <WizardStepHeader description="Choose fields and optional scope." step="Step 3" title="Fields and discriminator" />
             <label className="mt-4 block space-y-1.5">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Text fields</span>
+              <FieldLabel help="Source document fields read by enrichment jobs. Use commas or new lines.">Text fields</FieldLabel>
               <textarea
                 aria-label="Text fields"
                 className={textareaClassName}
@@ -774,7 +832,7 @@ function CreateBindingForm({
                 placeholder="title, body, content"
                 value={textFields}
               />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Use commas or new lines. These fields are read by enrichment jobs.</span>
+              
             </label>
             <MappingFieldSuggestions
               isLoading={mappingQuery.isLoading}
@@ -785,13 +843,13 @@ function CreateBindingForm({
             />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Document discriminator field</span>
-                <Input disabled={disabled || isSubmitting} list="create-es-discriminator-fields" onChange={(event) => setDiscriminatorField(event.target.value)} placeholder="team" value={discriminatorField} />
+                <FieldLabel help="Optional field that scopes this profile to part of a shared index, for example team or doc_type.">Document discriminator field</FieldLabel>
+                <Input aria-label="Document discriminator field" disabled={disabled || isSubmitting} list="create-es-discriminator-fields" onChange={(event) => setDiscriminatorField(event.target.value)} placeholder="team" value={discriminatorField} />
                 <FieldsDatalist id="create-es-discriminator-fields" fields={discriminatorCandidates} />
               </label>
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Value for this profile</span>
-                <Input disabled={disabled || isSubmitting} onChange={(event) => setDiscriminatorValue(event.target.value)} placeholder="infra" value={discriminatorValue} />
+                <FieldLabel help="Discriminator value that identifies documents for this profile, for example infra.">Value for this profile</FieldLabel>
+                <Input aria-label="Value for this profile" disabled={disabled || isSubmitting} onChange={(event) => setDiscriminatorValue(event.target.value)} placeholder="infra" value={discriminatorValue} />
               </label>
             </div>
             <MappingFieldSuggestions
@@ -803,24 +861,24 @@ function CreateBindingForm({
           </div>
 
           <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <WizardStepHeader description="Keep the initial mode safe, then switch to write mode when dry-run output looks correct." step="Step 4" title="Runtime options" />
+            <WizardStepHeader description="Keep dry-run until output looks correct." step="Step 4" title="Runtime options" />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Timestamp field</span>
-                <Input disabled={disabled || isSubmitting} list="create-es-timestamp-fields" onChange={(event) => setTimestampField(event.target.value)} placeholder="@timestamp" value={timestampField} />
+                <FieldLabel help="Optional date field used when enrichment should only scan a time window.">Timestamp field</FieldLabel>
+                <Input aria-label="Timestamp field" disabled={disabled || isSubmitting} list="create-es-timestamp-fields" onChange={(event) => setTimestampField(event.target.value)} placeholder="@timestamp" value={timestampField} />
                 <FieldsDatalist id="create-es-timestamp-fields" fields={timestampCandidates} />
               </label>
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Time window</span>
-                <select className={selectClassName} disabled={disabled || isSubmitting} onChange={(event) => setTimeWindow(event.target.value as TimeWindowValue)} value={timeWindow}>
+                <FieldLabel help="Limits enrichment to recent documents when a timestamp field is configured.">Time window</FieldLabel>
+                <select aria-label="Time window" className={selectClassName} disabled={disabled || isSubmitting} onChange={(event) => setTimeWindow(event.target.value as TimeWindowValue)} value={timeWindow}>
                   {timeWindowOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
             </div>
             {timeWindow === "custom" ? (
               <label className="mt-4 block space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Custom time window days</span>
-                <Input disabled={disabled || isSubmitting} max={3650} min={1} onChange={(event) => setCustomTimeWindowDays(event.target.value)} type="number" value={customTimeWindowDays} />
+                <FieldLabel help="Number of days to scan when Time window is set to Custom days.">Custom time window days</FieldLabel>
+                <Input aria-label="Custom time window days" disabled={disabled || isSubmitting} max={3650} min={1} onChange={(event) => setCustomTimeWindowDays(event.target.value)} type="number" value={customTimeWindowDays} />
               </label>
             ) : null}
             <MappingFieldSuggestions
@@ -831,14 +889,14 @@ function CreateBindingForm({
             <TimeFilterValidationMessage hasInvalidCustomTimeWindow={hasInvalidCustomTimeWindow} hasTimeWindowWithoutTimestamp={hasTimeWindowWithoutTimestamp} />
             <div className="mt-4 flex flex-wrap items-center gap-4">
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Mode</span>
-                <select className={selectClassName} disabled={disabled || isSubmitting} onChange={(event) => setMode(event.target.value as ElasticsearchBindingMode)} value={mode}>
+                <FieldLabel help="dry_run previews output; write mode allows enrichment writes.">Mode</FieldLabel>
+                <select aria-label="Mode" className={selectClassName} disabled={disabled || isSubmitting} onChange={(event) => setMode(event.target.value as ElasticsearchBindingMode)} value={mode}>
                   {bindingModes.map((bindingMode) => <option key={bindingMode} value={bindingMode}>{bindingMode}</option>)}
                 </select>
               </label>
               <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Write strategy</span>
-                <select className={selectClassName} disabled={disabled || isSubmitting} onChange={(event) => setWriteStrategy(event.target.value as ElasticsearchBindingWriteStrategy)} value={writeStrategy}>
+                <FieldLabel help="reindex_alias_swap builds a candidate index and swaps alias after success.">Write strategy</FieldLabel>
+                <select aria-label="Write strategy" className={selectClassName} disabled={disabled || isSubmitting} onChange={(event) => setWriteStrategy(event.target.value as ElasticsearchBindingWriteStrategy)} value={writeStrategy}>
                   {bindingWriteStrategies.map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}
                 </select>
               </label>
@@ -852,7 +910,7 @@ function CreateBindingForm({
           {errorMessage ? <InlineError message={errorMessage} /> : null}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              Next after create: select the binding, run dry-run, then run enrichment.
+              Next: select it, dry-run, then enrich.
             </div>
             <Button disabled={!canSubmit} type="submit">{isSubmitting ? "Creating..." : "Save new binding"}</Button>
           </div>
