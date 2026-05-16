@@ -2429,70 +2429,7 @@ describe("App", () => {
     });
     expect(await screen.findByText(/Evidence mentions/)).toBeInTheDocument();
     expect(screen.getAllByText("kubernetes").length).toBeGreaterThan(0);
-  });
-
-  it("exports and downloads the runtime snapshot JSON", async () => {
-    const fetchMock = stubGovernanceApi();
-    const createObjectUrl = vi.fn(() => "blob:skeinrank-snapshot");
-    const revokeObjectUrl = vi.fn();
-    const clickAnchor = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
-    Object.defineProperty(URL, "createObjectURL", {
-      configurable: true,
-      value: createObjectUrl,
-    });
-    Object.defineProperty(URL, "revokeObjectURL", {
-      configurable: true,
-      value: revokeObjectUrl,
-    });
-
-    render(<App />);
-
-    await openTermsPage();
-    await screen.findByText("default_it");
-    await screen.findByText("kubernetes");
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "Export draft snapshot" }),
-      ).not.toBeDisabled();
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Export draft snapshot" }),
-    );
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "http://127.0.0.1:8010/v1/governance/profiles/default_it/snapshot/export",
-        expect.objectContaining({
-          body: JSON.stringify({
-            snapshot_version: "default_it@draft",
-            description:
-              "Runtime snapshot exported from the governance console.",
-          }),
-          method: "POST",
-        }),
-      );
-    });
-
-    const snapshotPreview = await screen.findByText((_content, element) => {
-      return (
-        element?.tagName.toLowerCase() === "pre" &&
-        Boolean(element.textContent?.includes('"profile_id": "default_it"'))
-      );
-    });
-    expect(snapshotPreview).toBeInTheDocument();
-
-    const downloadButton = screen.getByRole("button", {
-      name: "Download JSON",
-    });
-    await waitFor(() => expect(downloadButton).not.toBeDisabled());
-    fireEvent.click(downloadButton);
-
-    expect(createObjectUrl).toHaveBeenCalledTimes(1);
-    expect(clickAnchor).toHaveBeenCalledTimes(1);
-    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:skeinrank-snapshot");
+    expect(screen.queryByRole("button", { name: "Export draft snapshot" })).not.toBeInTheDocument();
   });
 
   it("signs in when auth is enabled and sends bearer tokens", async () => {
@@ -2900,6 +2837,10 @@ describe("App", () => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });
     fireEvent.click(screen.getAllByText("infra docs")[0]);
+    expect(await screen.findByText("Selected binding")).toBeInTheDocument();
+    expect(screen.getByText("Binding setup flow")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create binding" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit binding" }));
     await waitFor(() => {
       expect(screen.getByLabelText("Edit description")).toHaveValue(
         "Apply default IT terms to docs.",
@@ -2980,6 +2921,8 @@ describe("App", () => {
     });
     expect((await screen.findAllByText("cancel_requested")).length).toBeGreaterThan(0);
 
+    fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
+    expect(await screen.findByText("Profile and binding identity")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Binding name"), {
       target: { value: "runbook docs" },
     });
@@ -3001,7 +2944,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Value for this profile"), {
       target: { value: "infra" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save new binding" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -3031,6 +2974,7 @@ describe("App", () => {
     ).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(screen.getAllByText("infra docs")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Edit binding" }));
     fireEvent.change(screen.getByLabelText("Edit binding name"), {
       target: { value: "infra docs v2" },
     });
@@ -3080,6 +3024,7 @@ describe("App", () => {
       );
     });
 
+    fireEvent.click(screen.getByRole("button", { name: "Edit binding" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete binding" }));
 
     await waitFor(() => {
@@ -3102,6 +3047,8 @@ describe("App", () => {
       await screen.findByText("Elasticsearch bindings"),
     ).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
+    expect(await screen.findByText("Profile and binding identity")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Profile"), {
       target: { value: "ml_platform" },
     });
@@ -3122,7 +3069,7 @@ describe("App", () => {
       await screen.findByText(/This index is already used by another profile/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Create binding" }),
+      screen.getByRole("button", { name: "Save new binding" }),
     ).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Document discriminator field"), {
@@ -3140,7 +3087,7 @@ describe("App", () => {
       ).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "Create binding" }),
+      screen.getByRole("button", { name: "Save new binding" }),
     ).not.toBeDisabled();
   });
 
@@ -3171,10 +3118,9 @@ describe("App", () => {
         "Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save binding" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Delete binding" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit binding" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save binding" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete binding" })).not.toBeInTheDocument();
   });
 
   it("keeps contributor users in read-only governance mode", async () => {
@@ -3192,9 +3138,6 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Add term" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Create profile" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Export draft snapshot" }),
     ).toBeDisabled();
     expect(
       screen.queryByRole("button", { name: "Edit alias" }),
