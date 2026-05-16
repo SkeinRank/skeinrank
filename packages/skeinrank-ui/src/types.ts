@@ -142,6 +142,76 @@ export type SnapshotSummary = {
   history: SnapshotHistoryItem[];
 };
 
+
+export type RuntimeTextMatch = {
+  alias_value: string;
+  canonical_value: string;
+  slot: string;
+  matched_text: string;
+  start: number;
+  end: number;
+  confidence: number;
+};
+
+export type RuntimeTextEvidence = RuntimeTextMatch & {
+  reason: string;
+  source: string;
+};
+
+export type RuntimeQueryPlanRequest = {
+  profile_name?: string | null;
+  binding_id?: number | null;
+  query: string;
+  text_fields?: string[] | null;
+  target_field?: string | null;
+  size?: number;
+  canonical_boost?: number;
+  include_evidence?: boolean;
+  max_matches?: number;
+};
+
+export type RuntimeQueryPlanResponse = {
+  profile_name: string;
+  normalized_profile_name: string;
+  query: string;
+  canonical_query: string;
+  changed: boolean;
+  text_fields: string[];
+  target_field: string;
+  binding_id: number | null;
+  snapshot_version: string | null;
+  snapshot_source: string;
+  canonical_values: string[];
+  slots: Record<string, string[]>;
+  matched_aliases: string[];
+  replacements: RuntimeTextMatch[];
+  evidence: RuntimeTextEvidence[];
+  elasticsearch: Record<string, unknown>;
+  warnings: string[];
+};
+
+export type RuntimeSearchRequest = RuntimeQueryPlanRequest & {
+  index_name?: string | null;
+  include_source?: boolean;
+  source_fields?: string[] | null;
+};
+
+export type RuntimeSearchHit = {
+  id: string;
+  index: string;
+  score: number | null;
+  source: Record<string, unknown>;
+  skeinrank: Record<string, unknown> | null;
+};
+
+export type RuntimeSearchResponse = Omit<RuntimeQueryPlanResponse, "text_fields" | "target_field"> & {
+  index_name: string;
+  text_fields?: string[];
+  target_field?: string;
+  total: Record<string, unknown> | number | null;
+  hits: RuntimeSearchHit[];
+};
+
 export type Profile = {
   id: number;
   name: string;

@@ -10,6 +10,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { GovernanceDashboard } from "./pages/GovernanceDashboard";
 import { GuardrailsPage } from "./pages/GuardrailsPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
+import { SearchPlaygroundPage } from "./pages/SearchPlaygroundPage";
 import { SnapshotsPage } from "./pages/SnapshotsPage";
 import { SuggestionsPage } from "./pages/SuggestionsPage";
 import { permissionsForUser } from "./permissions";
@@ -117,6 +118,8 @@ function AuthGate() {
         <GuardrailsPage currentUser={currentUser} />
       ) : safeActiveSection === "integrations" ? (
         <IntegrationsPage currentUser={currentUser} />
+      ) : safeActiveSection === "search-playground" ? (
+        <SearchPlaygroundPage />
       ) : safeActiveSection === "snapshots" ? (
         <SnapshotsPage onNavigate={setActiveSection} />
       ) : safeActiveSection === "api-access" ? (

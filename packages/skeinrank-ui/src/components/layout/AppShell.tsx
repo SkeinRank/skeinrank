@@ -6,7 +6,7 @@ import type { AuthUser } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
-export type AppSection = "dashboard" | "terms" | "suggestions" | "guardrails" | "integrations" | "snapshots" | "api-access" | "users";
+export type AppSection = "dashboard" | "terms" | "suggestions" | "guardrails" | "integrations" | "search-playground" | "snapshots" | "api-access" | "users";
 
 type AppShellProps = {
   activeSection: AppSection;
@@ -40,6 +40,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
     { label: "Suggestions", icon: Search, section: "suggestions" as const, available: true },
     { label: "Guardrails", icon: ShieldCheck, section: "guardrails" as const, available: true },
     { label: "Integrations", icon: Plug, section: "integrations" as const, available: true },
+    { label: "Search Playground", icon: Search, section: "search-playground" as const, available: true },
     { label: "Snapshots", icon: GitBranch, section: "snapshots" as const, available: true },
     { label: "API Access", icon: KeyRound, section: "api-access" as const, available: canManageApiTokens },
     { label: "Users", icon: Users, section: "users" as const, available: canManageUsers },
@@ -85,6 +86,8 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                   ? "Users and roles"
                   : activeSection === "snapshots"
                     ? "Runtime snapshots"
+                  : activeSection === "search-playground"
+                    ? "Search Playground"
                   : activeSection === "suggestions"
                     ? "Suggestions and approvals"
                     : activeSection === "guardrails"
@@ -102,6 +105,8 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                   ? "Manage local users, roles, and access to governance workflows."
                   : activeSection === "snapshots"
                     ? "Audit active runtime snapshots, stale bindings, and enrichment history."
+                  : activeSection === "search-playground"
+                    ? "Test binding-aware canonicalization, query plans, and Elasticsearch search results."
                   : activeSection === "suggestions"
                     ? "Propose aliases, review pending changes, and approve terminology updates."
                     : activeSection === "guardrails"
