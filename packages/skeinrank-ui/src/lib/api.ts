@@ -30,6 +30,10 @@ import type {
   Profile,
   ProfileCreateRequest,
   ProfileUpdateRequest,
+  RuntimeQueryPlanRequest,
+  RuntimeQueryPlanResponse,
+  RuntimeSearchRequest,
+  RuntimeSearchResponse,
   RuntimeSnapshot,
   SnapshotExportRequest,
   SnapshotSummary,
@@ -253,6 +257,20 @@ export function getDashboardSummary() {
 
 export function getSnapshotSummary() {
   return requestJson<SnapshotSummary>("/v1/snapshots/summary");
+}
+
+export function buildRuntimeQueryPlan(payload: RuntimeQueryPlanRequest) {
+  return requestJson<RuntimeQueryPlanResponse>("/v1/query/plan", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function searchRuntimeDocuments(payload: RuntimeSearchRequest) {
+  return requestJson<RuntimeSearchResponse>("/v1/search", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function listProfiles() {

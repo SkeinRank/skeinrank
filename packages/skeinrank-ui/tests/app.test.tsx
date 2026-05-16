@@ -16,6 +16,8 @@ import type {
   GlobalStopListEntry,
   GovernanceSuggestion,
   Profile,
+  RuntimeQueryPlanResponse,
+  RuntimeSearchResponse,
   ServiceAccount,
   SnapshotSummary,
   StopListEntry,
@@ -238,6 +240,83 @@ const elasticsearchBindings: ElasticsearchBinding[] = [
     updated_at: "2026-05-07T00:00:00Z",
   },
 ];
+
+
+const runtimeQueryPlanResponse: RuntimeQueryPlanResponse = {
+  profile_name: "default_it",
+  normalized_profile_name: "default_it",
+  query: "k8s pg timeout",
+  canonical_query: "kubernetes postgresql timeout",
+  changed: true,
+  text_fields: ["title", "body"],
+  target_field: "skeinrank",
+  binding_id: 1,
+  snapshot_version: "default_it@abc123",
+  snapshot_source: "binding_runtime_snapshot",
+  canonical_values: ["kubernetes", "postgresql"],
+  slots: { TOOL: ["kubernetes"], DATABASE: ["postgresql"] },
+  matched_aliases: ["k8s", "pg"],
+  replacements: [
+    {
+      alias_value: "k8s",
+      canonical_value: "kubernetes",
+      slot: "TOOL",
+      matched_text: "k8s",
+      start: 0,
+      end: 3,
+      confidence: 0.97,
+    },
+    {
+      alias_value: "pg",
+      canonical_value: "postgresql",
+      slot: "DATABASE",
+      matched_text: "pg",
+      start: 4,
+      end: 6,
+      confidence: 0.92,
+    },
+  ],
+  evidence: [],
+  elasticsearch: {
+    query: {
+      bool: {
+        should: [
+          { multi_match: { query: "k8s pg timeout", fields: ["title", "body"], type: "best_fields" } },
+          { terms: { "skeinrank.canonical_values": ["kubernetes", "postgresql"], boost: 3 } },
+        ],
+        minimum_should_match: 1,
+      },
+    },
+    size: 10,
+    track_total_hits: true,
+  },
+  warnings: [],
+};
+
+const runtimeSearchResponse: RuntimeSearchResponse = {
+  ...runtimeQueryPlanResponse,
+  index_name: "docs",
+  total: { value: 1, relation: "eq" },
+  hits: [
+    {
+      id: "doc-1",
+      index: "docs",
+      score: 12.4,
+      source: {
+        title: "K8s pg timeout incident",
+        body: "K8s rollout failed because postgres timed out.",
+        skeinrank: {
+          canonical_values: ["kubernetes", "postgresql"],
+          matched_aliases: ["k8s", "pg"],
+        },
+      },
+      skeinrank: {
+        canonical_values: ["kubernetes", "postgresql"],
+        matched_aliases: ["k8s", "pg"],
+      },
+    },
+  ],
+};
 
 const elasticsearchDryRunResponse: ElasticsearchBindingDryRunResponse = {
   binding: elasticsearchBindings[0],
@@ -1076,6 +1155,14 @@ function stubGovernanceApi(options: StubOptions = {}) {
             currentElasticsearchJobs,
           ),
         );
+      }
+
+      if (url.endsWith("/v1/query/plan") && method === "POST") {
+        return Response.json(runtimeQueryPlanResponse);
+      }
+
+      if (url.endsWith("/v1/search") && method === "POST") {
+        return Response.json(runtimeSearchResponse);
       }
 
       if (url.endsWith("/v1/governance/profiles") && method === "GET") {
@@ -2051,6 +2138,11 @@ async function openSnapshotsPage() {
   await screen.findByRole("heading", { name: "Runtime snapshots" });
 }
 
+async function openSearchPlaygroundPage() {
+  fireEvent.click(await screen.findByRole("button", { name: "Search Playground" }));
+  await screen.findByRole("heading", { name: "Search Playground" });
+}
+
 describe("App", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -2109,6 +2201,67 @@ describe("App", () => {
         headers: expect.any(Headers),
       }),
     );
+  });
+
+  it("lets users preview and run runtime search from Search Playground", async () => {
+    const fetchMock = stubGovernanceApi();
+
+    render(<App />);
+
+    await openSearchPlaygroundPage();
+
+    expect(await screen.findByText("Runtime search playground")).toBeInTheDocument();
+    expect(screen.getByText("Binding context")).toBeInTheDocument();
+    expect(screen.getByText("default_it → docs")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview query plan" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/query/plan",
+        expect.objectContaining({
+          body: JSON.stringify({
+            binding_id: 1,
+            query: "k8s pg timeout",
+            size: 10,
+            canonical_boost: 3,
+            include_evidence: true,
+          }),
+          method: "POST",
+        }),
+      );
+    });
+
+    expect(await screen.findByText("Query plan")).toBeInTheDocument();
+    expect(screen.getByText("kubernetes postgresql timeout")).toBeInTheDocument();
+    expect(screen.getAllByText("k8s").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("pg").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
+    expect(screen.getByText("Elasticsearch DSL")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Run search" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/search",
+        expect.objectContaining({
+          body: JSON.stringify({
+            binding_id: 1,
+            query: "k8s pg timeout",
+            size: 10,
+            canonical_boost: 3,
+            include_evidence: true,
+            include_source: true,
+          }),
+          method: "POST",
+        }),
+      );
+    });
+
+    expect(await screen.findByText("Search result")).toBeInTheDocument();
+    expect(screen.getByText("Search hits")).toBeInTheDocument();
+    expect(screen.getByText("doc-1")).toBeInTheDocument();
+    expect(screen.getByText("K8s pg timeout incident")).toBeInTheDocument();
   });
 
   it("cycles the governance console theme", async () => {
