@@ -17,6 +17,7 @@ import type {
   GovernanceSuggestion,
   Profile,
   ServiceAccount,
+  SnapshotSummary,
   StopListEntry,
   TermAlias,
 } from "../src/types";
@@ -620,6 +621,108 @@ function dashboardRecentJob(job: ElasticsearchEnrichmentJob) {
   };
 }
 
+function snapshotSummaryFromState(
+  currentElasticsearchBindings: ElasticsearchBinding[],
+  currentElasticsearchJobs: ElasticsearchEnrichmentJob[],
+): SnapshotSummary {
+  const latestJobByBinding = new Map<number, ElasticsearchEnrichmentJob>();
+  for (const job of currentElasticsearchJobs) {
+    if (!latestJobByBinding.has(job.binding_id)) {
+      latestJobByBinding.set(job.binding_id, job);
+    }
+  }
+
+  const bindings = currentElasticsearchBindings.map((binding) => {
+    const latestJob = latestJobByBinding.get(binding.id) ?? null;
+    const activeSnapshotVersion = binding.last_successful_snapshot_version ?? null;
+    const isStale = Boolean(binding.pending_snapshot_version) || binding.snapshot_status === "stale";
+    const status = !binding.is_enabled
+      ? "disabled"
+      : latestJob?.status === "failed" && !activeSnapshotVersion
+        ? "failed"
+        : !activeSnapshotVersion
+          ? "never_enriched"
+          : isStale
+            ? "stale"
+            : latestJob?.status === "failed"
+              ? "failed"
+              : "ready";
+    const rollbackAvailable = Boolean(
+      latestJob?.status === "succeeded" &&
+        (latestJob.result_json.rollout as { rollback_available?: boolean } | undefined)?.rollback_available,
+    );
+    return {
+      id: binding.id,
+      name: binding.name,
+      profile_name: binding.profile_name,
+      index_name: binding.index_name,
+      filter_field: binding.filter_field,
+      filter_value: binding.filter_value,
+      is_enabled: binding.is_enabled,
+      status,
+      active_snapshot_version: activeSnapshotVersion,
+      pending_snapshot_version: binding.pending_snapshot_version ?? null,
+      last_successful_snapshot_at: binding.last_successful_snapshot_at ?? null,
+      last_successful_job_id: binding.last_successful_job_id ?? null,
+      latest_job_id: latestJob?.id ?? null,
+      latest_job_status: latestJob?.status ?? null,
+      latest_job_error: latestJob?.error_message ?? null,
+      rollback_available: rollbackAvailable,
+      snapshot_aliases_total: activeSnapshotVersion ? 1 : 0,
+      current_aliases_total: binding.id === 2 ? 2 : activeSnapshotVersion ? 1 : 0,
+      diff: {
+        active_checksum: activeSnapshotVersion ? "abc123" : null,
+        current_checksum: binding.id === 2 ? "new789" : activeSnapshotVersion ? "abc123" : null,
+        active_aliases: activeSnapshotVersion ? 1 : 0,
+        current_aliases: binding.id === 2 ? 2 : activeSnapshotVersion ? 1 : 0,
+        added_aliases: binding.id === 2 ? 1 : 0,
+        removed_aliases: 0,
+        changed_aliases: 0,
+        changed: binding.id === 2,
+      },
+      updated_at: binding.updated_at,
+    };
+  });
+
+  const history = currentElasticsearchJobs.slice(0, 25).map((job) => ({
+    job_id: job.id,
+    binding_id: job.binding_id,
+    binding_name: job.binding_name,
+    profile_name: job.profile_name,
+    status: job.status,
+    snapshot_version: job.snapshot_version ?? null,
+    previous_snapshot_version: job.previous_snapshot_version ?? null,
+    checksum: "abc123",
+    alias_entries_total: job.snapshot_version ? 1 : 0,
+    documents_seen: job.documents_seen,
+    documents_enriched: job.documents_enriched,
+    documents_failed: job.documents_failed,
+    target_index: job.target_index,
+    alias_name: job.alias_name,
+    rollback_available: Boolean(
+      job.status === "succeeded" &&
+        (job.result_json.rollout as { rollback_available?: boolean } | undefined)?.rollback_available,
+    ),
+    error_message: job.error_message,
+    created_at: job.created_at,
+    finished_at: job.finished_at,
+  }));
+
+  return {
+    counts: {
+      bindings: bindings.length,
+      active_snapshots: bindings.filter((binding) => binding.active_snapshot_version).length,
+      stale_snapshots: bindings.filter((binding) => binding.status === "stale").length,
+      pending_snapshots: bindings.filter((binding) => binding.pending_snapshot_version).length,
+      failed_updates: bindings.filter((binding) => binding.status === "failed").length,
+      never_enriched: bindings.filter((binding) => binding.status === "never_enriched").length,
+      rollback_available: bindings.filter((binding) => binding.rollback_available).length,
+    },
+    bindings,
+    history,
+  };
+}
+
 function cloneElasticsearchIndices() {
   return JSON.parse(
     JSON.stringify(elasticsearchIndices),
@@ -960,6 +1063,15 @@ function stubGovernanceApi(options: StubOptions = {}) {
           dashboardSummaryFromState(
             currentProfiles,
             currentTerms,
+            currentElasticsearchBindings,
+            currentElasticsearchJobs,
+          ),
+        );
+      }
+
+      if (url.endsWith("/v1/snapshots/summary") && method === "GET") {
+        return Response.json(
+          snapshotSummaryFromState(
             currentElasticsearchBindings,
             currentElasticsearchJobs,
           ),
@@ -1934,6 +2046,11 @@ async function openTermsPage() {
   await screen.findByText("Terminology control plane");
 }
 
+async function openSnapshotsPage() {
+  fireEvent.click(await screen.findByRole("button", { name: "Snapshots" }));
+  await screen.findByRole("heading", { name: "Runtime snapshots" });
+}
+
 describe("App", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -1967,6 +2084,31 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("MVP")).toBeInTheDocument();
     expect(screen.queryByText("UI skeleton")).not.toBeInTheDocument();
+  });
+
+  it("shows runtime snapshots with active state and history", async () => {
+    const fetchMock = stubGovernanceApi();
+
+    render(<App />);
+
+    await openSnapshotsPage();
+
+    expect(await screen.findByText("Runtime snapshot control")).toBeInTheDocument();
+    expect(screen.getByText("Active runtime snapshots")).toBeInTheDocument();
+    expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
+    expect(screen.getByText("ml_platform@old456")).toBeInTheDocument();
+    expect(screen.getByText("Pending: ml_platform@new789")).toBeInTheDocument();
+    expect(screen.getByText("profile changed")).toBeInTheDocument();
+    expect(screen.getByText("Snapshot history")).toBeInTheDocument();
+    expect(screen.getAllByText("Job #101").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("rollback available").length).toBeGreaterThan(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8010/v1/snapshots/summary",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
   });
 
   it("cycles the governance console theme", async () => {
