@@ -3472,6 +3472,16 @@ describe("App", () => {
     expect(
       await screen.findByText("Suggestions and approvals"),
     ).toBeInTheDocument();
+    expect(await screen.findByText("Suggestion workspace")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Propose/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.queryByRole("button", { name: /Approve suggestion/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Review queue/ }));
     expect(
       await screen.findByText("People search for kube in incident docs."),
     ).toBeInTheDocument();
@@ -3484,6 +3494,7 @@ describe("App", () => {
       screen.getByRole("button", { name: /Approve suggestion/ }),
     ).toBeDisabled();
 
+    fireEvent.click(screen.getByRole("tab", { name: /Propose/ }));
     expect(screen.queryByLabelText("Confidence")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Source")).not.toBeInTheDocument();
 

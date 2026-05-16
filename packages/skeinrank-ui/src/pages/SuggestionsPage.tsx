@@ -43,8 +43,14 @@ const statusFilters: Array<SuggestionStatus | "all"> = [
   "rejected",
   "all",
 ];
+
+type SuggestionsSection = "propose" | "review";
+
 export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
   const permissions = permissionsForUser(currentUser);
+  const [activeSection, setActiveSection] = useState<SuggestionsSection>(
+    permissions.canReviewSuggestions ? "review" : "propose",
+  );
   const queryClient = useQueryClient();
   const profilesQuery = useQuery({
     queryKey: ["profiles"],
@@ -130,6 +136,7 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
     },
     onSuccess: (suggestion) => {
       setStatusFilter("pending");
+      setActiveSection("review");
       setSelectedSuggestionId(suggestion.id);
       upsertSuggestion(queryClient, selectedProfile, statusFilter, suggestion);
       upsertSuggestion(queryClient, selectedProfile, "pending", suggestion);
@@ -271,161 +278,264 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
     });
   }
 
+  const suggestionsCount = suggestionsQuery.data?.length ?? 0;
+  const selectedProfileLabel = selectedProfile ?? "No profile";
+
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          description="Terminology namespace currently under review."
-          title="Profile"
-          value={selectedProfile ?? "None"}
-        />
-        <StatCard
-          description="Suggestions visible under the current filter."
-          title="Suggestions"
-          value={String(suggestionsQuery.data?.length ?? 0)}
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle>Review model</CardTitle>
-            <CardDescription>
-              Contributor proposes, moderator approves.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Badge>Suggestion → Approval → Term/Alias</Badge>
-          </CardContent>
-        </Card>
-      </section>
+      <SuggestionsSectionTabs
+        activeSection={activeSection}
+        onSelectSection={setActiveSection}
+        selectedProfile={selectedProfileLabel}
+        suggestionsCount={suggestionsCount}
+      />
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-6">
-          <SuggestionsToolbar
-            isLoading={profilesQuery.isLoading}
-            loadErrorMessage={
-              profilesQuery.isError ? profilesQuery.error.message : null
+      {activeSection === "propose" ? (
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-6">
+            <SuggestionsToolbar
+              description="Choose the terminology namespace for the proposal."
+              isLoading={profilesQuery.isLoading}
+              loadErrorMessage={
+                profilesQuery.isError ? profilesQuery.error.message : null
+              }
+              onSelectProfile={(profileName) => {
+                setSelectedProfile(profileName);
+                setSelectedSuggestionId(null);
+                createSuggestionMutation.reset();
+                approveSuggestionMutation.reset();
+                rejectSuggestionMutation.reset();
+                refreshEvidenceMutation.reset();
+              }}
+              onSetStatusFilter={(status) => {
+                setStatusFilter(status);
+                setSelectedSuggestionId(null);
+              }}
+              profiles={profilesQuery.data ?? []}
+              selectedProfile={selectedProfile}
+              showStatusFilter={false}
+              statusFilter={statusFilter}
+              title="Proposal scope"
+            />
+
+            <CreateSuggestionForm
+              disabled={!selectedProfile || !permissions.canCreateSuggestions}
+              errorMessage={errorMessage(createSuggestionMutation.error)}
+              isSubmitting={createSuggestionMutation.isPending}
+              onSubmit={handleCreateSuggestion}
+              readOnlyMessage={
+                permissions.canCreateSuggestions
+                  ? null
+                  : "Your role can inspect suggestions, but cannot create new proposals."
+              }
+              terms={termsQuery.data ?? []}
+              termsErrorMessage={
+                termsQuery.isError ? termsQuery.error.message : null
+              }
+              termsLoading={termsQuery.isLoading && Boolean(selectedProfile)}
+            />
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Proposal workflow</CardTitle>
+              <CardDescription>
+                Create a candidate change without mutating active terminology.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+              <WorkflowStep number="1" title="Pick a profile" />
+              <WorkflowStep number="2" title="Propose an alias or canonical term" />
+              <WorkflowStep number="3" title="Moderator reviews evidence" />
+              <WorkflowStep number="4" title="Approved changes update Terms" />
+            </CardContent>
+          </Card>
+        </section>
+      ) : (
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="space-y-6">
+            <SuggestionsToolbar
+              description="Filter proposals that need review or audit already reviewed changes."
+              isLoading={profilesQuery.isLoading}
+              loadErrorMessage={
+                profilesQuery.isError ? profilesQuery.error.message : null
+              }
+              onSelectProfile={(profileName) => {
+                setSelectedProfile(profileName);
+                setSelectedSuggestionId(null);
+                createSuggestionMutation.reset();
+                approveSuggestionMutation.reset();
+                rejectSuggestionMutation.reset();
+                refreshEvidenceMutation.reset();
+              }}
+              onSetStatusFilter={(status) => {
+                setStatusFilter(status);
+                setSelectedSuggestionId(null);
+              }}
+              profiles={profilesQuery.data ?? []}
+              selectedProfile={selectedProfile}
+              showStatusFilter
+              statusFilter={statusFilter}
+              title="Review scope"
+            />
+
+            <SuggestionsTable
+              isLoading={suggestionsQuery.isLoading && Boolean(selectedProfile)}
+              loadErrorMessage={
+                suggestionsQuery.isError ? suggestionsQuery.error.message : null
+              }
+              onSelectSuggestion={(suggestion) => {
+                setSelectedSuggestionId(suggestion.id);
+                approveSuggestionMutation.reset();
+                rejectSuggestionMutation.reset();
+                refreshEvidenceMutation.reset();
+              }}
+              selectedSuggestionId={selectedSuggestionId}
+              suggestions={suggestionsQuery.data ?? []}
+            />
+          </div>
+
+          <SuggestionDetailsPanel
+            bindings={bindingsQuery.data ?? []}
+            bindingsErrorMessage={
+              bindingsQuery.isError ? bindingsQuery.error.message : null
             }
-            onSelectProfile={(profileName) => {
-              setSelectedProfile(profileName);
-              setSelectedSuggestionId(null);
-              createSuggestionMutation.reset();
-              approveSuggestionMutation.reset();
-              rejectSuggestionMutation.reset();
-              refreshEvidenceMutation.reset();
-            }}
-            onSetStatusFilter={(status) => {
-              setStatusFilter(status);
-              setSelectedSuggestionId(null);
-            }}
-            profiles={profilesQuery.data ?? []}
-            selectedProfile={selectedProfile}
-            statusFilter={statusFilter}
+            bindingsLoading={bindingsQuery.isLoading && Boolean(selectedProfile)}
+            canReview={permissions.canReviewSuggestions}
+            evidenceErrorMessage={errorMessage(refreshEvidenceMutation.error)}
+            isApproving={approveSuggestionMutation.isPending}
+            isRefreshingEvidence={refreshEvidenceMutation.isPending}
+            isRejecting={rejectSuggestionMutation.isPending}
+            onApprove={handleApproveSuggestion}
+            onRefreshEvidence={handleRefreshSuggestionEvidence}
+            onReject={handleRejectSuggestion}
+            reviewErrorMessage={
+              errorMessage(approveSuggestionMutation.error) ??
+              errorMessage(rejectSuggestionMutation.error)
+            }
+            suggestion={selectedSuggestion}
           />
-
-          <CreateSuggestionForm
-            disabled={!selectedProfile || !permissions.canCreateSuggestions}
-            errorMessage={errorMessage(createSuggestionMutation.error)}
-            isSubmitting={createSuggestionMutation.isPending}
-            onSubmit={handleCreateSuggestion}
-            readOnlyMessage={
-              permissions.canCreateSuggestions
-                ? null
-                : "Your role can inspect suggestions, but cannot create new proposals."
-            }
-            terms={termsQuery.data ?? []}
-            termsErrorMessage={
-              termsQuery.isError ? termsQuery.error.message : null
-            }
-            termsLoading={termsQuery.isLoading && Boolean(selectedProfile)}
-          />
-
-          <SuggestionsTable
-            isLoading={suggestionsQuery.isLoading && Boolean(selectedProfile)}
-            loadErrorMessage={
-              suggestionsQuery.isError ? suggestionsQuery.error.message : null
-            }
-            onSelectSuggestion={(suggestion) => {
-              setSelectedSuggestionId(suggestion.id);
-              approveSuggestionMutation.reset();
-              rejectSuggestionMutation.reset();
-              refreshEvidenceMutation.reset();
-            }}
-            selectedSuggestionId={selectedSuggestionId}
-            suggestions={suggestionsQuery.data ?? []}
-          />
-        </div>
-
-        <SuggestionDetailsPanel
-          bindings={bindingsQuery.data ?? []}
-          bindingsErrorMessage={
-            bindingsQuery.isError ? bindingsQuery.error.message : null
-          }
-          bindingsLoading={bindingsQuery.isLoading && Boolean(selectedProfile)}
-          canReview={permissions.canReviewSuggestions}
-          evidenceErrorMessage={errorMessage(refreshEvidenceMutation.error)}
-          isApproving={approveSuggestionMutation.isPending}
-          isRefreshingEvidence={refreshEvidenceMutation.isPending}
-          isRejecting={rejectSuggestionMutation.isPending}
-          onApprove={handleApproveSuggestion}
-          onRefreshEvidence={handleRefreshSuggestionEvidence}
-          onReject={handleRejectSuggestion}
-          reviewErrorMessage={
-            errorMessage(approveSuggestionMutation.error) ??
-            errorMessage(rejectSuggestionMutation.error)
-          }
-          suggestion={selectedSuggestion}
-        />
-      </section>
+        </section>
+      )}
     </div>
   );
 }
 
-function StatCard({
-  description,
-  title,
-  value,
+function SuggestionsSectionTabs({
+  activeSection,
+  onSelectSection,
+  selectedProfile,
+  suggestionsCount,
 }: {
-  description: string;
-  title: string;
-  value: string;
+  activeSection: SuggestionsSection;
+  onSelectSection: (section: SuggestionsSection) => void;
+  selectedProfile: string;
+  suggestionsCount: number;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-semibold">{value}</div>
-      </CardContent>
-    </Card>
+    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+            Suggestion workspace
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Propose terminology changes separately from moderator review.
+          </p>
+        </div>
+        <div
+          aria-label="Suggestion section"
+          className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 lg:w-auto"
+          role="tablist"
+        >
+          <SuggestionsTabButton
+            isActive={activeSection === "propose"}
+            label="Propose"
+            meta={selectedProfile}
+            onClick={() => onSelectSection("propose")}
+          />
+          <SuggestionsTabButton
+            isActive={activeSection === "review"}
+            label="Review queue"
+            meta={`${suggestionsCount} visible`}
+            onClick={() => onSelectSection("review")}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SuggestionsTabButton({
+  isActive,
+  label,
+  meta,
+  onClick,
+}: {
+  isActive: boolean;
+  label: string;
+  meta: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-selected={isActive}
+      className={`flex min-w-0 flex-1 flex-col rounded-xl px-4 py-2 text-left transition-colors lg:min-w-40 lg:flex-none ${
+        isActive
+          ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-slate-50"
+          : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-100"
+      }`}
+      onClick={onClick}
+      role="tab"
+      type="button"
+    >
+      <span className="text-sm font-semibold">{label}</span>
+      <span className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+        {meta}
+      </span>
+    </button>
+  );
+}
+
+function WorkflowStep({ number, title }: { number: string; title: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+        {number}
+      </span>
+      <span>{title}</span>
+    </div>
   );
 }
 
 function SuggestionsToolbar({
+  description,
   isLoading,
   loadErrorMessage,
   onSelectProfile,
   onSetStatusFilter,
   profiles,
   selectedProfile,
+  showStatusFilter = true,
   statusFilter,
+  title,
 }: {
+  description: string;
   isLoading: boolean;
   loadErrorMessage?: string | null;
   onSelectProfile: (profileName: string) => void;
   onSetStatusFilter: (status: SuggestionStatus | "all") => void;
   profiles: Profile[];
   selectedProfile: string | null;
+  showStatusFilter?: boolean;
   statusFilter: SuggestionStatus | "all";
+  title: string;
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Suggestions queue</CardTitle>
-        <CardDescription>
-          Review proposed aliases and new canonical terms before they mutate
-          active runtime terminology.
-        </CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
@@ -463,24 +573,26 @@ function SuggestionsToolbar({
           </p>
         )}
 
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-            Suggestion status
-          </span>
-          <select
-            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
-            onChange={(event) =>
-              onSetStatusFilter(event.target.value as SuggestionStatus | "all")
-            }
-            value={statusFilter}
-          >
-            {statusFilters.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </label>
+        {showStatusFilter ? (
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Suggestion status
+            </span>
+            <select
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
+              onChange={(event) =>
+                onSetStatusFilter(event.target.value as SuggestionStatus | "all")
+              }
+              value={statusFilter}
+            >
+              {statusFilters.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </CardContent>
     </Card>
   );
