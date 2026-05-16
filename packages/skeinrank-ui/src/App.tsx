@@ -6,6 +6,7 @@ import { AppSection, AppShell } from "./components/layout/AppShell";
 import { UsersManager } from "./components/UsersManager";
 import { clearAuthToken, createUser, deleteUser, getAuthToken, getCurrentUser, GovernanceApiError, listUsers, login, logout, revokeUserApiTokens, setAuthToken, updateUser, updateUserStatus } from "./lib/api";
 import { ApiAccessPage } from "./pages/ApiAccessPage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { GovernanceDashboard } from "./pages/GovernanceDashboard";
 import { GuardrailsPage } from "./pages/GuardrailsPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
@@ -40,7 +41,7 @@ export function App() {
 function AuthGate() {
   const queryClient = useQueryClient();
   const [tokenVersion, setTokenVersion] = useState(() => getAuthToken() ?? "anonymous");
-  const [activeSection, setActiveSection] = useState<AppSection>("terms");
+  const [activeSection, setActiveSection] = useState<AppSection>("dashboard");
 
   const meQuery = useQuery({
     queryKey: ["auth", "me", tokenVersion],
@@ -53,6 +54,7 @@ function AuthGate() {
       setAuthToken(response.access_token);
       setTokenVersion(response.access_token);
       queryClient.setQueryData(["auth", "me", response.access_token], response.user);
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["profiles"] });
     },
   });
@@ -62,7 +64,7 @@ function AuthGate() {
     onSettled: () => {
       clearAuthToken();
       setTokenVersion("anonymous");
-      setActiveSection("terms");
+      setActiveSection("dashboard");
       queryClient.clear();
     },
   });
@@ -93,7 +95,7 @@ function AuthGate() {
   }
 
   const permissions = permissionsForUser(currentUser);
-  const safeActiveSection = activeSection === "users" && !permissions.canManageUsers ? "terms" : activeSection;
+  const safeActiveSection = activeSection === "users" && !permissions.canManageUsers ? "dashboard" : activeSection;
 
   return (
     <AppShell
@@ -104,7 +106,9 @@ function AuthGate() {
       onLogout={handleLogout}
       onNavigate={setActiveSection}
     >
-      {safeActiveSection === "users" ? (
+      {safeActiveSection === "dashboard" ? (
+        <DashboardPage onNavigate={setActiveSection} />
+      ) : safeActiveSection === "users" ? (
         <UsersPage currentUser={currentUser} />
       ) : safeActiveSection === "suggestions" ? (
         <SuggestionsPage currentUser={currentUser} />

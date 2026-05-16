@@ -58,6 +58,91 @@ class ReadyzResponse(BaseModel):
     elasticsearch: ExternalDependencyHealth
 
 
+class DashboardReadinessItem(BaseModel):
+    """One product dashboard readiness item."""
+
+    status: str = Field(..., examples=["ok", "degraded", "not_configured", "unknown"])
+    configured: bool = True
+    message: str | None = None
+    url: str | None = None
+    name: str | None = None
+    version: str | None = None
+
+
+class DashboardCounts(BaseModel):
+    """Dashboard aggregate counts."""
+
+    profiles: int
+    canonical_terms: int
+    aliases: int
+    bindings: int
+    ready_bindings: int
+    stale_bindings: int
+    updating_bindings: int
+    failed_bindings: int
+    never_enriched_bindings: int
+    running_jobs: int
+    failed_jobs: int
+
+
+class DashboardSetupChecklist(BaseModel):
+    """High-level first-run setup progress."""
+
+    has_profile: bool
+    has_terms: bool
+    has_binding: bool
+    has_successful_enrichment: bool
+    has_runtime_snapshot: bool
+
+
+class DashboardRecentJob(BaseModel):
+    """Compact enrichment job row for the dashboard."""
+
+    id: int
+    binding_id: int
+    binding_name: str
+    profile_name: str
+    status: str
+    source_index: str
+    target_index: str | None = None
+    alias_name: str | None = None
+    snapshot_version: str | None = None
+    documents_seen: int
+    documents_enriched: int
+    documents_failed: int
+    error_message: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DashboardBindingSummary(BaseModel):
+    """Compact binding health row for the dashboard."""
+
+    id: int
+    name: str
+    profile_name: str
+    index_name: str
+    is_enabled: bool
+    status: str
+    snapshot_version: str | None = None
+    pending_snapshot_version: str | None = None
+    last_successful_job_id: int | None = None
+    latest_job: DashboardRecentJob | None = None
+    updated_at: datetime
+
+
+class DashboardSummaryResponse(BaseModel):
+    """Product dashboard summary for the governance console home page."""
+
+    readiness: dict[str, DashboardReadinessItem]
+    counts: DashboardCounts
+    setup: DashboardSetupChecklist
+    bindings: list[DashboardBindingSummary] = Field(default_factory=list)
+    recent_jobs: list[DashboardRecentJob] = Field(default_factory=list)
+
+
 class ProfileCreateRequest(BaseModel):
     """Request body for creating a terminology profile."""
 

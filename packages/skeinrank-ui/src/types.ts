@@ -1,3 +1,76 @@
+export type DashboardReadinessItem = {
+  status: string;
+  configured: boolean;
+  message: string | null;
+  url: string | null;
+  name: string | null;
+  version: string | null;
+};
+
+export type DashboardCounts = {
+  profiles: number;
+  canonical_terms: number;
+  aliases: number;
+  bindings: number;
+  ready_bindings: number;
+  stale_bindings: number;
+  updating_bindings: number;
+  failed_bindings: number;
+  never_enriched_bindings: number;
+  running_jobs: number;
+  failed_jobs: number;
+};
+
+export type DashboardSetupChecklist = {
+  has_profile: boolean;
+  has_terms: boolean;
+  has_binding: boolean;
+  has_successful_enrichment: boolean;
+  has_runtime_snapshot: boolean;
+};
+
+export type DashboardRecentJob = {
+  id: number;
+  binding_id: number;
+  binding_name: string;
+  profile_name: string;
+  status: string;
+  source_index: string;
+  target_index: string | null;
+  alias_name: string | null;
+  snapshot_version: string | null;
+  documents_seen: number;
+  documents_enriched: number;
+  documents_failed: number;
+  error_message: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DashboardBindingSummary = {
+  id: number;
+  name: string;
+  profile_name: string;
+  index_name: string;
+  is_enabled: boolean;
+  status: string;
+  snapshot_version: string | null;
+  pending_snapshot_version: string | null;
+  last_successful_job_id: number | null;
+  latest_job: DashboardRecentJob | null;
+  updated_at: string;
+};
+
+export type DashboardSummary = {
+  readiness: Record<string, DashboardReadinessItem>;
+  counts: DashboardCounts;
+  setup: DashboardSetupChecklist;
+  bindings: DashboardBindingSummary[];
+  recent_jobs: DashboardRecentJob[];
+};
+
 export type Profile = {
   id: number;
   name: string;
