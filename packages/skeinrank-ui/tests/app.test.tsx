@@ -2839,7 +2839,7 @@ describe("App", () => {
     fireEvent.click(screen.getAllByText("infra docs")[0]);
     expect(await screen.findByText("Selected binding")).toBeInTheDocument();
     expect(screen.getByText("Binding setup flow")).toBeInTheDocument();
-    expect(screen.getByText("Create binding wizard")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create binding" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit binding" }));
     await waitFor(() => {
       expect(screen.getByLabelText("Edit description")).toHaveValue(
@@ -2921,6 +2921,8 @@ describe("App", () => {
     });
     expect((await screen.findAllByText("cancel_requested")).length).toBeGreaterThan(0);
 
+    fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
+    expect(await screen.findByText("Profile and binding identity")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Binding name"), {
       target: { value: "runbook docs" },
     });
@@ -2942,7 +2944,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Value for this profile"), {
       target: { value: "infra" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save new binding" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -3045,6 +3047,8 @@ describe("App", () => {
       await screen.findByText("Elasticsearch bindings"),
     ).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create binding" }));
+    expect(await screen.findByText("Profile and binding identity")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Profile"), {
       target: { value: "ml_platform" },
     });
@@ -3065,7 +3069,7 @@ describe("App", () => {
       await screen.findByText(/This index is already used by another profile/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Create binding" }),
+      screen.getByRole("button", { name: "Save new binding" }),
     ).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Document discriminator field"), {
@@ -3083,7 +3087,7 @@ describe("App", () => {
       ).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "Create binding" }),
+      screen.getByRole("button", { name: "Save new binding" }),
     ).not.toBeDisabled();
   });
 

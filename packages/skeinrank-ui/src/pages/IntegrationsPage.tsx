@@ -322,23 +322,6 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
             selectedProfile={selectedProfile}
           />
 
-          <CreateBindingForm
-            allBindings={allBindings}
-            discoveredIndices={indices}
-            discoveryEnabled={Boolean(connectionQuery.data?.ok)}
-            disabled={!selectedProfile || !permissions.canManageBindings}
-            errorMessage={getErrorMessage(createMutation.error)}
-            isSubmitting={createMutation.isPending}
-            onSubmit={handleCreateBinding}
-            profiles={profilesQuery.data ?? []}
-            readOnlyMessage={
-              permissions.canManageBindings
-                ? null
-                : "Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations."
-            }
-            selectedProfile={selectedProfile}
-          />
-
           <BindingsTable
             bindings={bindingsQuery.data ?? []}
             isLoading={bindingsQuery.isLoading && Boolean(selectedProfile)}
@@ -354,6 +337,23 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
               setSelectedJobId(null);
             }}
             selectedBindingId={selectedBindingId}
+          />
+
+          <CreateBindingForm
+            allBindings={allBindings}
+            discoveredIndices={indices}
+            discoveryEnabled={Boolean(connectionQuery.data?.ok)}
+            disabled={!selectedProfile || !permissions.canManageBindings}
+            errorMessage={getErrorMessage(createMutation.error)}
+            isSubmitting={createMutation.isPending}
+            onSubmit={handleCreateBinding}
+            profiles={profilesQuery.data ?? []}
+            readOnlyMessage={
+              permissions.canManageBindings
+                ? null
+                : "Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations."
+            }
+            selectedProfile={selectedProfile}
           />
         </div>
 
@@ -496,28 +496,41 @@ function ElasticsearchDiscoveryPanel({
 }
 
 function BindingPatternsHelp() {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Binding patterns</CardTitle>
-        <CardDescription>Use bindings to keep profile terminology separate from Elasticsearch storage layout.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-3 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-            <div className="font-medium text-slate-950 dark:text-slate-50">1 profile → 1 index</div>
-            <div className="mt-1">Use one binding without a discriminator when the whole index belongs to one profile.</div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>Binding patterns</CardTitle>
+            <CardDescription>
+              Optional guidance for shared indices and discriminator-based routing. Keep closed during day-to-day work.
+            </CardDescription>
           </div>
-          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-            <div className="font-medium text-slate-950 dark:text-slate-50">1 profile → many indices</div>
-            <div className="mt-1">Create one binding per index so enrichment jobs can run and fail independently.</div>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-            <div className="font-medium">Many profiles → 1 index</div>
-            <div className="mt-1">A document discriminator is required, for example <code>team = infra</code>.</div>
-          </div>
+          <Button onClick={() => setIsOpen((value) => !value)} type="button" variant="secondary">
+            {isOpen ? "Hide patterns" : "Show patterns"}
+          </Button>
         </div>
-      </CardContent>
+      </CardHeader>
+      {isOpen ? (
+        <CardContent>
+          <div className="grid gap-3 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+              <div className="font-medium text-slate-950 dark:text-slate-50">1 profile → 1 index</div>
+              <div className="mt-1">Use one binding without a discriminator when the whole index belongs to one profile.</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+              <div className="font-medium text-slate-950 dark:text-slate-50">1 profile → many indices</div>
+              <div className="mt-1">Create one binding per index so enrichment jobs can run and fail independently.</div>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+              <div className="font-medium">Many profiles → 1 index</div>
+              <div className="mt-1">Create separate bindings on the same index and add a discriminator, for example <code>team = infra</code>.</div>
+            </div>
+          </div>
+        </CardContent>
+      ) : null}
     </Card>
   );
 }
@@ -611,6 +624,7 @@ function CreateBindingForm({
   const [mode, setMode] = useState<ElasticsearchBindingMode>("dry_run");
   const [writeStrategy, setWriteStrategy] = useState<ElasticsearchBindingWriteStrategy>("reindex_alias_swap");
   const [isEnabled, setIsEnabled] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     setProfileName(selectedProfile ?? "");
@@ -680,15 +694,23 @@ function CreateBindingForm({
     setMode("dry_run");
     setWriteStrategy("reindex_alias_swap");
     setIsEnabled(true);
+    setIsOpen(false);
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create binding wizard</CardTitle>
-        <CardDescription>
-          Configure one profile-to-index runtime context. For many profiles on one index, create separate bindings with discriminators.
-        </CardDescription>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>Create binding</CardTitle>
+            <CardDescription>
+              Open the wizard only when you need a new profile-to-index runtime context. Existing bindings stay visible above.
+            </CardDescription>
+          </div>
+          <Button disabled={disabled || isSubmitting} onClick={() => setIsOpen((value) => !value)} type="button" variant={isOpen ? "secondary" : undefined}>
+            {isOpen ? "Hide wizard" : "Create binding"}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {readOnlyMessage ? (
@@ -696,6 +718,11 @@ function CreateBindingForm({
             {readOnlyMessage}
           </div>
         ) : null}
+        {!isOpen ? (
+          <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
+            Select an existing binding above for dry-run, enrichment, and runtime status. Create a new binding only when you need another Elasticsearch search scope.
+          </p>
+        ) : (
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
             <WizardStepHeader description="Name the runtime context and choose the terminology profile it should use." step="Step 1" title="Profile and binding identity" />
@@ -827,9 +854,10 @@ function CreateBindingForm({
             <div className="text-sm text-slate-500 dark:text-slate-400">
               Next after create: select the binding, run dry-run, then run enrichment.
             </div>
-            <Button disabled={!canSubmit} type="submit">{isSubmitting ? "Creating..." : "Create binding"}</Button>
+            <Button disabled={!canSubmit} type="submit">{isSubmitting ? "Creating..." : "Save new binding"}</Button>
           </div>
         </form>
+        )}
       </CardContent>
     </Card>
   );
