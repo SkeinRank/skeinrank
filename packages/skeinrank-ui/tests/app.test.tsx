@@ -2250,6 +2250,9 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "Dashboard" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("Welcome to SkeinRank")).toBeInTheDocument();
+    expect(screen.getByText("Command center for setup, rollout, and runtime health.")).toBeInTheDocument();
+    expect(screen.getByText("Setup progress")).toBeInTheDocument();
+    expect(screen.getByText("Next actions")).toBeInTheDocument();
     expect(screen.getByText("Ready bindings")).toBeInTheDocument();
 
     await openTermsPage();

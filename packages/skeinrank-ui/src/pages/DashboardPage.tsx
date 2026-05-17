@@ -1,5 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Circle, Database, GitBranch, Plug, Search, Settings2 } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Circle,
+  Database,
+  GitBranch,
+  Plug,
+  Search,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
 
 import type { AppSection } from "../components/layout/AppShell";
 import { Badge } from "../components/ui/badge";
@@ -12,7 +23,20 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { getDashboardSummary } from "../lib/api";
-import type { DashboardBindingSummary, DashboardRecentJob, DashboardSetupChecklist, DashboardSummary } from "../types";
+import type {
+  DashboardBindingSummary,
+  DashboardRecentJob,
+  DashboardSetupChecklist,
+  DashboardSummary,
+} from "../types";
+
+type SetupItem = {
+  done: boolean;
+  label: string;
+  description: string;
+  actionLabel: string;
+  section: AppSection;
+};
 
 export function DashboardPage({
   onNavigate,
@@ -58,45 +82,15 @@ export function DashboardPage({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Welcome to SkeinRank</CardTitle>
-            <CardDescription>
-              Follow the setup checklist from an empty governance database to a ready runtime search context.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SetupChecklist setup={summary.setup} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick actions</CardTitle>
-            <CardDescription>Jump to the next control-plane step.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            <Button className="justify-start" onClick={() => onNavigate("terms")} variant="secondary">
-              <Database className="mr-2 h-4 w-4" />
-              Create or import terminology
-            </Button>
-            <Button className="justify-start" onClick={() => onNavigate("integrations")} variant="secondary">
-              <Plug className="mr-2 h-4 w-4" />
-              Configure Elasticsearch binding
-            </Button>
-            <Button className="justify-start" onClick={() => onNavigate("suggestions")} variant="secondary">
-              <Search className="mr-2 h-4 w-4" />
-              Review terminology suggestions
-            </Button>
-          </CardContent>
-        </Card>
+    <div className="space-y-5">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <CommandCenter summary={summary} onNavigate={onNavigate} />
+        <NextActions summary={summary} onNavigate={onNavigate} />
       </section>
 
       <RuntimeStatus summary={summary} />
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_0.85fr]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
         <BindingHealth bindings={summary.bindings} onNavigate={onNavigate} />
         <RecentJobs jobs={summary.recent_jobs} onNavigate={onNavigate} />
       </section>
@@ -106,54 +100,135 @@ export function DashboardPage({
   );
 }
 
-function SetupChecklist({ setup }: { setup: DashboardSetupChecklist }) {
-  const items = [
+function getSetupItems(setup: DashboardSetupChecklist): SetupItem[] {
+  return [
     {
       done: setup.has_profile,
-      label: "Create or import a terminology profile",
-      description: "Define the domain vocabulary that SkeinRank will canonicalize.",
+      label: "Create or import terminology",
+      description: "Define the domain vocabulary.",
+      actionLabel: "Open Terms",
+      section: "terms",
     },
     {
       done: setup.has_terms,
       label: "Add canonical terms and aliases",
-      description: "Map noisy user language such as k8s or pg to canonical values.",
+      description: "Map noisy language to canonical values.",
+      actionLabel: "Open Terms",
+      section: "terms",
     },
     {
       done: setup.has_binding,
       label: "Create an Elasticsearch binding",
-      description: "Connect a profile to an index, text fields, and target enrichment field.",
+      description: "Connect a profile to an index.",
+      actionLabel: "Open Integrations",
+      section: "integrations",
     },
     {
       done: setup.has_successful_enrichment,
       label: "Run enrichment successfully",
-      description: "Build an immutable runtime snapshot and enrich the target index.",
+      description: "Build runtime output for search.",
+      actionLabel: "Run Enrichment",
+      section: "integrations",
     },
     {
       done: setup.has_runtime_snapshot,
-      label: "Use a ready runtime snapshot",
-      description: "Confirm at least one binding can serve pinned production terminology.",
+      label: "Verify a ready runtime snapshot",
+      description: "Confirm search uses pinned terminology.",
+      actionLabel: "Open Snapshots",
+      section: "snapshots",
     },
   ];
+}
+
+function CommandCenter({ summary, onNavigate }: { summary: DashboardSummary; onNavigate: (section: AppSection) => void }) {
+  const items = getSetupItems(summary.setup);
+  const completed = items.filter((item) => item.done).length;
+  const progress = Math.round((completed / items.length) * 100);
+  const nextItem = items.find((item) => !item.done);
 
   return (
-    <div className="space-y-3">
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>Welcome to SkeinRank</CardTitle>
+            <CardDescription>Command center for setup, rollout, and runtime health.</CardDescription>
+          </div>
+          <Badge
+            className={
+              completed === items.length
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            }
+          >
+            {completed}/{items.length} ready
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <span>Setup progress</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-900">
+            <div
+              className="h-full rounded-full bg-slate-950 transition-[width] dark:bg-slate-100"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        <CompactSetupChecklist items={items} />
+
+        {nextItem ? (
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/30 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-medium text-amber-900 dark:text-amber-100">Next step: {nextItem.label}</div>
+              <div className="mt-1 text-xs text-amber-700 dark:text-amber-200">{nextItem.description}</div>
+            </div>
+            <Button onClick={() => onNavigate(nextItem.section)} variant="secondary">
+              {nextItem.actionLabel}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/30 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Runtime path is ready</div>
+              <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-200">Test canonicalization and search behavior from the playground.</div>
+            </div>
+            <Button onClick={() => onNavigate("search-playground")} variant="secondary">
+              Open Search Playground
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CompactSetupChecklist({ items }: { items: SetupItem[] }) {
+  return (
+    <div className="grid gap-2 lg:grid-cols-2 2xl:grid-cols-5">
       {items.map((item, index) => (
         <div
-          className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950"
+          className="flex min-w-0 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950"
           key={item.label}
         >
-          <div className="mt-0.5">
+          <div className="mt-0.5 flex-none">
             {item.done ? (
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             ) : (
-              <Circle className="h-5 w-5 text-slate-300 dark:text-slate-700" />
+              <Circle className="h-4 w-4 text-slate-300 dark:text-slate-700" />
             )}
           </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-slate-950 dark:text-slate-50">
-                {index + 1}. {item.label}
-              </span>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-slate-950 dark:text-slate-50">
+              {index + 1}. {item.label}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               <Badge
                 className={
                   item.done
@@ -163,14 +238,85 @@ function SetupChecklist({ setup }: { setup: DashboardSetupChecklist }) {
               >
                 {item.done ? "Done" : "Not started"}
               </Badge>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{item.description}</span>
             </div>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {item.description}
-            </p>
           </div>
         </div>
       ))}
     </div>
+  );
+}
+
+function NextActions({ summary, onNavigate }: { summary: DashboardSummary; onNavigate: (section: AppSection) => void }) {
+  const attentionCount =
+    summary.counts.stale_bindings +
+    summary.counts.failed_bindings +
+    summary.counts.running_jobs +
+    summary.counts.failed_jobs;
+
+  const actions = [
+    {
+      label: "Manage terminology",
+      helper: "Profiles, terms, aliases",
+      icon: Database,
+      section: "terms" as const,
+    },
+    {
+      label: "Configure bindings",
+      helper: "Index mapping and rollout",
+      icon: Plug,
+      section: "integrations" as const,
+    },
+    {
+      label: "Test search behavior",
+      helper: "Canonical query preview",
+      icon: Search,
+      section: "search-playground" as const,
+    },
+    {
+      label: "Review suggestions",
+      helper: "Approve terminology changes",
+      icon: Sparkles,
+      section: "suggestions" as const,
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>Next actions</CardTitle>
+            <CardDescription>Jump to the next control-plane step.</CardDescription>
+          </div>
+          <Badge
+            className={
+              attentionCount > 0
+                ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            }
+          >
+            {attentionCount > 0 ? `${attentionCount} attention` : "No alerts"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {actions.map((action) => (
+          <Button
+            className="h-auto justify-start gap-3 px-3 py-2 text-left"
+            key={action.label}
+            onClick={() => onNavigate(action.section)}
+            variant="secondary"
+          >
+            <action.icon className="h-4 w-4 flex-none" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">{action.label}</span>
+              <span className="block truncate text-xs font-normal text-slate-500 dark:text-slate-400">{action.helper}</span>
+            </span>
+          </Button>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -203,15 +349,15 @@ function RuntimeStatus({ summary }: { summary: DashboardSummary }) {
   ];
 
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (
         <Card key={card.label}>
-          <CardContent>
-            <div className="text-sm text-slate-500 dark:text-slate-400">{card.label}</div>
-            <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+          <CardContent className="py-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{card.label}</div>
+            <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
               {card.value}
             </div>
-            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{card.helper}</div>
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{card.helper}</div>
           </CardContent>
         </Card>
       ))}
@@ -222,11 +368,11 @@ function RuntimeStatus({ summary }: { summary: DashboardSummary }) {
 function BindingHealth({ bindings, onNavigate }: { bindings: DashboardBindingSummary[]; onNavigate: (section: AppSection) => void }) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Binding health</CardTitle>
-            <CardDescription>Product-state view of Elasticsearch runtime contexts.</CardDescription>
+            <CardDescription>Runtime contexts that drive production search behavior.</CardDescription>
           </div>
           <Button onClick={() => onNavigate("integrations")} variant="secondary">
             <Plug className="mr-2 h-4 w-4" />
@@ -281,11 +427,11 @@ function BindingHealth({ bindings, onNavigate }: { bindings: DashboardBindingSum
 function RecentJobs({ jobs, onNavigate }: { jobs: DashboardRecentJob[]; onNavigate: (section: AppSection) => void }) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Recent enrichment jobs</CardTitle>
-            <CardDescription>Latest snapshot and index enrichment activity.</CardDescription>
+            <CardDescription>Latest rollout and snapshot activity.</CardDescription>
           </div>
           <Button onClick={() => onNavigate("integrations")} variant="secondary">
             <GitBranch className="mr-2 h-4 w-4" />
@@ -302,7 +448,7 @@ function RecentJobs({ jobs, onNavigate }: { jobs: DashboardRecentJob[]; onNaviga
             title="No enrichment jobs yet"
           />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {jobs.map((job) => (
               <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800" key={job.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -336,28 +482,23 @@ function SystemReadiness({ summary }: { summary: DashboardSummary }) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle>System readiness</CardTitle>
-        <CardDescription>
-          Human-readable service checks for onboarding. Use Grafana for deeper infrastructure telemetry.
-        </CardDescription>
+        <CardDescription>Service checks for onboarding. Use Grafana for deeper telemetry.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
         {entries.map(([name, item]) => (
           <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800" key={name}>
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-medium capitalize text-slate-950 dark:text-slate-50">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <Settings2 className="h-4 w-4 text-slate-400" />
                 {name.replace(/_/g, " ")}
               </div>
               <StatusBadge status={item.status} />
             </div>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-2 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
               {item.message ?? (item.configured ? "Configured" : "Not configured")}
             </p>
-            {item.version ? (
-              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Version: {item.version}</p>
-            ) : null}
           </div>
         ))}
       </CardContent>
