@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Info } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -75,7 +81,7 @@ type BindingValidation = {
   sharedProfiles: string[];
 };
 
-type IntegrationsSection = "bindings" | "jobs";
+type IntegrationsSection = "bindings" | "jobs" | "graph";
 
 export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
   const permissions = permissionsForUser(currentUser);
@@ -471,7 +477,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
             />
           </section>
         </>
-      ) : (
+      ) : activeSection === "jobs" ? (
         <EnrichmentJobsDashboard
           bindings={allBindings}
           canManage={permissions.canManageBindings}
@@ -495,6 +501,20 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
           onStartJob={handleStartJob}
           selectedProfile={selectedProfile}
           onSelectProfile={setSelectedProfile}
+          profiles={profilesQuery.data ?? []}
+        />
+      ) : (
+        <IntegrationsGraphView
+          bindings={allBindings}
+          isLoadingBindings={allBindingsQuery.isLoading}
+          isLoadingJobs={allJobsQuery.isLoading}
+          jobs={allJobsQuery.data ?? []}
+          onOpenBinding={(binding) => {
+            setSelectedProfile(binding.profile_name);
+            setSelectedBindingId(binding.id);
+            setSelectedJobId(binding.last_successful_job_id ?? null);
+            setActiveSection("bindings");
+          }}
           profiles={profilesQuery.data ?? []}
         />
       )}
@@ -607,6 +627,11 @@ function IntegrationsSectionTabs({
       label: "Enrichment jobs",
       value: "jobs",
       description: "Run and monitor rollout jobs across bindings.",
+    },
+    {
+      label: "Graph view",
+      value: "graph",
+      description: "Map profiles, bindings, indexes, and runtime snapshots.",
     },
   ];
 
@@ -2196,6 +2221,336 @@ function SnapshotInfoItem({
         title={title ?? value}
       >
         {value}
+      </div>
+    </div>
+  );
+}
+
+function IntegrationsGraphView({
+  bindings,
+  isLoadingBindings,
+  isLoadingJobs,
+  jobs,
+  onOpenBinding,
+  profiles,
+}: {
+  bindings: ElasticsearchBinding[];
+  isLoadingBindings: boolean;
+  isLoadingJobs: boolean;
+  jobs: ElasticsearchEnrichmentJob[];
+  onOpenBinding: (binding: ElasticsearchBinding) => void;
+  profiles: Profile[];
+}) {
+  const [scope, setScope] = useState("all");
+  const sortedBindings = [...bindings].sort(sortBindings);
+  const visibleBindings =
+    scope === "all"
+      ? sortedBindings
+      : sortedBindings.filter((binding) => binding.profile_name === scope);
+  const sortedJobs = [...jobs].sort(sortJobs);
+  const latestJobByBindingId = new Map<number, ElasticsearchEnrichmentJob>();
+  for (const job of sortedJobs) {
+    if (!latestJobByBindingId.has(job.binding_id)) {
+      latestJobByBindingId.set(job.binding_id, job);
+    }
+  }
+
+  const indexProfiles = new Map<string, Set<string>>();
+  for (const binding of bindings) {
+    const profilesForIndex = indexProfiles.get(binding.index_name) ?? new Set();
+    profilesForIndex.add(binding.profile_name);
+    indexProfiles.set(binding.index_name, profilesForIndex);
+  }
+
+  const sharedIndexes = Array.from(indexProfiles.entries())
+    .filter(([, profileNames]) => profileNames.size > 1)
+    .sort(([left], [right]) => left.localeCompare(right));
+  const readyBindings = bindings.filter(
+    (binding) => binding.is_enabled && binding.snapshot_status === "ready",
+  ).length;
+  const indexCount = indexProfiles.size;
+
+  const groupedBindings = Array.from(
+    visibleBindings.reduce((groups, binding) => {
+      const profileBindings = groups.get(binding.profile_name) ?? [];
+      profileBindings.push(binding);
+      groups.set(binding.profile_name, profileBindings);
+      return groups;
+    }, new Map<string, ElasticsearchBinding[]>()),
+  ).sort(([leftProfile], [rightProfile]) =>
+    leftProfile.localeCompare(rightProfile),
+  );
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardHeader className="py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <CardTitle>Integration topology</CardTitle>
+              <CardDescription>
+                Canvas map of profile-to-index runtime contexts.
+              </CardDescription>
+            </div>
+            <label className="flex min-w-52 flex-col gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+              Graph scope
+              <select
+                aria-label="Graph scope"
+                className={selectClassName}
+                onChange={(event) => setScope(event.target.value)}
+                value={scope}
+              >
+                <option value="all">All profiles</option>
+                {profiles.map((profile) => (
+                  <option key={profile.id} value={profile.name}>
+                    {profile.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 py-4 sm:grid-cols-2 xl:grid-cols-4">
+          <CompactMetric
+            help="Total profile-to-index runtime contexts in this console."
+            label="Bindings"
+            value={String(bindings.length)}
+          />
+          <CompactMetric
+            help="Unique Elasticsearch indexes or aliases used by bindings."
+            label="Indexes"
+            value={String(indexCount)}
+          />
+          <CompactMetric
+            help="Bindings with an active runtime snapshot ready for search."
+            label="Ready"
+            value={String(readyBindings)}
+          />
+          <CompactMetric
+            help="Indexes shared by more than one profile through separate bindings."
+            label="Shared indexes"
+            value={String(sharedIndexes.length)}
+          />
+        </CardContent>
+      </Card>
+
+      {sharedIndexes.length > 0 ? (
+        <Card>
+          <CardHeader className="py-4">
+            <CardTitle>Shared index map</CardTitle>
+            <CardDescription>
+              Many profiles should share one index through separate bindings and
+              discriminators.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {sharedIndexes.map(([indexName, profileNames]) => (
+              <Badge
+                className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200"
+                key={indexName}
+              >
+                {indexName}: {Array.from(profileNames).sort().join(", ")}
+              </Badge>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader className="py-4">
+          <CardTitle>Topology canvas</CardTitle>
+          <CardDescription>
+            Profile → Binding → Index → Snapshot. Follow the lines to see which
+            terminology powers each runtime search context.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingBindings || isLoadingJobs ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Loading integration graph...
+            </p>
+          ) : null}
+          {!isLoadingBindings && visibleBindings.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              No bindings found for this graph scope.
+            </p>
+          ) : null}
+          {visibleBindings.length > 0 ? (
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+              <div className="min-w-[980px]">
+                <div className="grid grid-cols-[220px_minmax(260px,1fr)_minmax(220px,0.85fr)_minmax(240px,0.95fr)] gap-4 px-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <div>Profiles</div>
+                  <div>Bindings</div>
+                  <div>Indexes / aliases</div>
+                  <div>Runtime snapshots</div>
+                </div>
+                <div className="mt-3 space-y-4">
+                  {groupedBindings.map(([profileName, profileBindings]) => (
+                    <div
+                      className="grid grid-cols-[220px_1fr] gap-4 rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/30"
+                      key={profileName}
+                    >
+                      <TopologyNode
+                        eyebrow="Profile"
+                        title={profileName}
+                        tone="profile"
+                      >
+                        <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                          terminology
+                        </Badge>
+                        <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                          {profileBindings.length} runtime context
+                          {profileBindings.length === 1 ? "" : "s"}
+                        </div>
+                      </TopologyNode>
+                      <div className="space-y-3">
+                        {profileBindings.map((binding) => {
+                          const latestJob = latestJobByBindingId.get(
+                            binding.id,
+                          );
+                          const isSharedIndex =
+                            (indexProfiles.get(binding.index_name)?.size ?? 0) >
+                            1;
+                          return (
+                            <div
+                              className="grid grid-cols-[minmax(260px,1fr)_40px_minmax(220px,0.85fr)_40px_minmax(240px,0.95fr)] items-stretch gap-2"
+                              key={binding.id}
+                            >
+                              <TopologyNode
+                                eyebrow={`Binding #${binding.id}`}
+                                title={binding.name}
+                                tone="binding"
+                              >
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <BindingStatusBadge
+                                    isEnabled={binding.is_enabled}
+                                  />
+                                  <Badge>{binding.mode}</Badge>
+                                  <Badge>{binding.write_strategy}</Badge>
+                                </div>
+                                <button
+                                  className="mt-3 text-left text-xs font-medium text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline dark:text-slate-300 dark:hover:text-slate-50"
+                                  onClick={() => onOpenBinding(binding)}
+                                  type="button"
+                                >
+                                  Open binding
+                                </button>
+                              </TopologyNode>
+                              <TopologyConnector />
+                              <TopologyNode
+                                eyebrow="Index / alias"
+                                title={binding.index_name}
+                                tone={isSharedIndex ? "shared" : "index"}
+                              >
+                                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                  target: <code>{binding.target_field}</code>
+                                </div>
+                                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                  scope: {formatDiscriminator(binding)}
+                                </div>
+                                {isSharedIndex ? (
+                                  <Badge className="mt-3 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                                    shared index
+                                  </Badge>
+                                ) : null}
+                              </TopologyNode>
+                              <TopologyConnector />
+                              <TopologyNode
+                                eyebrow="Runtime snapshot"
+                                title={formatSnapshotVersion(
+                                  binding.last_successful_snapshot_version,
+                                )}
+                                tone="snapshot"
+                              >
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <BindingSnapshotStatusBadge
+                                    status={binding.snapshot_status}
+                                  />
+                                  {latestJob ? (
+                                    <JobStatusBadge status={latestJob.status} />
+                                  ) : null}
+                                </div>
+                                {latestJob ? (
+                                  <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                    latest job #{latestJob.id}
+                                  </div>
+                                ) : (
+                                  <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                    no jobs yet
+                                  </div>
+                                )}
+                                {binding.snapshot_status === "stale" ? (
+                                  <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                                    Dictionary changed after the active
+                                    snapshot.
+                                  </div>
+                                ) : null}
+                              </TopologyNode>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+type TopologyTone = "profile" | "binding" | "index" | "shared" | "snapshot";
+
+function TopologyNode({
+  children,
+  eyebrow,
+  title,
+  tone,
+}: {
+  children?: ReactNode;
+  eyebrow: string;
+  title: string;
+  tone: TopologyTone;
+}) {
+  const toneClassName: Record<TopologyTone, string> = {
+    binding:
+      "border-violet-200 bg-violet-50/80 dark:border-violet-900/60 dark:bg-violet-950/20",
+    index:
+      "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/70",
+    profile:
+      "border-blue-200 bg-blue-50/80 dark:border-blue-900/60 dark:bg-blue-950/20",
+    shared:
+      "border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/35",
+    snapshot:
+      "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20",
+  };
+
+  return (
+    <div
+      className={`min-w-0 rounded-xl border p-3 shadow-sm ${toneClassName[tone]}`}
+    >
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {eyebrow}
+      </div>
+      <div
+        className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-50"
+        title={title}
+      >
+        {title}
+      </div>
+      {children ? <div className="mt-2">{children}</div> : null}
+    </div>
+  );
+}
+
+function TopologyConnector() {
+  return (
+    <div aria-hidden="true" className="flex items-center justify-center">
+      <div className="relative h-px w-full bg-slate-300 dark:bg-slate-700">
+        <div className="absolute -right-1 -top-1 h-2 w-2 rounded-full border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-950" />
       </div>
     </div>
   );

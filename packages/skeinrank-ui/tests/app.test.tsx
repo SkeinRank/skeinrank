@@ -3434,6 +3434,37 @@ describe("App", () => {
     expect((await screen.findAllByText("#102")).length).toBeGreaterThan(0);
   });
 
+  it("shows integrations graph view and opens selected binding", async () => {
+    stubGovernanceApi();
+
+    render(<App />);
+
+    await openTermsPage();
+    fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Graph view" }));
+
+    expect(await screen.findByText("Integration topology")).toBeInTheDocument();
+    expect(screen.getByText("Topology canvas")).toBeInTheDocument();
+    expect(screen.getByText("Profiles")).toBeInTheDocument();
+    expect(screen.getAllByText("Bindings").length).toBeGreaterThan(0);
+    expect(screen.getByText("Indexes / aliases")).toBeInTheDocument();
+    expect(screen.getByText("Runtime snapshots")).toBeInTheDocument();
+    expect(screen.getByLabelText("Graph scope")).toHaveValue("all");
+    expect(
+      screen.getByText("docs: default_it, ml_platform"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("shared index").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Open binding" })[0]);
+
+    expect(await screen.findByText("Selected binding")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Bindings" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
   it("keeps contributor users in read-only integrations mode", async () => {
     stubGovernanceApi({ currentUser: contributorUser });
 
