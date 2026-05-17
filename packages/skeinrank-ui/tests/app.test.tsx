@@ -2313,8 +2313,17 @@ describe("App", () => {
     expect(
       await screen.findByText("Runtime search playground"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Result preview")).toBeInTheDocument();
     expect(screen.getByText("Binding context")).toBeInTheDocument();
     expect(screen.getByText("default_it → docs")).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", {
+        name: "Binding: infra docs · Profile: default_it · Index: docs · Scope: team=infra",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Binding").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Profile").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Index").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview query plan" }));
 
@@ -2335,12 +2344,15 @@ describe("App", () => {
     });
 
     expect(await screen.findByText("Query plan")).toBeInTheDocument();
+    expect(screen.getByText("Result-first view of how SkeinRank rewrites the query for this binding.")).toBeInTheDocument();
     expect(
       screen.getByText("kubernetes postgresql timeout"),
     ).toBeInTheDocument();
     expect(screen.getAllByText("k8s").length).toBeGreaterThan(0);
     expect(screen.getAllByText("pg").length).toBeGreaterThan(0);
     expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
+    expect(screen.getByText("Alias replacements")).toBeInTheDocument();
+    expect(screen.getByText("Advanced details")).toBeInTheDocument();
     expect(screen.getByText("Elasticsearch DSL")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Run search" }));
