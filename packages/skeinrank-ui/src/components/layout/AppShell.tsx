@@ -1,6 +1,8 @@
-import { Database, GitBranch, Home, KeyRound, LogOut, Moon, Monitor, Plug, Search, ShieldCheck, Sun, Users } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Database, GitBranch, Home, KeyRound, LogOut, Moon, Monitor, Plug, Search, ShieldCheck, Sparkles, Sun, Users } from "lucide-react";
+import type { FocusEvent, ReactNode } from "react";
+import { useState } from "react";
 
+import { cn } from "../../lib/utils";
 import { useTheme } from "../../theme";
 import type { AuthUser } from "../../types";
 import { Badge } from "../ui/badge";
@@ -18,6 +20,10 @@ type AppShellProps = {
   onNavigate: (section: AppSection) => void;
 };
 
+type SidebarMode = "expanded" | "collapsed";
+
+const SIDEBAR_STORAGE_KEY = "skeinrank-ui-sidebar-mode";
+
 const themeLabel = {
   light: "Light",
   dark: "Dark",
@@ -30,14 +36,32 @@ const themeIcon = {
   system: Monitor,
 };
 
+function getInitialSidebarMode(): SidebarMode {
+  if (typeof window === "undefined") {
+    return "expanded";
+  }
+
+  const storedMode = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+  if (storedMode === "collapsed" || storedMode === "expanded") {
+    return storedMode;
+  }
+
+  return "expanded";
+}
+
 export function AppShell({ activeSection, canManageApiTokens = true, canManageUsers = false, children, currentUser, onLogout, onNavigate }: AppShellProps) {
   const { theme, toggleTheme } = useTheme();
   const ThemeIcon = themeIcon[theme];
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(getInitialSidebarMode);
+  const [isSidebarPreviewed, setIsSidebarPreviewed] = useState(false);
+
+  const isSidebarCollapsed = sidebarMode === "collapsed";
+  const isSidebarOpen = !isSidebarCollapsed || isSidebarPreviewed;
 
   const navigation = [
     { label: "Dashboard", icon: Home, section: "dashboard" as const, available: true },
     { label: "Terms", icon: Database, section: "terms" as const, available: true },
-    { label: "Suggestions", icon: Search, section: "suggestions" as const, available: true },
+    { label: "Suggestions", icon: Sparkles, section: "suggestions" as const, available: true },
     { label: "Guardrails", icon: ShieldCheck, section: "guardrails" as const, available: true },
     { label: "Integrations", icon: Plug, section: "integrations" as const, available: true },
     { label: "Search Playground", icon: Search, section: "search-playground" as const, available: true },
@@ -46,36 +70,91 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
     { label: "Users", icon: Users, section: "users" as const, available: canManageUsers },
   ];
 
+  function setNextSidebarMode(mode: SidebarMode) {
+    setSidebarMode(mode);
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, mode);
+    setIsSidebarPreviewed(false);
+  }
+
+  function handleSidebarBlur(event: FocusEvent<HTMLElement>) {
+    const nextTarget = event.relatedTarget;
+    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+      setIsSidebarPreviewed(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 transition-colors dark:bg-slate-950 dark:text-slate-50">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-slate-200 bg-white px-5 py-6 transition-colors dark:border-slate-800 dark:bg-slate-950 lg:block">
-        <div>
-          <div className="text-lg font-semibold tracking-tight">SkeinRank</div>
-          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">Governance Console</div>
+      <aside
+        aria-label="Primary navigation"
+        className={cn(
+          "fixed inset-y-0 left-0 z-20 hidden border-r border-slate-200 bg-white px-4 py-5 shadow-sm transition-[width,box-shadow] duration-200 ease-out dark:border-slate-800 dark:bg-slate-950 lg:block",
+          isSidebarOpen ? "w-72" : "w-20",
+          isSidebarCollapsed && isSidebarPreviewed ? "shadow-xl" : "",
+        )}
+        onBlur={handleSidebarBlur}
+        onFocus={() => setIsSidebarPreviewed(true)}
+        onMouseEnter={() => setIsSidebarPreviewed(true)}
+        onMouseLeave={() => setIsSidebarPreviewed(false)}
+      >
+        <div className={cn("flex items-start", isSidebarOpen ? "justify-between gap-3" : "justify-center")}>
+          <div className={cn("min-w-0", isSidebarOpen ? "flex items-center gap-3" : "flex justify-center")}>
+            <img
+              className="h-12 w-12 shrink-0 rounded-2xl object-cover shadow-sm"
+              src="/skeinrank-logo.png"
+              alt="SkeinRank logo"
+            />
+            {isSidebarOpen ? (
+              <div className="min-w-0">
+                <div className="truncate text-lg font-semibold tracking-tight">SkeinRank</div>
+                <div className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">Governance Console</div>
+              </div>
+            ) : null}
+          </div>
+          {isSidebarOpen ? (
+            <button
+              aria-label={isSidebarCollapsed ? "Pin sidebar open" : "Collapse sidebar"}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-50 dark:focus:ring-slate-500 dark:focus:ring-offset-slate-950"
+              onClick={() => setNextSidebarMode(isSidebarCollapsed ? "expanded" : "collapsed")}
+              type="button"
+            >
+              {isSidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
+          ) : null}
         </div>
 
-        <nav className="mt-8 space-y-1">
+        <nav className="mt-16 space-y-1">
           {navigation
             .filter((item) => item.available)
             .map((item) => (
               <button
                 key={item.label}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${
+                aria-current={activeSection === item.section ? "page" : undefined}
+                aria-label={item.label}
+                className={cn(
+                  "group relative flex w-full items-center rounded-xl py-2.5 text-left text-sm font-medium transition-colors",
+                  isSidebarOpen ? "gap-3 px-3" : "justify-center px-0",
                   activeSection === item.section
                     ? "bg-slate-950 text-white dark:bg-slate-100 dark:text-slate-950"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-50"
-                }`}
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-50",
+                )}
                 onClick={() => onNavigate(item.section)}
+                title={isSidebarOpen ? undefined : item.label}
                 type="button"
               >
-                <item.icon className="h-4 w-4" />
-                {item.label}
+                <item.icon className="h-5 w-5 shrink-0" />
+                <span className={isSidebarOpen ? "truncate" : "sr-only"}>{item.label}</span>
+                {!isSidebarOpen ? (
+                  <span className="pointer-events-none absolute left-12 z-30 hidden whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-lg group-hover:block dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                    {item.label}
+                  </span>
+                ) : null}
               </button>
             ))}
         </nav>
       </aside>
 
-      <main className="lg:pl-72">
+      <main className={cn("transition-[padding] duration-200 ease-out", isSidebarCollapsed ? "lg:pl-20" : "lg:pl-72")}>
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-6 py-4 backdrop-blur transition-colors dark:border-slate-800 dark:bg-slate-950/90">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -139,18 +218,5 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
         <div className="p-6">{children}</div>
       </main>
     </div>
-  );
-}
-
-function DisabledNavItem({ icon: Icon, label }: { icon: typeof Search; label: string }) {
-  return (
-    <button
-      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-50"
-      type="button"
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-      <Badge className="ml-auto bg-slate-50 text-slate-400 dark:bg-slate-900 dark:text-slate-500">Soon</Badge>
-    </button>
   );
 }
