@@ -2283,15 +2283,15 @@ describe("App", () => {
 
     await openSnapshotsPage();
 
-    expect(
-      await screen.findByText("Runtime snapshot control"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Active runtime snapshots")).toBeInTheDocument();
+    expect(await screen.findByText("Runtime audit")).toBeInTheDocument();
+    expect(screen.getByText("Runtime bindings")).toBeInTheDocument();
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Recent snapshot events")).toBeInTheDocument();
     expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
-    expect(screen.getByText("ml_platform@old456")).toBeInTheDocument();
+    expect(screen.getAllByText("ml_platform@old456").length).toBeGreaterThan(0);
     expect(screen.getByText("Pending: ml_platform@new789")).toBeInTheDocument();
     expect(screen.getByText("profile changed")).toBeInTheDocument();
-    expect(screen.getByText("Snapshot history")).toBeInTheDocument();
+    expect(screen.getByText("ml docs needs runtime attention")).toBeInTheDocument();
     expect(screen.getAllByText("Job #101").length).toBeGreaterThan(0);
     expect(screen.getAllByText("rollback available").length).toBeGreaterThan(0);
 
