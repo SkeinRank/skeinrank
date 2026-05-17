@@ -2250,7 +2250,11 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "Dashboard" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("Welcome to SkeinRank")).toBeInTheDocument();
-    expect(screen.getByText("Command center for setup, rollout, and runtime health.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Command center for setup, rollout, and runtime health.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("Setup progress")).toBeInTheDocument();
     expect(screen.getByText("Next actions")).toBeInTheDocument();
     expect(screen.getByText("Ready bindings")).toBeInTheDocument();
@@ -3394,6 +3398,40 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: "Save new binding" }),
     ).not.toBeDisabled();
+  });
+
+  it("lets admins run enrichment jobs from the jobs panel", async () => {
+    const fetchMock = stubGovernanceApi();
+
+    render(<App />);
+
+    await openTermsPage();
+    fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Enrichment jobs" }),
+    );
+
+    expect(
+      await screen.findByText("Binding rollout queue"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Active jobs")).toBeInTheDocument();
+    expect(screen.getByLabelText("Default max documents")).toHaveValue(1000);
+
+    fireEvent.change(screen.getByLabelText("Default max documents"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run default job" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:8010/v1/governance/elasticsearch/bindings/1/jobs",
+        expect.objectContaining({
+          body: JSON.stringify({ max_documents: 50 }),
+          method: "POST",
+        }),
+      );
+    });
+    expect((await screen.findAllByText("#102")).length).toBeGreaterThan(0);
   });
 
   it("keeps contributor users in read-only integrations mode", async () => {
