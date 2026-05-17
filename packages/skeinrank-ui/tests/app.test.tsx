@@ -3601,6 +3601,17 @@ describe("App", () => {
         }),
       );
     });
+
+    expect(screen.getByRole("tab", { name: /Propose/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Suggestion queued for review")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View in Review queue" }));
+    expect(screen.getByRole("tab", { name: /Review queue/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("blocks duplicate alias suggestions for the selected canonical term", async () => {
@@ -3677,12 +3688,13 @@ describe("App", () => {
       );
     });
 
-    await waitFor(() => {
-      expect(screen.getAllByText("vector database").length).toBeGreaterThan(0);
-    });
     expect(
-      screen.getAllByText("Proposed new canonical term").length,
-    ).toBeGreaterThan(0);
+      await screen.findByText("Suggestion queued for review"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Propose/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("blocks duplicate canonical term suggestions", async () => {

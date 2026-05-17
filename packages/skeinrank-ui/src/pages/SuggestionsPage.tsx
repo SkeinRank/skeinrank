@@ -46,11 +46,38 @@ const statusFilters: Array<SuggestionStatus | "all"> = [
 
 type SuggestionsSection = "propose" | "review";
 
+const SUGGESTIONS_SECTION_STORAGE_KEY = "skeinrank.suggestions.section";
+
+function readStoredSuggestionsSection(fallback: SuggestionsSection): SuggestionsSection {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+  const storedSection = window.localStorage.getItem(SUGGESTIONS_SECTION_STORAGE_KEY);
+  return storedSection === "propose" || storedSection === "review"
+    ? storedSection
+    : fallback;
+}
+
+function storeSuggestionsSection(section: SuggestionsSection) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(SUGGESTIONS_SECTION_STORAGE_KEY, section);
+}
+
 export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
   const permissions = permissionsForUser(currentUser);
-  const [activeSection, setActiveSection] = useState<SuggestionsSection>(
-    permissions.canReviewSuggestions ? "review" : "propose",
+  const defaultSection = permissions.canReviewSuggestions ? "review" : "propose";
+  const [activeSection, setActiveSectionState] = useState<SuggestionsSection>(
+    () => readStoredSuggestionsSection(defaultSection),
   );
+  const [createdSuggestion, setCreatedSuggestion] =
+    useState<GovernanceSuggestion | null>(null);
+
+  function setActiveSection(section: SuggestionsSection) {
+    setActiveSectionState(section);
+    storeSuggestionsSection(section);
+  }
   const queryClient = useQueryClient();
   const profilesQuery = useQuery({
     queryKey: ["profiles"],
@@ -136,8 +163,8 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
     },
     onSuccess: (suggestion) => {
       setStatusFilter("pending");
-      setActiveSection("review");
       setSelectedSuggestionId(suggestion.id);
+      setCreatedSuggestion(suggestion);
       upsertSuggestion(queryClient, selectedProfile, statusFilter, suggestion);
       upsertSuggestion(queryClient, selectedProfile, "pending", suggestion);
       void queryClient.invalidateQueries({
@@ -302,6 +329,7 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
               onSelectProfile={(profileName) => {
                 setSelectedProfile(profileName);
                 setSelectedSuggestionId(null);
+                setCreatedSuggestion(null);
                 createSuggestionMutation.reset();
                 approveSuggestionMutation.reset();
                 rejectSuggestionMutation.reset();
@@ -317,6 +345,17 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
               statusFilter={statusFilter}
               title="Proposal scope"
             />
+
+            {createdSuggestion ? (
+              <CreatedSuggestionNotice
+                onOpenReview={() => {
+                  setStatusFilter("pending");
+                  setSelectedSuggestionId(createdSuggestion.id);
+                  setActiveSection("review");
+                }}
+                suggestion={createdSuggestion}
+              />
+            ) : null}
 
             <CreateSuggestionForm
               disabled={!selectedProfile || !permissions.canCreateSuggestions}
@@ -363,6 +402,7 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
               onSelectProfile={(profileName) => {
                 setSelectedProfile(profileName);
                 setSelectedSuggestionId(null);
+                setCreatedSuggestion(null);
                 createSuggestionMutation.reset();
                 approveSuggestionMutation.reset();
                 rejectSuggestionMutation.reset();
@@ -418,6 +458,33 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
         </section>
       )}
     </div>
+  );
+}
+
+function CreatedSuggestionNotice({
+  onOpenReview,
+  suggestion,
+}: {
+  onOpenReview: () => void;
+  suggestion: GovernanceSuggestion;
+}) {
+  return (
+    <Card className="border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+      <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+            Suggestion queued for review
+          </p>
+          <p className="mt-1 text-sm text-emerald-800/80 dark:text-emerald-200/80">
+            {suggestionDisplayValue(suggestion)} was saved. Continue proposing
+            more terms, or open the review queue when you are ready.
+          </p>
+        </div>
+        <Button onClick={onOpenReview} type="button" variant="secondary">
+          View in Review queue
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
