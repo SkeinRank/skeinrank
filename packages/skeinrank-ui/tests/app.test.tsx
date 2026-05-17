@@ -3119,20 +3119,16 @@ describe("App", () => {
       await screen.findByText("Elasticsearch bindings"),
     ).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
+    expect(screen.queryByText("Binding setup flow")).not.toBeInTheDocument();
+    expect(screen.queryByText("Binding patterns")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Hide details" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Profile → index mapping → dry-run → enrichment → runtime snapshot.",
-      ),
     ).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
     });
     fireEvent.click(screen.getAllByText("infra docs")[0]);
     expect(await screen.findByText("Selected binding")).toBeInTheDocument();
-    expect(screen.getByText("Binding setup flow")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Create binding" }),
     ).toBeInTheDocument();

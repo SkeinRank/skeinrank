@@ -270,18 +270,6 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
 
   return (
     <div className="space-y-6">
-      <Card className="border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-950/80">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>Binding setup flow</CardTitle>
-              <CardDescription>Profile → index mapping → dry-run → enrichment → runtime snapshot.</CardDescription>
-            </div>
-            <SetupFlowSteps />
-          </div>
-        </CardHeader>
-      </Card>
-
       <IntegrationSummaryBar
         profileName={selectedProfile ?? "None"}
         readyBindings={readyBindings}
@@ -301,7 +289,6 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
         }}
       />
 
-      <BindingPatternsHelp />
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_460px]">
         <div className="space-y-6">
@@ -428,33 +415,16 @@ function CompactMetric({ help, label, value }: { help: string; label: string; va
   );
 }
 
-function SetupFlowSteps() {
-  const steps = [
-    { label: "Profile", description: "Choose the terminology namespace." },
-    { label: "Map", description: "Connect index, text fields, and target field." },
-    { label: "Scope", description: "Use a discriminator when one index contains several domains." },
-    { label: "Dry-run", description: "Preview enrichment output before writes." },
-    { label: "Roll out", description: "Run enrichment and verify the active snapshot." },
-  ];
-
-  return (
-    <div className="flex flex-wrap gap-2 text-xs">
-      {steps.map((step, index) => (
-        <div className="group relative rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200" key={step.label}>
-          {index + 1}. {step.label}
-          <span aria-hidden="true" className="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden w-56 rounded-lg border border-slate-200 bg-white p-2 text-xs font-normal text-slate-600 shadow-lg group-hover:block group-focus-within:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-            {step.description}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function HelpTooltip({ text }: { text: string }) {
   return (
     <span className="group relative inline-flex items-center align-middle">
-      <Info aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" />
+      <span
+        aria-label={text}
+        className="inline-flex rounded-full focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 dark:focus:ring-slate-500 dark:focus:ring-offset-slate-950"
+        tabIndex={0}
+      >
+        <Info aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" />
+      </span>
       <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 text-xs font-normal normal-case tracking-normal text-slate-600 shadow-lg group-hover:block group-focus-within:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
         {text}
       </span>
@@ -552,47 +522,6 @@ function ElasticsearchDiscoveryPanel({
   );
 }
 
-function BindingPatternsHelp() {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <Card>
-      <CardHeader className="py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <CardTitle>Binding patterns</CardTitle>
-              <HelpTooltip text="Use this only when mapping several profiles or indices. Day-to-day work usually starts from Saved bindings." />
-            </div>
-            <CardDescription>Shared index guidance. Keep closed during routine work.</CardDescription>
-          </div>
-          <Button onClick={() => setIsOpen((value) => !value)} type="button" variant="secondary">
-            {isOpen ? "Hide patterns" : "Show patterns"}
-          </Button>
-        </div>
-      </CardHeader>
-      {isOpen ? (
-        <CardContent>
-          <div className="grid gap-3 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-              <div className="font-medium text-slate-950 dark:text-slate-50">1 profile → 1 index</div>
-              <div className="mt-1">Use one binding without a discriminator when the whole index belongs to one profile.</div>
-            </div>
-            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-              <div className="font-medium text-slate-950 dark:text-slate-50">1 profile → many indices</div>
-              <div className="mt-1">Create one binding per index so enrichment jobs can run and fail independently.</div>
-            </div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-              <div className="font-medium">Many profiles → 1 index</div>
-              <div className="mt-1">Create separate bindings on the same index and add a discriminator, for example <code>team = infra</code>.</div>
-            </div>
-          </div>
-        </CardContent>
-      ) : null}
-    </Card>
-  );
-}
-
 function IntegrationsToolbar({
   isLoading,
   loadErrorMessage,
@@ -610,7 +539,7 @@ function IntegrationsToolbar({
     <Card>
       <CardHeader>
         <CardTitle>Elasticsearch bindings</CardTitle>
-        <CardDescription>Configure where each terminology profile should be applied during enrichment jobs.</CardDescription>
+        <CardDescription>Profile-to-index runtime contexts.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
@@ -951,7 +880,7 @@ function BindingsTable({
     <Card>
       <CardHeader>
         <CardTitle>Saved bindings</CardTitle>
-        <CardDescription>Each row describes one profile-to-index enrichment rule.</CardDescription>
+        <CardDescription>Profile-to-index search contexts.</CardDescription>
       </CardHeader>
       <CardContent>
         {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
