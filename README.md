@@ -167,6 +167,16 @@ The GitHub Actions workflow runs Ruff, package tests, UI type checks/tests/build
 
 SkeinRank is under active development and is not a hosted SaaS. The current focus is a production-shaped open-source platform preview: terminology governance, dictionary migration, profile bindings, snapshot-safe runtime context, Elasticsearch enrichment, evidence-assisted review, and local Docker Compose deployment.
 
+## Docker Compose dev stack
+
+SkeinRank includes a local Docker Compose development stack for trying the governance console, API, PostgreSQL, Elasticsearch, RabbitMQ worker flow, and optional observability services.
+
+For setup details, see:
+
+- [`docs/guides/development.md`](docs/guides/development.md)
+- [`docs/guides/governance-console.md`](docs/guides/governance-console.md)
+- [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md)
+
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE).
