@@ -169,13 +169,16 @@ SkeinRank is under active development and is not a hosted SaaS. The current focu
 
 ## Docker Compose dev stack
 
-SkeinRank includes a local Docker Compose development stack for trying the governance console, API, PostgreSQL, Elasticsearch, RabbitMQ worker flow, and optional observability services.
+SkeinRank includes Docker Compose profiles for local development and production-like deployment.
 
-For setup details, see:
+Main files:
 
-- [`docs/guides/development.md`](docs/guides/development.md)
-- [`docs/guides/governance-console.md`](docs/guides/governance-console.md)
-- [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md)
+- [`docker-compose.yml`](docker-compose.yml) — local development stack.
+- [`docker-compose.prod.yml`](docker-compose.prod.yml) — production-oriented stack.
+- [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) — Docker Compose setup guide.
+- [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md) — local stack troubleshooting.
+- [`docs/deployment/security.md`](docs/deployment/security.md) — deployment and security notes.
+
 
 ## License
 
