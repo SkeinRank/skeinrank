@@ -1,0 +1,21 @@
+# SkeinRank documentation
+
+This directory keeps repository-level documentation for developers, operators, and contributors. The public product site is available at <https://skeinrank.github.io>.
+
+## Start here
+
+- [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
+- [`concepts/terminology-control-plane.md`](concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.
+- [`concepts/profiles-bindings-snapshots.md`](concepts/profiles-bindings-snapshots.md) — the production runtime model.
+- [`guides/core-sdk-and-cli.md`](guides/core-sdk-and-cli.md) — local dictionary validation, extraction, canonicalization, and document extraction.
+- [`guides/governance-console.md`](guides/governance-console.md) — governance API/UI workflow.
+- [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.
+- [`guides/development.md`](guides/development.md) — local development checks and package workflow.
+- [`api/governance-api.md`](api/governance-api.md) — important HTTP surfaces and runtime endpoints.
+
+## Deployment
+
+- [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.
+- [`deployment/security.md`](deployment/security.md) — production-oriented security baseline.
+- [`deployment/observability.md`](deployment/observability.md) — logs, metrics, tracing, Prometheus, and Grafana.
+- [`deployment/dev-stack-troubleshooting.md`](deployment/dev-stack-troubleshooting.md) — common local stack issues.
