@@ -2249,14 +2249,16 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "Dashboard" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Welcome to SkeinRank")).toBeInTheDocument();
+    expect(await screen.findByText("Runtime control center")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Command center for setup, rollout, and runtime health.",
-      ),
+      screen.getByText("Production search context is ready."),
     ).toBeInTheDocument();
     expect(screen.getByText("Setup progress")).toBeInTheDocument();
+    expect(screen.getByText("Pin snapshot")).toBeInTheDocument();
     expect(screen.getByText("Next actions")).toBeInTheDocument();
+    const attentionBadge = screen.getByText("1 attention");
+    expect(attentionBadge).toHaveClass("shrink-0");
+    expect(attentionBadge).toHaveClass("whitespace-nowrap");
     expect(screen.getByText("Ready bindings")).toBeInTheDocument();
 
     await openTermsPage();
