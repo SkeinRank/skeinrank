@@ -353,13 +353,7 @@ class ElasticsearchDiscoveryClient:
         try:
             payload = self._get_json(f"/_alias/{safe_alias}")
         except ElasticsearchDiscoveryError as exc:
-            message = str(exc).lower()
-            if (
-                "404" in message
-                or "alias" in message
-                and "not found" in message
-                or "aliases_not_found_exception" in message
-            ):
+            if _is_missing_alias_error(str(exc)):
                 return []
             raise
         if not isinstance(payload, dict):
@@ -767,6 +761,25 @@ def _parse_optional_int(value: Any) -> int | None:
         return int(str(value).replace(",", ""))
     except ValueError:
         return None
+
+
+def _is_missing_alias_error(message: str) -> bool:
+    """Return True when Elasticsearch reports that an alias does not exist."""
+
+    normalized = message.lower()
+    explicit_alias_error = (
+        "aliases_not_found_exception" in normalized
+        or "alias_not_found_exception" in normalized
+    )
+    alias_was_not_found = "alias" in normalized and "not found" in normalized
+    alias_is_missing = "alias" in normalized and "missing" in normalized
+    alias_returned_404 = "alias" in normalized and "404" in normalized
+    return (
+        explicit_alias_error
+        or alias_was_not_found
+        or alias_is_missing
+        or alias_returned_404
+    )
 
 
 def _read_error_body(error: HTTPError) -> str | None:

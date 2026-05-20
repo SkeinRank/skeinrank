@@ -740,6 +740,22 @@ def _build_reindex_rollout_metadata(
     previous_alias_indices: list[str],
 ) -> dict[str, Any]:
     rollback_candidate = _rollback_candidate_index(previous_alias_indices, target_index)
+    alias_bootstrapped = not previous_alias_indices
+    if alias_bootstrapped:
+        rollback_hint = (
+            "This is the first successful publish for this alias; no previous "
+            "alias target exists for automatic rollback."
+        )
+    elif rollback_candidate:
+        rollback_hint = (
+            f"Manual rollback candidate: repoint alias {alias_name} "
+            f"to {rollback_candidate}."
+        )
+    else:
+        rollback_hint = (
+            "No single previous alias index was found for automatic rollback "
+            "planning."
+        )
     return {
         "strategy": "reindex_alias_swap",
         "status": "prepared",
@@ -748,6 +764,7 @@ def _build_reindex_rollout_metadata(
         "target_index": target_index,
         "previous_alias_indices": previous_alias_indices,
         "new_alias_indices": [],
+        "alias_bootstrapped": alias_bootstrapped,
         "rollback_candidate_index": rollback_candidate,
         "rollback_available": rollback_candidate is not None,
         "alias_swap_completed": False,
@@ -758,11 +775,7 @@ def _build_reindex_rollout_metadata(
             "If this rollout is cancelled or fails before alias swap, "
             f"review or delete target index {target_index}."
         ),
-        "rollback_hint": (
-            f"Manual rollback candidate: repoint alias {alias_name} to {rollback_candidate}."
-            if rollback_candidate
-            else "No single previous alias index was found for automatic rollback planning."
-        ),
+        "rollback_hint": rollback_hint,
     }
 
 
