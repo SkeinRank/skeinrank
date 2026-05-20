@@ -2217,7 +2217,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
 
 async function openTermsPage() {
   fireEvent.click(await screen.findByRole("button", { name: "Terms" }));
-  await screen.findByText("Terminology control plane");
+  await screen.findByRole("heading", { name: "Terminology control plane" });
 }
 
 async function openSnapshotsPage() {
@@ -2249,7 +2249,9 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "Dashboard" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Runtime control center")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Runtime control center"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Production search context is ready."),
     ).toBeInTheDocument();
@@ -2271,7 +2273,9 @@ describe("App", () => {
       expect(screen.getAllByText("kubernetes").length).toBeGreaterThan(0);
     });
     expect(screen.getAllByText("k8s").length).toBeGreaterThan(0);
-    expect(screen.getByText("Terminology workspace")).toBeInTheDocument();
+    expect(
+      screen.getByText("Governed terminology workspace"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Terms/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Profiles/ })).toBeInTheDocument();
     expect(screen.getByText("MVP")).toBeInTheDocument();
@@ -2293,7 +2297,9 @@ describe("App", () => {
     expect(screen.getAllByText("ml_platform@old456").length).toBeGreaterThan(0);
     expect(screen.getByText("Pending: ml_platform@new789")).toBeInTheDocument();
     expect(screen.getByText("profile changed")).toBeInTheDocument();
-    expect(screen.getByText("ml docs needs runtime attention")).toBeInTheDocument();
+    expect(
+      screen.getByText("ml docs needs runtime attention"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("Job #101").length).toBeGreaterThan(0);
     expect(screen.getAllByText("rollback available").length).toBeGreaterThan(0);
 
@@ -2346,7 +2352,11 @@ describe("App", () => {
     });
 
     expect(await screen.findByText("Query plan")).toBeInTheDocument();
-    expect(screen.getByText("Result-first view of how SkeinRank rewrites the query for this binding.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Result-first view of how SkeinRank rewrites the query for this binding.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("kubernetes postgresql timeout"),
     ).toBeInTheDocument();
@@ -2524,6 +2534,8 @@ describe("App", () => {
     await openTermsPage();
     await screen.findByText("default_it");
 
+    fireEvent.click(screen.getByRole("button", { name: "Add term" }));
+
     fireEvent.change(screen.getByLabelText("Canonical value"), {
       target: { value: "postgresql" },
     });
@@ -2533,7 +2545,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "PostgreSQL database" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add term" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create term" }));
 
     await waitFor(() => {
       expect(screen.getAllByText("postgresql").length).toBeGreaterThan(0);
@@ -3620,8 +3632,12 @@ describe("App", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByText("Suggestion queued for review")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "View in Review queue" }));
+    expect(
+      screen.getByText("Suggestion queued for review"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "View in Review queue" }),
+    );
     expect(screen.getByRole("tab", { name: /Review queue/ })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -3868,13 +3884,15 @@ describe("App", () => {
     await openTermsPage();
     await screen.findByText("default_it");
 
+    fireEvent.click(screen.getByRole("button", { name: "Add term" }));
+
     fireEvent.change(screen.getByLabelText("Canonical value"), {
       target: { value: "kubernetes" },
     });
     fireEvent.change(screen.getByLabelText("Slot"), {
       target: { value: "TOOL" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add term" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create term" }));
 
     expect(
       await screen.findByText(

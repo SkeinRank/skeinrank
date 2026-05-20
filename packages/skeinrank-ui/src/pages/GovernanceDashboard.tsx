@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, PlusCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AddTermForm } from "../components/AddTermForm";
@@ -7,13 +7,15 @@ import { ProfileManager } from "../components/ProfileManager";
 import { TermDetailsPanel } from "../components/TermDetailsPanel";
 import { TermsTable } from "../components/TermsTable";
 import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
+  ConsolePage,
+  EntityDetailPanel,
+  MasterDetailLayout,
+  MetricPill,
+  SectionCard,
+  WorkspaceHeader,
+} from "../components/layout/ConsolePrimitives";
 import {
   createAlias,
   createProfile,
@@ -61,6 +63,7 @@ export function GovernanceDashboard({
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
   const [activeSection, setActiveSection] = useState<TermsSection>("terms");
+  const [isAddTermOpen, setIsAddTermOpen] = useState(false);
 
   useEffect(() => {
     if (!profilesQuery.data || profilesQuery.data.length === 0) {
@@ -190,6 +193,7 @@ export function GovernanceDashboard({
     },
     onSuccess: (term) => {
       setSelectedTermId(term.id);
+      setIsAddTermOpen(false);
       queryClient.setQueryData<CanonicalTerm[]>(
         ["terms", selectedProfile],
         (currentTerms = []) => {
@@ -220,6 +224,7 @@ export function GovernanceDashboard({
     },
     onSuccess: (term) => {
       setSelectedTermId(term.id);
+      setIsAddTermOpen(false);
       queryClient.setQueryData<CanonicalTerm[]>(
         ["terms", selectedProfile],
         (currentTerms = []) =>
@@ -389,6 +394,7 @@ export function GovernanceDashboard({
   function handleProfileSelect(profileName: string) {
     setSelectedProfile(profileName);
     setSelectedTermId(null);
+    setIsAddTermOpen(false);
     resetMutations();
   }
 
@@ -470,8 +476,8 @@ export function GovernanceDashboard({
   );
 
   return (
-    <div className="space-y-6">
-      <TermsSectionTabs
+    <ConsolePage maxWidthClassName="max-w-[1560px]" className="space-y-4">
+      <TerminologyWorkspaceHeader
         activeSection={activeSection}
         aliasCount={selectedAliasCount}
         onSelectSection={setActiveSection}
@@ -481,7 +487,7 @@ export function GovernanceDashboard({
       />
 
       {activeSection === "profiles" ? (
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
           <ProfileManager
             createErrorMessage={errorMessage(createProfileMutation.error)}
             deleteErrorMessage={errorMessage(deleteProfileMutation.error)}
@@ -506,14 +512,12 @@ export function GovernanceDashboard({
             selectedProfileName={selectedProfile}
             updateErrorMessage={errorMessage(updateProfileMutation.error)}
           />
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile contents</CardTitle>
-              <CardDescription>
-                Compact summary for the selected terminology namespace.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 text-sm">
+          <EntityDetailPanel
+            badge={<Badge>{profilesQuery.data?.length ?? 0} profiles</Badge>}
+            description="Selected namespace health, bindings, and dictionary size."
+            title="Profile contents"
+          >
+            <div className="grid gap-3 text-sm">
               <MetricRow
                 label="Selected profile"
                 value={selectedProfile ?? "—"}
@@ -527,46 +531,54 @@ export function GovernanceDashboard({
                 label="Bindings"
                 value={String(bindingsQuery.data?.length ?? 0)}
               />
-            </CardContent>
-          </Card>
-        </section>
+            </div>
+          </EntityDetailPanel>
+        </MasterDetailLayout>
       ) : (
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="space-y-6">
+        <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
+          <div className="space-y-4">
             <TermsProfileToolbar
               bindingsCount={bindingsQuery.data?.length ?? 0}
+              canManageTerms={
+                Boolean(selectedProfile) && permissions.canManageTerms
+              }
               isLoading={profilesQuery.isLoading}
               loadErrorMessage={
                 profilesQuery.isError ? profilesQuery.error.message : null
               }
+              onAddTerm={() => setIsAddTermOpen((current) => !current)}
               onSelectProfile={handleProfileSelect}
               profiles={profilesQuery.data ?? []}
               selectedProfile={selectedProfile}
               termsCount={termsQuery.data?.length ?? 0}
+              isAddTermOpen={isAddTermOpen}
             />
 
-            <AddTermForm
-              disabled={!selectedProfile || !permissions.canManageTerms}
-              errorMessage={errorMessage(createTermMutation.error)}
-              isSubmitting={createTermMutation.isPending}
-              readOnlyMessage={
-                permissions.canManageTerms
-                  ? null
-                  : "Your role can inspect terms, but cannot create canonical terms."
-              }
-              onSubmit={handleCreateTerm}
-            />
+            {isAddTermOpen ? (
+              <AddTermForm
+                disabled={!selectedProfile || !permissions.canManageTerms}
+                errorMessage={errorMessage(createTermMutation.error)}
+                isSubmitting={createTermMutation.isPending}
+                readOnlyMessage={
+                  permissions.canManageTerms
+                    ? null
+                    : "Your role can inspect terms, but cannot create canonical terms."
+                }
+                onSubmit={handleCreateTerm}
+              />
+            ) : null}
 
             {termsQuery.isError ? (
               <ErrorMessage message={termsQuery.error.message} />
             ) : termsQuery.isLoading && selectedProfile ? (
-              <Card>
-                <CardContent>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Loading terms...
-                  </p>
-                </CardContent>
-              </Card>
+              <SectionCard
+                title="Canonical terms"
+                description="Loading profile terms and aliases."
+              >
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Loading terms...
+                </p>
+              </SectionCard>
             ) : (
               <TermsTable
                 onSelectTerm={(term) => handleTermSelect(term.id)}
@@ -576,54 +588,50 @@ export function GovernanceDashboard({
             )}
           </div>
 
-          <div className="space-y-6">
-            <TermDetailsPanel
-              aliasErrorMessage={
-                errorMessage(updateAliasMutation.error) ??
-                errorMessage(deleteAliasMutation.error)
-              }
-              bindings={bindingsQuery.data ?? []}
-              bindingsErrorMessage={
-                bindingsQuery.isError ? bindingsQuery.error.message : null
-              }
-              bindingsLoading={
-                bindingsQuery.isLoading && Boolean(selectedProfile)
-              }
-              evidence={
-                evidenceMutation.data as
-                  | ElasticsearchEvidenceResponse
-                  | undefined
-              }
-              evidenceErrorMessage={errorMessage(evidenceMutation.error)}
-              errorMessage={errorMessage(createAliasMutation.error)}
-              isAddingAlias={createAliasMutation.isPending}
-              isDeletingAlias={deleteAliasMutation.isPending}
-              isDeletingTerm={deleteTermMutation.isPending}
-              isCheckingEvidence={evidenceMutation.isPending}
-              isUpdatingAlias={updateAliasMutation.isPending}
-              isUpdatingTerm={updateTermMutation.isPending}
-              canManageAliases={permissions.canManageAliases}
-              canManageTerm={permissions.canManageTerms}
-              onAddAlias={handleCreateAlias}
-              onDeleteAlias={handleDeleteAlias}
-              onDeleteTerm={handleDeleteTerm}
-              onCheckEvidence={handleCheckEvidence}
-              onUpdateAlias={handleUpdateAlias}
-              onUpdateTerm={handleUpdateTerm}
-              term={selectedTerm}
-              termErrorMessage={
-                errorMessage(updateTermMutation.error) ??
-                errorMessage(deleteTermMutation.error)
-              }
-            />
-          </div>
-        </section>
+          <TermDetailsPanel
+            aliasErrorMessage={
+              errorMessage(updateAliasMutation.error) ??
+              errorMessage(deleteAliasMutation.error)
+            }
+            bindings={bindingsQuery.data ?? []}
+            bindingsErrorMessage={
+              bindingsQuery.isError ? bindingsQuery.error.message : null
+            }
+            bindingsLoading={
+              bindingsQuery.isLoading && Boolean(selectedProfile)
+            }
+            evidence={
+              evidenceMutation.data as ElasticsearchEvidenceResponse | undefined
+            }
+            evidenceErrorMessage={errorMessage(evidenceMutation.error)}
+            errorMessage={errorMessage(createAliasMutation.error)}
+            isAddingAlias={createAliasMutation.isPending}
+            isDeletingAlias={deleteAliasMutation.isPending}
+            isDeletingTerm={deleteTermMutation.isPending}
+            isCheckingEvidence={evidenceMutation.isPending}
+            isUpdatingAlias={updateAliasMutation.isPending}
+            isUpdatingTerm={updateTermMutation.isPending}
+            canManageAliases={permissions.canManageAliases}
+            canManageTerm={permissions.canManageTerms}
+            onAddAlias={handleCreateAlias}
+            onDeleteAlias={handleDeleteAlias}
+            onDeleteTerm={handleDeleteTerm}
+            onCheckEvidence={handleCheckEvidence}
+            onUpdateAlias={handleUpdateAlias}
+            onUpdateTerm={handleUpdateTerm}
+            term={selectedTerm}
+            termErrorMessage={
+              errorMessage(updateTermMutation.error) ??
+              errorMessage(deleteTermMutation.error)
+            }
+          />
+        </MasterDetailLayout>
       )}
-    </div>
+    </ConsolePage>
   );
 }
 
-function TermsSectionTabs({
+function TerminologyWorkspaceHeader({
   activeSection,
   aliasCount,
   onSelectSection,
@@ -639,20 +647,11 @@ function TermsSectionTabs({
   termCount: number;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-            Terminology workspace
-          </h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Edit active terms or manage profile namespaces without leaving this
-            page.
-          </p>
-        </div>
+    <WorkspaceHeader
+      actions={
         <div
           aria-label="Terminology section"
-          className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 lg:w-auto"
+          className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 sm:w-auto"
           role="tablist"
         >
           <TermsTabButton
@@ -668,8 +667,11 @@ function TermsSectionTabs({
             onClick={() => onSelectSection("profiles")}
           />
         </div>
-      </div>
-    </section>
+      }
+      description="Review canonical values, aliases, profile scope, and evidence without leaving the workspace."
+      eyebrow="Terminology control plane"
+      title="Governed terminology workspace"
+    />
   );
 }
 
@@ -687,7 +689,7 @@ function TermsTabButton({
   return (
     <button
       aria-selected={isActive}
-      className={`flex min-w-0 flex-1 flex-col rounded-xl px-4 py-2 text-left transition-colors lg:min-w-40 lg:flex-none ${
+      className={`flex min-w-0 flex-1 flex-col rounded-xl px-4 py-2 text-left transition-colors sm:min-w-44 sm:flex-none ${
         isActive
           ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-slate-50"
           : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-100"
@@ -706,72 +708,99 @@ function TermsTabButton({
 
 function TermsProfileToolbar({
   bindingsCount,
+  canManageTerms,
+  isAddTermOpen,
   isLoading,
   loadErrorMessage,
+  onAddTerm,
   onSelectProfile,
   profiles,
   selectedProfile,
   termsCount,
 }: {
   bindingsCount: number;
+  canManageTerms: boolean;
+  isAddTermOpen: boolean;
   isLoading: boolean;
   loadErrorMessage?: string | null;
+  onAddTerm: () => void;
   onSelectProfile: (profileName: string) => void;
   profiles: Profile[];
   selectedProfile: string | null;
   termsCount: number;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <CardTitle>Profile scope</CardTitle>
-          <CardDescription>
-            Choose the terminology namespace before editing terms and aliases.
-          </CardDescription>
+    <SectionCard
+      actions={
+        <Button
+          className="gap-2"
+          disabled={!canManageTerms}
+          onClick={onAddTerm}
+          type="button"
+          variant={isAddTermOpen ? "secondary" : "primary"}
+        >
+          <PlusCircle className="h-4 w-4" />
+          {isAddTermOpen ? "Close term form" : "Add term"}
+        </Button>
+      }
+      contentClassName="space-y-4"
+      description="Select the namespace that will drive the terms table, details panel, and evidence checks."
+      title="Profile scope"
+    >
+      {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MetricPill
+          helper="current namespace"
+          label="Profile"
+          value={selectedProfile ?? "—"}
+        />
+        <MetricPill
+          helper="canonical values"
+          label="Terms"
+          tone="cyan"
+          value={termsCount}
+        />
+        <MetricPill
+          helper="runtime contexts"
+          label="Bindings"
+          tone="emerald"
+          value={bindingsCount}
+        />
+      </div>
+      {isLoading ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Loading profiles...
+        </p>
+      ) : profiles.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {profiles.map((profile) => (
+            <button
+              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                selectedProfile === profile.name
+                  ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
+              }`}
+              key={profile.id}
+              onClick={() => onSelectProfile(profile.name)}
+              type="button"
+            >
+              {profile.name}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <Badge>{termsCount} terms</Badge>
-          <Badge>{bindingsCount} bindings</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
-        {isLoading ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Loading profiles...
-          </p>
-        ) : profiles.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {profiles.map((profile) => (
-              <button
-                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  selectedProfile === profile.name
-                    ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
-                }`}
-                key={profile.id}
-                onClick={() => onSelectProfile(profile.name)}
-                type="button"
-              >
-                {profile.name}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-            No profiles yet. Open the Profiles tab to create a terminology
-            namespace.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      ) : (
+        <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          No profiles yet. Open the Profiles tab to create a terminology
+          namespace.
+        </p>
+      )}
+    </SectionCard>
   );
 }
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800">
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
       <span className="text-slate-500 dark:text-slate-400">{label}</span>
       <span className="font-medium text-slate-950 dark:text-slate-50">
         {value}
