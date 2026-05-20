@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 from skeinrank_governance_api import GovernanceApiConfig, create_app
-from skeinrank_governance_api.elasticsearch import extract_mapping_fields
+from skeinrank_governance_api.elasticsearch import (
+    ElasticsearchDiscoveryClient,
+    ElasticsearchDiscoveryError,
+    extract_mapping_fields,
+)
 
 
 def _client(
@@ -265,6 +269,20 @@ class FakeElasticsearchClient:
         self.swapped_alias = alias_name
         self.swapped_target_index = target_index
         return {"acknowledged": True}
+
+
+def test_elasticsearch_alias_indices_treats_missing_alias_as_empty(tmp_path):
+    client = ElasticsearchDiscoveryClient(
+        GovernanceApiConfig(elasticsearch_url="http://es:9200")
+    )
+
+    def fake_get_json(path: str):
+        assert path == "/_alias/docs"
+        raise ElasticsearchDiscoveryError("alias [docs] missing")
+
+    client._get_json = fake_get_json  # type: ignore[method-assign]
+
+    assert client.alias_indices(alias_name="docs") == []
 
 
 def test_elasticsearch_status_reports_unconfigured(tmp_path):
@@ -839,6 +857,72 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
     assert binding_payload["last_successful_job_id"] == payload["id"]
     assert binding_payload["pending_snapshot_version"] is None
     assert binding_payload["snapshot_status"] == "ready"
+
+
+def test_elasticsearch_reindex_alias_swap_bootstraps_missing_alias(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+
+    class MissingAliasFakeElasticsearchClient(FakeElasticsearchClient):
+        alias_state: dict[str, list[str]] = {}
+
+        def alias_indices(self, *, alias_name):
+            return list(type(self).alias_state.get(alias_name, []))
+
+        def swap_alias(self, *, alias_name, target_index):
+            type(self).alias_state[alias_name] = [target_index]
+            return {"acknowledged": True, "alias": alias_name}
+
+    MissingAliasFakeElasticsearchClient.alias_state = {}
+    monkeypatch.setattr(
+        governance,
+        "ElasticsearchDiscoveryClient",
+        MissingAliasFakeElasticsearchClient,
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 0.97},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 2, "alias_name": "docs"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["status"] == "succeeded"
+    rollout = payload["result_json"]["rollout"]
+    assert rollout["previous_alias_indices"] == []
+    assert rollout["new_alias_indices"] == [payload["target_index"]]
+    assert rollout["alias_bootstrapped"] is True
+    assert rollout["rollback_available"] is False
+    assert rollout["alias_swap_completed"] is True
+    assert MissingAliasFakeElasticsearchClient.alias_state["docs"] == [
+        payload["target_index"]
+    ]
 
 
 def test_elasticsearch_reindex_alias_swap_job_can_be_rolled_back(monkeypatch, tmp_path):
