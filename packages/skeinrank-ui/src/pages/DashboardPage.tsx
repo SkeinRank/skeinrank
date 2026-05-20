@@ -23,6 +23,13 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { cn } from "../lib/utils";
+import {
+  ConsolePage,
+  getConsoleToneForStatus,
+  MasterDetailLayout,
+  MetricPill,
+  SectionCard,
+} from "../components/layout/ConsolePrimitives";
 import { getDashboardSummary } from "../lib/api";
 import type {
   DashboardBindingSummary,
@@ -90,21 +97,21 @@ export function DashboardPage({
   }
 
   return (
-    <div className="mx-auto max-w-[1680px] space-y-4">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+    <ConsolePage>
+      <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_330px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <CommandCenter summary={summary} onNavigate={onNavigate} />
         <NextActions summary={summary} onNavigate={onNavigate} />
-      </section>
+      </MasterDetailLayout>
 
       <RuntimeStatus summary={summary} />
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <MasterDetailLayout>
         <BindingHealth bindings={summary.bindings} onNavigate={onNavigate} />
         <RecentJobs jobs={summary.recent_jobs} onNavigate={onNavigate} />
-      </section>
+      </MasterDetailLayout>
 
       <SystemReadiness summary={summary} />
-    </div>
+    </ConsolePage>
   );
 }
 
@@ -267,7 +274,14 @@ function CommandCenter({
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {heroMetrics.map((metric) => (
-            <RuntimeMetricCard key={metric.label} metric={metric} />
+            <MetricPill
+              className="bg-white/85 backdrop-blur dark:bg-slate-900/75"
+              helper={metric.helper}
+              key={metric.label}
+              label={metric.label}
+              tone={metric.tone}
+              value={metric.value}
+            />
           ))}
         </div>
 
@@ -308,34 +322,6 @@ function CommandCenter({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function RuntimeMetricCard({ metric }: { metric: RuntimeMetric }) {
-  const toneClassName = {
-    cyan: "from-cyan-500/16 to-cyan-500/5 text-cyan-700 dark:text-cyan-200",
-    emerald: "from-emerald-500/16 to-emerald-500/5 text-emerald-700 dark:text-emerald-200",
-    violet: "from-violet-500/16 to-violet-500/5 text-violet-700 dark:text-violet-200",
-    amber: "from-amber-500/18 to-amber-500/5 text-amber-700 dark:text-amber-200",
-  }[metric.tone];
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white/85 p-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/75">
-      <div
-        className={cn(
-          "inline-flex rounded-full bg-gradient-to-br px-2.5 py-1 text-xs font-semibold uppercase tracking-wide",
-          toneClassName,
-        )}
-      >
-        {metric.label}
-      </div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-        {metric.value}
-      </div>
-      <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
-        {metric.helper}
-      </div>
-    </div>
   );
 }
 
@@ -494,32 +480,19 @@ function RuntimeStatus({ summary }: { summary: DashboardSummary }) {
   return (
     <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (
-        <Card
-          className="border-slate-200 bg-white shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/20"
-          key={card.label}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                  {card.label}
-                </div>
-                <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                  {card.value}
-                </div>
-              </div>
-              <div className="flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                <card.icon className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <div className="truncate text-xs text-slate-500 dark:text-slate-400">
-                {card.helper}
-              </div>
+        <MetricPill
+          helper={
+            <span className="flex items-center justify-between gap-3">
+              <span className="truncate">{card.helper}</span>
               <StatusBadge status={card.status} />
-            </div>
-          </CardContent>
-        </Card>
+            </span>
+          }
+          icon={card.icon}
+          key={card.label}
+          label={card.label}
+          tone={getConsoleToneForStatus(card.status)}
+          value={card.value}
+        />
       ))}
     </section>
   );
@@ -533,20 +506,16 @@ function BindingHealth({
   onNavigate: (section: AppSection) => void;
 }) {
   return (
-    <Card className="border-slate-200 bg-white shadow-md shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/30">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Binding health</CardTitle>
-            <CardDescription>Runtime contexts that drive production search behavior.</CardDescription>
-          </div>
-          <Button onClick={() => onNavigate("integrations")} variant="secondary">
-            <Plug className="mr-2 h-4 w-4" />
-            Open integrations
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
+    <SectionCard
+      actions={
+        <Button onClick={() => onNavigate("integrations")} variant="secondary">
+          <Plug className="mr-2 h-4 w-4" />
+          Open integrations
+        </Button>
+      }
+      description="Runtime contexts that drive production search behavior."
+      title="Binding health"
+    >
         {bindings.length === 0 ? (
           <EmptyState
             actionLabel="Create binding"
@@ -585,8 +554,7 @@ function BindingHealth({
             </table>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -598,20 +566,16 @@ function RecentJobs({
   onNavigate: (section: AppSection) => void;
 }) {
   return (
-    <Card className="border-slate-200 bg-white shadow-md shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/30">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Recent enrichment jobs</CardTitle>
-            <CardDescription>Latest rollout and snapshot activity.</CardDescription>
-          </div>
-          <Button onClick={() => onNavigate("integrations")} variant="secondary">
-            <GitBranch className="mr-2 h-4 w-4" />
-            View jobs
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
+    <SectionCard
+      actions={
+        <Button onClick={() => onNavigate("integrations")} variant="secondary">
+          <GitBranch className="mr-2 h-4 w-4" />
+          View jobs
+        </Button>
+      }
+      description="Latest rollout and snapshot activity."
+      title="Recent enrichment jobs"
+    >
         {jobs.length === 0 ? (
           <EmptyState
             actionLabel="Run enrichment"
@@ -644,8 +608,7 @@ function RecentJobs({
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -653,12 +616,12 @@ function SystemReadiness({ summary }: { summary: DashboardSummary }) {
   const entries = Object.entries(summary.readiness);
 
   return (
-    <Card className="border-slate-200 bg-white shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/20">
-      <CardHeader className="pb-3">
-        <CardTitle>System readiness</CardTitle>
-        <CardDescription>Service checks for onboarding. Use Grafana for deeper telemetry.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+    <SectionCard
+      className="shadow-sm shadow-slate-200/50 dark:shadow-black/20"
+      contentClassName="grid gap-2 md:grid-cols-2 xl:grid-cols-5"
+      description="Service checks for onboarding. Use Grafana for deeper telemetry."
+      title="System readiness"
+    >
         {entries.map(([name, item]) => (
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60" key={name}>
             <div className="flex items-center justify-between gap-2">
@@ -673,8 +636,7 @@ function SystemReadiness({ summary }: { summary: DashboardSummary }) {
             </p>
           </div>
         ))}
-      </CardContent>
-    </Card>
+    </SectionCard>
   );
 }
 
