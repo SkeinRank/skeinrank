@@ -7,15 +7,17 @@ from skeinrank_governance.models import (
     utc_now,
 )
 from skeinrank_governance_api import GovernanceApiConfig, create_app
+from skeinrank_governance_api.routes import dashboard as dashboard_routes
 from sqlalchemy import select
 
 
-def _client(tmp_path) -> TestClient:
+def _client(tmp_path, **config_overrides) -> TestClient:
     app = create_app(
         GovernanceApiConfig(
             database_url=f"sqlite:///{tmp_path / 'governance.db'}",
             create_tables_on_startup=True,
             service_version="test",
+            **config_overrides,
         )
     )
     return TestClient(app)
@@ -133,3 +135,67 @@ def test_dashboard_summary_reports_setup_progress_and_recent_jobs(tmp_path):
     assert payload["bindings"][0]["snapshot_version"] == "default_it@abc123"
     assert payload["recent_jobs"][0]["status"] == "succeeded"
     assert payload["recent_jobs"][0]["documents_enriched"] == 10
+
+
+def test_dashboard_summary_reports_celery_readiness_ok(tmp_path, monkeypatch):
+    broker_url = "amqp://guest:secret@rabbitmq:5672//"
+    monkeypatch.setattr(
+        dashboard_routes,
+        "_check_celery_broker",
+        lambda url, *, timeout_seconds: None,
+    )
+    monkeypatch.setattr(
+        dashboard_routes,
+        "_ping_celery_workers",
+        lambda url, *, timeout_seconds: {"celery@test-worker": {"ok": "pong"}},
+    )
+    client = _client(
+        tmp_path,
+        enrichment_jobs_backend="celery",
+        celery_broker_url=broker_url,
+    )
+
+    response = client.get("/v1/dashboard/summary")
+
+    assert response.status_code == 200
+    readiness = response.json()["readiness"]
+    assert readiness["rabbitmq"]["status"] == "ok"
+    assert readiness["rabbitmq"]["url"] == "amqp://***@rabbitmq:5672//"
+    assert readiness["worker"]["status"] == "ok"
+    assert readiness["worker"]["name"] == "celery@test-worker"
+    assert readiness["worker"]["url"] == "amqp://***@rabbitmq:5672//"
+
+
+def test_dashboard_summary_reports_celery_readiness_degraded(tmp_path, monkeypatch):
+    broker_url = "amqp://guest:secret@rabbitmq:5672//"
+
+    def raise_broker_error(url, *, timeout_seconds):
+        raise RuntimeError("broker unreachable")
+
+    monkeypatch.setattr(
+        dashboard_routes,
+        "_check_celery_broker",
+        raise_broker_error,
+    )
+    monkeypatch.setattr(
+        dashboard_routes,
+        "_ping_celery_workers",
+        lambda url, *, timeout_seconds: None,
+    )
+    client = _client(
+        tmp_path,
+        enrichment_jobs_backend="celery",
+        celery_broker_url=broker_url,
+    )
+
+    response = client.get("/v1/dashboard/summary")
+
+    assert response.status_code == 200
+    readiness = response.json()["readiness"]
+    assert readiness["rabbitmq"]["status"] == "degraded"
+    assert "broker unreachable" in readiness["rabbitmq"]["message"]
+    assert readiness["worker"]["status"] == "degraded"
+    assert (
+        readiness["worker"]["message"]
+        == "No Celery enrichment workers responded to ping."
+    )
