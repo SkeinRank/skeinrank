@@ -32,6 +32,7 @@ router = APIRouter(
 )
 
 _RUNNING_JOB_STATUSES = {"queued", "running", "cancel_requested"}
+_CELERY_READINESS_TIMEOUT_SECONDS = 1.5
 
 
 @router.get("/summary", response_model=DashboardSummaryResponse)
@@ -298,10 +299,24 @@ def _rabbitmq_readiness(config) -> DashboardReadinessItem:
             configured=False,
             message="Synchronous enrichment backend is active.",
         )
+
+    try:
+        _check_celery_broker(
+            config.celery_broker_url,
+            timeout_seconds=_CELERY_READINESS_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        return DashboardReadinessItem(
+            status="degraded",
+            configured=True,
+            message=f"{type(exc).__name__}: {exc}",
+            url=_safe_url(config.celery_broker_url),
+        )
+
     return DashboardReadinessItem(
-        status="unknown",
+        status="ok",
         configured=True,
-        message="Celery backend is configured. Worker heartbeat is not checked by this endpoint.",
+        message="RabbitMQ broker is reachable for Celery enrichment jobs.",
         url=_safe_url(config.celery_broker_url),
     )
 
@@ -313,11 +328,72 @@ def _worker_readiness(config) -> DashboardReadinessItem:
             configured=False,
             message="Worker is not required for synchronous enrichment jobs.",
         )
+
+    try:
+        ping_response = _ping_celery_workers(
+            config.celery_broker_url,
+            timeout_seconds=_CELERY_READINESS_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        return DashboardReadinessItem(
+            status="degraded",
+            configured=True,
+            message=f"{type(exc).__name__}: {exc}",
+            url=_safe_url(config.celery_broker_url),
+        )
+
+    if not ping_response:
+        return DashboardReadinessItem(
+            status="degraded",
+            configured=True,
+            message="No Celery enrichment workers responded to ping.",
+            url=_safe_url(config.celery_broker_url),
+        )
+
+    worker_count = len(ping_response)
+    worker_label = "worker" if worker_count == 1 else "workers"
     return DashboardReadinessItem(
-        status="unknown",
+        status="ok",
         configured=True,
-        message="Worker status requires a separate heartbeat or queue inspection check.",
+        message=f"{worker_count} Celery enrichment {worker_label} responded to ping.",
+        url=_safe_url(config.celery_broker_url),
+        name=", ".join(sorted(str(name) for name in ping_response.keys())),
     )
+
+
+def _check_celery_broker(url: str, *, timeout_seconds: float) -> None:
+    try:
+        from kombu import Connection
+    except ImportError as exc:  # pragma: no cover - celery dependency supplies kombu
+        raise RuntimeError("kombu is not installed") from exc
+
+    with Connection(url, connect_timeout=timeout_seconds) as connection:
+        connection.connect()
+
+
+def _ping_celery_workers(
+    url: str,
+    *,
+    timeout_seconds: float,
+) -> dict[str, object] | None:
+    try:
+        from celery import Celery
+    except ImportError as exc:  # pragma: no cover - optional worker dependency guard
+        raise RuntimeError("celery is not installed") from exc
+
+    app = Celery("skeinrank_governance_dashboard", broker=url)
+    app.conf.update(
+        broker_connection_timeout=timeout_seconds,
+        broker_transport_options={"socket_timeout": timeout_seconds},
+    )
+    try:
+        inspector = app.control.inspect(timeout=timeout_seconds)
+        response = inspector.ping()
+    finally:
+        close_app = getattr(app, "close", None)
+        if close_app:
+            close_app()
+    return response
 
 
 def _safe_url(url: str | None) -> str | None:
