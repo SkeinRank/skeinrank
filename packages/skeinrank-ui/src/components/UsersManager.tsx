@@ -1,14 +1,23 @@
-import { type FormEvent, useEffect, useState } from "react";
-import { ShieldAlert, Users } from "lucide-react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { KeyRound, ShieldAlert, UserCheck, UserPlus, Users } from "lucide-react";
 
 import type { AuthUser, UserCreateRequest, UserRole, UserStatus, UserUpdateRequest } from "../types";
+import {
+  ConsolePage,
+  EntityDetailPanel,
+  MasterDetailLayout,
+  MetricPill,
+  SectionCard,
+  WorkspaceHeader,
+} from "./layout/ConsolePrimitives";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 
 const USER_ROLES: UserRole[] = ["admin", "moderator", "contributor"];
 const USER_STATUSES: UserStatus[] = ["active", "suspended", "deactivated"];
+
+const SELECTED_USER_FORM_ID = "selected-user-form";
 
 type UsersManagerProps = {
   createErrorMessage?: string | null;
@@ -55,28 +64,44 @@ export function UsersManager({
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<UserRole>("contributor");
-  const [editingUsername, setEditingUsername] = useState<string | null>(null);
+  const [selectedUsername, setSelectedUsername] = useState<string | null>(null);
   const [editUsername, setEditUsername] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState<UserRole>("contributor");
 
-  const editingUser = users.find((user) => user.username === editingUsername) ?? null;
+  const selectedUser = users.find((user) => user.username === selectedUsername) ?? null;
   const canCreate = newUsername.trim().length > 0 && newPassword.length > 0 && !isCreating;
-  const canUpdate = Boolean(editingUser) && editUsername.trim().length > 0 && !isUpdating;
+  const canUpdate = Boolean(selectedUser) && editUsername.trim().length > 0 && !isUpdating;
   const activeCount = users.filter((user) => user.status === "active").length;
   const suspendedCount = users.filter((user) => user.status === "suspended").length;
   const deactivatedCount = users.filter((user) => user.status === "deactivated").length;
+  const adminCount = users.filter((user) => user.role === "admin").length;
 
   useEffect(() => {
-    if (!editingUser) {
+    if (users.length === 0) {
+      setSelectedUsername(null);
       return;
     }
-    setEditUsername(editingUser.username);
-    setEditDisplayName(editingUser.display_name ?? "");
+
+    if (!selectedUsername || !users.some((user) => user.username === selectedUsername)) {
+      setSelectedUsername(users[0].username);
+    }
+  }, [selectedUsername, users]);
+
+  useEffect(() => {
+    if (!selectedUser) {
+      setEditUsername("");
+      setEditDisplayName("");
+      setEditPassword("");
+      setEditRole("contributor");
+      return;
+    }
+    setEditUsername(selectedUser.username);
+    setEditDisplayName(selectedUser.display_name ?? "");
     setEditPassword("");
-    setEditRole(editingUser.role);
-  }, [editingUser?.id, editingUser?.display_name, editingUser?.role, editingUser?.username]);
+    setEditRole(selectedUser.role);
+  }, [selectedUser?.id, selectedUser?.display_name, selectedUser?.role, selectedUser?.username]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -103,12 +128,12 @@ export function UsersManager({
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editingUser || !canUpdate) {
+    if (!selectedUser || !canUpdate) {
       return;
     }
 
     try {
-      await onUpdateUser(editingUser.username, {
+      await onUpdateUser(selectedUser.username, {
         username: editUsername.trim(),
         display_name: editDisplayName.trim() || null,
         password: editPassword || null,
@@ -159,8 +184,8 @@ export function UsersManager({
 
     try {
       await onDeleteUser(username);
-      if (editingUsername === username) {
-        setEditingUsername(null);
+      if (selectedUsername === username) {
+        setSelectedUsername(null);
       }
     } catch {
       // Parent mutation owns user-facing error rendering.
@@ -168,261 +193,274 @@ export function UsersManager({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Users</CardTitle>
-            <CardDescription>Local governance accounts.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{users.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Active</CardTitle>
-            <CardDescription>Can sign in and use API tokens.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{activeCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Suspended</CardTitle>
-            <CardDescription>Temporarily blocked accounts.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{suspendedCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Deactivated</CardTitle>
-            <CardDescription>Closed user accounts.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{deactivatedCount}</div>
-          </CardContent>
-        </Card>
-      </section>
+    <ConsolePage className="space-y-4">
+      <WorkspaceHeader
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={suspendedCount > 0 ? "suspended" : "active"}>
+              {suspendedCount > 0 ? `${suspendedCount} suspended` : "Access healthy"}
+            </StatusBadge>
+            <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Local users</Badge>
+          </div>
+        }
+        description="Manage local governance accounts, roles, account status, and personal API-token access from one review-oriented workspace."
+        eyebrow="Users and roles"
+        meta={
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricPill helper="Local governance accounts" icon={Users} label="Users" tone="cyan" value={users.length} />
+            <MetricPill helper="Can sign in and use tokens" icon={UserCheck} label="Active" tone="emerald" value={activeCount} />
+            <MetricPill helper="Temporarily blocked" icon={ShieldAlert} label="Suspended" tone={suspendedCount > 0 ? "amber" : "slate"} value={suspendedCount} />
+            <MetricPill helper="Admin role assignments" icon={KeyRound} label="Admins" tone="violet" value={adminCount} />
+          </div>
+        }
+        title="Access management control plane"
+      />
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                <div>
-                  <CardTitle>Governance users</CardTitle>
-                  <CardDescription>Manage account status, roles, and personal API-token access.</CardDescription>
-                </div>
+      <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
+        <div className="space-y-4">
+          <SectionCard
+            actions={<Badge className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{users.length} accounts</Badge>}
+            contentClassName="space-y-4"
+            description="Select a user to inspect role, status, authentication state, and offboarding actions."
+            title="Governance users"
+          >
+            {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
+            {isLoading ? (
+              <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">Loading users...</p>
+            ) : users.length > 0 ? (
+              <div className="max-h-[520px] overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+                <table className="min-w-full divide-y divide-slate-100 text-sm dark:divide-slate-800">
+                  <thead className="sticky top-0 z-10 bg-slate-50/95 text-xs uppercase tracking-[0.16em] text-slate-500 backdrop-blur dark:bg-slate-900/95 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold">Identity</th>
+                      <th className="px-4 py-3 text-left font-semibold">Role</th>
+                      <th className="px-4 py-3 text-left font-semibold">Status</th>
+                      <th className="px-4 py-3 text-left font-semibold">Last login</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {users.map((user) => {
+                      const selected = selectedUser?.username === user.username;
+                      return (
+                        <tr
+                          className={selected ? "bg-cyan-50/60 dark:bg-cyan-500/10" : "bg-white dark:bg-slate-950"}
+                          key={user.id}
+                        >
+                          <td className="px-4 py-3 align-top">
+                            <button
+                              className="group block max-w-[260px] text-left"
+                              onClick={() => setSelectedUsername(user.username)}
+                              type="button"
+                            >
+                              <span className="block truncate font-medium text-slate-950 group-hover:text-cyan-700 dark:text-slate-50 dark:group-hover:text-cyan-200">
+                                {user.username}
+                              </span>
+                              <span className="mt-1 block truncate text-xs text-slate-500 dark:text-slate-400">
+                                {user.display_name || "No display name"}
+                              </span>
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <RoleBadge role={user.role} />
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <StatusBadge status={user.status} />
+                          </td>
+                          <td className="px-4 py-3 align-top text-xs text-slate-500 dark:text-slate-400">
+                            {formatDate(user.last_login_at)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
-              {isLoading ? (
-                <p className="text-sm text-slate-500 dark:text-slate-400">Loading users...</p>
-              ) : users.length > 0 ? (
-                <div className="space-y-2">
-                  {users.map((user) => (
-                    <button
-                      className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                        editingUsername === user.username
-                          ? "border-slate-950 bg-slate-50 dark:border-slate-100 dark:bg-slate-900"
-                          : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900"
-                      }`}
-                      key={user.id}
-                      onClick={() => setEditingUsername(user.username)}
-                      type="button"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <div className="font-medium text-slate-950 dark:text-slate-50">{user.username}</div>
-                          <div className="text-sm text-slate-500 dark:text-slate-400">{user.display_name || "No display name"}</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Badge>{user.role}</Badge>
-                          <StatusBadge status={user.status} />
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  No users found. Bootstrap an admin user or create a local governance user.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+            ) : (
+              <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                No users found. Bootstrap an admin user or create a local governance user.
+              </p>
+            )}
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Create user</CardTitle>
-              <CardDescription>Create a local user with a temporary password and role.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-3" onSubmit={handleCreate}>
-                <label className="space-y-1.5">
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New username</span>
-                  <Input onChange={(event) => setNewUsername(event.target.value)} placeholder="alex" value={newUsername} />
-                </label>
-                <label className="space-y-1.5">
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New display name</span>
-                  <Input onChange={(event) => setNewDisplayName(event.target.value)} placeholder="Alex Kim" value={newDisplayName} />
-                </label>
-                <label className="space-y-1.5">
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Temporary password</span>
-                  <Input onChange={(event) => setNewPassword(event.target.value)} placeholder="change-me" type="password" value={newPassword} />
-                </label>
-                <label className="space-y-1.5">
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New user role</span>
-                  <select
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
-                    onChange={(event) => setNewRole(event.target.value as UserRole)}
-                    value={newRole}
-                  >
-                    {USER_ROLES.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+          <SectionCard
+            actions={<UserPlus className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />}
+            contentClassName="space-y-4"
+            description="Create a local user with a temporary password and least-privilege role."
+            title="Create user"
+          >
+            <form className="grid gap-3 lg:grid-cols-2" onSubmit={handleCreate}>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New username</span>
+                <Input onChange={(event) => setNewUsername(event.target.value)} placeholder="alex" value={newUsername} />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New display name</span>
+                <Input onChange={(event) => setNewDisplayName(event.target.value)} placeholder="Alex Kim" value={newDisplayName} />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Temporary password</span>
+                <Input onChange={(event) => setNewPassword(event.target.value)} placeholder="change-me" type="password" value={newPassword} />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New user role</span>
+                <Select value={newRole} onChange={(value) => setNewRole(value as UserRole)} options={USER_ROLES} />
+              </label>
+              <div className="space-y-3 lg:col-span-2">
                 {createErrorMessage ? <InlineError message={createErrorMessage} /> : null}
                 <Button disabled={!canCreate} type="submit">
                   {isCreating ? "Creating..." : "Create user"}
                 </Button>
-              </form>
-            </CardContent>
-          </Card>
+              </div>
+            </form>
+          </SectionCard>
         </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Selected user</CardTitle>
-              <CardDescription>Update role/display name/password or control account access.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {editingUser ? (
-                <form className="space-y-3" onSubmit={handleUpdate}>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <div className="text-sm font-medium text-slate-950 dark:text-slate-50">Account status</div>
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Suspended and deactivated users cannot sign in or use personal API tokens.</div>
-                      </div>
-                      <StatusBadge status={editingUser.status} />
-                    </div>
-                  </div>
-                  <label className="space-y-1.5">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Username</span>
-                    <Input onChange={(event) => setEditUsername(event.target.value)} value={editUsername} />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Display name</span>
-                    <Input onChange={(event) => setEditDisplayName(event.target.value)} placeholder="Optional display name" value={editDisplayName} />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New password</span>
-                    <Input onChange={(event) => setEditPassword(event.target.value)} placeholder="Leave empty to keep current password" type="password" value={editPassword} />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Role</span>
-                    <select
-                      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
-                      onChange={(event) => setEditRole(event.target.value as UserRole)}
-                      value={editRole}
-                    >
-                      {USER_ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}
-                  {updateStatusErrorMessage ? <InlineError message={updateStatusErrorMessage} /> : null}
-                  {revokeTokensErrorMessage ? <InlineError message={revokeTokensErrorMessage} /> : null}
-                  {deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
-                  <div className="flex flex-wrap gap-2">
-                    <Button disabled={!canUpdate} type="submit">
-                      {isUpdating ? "Saving..." : "Save user"}
+        <div className="space-y-4">
+          <EntityDetailPanel
+            badge={selectedUser ? <StatusBadge status={selectedUser.status} /> : null}
+            description={selectedUser ? selectedUser.display_name || "No display name configured" : "Select a row to edit account controls."}
+            footer={
+              selectedUser ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={!canUpdate} form={SELECTED_USER_FORM_ID} type="submit">
+                    {isUpdating ? "Saving..." : "Save user"}
+                  </Button>
+                  {selectedUser.status !== "active" ? (
+                    <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(selectedUser.username, "active")} type="button" variant="secondary">
+                      {isUpdatingStatus ? "Updating..." : "Reactivate"}
                     </Button>
-                    {editingUser.status !== "active" ? (
-                      <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(editingUser.username, "active")} type="button" variant="secondary">
-                        {isUpdatingStatus ? "Updating..." : "Reactivate"}
-                      </Button>
-                    ) : (
-                      <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(editingUser.username, "suspended")} type="button" variant="secondary">
-                        {isUpdatingStatus ? "Updating..." : "Suspend"}
-                      </Button>
-                    )}
-                    {editingUser.status !== "deactivated" ? (
-                      <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(editingUser.username, "deactivated")} type="button" variant="secondary">
-                        Deactivate
-                      </Button>
-                    ) : null}
-                    <Button disabled={isRevokingTokens} onClick={() => handleRevokeTokens(editingUser.username)} type="button" variant="secondary">
-                      {isRevokingTokens ? "Revoking..." : "Revoke all API tokens"}
+                  ) : (
+                    <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(selectedUser.username, "suspended")} type="button" variant="secondary">
+                      {isUpdatingStatus ? "Updating..." : "Suspend"}
                     </Button>
-                    <Button disabled={isDeleting} onClick={() => handleDelete(editingUser.username)} type="button" variant="ghost">
-                      {isDeleting ? "Deleting..." : "Delete user"}
+                  )}
+                  {selectedUser.status !== "deactivated" ? (
+                    <Button disabled={isUpdatingStatus} onClick={() => handleStatusChange(selectedUser.username, "deactivated")} type="button" variant="secondary">
+                      Deactivate
                     </Button>
-                  </div>
-                </form>
-              ) : (
-                <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  Select a user to update their role, display name, account status, password, or API-token access.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="h-5 w-5" />
-                <div>
-                  <CardTitle>Status semantics</CardTitle>
-                  <CardDescription>Backend-enforced account controls.</CardDescription>
+                  ) : null}
+                  <Button disabled={isRevokingTokens} onClick={() => handleRevokeTokens(selectedUser.username)} type="button" variant="secondary">
+                    {isRevokingTokens ? "Revoking..." : "Revoke all API tokens"}
+                  </Button>
+                  <Button disabled={isDeleting} onClick={() => handleDelete(selectedUser.username)} type="button" variant="ghost">
+                    {isDeleting ? "Deleting..." : "Delete user"}
+                  </Button>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
-                <p>
-                  <strong className="text-slate-950 dark:text-slate-50">Active:</strong> user can sign in and use personal API tokens.
-                </p>
-                <p>
-                  <strong className="text-slate-950 dark:text-slate-50">Suspended:</strong> temporary block. The account can be reactivated later.
-                </p>
-                <p>
-                  <strong className="text-slate-950 dark:text-slate-50">Deactivated:</strong> closed account state for offboarding or permanent access removal.
-                </p>
-                <p>
-                  <strong className="text-slate-950 dark:text-slate-50">Revoke all API tokens:</strong> disables existing personal tokens without deleting the user.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+              ) : null
+            }
+            title={selectedUser ? selectedUser.username : "Selected user"}
+          >
+            {selectedUser ? (
+              <form className="space-y-4" id={SELECTED_USER_FORM_ID} onSubmit={handleUpdate}>
+                <div className="grid grid-cols-2 gap-3">
+                  <DetailStat label="Role" value={<RoleBadge role={selectedUser.role} />} />
+                  <DetailStat label="Status" value={<StatusBadge status={selectedUser.status} />} />
+                  <DetailStat label="Created" value={formatDate(selectedUser.created_at)} />
+                  <DetailStat label="Updated" value={formatDate(selectedUser.updated_at)} />
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+                  <div className="text-sm font-medium text-slate-950 dark:text-slate-50">Account controls</div>
+                  <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                    Suspended and deactivated users cannot sign in or authenticate with personal API tokens. Token revocation disables existing scripts without deleting the account.
+                  </div>
+                </div>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Username</span>
+                  <Input onChange={(event) => setEditUsername(event.target.value)} value={editUsername} />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Display name</span>
+                  <Input onChange={(event) => setEditDisplayName(event.target.value)} placeholder="Optional display name" value={editDisplayName} />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">New password</span>
+                  <Input onChange={(event) => setEditPassword(event.target.value)} placeholder="Leave empty to keep current password" type="password" value={editPassword} />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Role</span>
+                  <Select value={editRole} onChange={(value) => setEditRole(value as UserRole)} options={USER_ROLES} />
+                </label>
+                {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}
+                {updateStatusErrorMessage ? <InlineError message={updateStatusErrorMessage} /> : null}
+                {revokeTokensErrorMessage ? <InlineError message={revokeTokensErrorMessage} /> : null}
+                {deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
+              </form>
+            ) : (
+              <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                Select a user to update their role, display name, account status, password, or API-token access.
+              </p>
+            )}
+          </EntityDetailPanel>
+
+          <SectionCard
+            actions={<ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-300" />}
+            contentClassName="space-y-3 text-sm text-slate-600 dark:text-slate-300"
+            description="Backend-enforced account controls."
+            title="Status semantics"
+          >
+            <StatusDefinition label="Active" value="User can sign in and use personal API tokens." />
+            <StatusDefinition label="Suspended" value="Temporary block. The account can be reactivated later." />
+            <StatusDefinition label="Deactivated" value="Closed account state for offboarding or permanent access removal." />
+            <StatusDefinition label="Revoke all API tokens" value="Disables existing personal tokens without deleting the user." />
+            <div className="pt-2 text-xs text-slate-500 dark:text-slate-400">Supported statuses: {USER_STATUSES.join(", ")}.</div>
+          </SectionCard>
         </div>
-      </section>
-    </div>
+      </MasterDetailLayout>
+    </ConsolePage>
   );
 }
 
-function StatusBadge({ status }: { status: UserStatus }) {
+function StatusBadge({ children, status }: { children?: string; status: UserStatus }) {
   const className =
     status === "active"
       ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
       : status === "suspended"
         ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
         : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200";
-  return <Badge className={className}>{status}</Badge>;
+  return <Badge className={className}>{children ?? status}</Badge>;
+}
+
+function RoleBadge({ role }: { role: UserRole }) {
+  const className =
+    role === "admin"
+      ? "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+      : role === "moderator"
+        ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200"
+        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+  return <Badge className={className}>{role}</Badge>;
+}
+
+function DetailStat({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-2 min-h-6 text-sm font-medium text-slate-950 dark:text-slate-50">{value}</div>
+    </div>
+  );
+}
+
+function StatusDefinition({ label, value }: { label: string; value: string }) {
+  return (
+    <p>
+      <strong className="text-slate-950 dark:text-slate-50">{label}:</strong> {value}
+    </p>
+  );
+}
+
+function Select({ onChange, options, value }: { onChange: (value: string) => void; options: readonly string[]; value: string }) {
+  return (
+    <select
+      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
+      onChange={(event) => onChange(event.target.value)}
+      value={value}
+    >
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 function InlineError({ message }: { message: string }) {
@@ -431,6 +469,15 @@ function InlineError({ message }: { message: string }) {
       {message}
     </div>
   );
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) {
+    return "Never";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+  }).format(new Date(value));
 }
 
 function capitalize(value: string) {

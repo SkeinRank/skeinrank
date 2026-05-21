@@ -2789,8 +2789,12 @@ describe("App", () => {
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Users" }));
 
+    expect(await screen.findByText("Access management control plane")).toBeInTheDocument();
     expect(await screen.findByText("Governance users")).toBeInTheDocument();
-    expect(await screen.findByText("Admin User")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("Admin User").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText("Status semantics")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("New username"), {
       target: { value: "alex" },
