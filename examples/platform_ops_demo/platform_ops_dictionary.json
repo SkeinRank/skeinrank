@@ -1,0 +1,150 @@
+{
+  "profile_name": "platform_ops",
+  "profile_description": "Demo terminology profile for platform operations, incidents, runbooks, Elasticsearch enrichment, and RAG/search workflows.",
+  "create_profile": true,
+  "mode": "upsert",
+  "terms": [
+    {
+      "canonical_value": "kubernetes",
+      "slot": "technology",
+      "description": "Container orchestration platform used by platform services.",
+      "aliases": [
+        { "value": "k8s", "confidence": 0.99, "notes": "Common incident shorthand." },
+        { "value": "kube", "confidence": 0.94, "notes": "Common engineering shorthand." }
+      ]
+    },
+    {
+      "canonical_value": "postgresql",
+      "slot": "database",
+      "description": "Primary relational database platform.",
+      "aliases": [
+        { "value": "postgres", "confidence": 0.99 },
+        { "value": "pg", "confidence": 0.92, "notes": "Ambiguous outside platform bindings." }
+      ]
+    },
+    {
+      "canonical_value": "elasticsearch",
+      "slot": "search_backend",
+      "description": "Search and enrichment backend.",
+      "aliases": [
+        { "value": "es", "confidence": 0.91 },
+        { "value": "elastic", "confidence": 0.93 }
+      ]
+    },
+    {
+      "canonical_value": "rabbitmq",
+      "slot": "message_broker",
+      "description": "Message broker used by async workers.",
+      "aliases": [
+        { "value": "amqp", "confidence": 0.87 },
+        { "value": "message broker", "confidence": 0.9 }
+      ]
+    },
+    {
+      "canonical_value": "celery",
+      "slot": "worker_runtime",
+      "description": "Async task worker runtime.",
+      "aliases": [
+        { "value": "worker queue", "confidence": 0.86 },
+        { "value": "task worker", "confidence": 0.88 }
+      ]
+    },
+    {
+      "canonical_value": "prometheus",
+      "slot": "observability",
+      "description": "Metrics and alerting system.",
+      "aliases": [
+        { "value": "prom", "confidence": 0.84 },
+        { "value": "prom alerts", "confidence": 0.86 }
+      ]
+    },
+    {
+      "canonical_value": "grafana",
+      "slot": "observability",
+      "description": "Dashboard and incident analysis UI.",
+      "aliases": [
+        { "value": "dashboards", "confidence": 0.78 },
+        { "value": "incident dashboards", "confidence": 0.83 }
+      ]
+    },
+    {
+      "canonical_value": "redis",
+      "slot": "cache",
+      "description": "Cache backend used by APIs.",
+      "aliases": [
+        { "value": "cache layer", "confidence": 0.82 },
+        { "value": "hot keys", "confidence": 0.76 }
+      ]
+    },
+    {
+      "canonical_value": "api-gateway",
+      "slot": "service",
+      "description": "Edge gateway and API routing layer.",
+      "aliases": [
+        { "value": "edge gateway", "confidence": 0.91 },
+        { "value": "gateway", "confidence": 0.82 }
+      ]
+    },
+    {
+      "canonical_value": "payments-api",
+      "slot": "service",
+      "description": "Payments and billing API service.",
+      "aliases": [
+        { "value": "billing api", "confidence": 0.95 },
+        { "value": "payments service", "confidence": 0.92 }
+      ]
+    },
+    {
+      "canonical_value": "project phoenix",
+      "slot": "project",
+      "description": "Demo rollout project used in platform incident documents.",
+      "aliases": [
+        { "value": "phoenix", "confidence": 0.93 },
+        { "value": "phoenix rollout", "confidence": 0.96 }
+      ]
+    },
+    {
+      "canonical_value": "incident",
+      "slot": "workflow",
+      "description": "Production incident or service degradation.",
+      "aliases": [
+        { "value": "outage", "confidence": 0.9 },
+        { "value": "sev", "confidence": 0.86 }
+      ]
+    },
+    {
+      "canonical_value": "runbook",
+      "slot": "document_type",
+      "description": "Operational response document.",
+      "aliases": [
+        { "value": "playbook", "confidence": 0.86 }
+      ]
+    },
+    {
+      "canonical_value": "p95 latency",
+      "slot": "metric",
+      "description": "Tail latency metric used for incident triage.",
+      "aliases": [
+        { "value": "tail latency", "confidence": 0.88 },
+        { "value": "latency p95", "confidence": 0.88 }
+      ]
+    },
+    {
+      "canonical_value": "canary rollout",
+      "slot": "deployment_strategy",
+      "description": "Phased deployment strategy used by platform teams.",
+      "aliases": [
+        { "value": "canary", "confidence": 0.86 },
+        { "value": "phased rollout", "confidence": 0.9 }
+      ]
+    }
+  ],
+  "profile_stop_list": [
+    { "value": "the", "target": "both", "reason": "Generic stop word." },
+    { "value": "and", "target": "both", "reason": "Generic stop word." }
+  ],
+  "global_stop_list": [
+    { "value": "todo", "target": "both", "reason": "Placeholder token." },
+    { "value": "unknown", "target": "both", "reason": "Low-quality placeholder." }
+  ]
+}

@@ -105,6 +105,14 @@ Default local URLs:
 | RabbitMQ Management | `http://127.0.0.1:15672` |
 | PostgreSQL | `127.0.0.1:15432` |
 
+Populate the console with a live preview dataset:
+
+```bash
+make demo-reset
+```
+
+This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates review suggestions, and runs enrichment for the Search Playground/Snapshots screens.
+
 Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md).
 
 ## Documentation
