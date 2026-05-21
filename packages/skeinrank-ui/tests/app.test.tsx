@@ -3569,7 +3569,11 @@ describe("App", () => {
     expect(
       await screen.findByText("Suggestions and approvals"),
     ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Review terminology proposals"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Suggestion workspace")).toBeInTheDocument();
+    expect(screen.getByText("Pending review")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Propose/ })).toHaveAttribute(
       "aria-selected",
       "true",
