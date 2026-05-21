@@ -2217,7 +2217,7 @@ function stubGovernanceApi(options: StubOptions = {}) {
 
 async function openTermsPage() {
   fireEvent.click(await screen.findByRole("button", { name: "Terms" }));
-  await screen.findByText("Terminology control plane");
+  await screen.findByRole("heading", { name: "Terminology control plane" });
 }
 
 async function openSnapshotsPage() {
@@ -2249,14 +2249,18 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "Dashboard" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Welcome to SkeinRank")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Command center for setup, rollout, and runtime health.",
-      ),
+      await screen.findByText("Runtime control center"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Production search context is ready."),
     ).toBeInTheDocument();
     expect(screen.getByText("Setup progress")).toBeInTheDocument();
+    expect(screen.getByText("Pin snapshot")).toBeInTheDocument();
     expect(screen.getByText("Next actions")).toBeInTheDocument();
+    const attentionBadge = screen.getByText("1 attention");
+    expect(attentionBadge).toHaveClass("shrink-0");
+    expect(attentionBadge).toHaveClass("whitespace-nowrap");
     expect(screen.getByText("Ready bindings")).toBeInTheDocument();
 
     await openTermsPage();
@@ -2269,7 +2273,9 @@ describe("App", () => {
       expect(screen.getAllByText("kubernetes").length).toBeGreaterThan(0);
     });
     expect(screen.getAllByText("k8s").length).toBeGreaterThan(0);
-    expect(screen.getByText("Terminology workspace")).toBeInTheDocument();
+    expect(
+      screen.getByText("Governed terminology workspace"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Terms/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Profiles/ })).toBeInTheDocument();
     expect(screen.getByText("MVP")).toBeInTheDocument();
@@ -2283,15 +2289,19 @@ describe("App", () => {
 
     await openSnapshotsPage();
 
-    expect(await screen.findByText("Runtime audit")).toBeInTheDocument();
+    expect(await screen.findByText("Snapshot release cockpit")).toBeInTheDocument();
+    expect(screen.getByText("Runtime audit")).toBeInTheDocument();
     expect(screen.getByText("Runtime bindings")).toBeInTheDocument();
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Profile drift")).toBeInTheDocument();
     expect(screen.getByText("Recent snapshot events")).toBeInTheDocument();
     expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
     expect(screen.getAllByText("ml_platform@old456").length).toBeGreaterThan(0);
     expect(screen.getByText("Pending: ml_platform@new789")).toBeInTheDocument();
-    expect(screen.getByText("profile changed")).toBeInTheDocument();
-    expect(screen.getByText("ml docs needs runtime attention")).toBeInTheDocument();
+    expect(screen.getAllByText("profile changed").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("ml docs needs runtime attention"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("Job #101").length).toBeGreaterThan(0);
     expect(screen.getAllByText("rollback available").length).toBeGreaterThan(0);
 
@@ -2313,8 +2323,13 @@ describe("App", () => {
     expect(
       await screen.findByText("Runtime search playground"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Runtime query lab")).toBeInTheDocument();
+    expect(screen.getByText("Binding-aware query lab")).toBeInTheDocument();
+    expect(screen.getByText("Canonical values")).toBeInTheDocument();
+    expect(screen.getByText("Runtime output")).toBeInTheDocument();
     expect(screen.getByText("Result preview")).toBeInTheDocument();
     expect(screen.getByText("Binding context")).toBeInTheDocument();
+    expect(screen.getByText("Runtime checks")).toBeInTheDocument();
     expect(screen.getByText("default_it → docs")).toBeInTheDocument();
     expect(
       screen.getByRole("option", {
@@ -2344,7 +2359,11 @@ describe("App", () => {
     });
 
     expect(await screen.findByText("Query plan")).toBeInTheDocument();
-    expect(screen.getByText("Result-first view of how SkeinRank rewrites the query for this binding.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Result-first view of how SkeinRank rewrites the query for this binding.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("kubernetes postgresql timeout"),
     ).toBeInTheDocument();
@@ -2522,6 +2541,8 @@ describe("App", () => {
     await openTermsPage();
     await screen.findByText("default_it");
 
+    fireEvent.click(screen.getByRole("button", { name: "Add term" }));
+
     fireEvent.change(screen.getByLabelText("Canonical value"), {
       target: { value: "postgresql" },
     });
@@ -2531,7 +2552,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "PostgreSQL database" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add term" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create term" }));
 
     await waitFor(() => {
       expect(screen.getAllByText("postgresql").length).toBeGreaterThan(0);
@@ -2775,8 +2796,12 @@ describe("App", () => {
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Users" }));
 
+    expect(await screen.findByText("Access management control plane")).toBeInTheDocument();
     expect(await screen.findByText("Governance users")).toBeInTheDocument();
-    expect(await screen.findByText("Admin User")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("Admin User").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText("Status semantics")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("New username"), {
       target: { value: "alex" },
@@ -2889,6 +2914,8 @@ describe("App", () => {
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
 
+    expect(await screen.findByText("Stop-list governance workspace")).toBeInTheDocument();
+    expect(screen.getByText("Active blocks")).toBeInTheDocument();
     expect(await screen.findByText("Global stop list")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("unknown").length).toBeGreaterThan(0);
@@ -3013,6 +3040,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
     fireEvent.click(await screen.findByRole("tab", { name: /Profile/ }));
 
+    expect(await screen.findByText("Stop-list governance workspace")).toBeInTheDocument();
     expect(await screen.findByText("Profile scope")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("service").length).toBeGreaterThan(0);
@@ -3135,8 +3163,11 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
     expect(
-      await screen.findByText("Elasticsearch bindings"),
+      await screen.findByText("Elasticsearch runtime bindings"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Integrations cockpit")).toBeInTheDocument();
+    expect(screen.getByText("Binding inventory")).toBeInTheDocument();
+    expect(screen.getByText("Elasticsearch bindings")).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
     expect(screen.queryByText("Binding setup flow")).not.toBeInTheDocument();
     expect(screen.queryByText("Binding patterns")).not.toBeInTheDocument();
@@ -3552,7 +3583,11 @@ describe("App", () => {
     expect(
       await screen.findByText("Suggestions and approvals"),
     ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Review terminology proposals"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Suggestion workspace")).toBeInTheDocument();
+    expect(screen.getByText("Pending review")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Propose/ })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -3618,8 +3653,12 @@ describe("App", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByText("Suggestion queued for review")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "View in Review queue" }));
+    expect(
+      screen.getByText("Suggestion queued for review"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "View in Review queue" }),
+    );
     expect(screen.getByRole("tab", { name: /Review queue/ })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -3866,13 +3905,15 @@ describe("App", () => {
     await openTermsPage();
     await screen.findByText("default_it");
 
+    fireEvent.click(screen.getByRole("button", { name: "Add term" }));
+
     fireEvent.change(screen.getByLabelText("Canonical value"), {
       target: { value: "kubernetes" },
     });
     fireEvent.change(screen.getByLabelText("Slot"), {
       target: { value: "TOOL" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add term" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create term" }));
 
     expect(
       await screen.findByText(
@@ -3889,6 +3930,8 @@ describe("App", () => {
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
+    expect(await screen.findByText("API security control plane")).toBeInTheDocument();
+    expect(screen.getByText("Issue personal token")).toBeInTheDocument();
     expect(await screen.findByText("My API tokens")).toBeInTheDocument();
     expect(
       await screen.findByText("Existing Jupyter token"),
@@ -3944,6 +3987,8 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /Service accounts/ }));
 
+    expect(await screen.findByText("Service account identities")).toBeInTheDocument();
+    expect(screen.getByText("Automation details")).toBeInTheDocument();
     expect(await screen.findByText("Migration Bot")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Service account name"), {

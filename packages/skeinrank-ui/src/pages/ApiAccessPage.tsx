@@ -1,15 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Bot,
+  Fingerprint,
+  KeyRound,
+  LockKeyhole,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
+import {
+  ConsolePage,
+  EntityDetailPanel,
+  MasterDetailLayout,
+  MetricPill,
+  SectionCard,
+  WorkspaceHeader,
+} from "../components/layout/ConsolePrimitives";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import {
   createPersonalApiToken,
@@ -52,12 +61,12 @@ const apiAccessSections: Array<{
   {
     id: "personal",
     label: "Personal tokens",
-    description: "Bearer tokens for your own CLI, notebooks, and local scripts.",
+    description: "Human-owned Bearer tokens for CLI, notebooks, and scripts.",
   },
   {
     id: "service",
     label: "Service accounts",
-    description: "Admin-managed bot identities for CI and scheduled automation.",
+    description: "Bot identities for CI imports and scheduled automation.",
   },
 ];
 
@@ -218,6 +227,15 @@ export function ApiAccessPage({ currentUser }: { currentUser: AuthUser }) {
     },
   });
 
+  const personalTokens = personalTokensQuery.data ?? [];
+  const serviceAccounts = serviceAccountsQuery.data ?? [];
+  const serviceTokens = serviceAccountTokensQuery.data ?? [];
+  const activePersonalTokens = countActiveTokens(personalTokens);
+  const activeServiceAccounts = serviceAccounts.filter(
+    (account) => account.is_active,
+  ).length;
+  const activeServiceTokens = countActiveTokens(serviceTokens);
+
   async function handleCreatePersonalToken(payload: ApiTokenCreateRequest) {
     await createPersonalTokenMutation.mutateAsync(payload);
   }
@@ -274,61 +292,57 @@ export function ApiAccessPage({ currentUser }: { currentUser: AuthUser }) {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">
-              API access workspace
-            </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Create human-owned tokens or manage automation identities.
-            </p>
-          </div>
-          <div
-            aria-label="API access sections"
-            className="inline-flex w-full rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-950 lg:w-auto"
-            role="tablist"
-          >
-            {apiAccessSections.map((section) => (
-              <button
-                aria-selected={activeSection === section.id}
-                className={`flex-1 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors lg:min-w-44 ${
-                  activeSection === section.id
-                    ? "bg-white text-slate-950 shadow-sm dark:bg-slate-800 dark:text-slate-50"
-                    : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-50"
-                }`}
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                role="tab"
-                type="button"
-              >
-                <span className="block">{section.label}</span>
-                <span className="mt-0.5 block text-xs font-normal text-slate-500 dark:text-slate-400">
-                  {section.id === "service" && !canManageServiceAccounts
-                    ? "Admin only"
-                    : section.description}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-3">
-          <AccessMetric
-            label="My active tokens"
-            value={String(countActiveTokens(personalTokensQuery.data ?? []))}
+    <ConsolePage>
+      <WorkspaceHeader
+        actions={
+          <ApiAccessTabs
+            activeSection={activeSection}
+            canManageServiceAccounts={canManageServiceAccounts}
+            onChange={setActiveSection}
           />
-          <AccessMetric label="Migration scopes" value="3" />
-          <AccessMetric
-            label="Service accounts"
-            value={
-              canManageServiceAccounts
-                ? String(serviceAccountsQuery.data?.length ?? 0)
-                : "Admin"
-            }
-          />
-        </div>
-      </section>
+        }
+        description="Issue scoped tokens, manage automation identities, and keep migration access separate from human reviewer sessions."
+        eyebrow="Security workspace"
+        meta={
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricPill
+              helper="Human-owned active keys"
+              icon={KeyRound}
+              label="Personal tokens"
+              tone={activePersonalTokens > 0 ? "emerald" : "slate"}
+              value={activePersonalTokens}
+            />
+            <MetricPill
+              helper="Validate, apply, export"
+              icon={ShieldCheck}
+              label="Migration scopes"
+              tone="cyan"
+              value={migrationScopes.length}
+            />
+            <MetricPill
+              helper={
+                canManageServiceAccounts
+                  ? "Active automation identities"
+                  : "Admin-only automation"
+              }
+              icon={Bot}
+              label="Service accounts"
+              tone={canManageServiceAccounts ? "violet" : "amber"}
+              value={
+                canManageServiceAccounts ? activeServiceAccounts : "Admin"
+              }
+            />
+            <MetricPill
+              helper="Current selected service account"
+              icon={Fingerprint}
+              label="Service tokens"
+              tone={activeServiceTokens > 0 ? "emerald" : "slate"}
+              value={canManageServiceAccounts ? activeServiceTokens : "—"}
+            />
+          </div>
+        }
+        title="API security control plane"
+      />
 
       {copyOnceToken ? (
         <CopyOnceTokenPanel
@@ -338,131 +352,154 @@ export function ApiAccessPage({ currentUser }: { currentUser: AuthUser }) {
       ) : null}
 
       {activeSection === "personal" ? (
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>My API tokens</CardTitle>
-              <CardDescription>
-                Create bearer tokens for your own notebooks, CLI scripts, and
-                migration workflows. Tokens are shown only once.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <TokenCreateForm
-                defaultName="Jupyter migration token"
-                errorMessage={errorMessage(createPersonalTokenMutation.error)}
-                isSubmitting={createPersonalTokenMutation.isPending}
-                onSubmit={handleCreatePersonalToken}
-                submitLabel="Create personal token"
-              />
-              <TokenTable
-                isLoading={personalTokensQuery.isLoading}
-                onRevoke={handleRevokePersonalToken}
-                revokeDisabled={revokePersonalTokenMutation.isPending}
-                tokens={personalTokensQuery.data ?? []}
-              />
-            </CardContent>
-          </Card>
+        <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
+          <SectionCard
+            actions={
+              <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+                {activePersonalTokens} active
+              </Badge>
+            }
+            contentClassName="space-y-4"
+            description="Monitor human-owned Bearer tokens used by notebooks, local CLI commands, and migration workflows."
+            title="My API tokens"
+          >
+            <TokenTable
+              isLoading={personalTokensQuery.isLoading}
+              onRevoke={handleRevokePersonalToken}
+              revokeDisabled={revokePersonalTokenMutation.isPending}
+              tokens={personalTokens}
+            />
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Token usage</CardTitle>
-              <CardDescription>
-                Copy the token once, then use it with the migration CLI or direct
-                HTTP requests.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm text-slate-600 dark:text-slate-300">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
-                export SKEINRANK_API_TOKEN=&quot;sk_pat_...&quot;
-                <br />
-                poetry run skeinrank-migrate validate dictionary.json
+          <EntityDetailPanel
+            badge={<Badge>Human access</Badge>}
+            description="Create a scoped token and copy it once into your local environment."
+            footer={
+              <div className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                Tokens inherit your role permissions. Scopes limit what the token
+                can do, but they do not bypass governance roles.
               </div>
-              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Available scopes
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {migrationScopes.map((scope) => (
-                    <Badge key={scope}>{scope}</Badge>
-                  ))}
-                </div>
-              </div>
-              <p>
-                Scopes limit what the token can do. Your user role is still
-                checked by the API, so write scopes do not bypass governance
-                roles.
-              </p>
-            </CardContent>
-          </Card>
-        </section>
+            }
+            title="Issue personal token"
+          >
+            <TokenCreateForm
+              defaultName="Jupyter migration token"
+              errorMessage={errorMessage(createPersonalTokenMutation.error)}
+              isSubmitting={createPersonalTokenMutation.isPending}
+              onSubmit={handleCreatePersonalToken}
+              submitLabel="Create personal token"
+            />
+            <TokenUsagePanel />
+          </EntityDetailPanel>
+        </MasterDetailLayout>
       ) : null}
 
       {activeSection === "service" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Service accounts</CardTitle>
-            <CardDescription>
-              Bot identities for CI imports, scheduled sync jobs, and dictionary
-              migration automation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {canManageServiceAccounts ? (
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,480px)]">
-                <div className="space-y-5">
-                  <ServiceAccountCreateForm
-                    errorMessage={errorMessage(
-                      createServiceAccountMutation.error,
-                    )}
-                    isSubmitting={createServiceAccountMutation.isPending}
-                    onSubmit={handleCreateServiceAccount}
-                  />
-                  <ServiceAccountsTable
-                    accounts={serviceAccountsQuery.data ?? []}
-                    isLoading={serviceAccountsQuery.isLoading}
-                    onSelect={setSelectedServiceAccountName}
-                    selectedName={selectedServiceAccountName}
-                  />
-                </div>
-                <ServiceAccountDetailsPanel
-                  account={selectedServiceAccount}
-                  createErrorMessage={errorMessage(
-                    createServiceTokenMutation.error,
-                  )}
-                  isCreatingToken={createServiceTokenMutation.isPending}
-                  isToggling={updateServiceAccountMutation.isPending}
-                  isRevokingToken={revokeServiceTokenMutation.isPending}
-                  onCreateToken={handleCreateServiceToken}
-                  onRevokeToken={handleRevokeServiceToken}
-                  onToggleAccount={handleToggleServiceAccount}
-                  tokens={serviceAccountTokensQuery.data ?? []}
-                  tokensLoading={serviceAccountTokensQuery.isLoading}
-                />
-              </div>
-            ) : (
+        <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_480px]">
+          {canManageServiceAccounts ? (
+            <SectionCard
+              actions={
+                <Badge className="bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-200">
+                  {serviceAccounts.length} identities
+                </Badge>
+              }
+              contentClassName="space-y-5"
+              description="Create and select bot identities for CI imports, scheduled sync jobs, and governance automation."
+              title="Service account identities"
+            >
+              <ServiceAccountCreateForm
+                errorMessage={errorMessage(createServiceAccountMutation.error)}
+                isSubmitting={createServiceAccountMutation.isPending}
+                onSubmit={handleCreateServiceAccount}
+              />
+              <ServiceAccountsTable
+                accounts={serviceAccounts}
+                isLoading={serviceAccountsQuery.isLoading}
+                onSelect={setSelectedServiceAccountName}
+                selectedName={selectedServiceAccountName}
+              />
+            </SectionCard>
+          ) : (
+            <SectionCard
+              description="Ask an administrator to create bot identities for CI or scheduled automation."
+              title="Service accounts"
+            >
               <div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 Service accounts are visible to admins only. You can still create
                 and revoke your own personal API tokens from the Personal tokens
                 section.
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </SectionCard>
+          )}
+
+          {canManageServiceAccounts ? (
+            <ServiceAccountDetailsPanel
+              account={selectedServiceAccount}
+              createErrorMessage={errorMessage(createServiceTokenMutation.error)}
+              isCreatingToken={createServiceTokenMutation.isPending}
+              isToggling={updateServiceAccountMutation.isPending}
+              isRevokingToken={revokeServiceTokenMutation.isPending}
+              onCreateToken={handleCreateServiceToken}
+              onRevokeToken={handleRevokeServiceToken}
+              onToggleAccount={handleToggleServiceAccount}
+              tokens={serviceTokens}
+              tokensLoading={serviceAccountTokensQuery.isLoading}
+            />
+          ) : (
+            <EntityDetailPanel
+              badge={<Badge>Read only</Badge>}
+              description="Automation keys require administrator access."
+              title="Admin-managed automation"
+            >
+              <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                Personal tokens are enough for local validation and export
+                workflows. Service accounts are intended for CI, scheduled sync,
+                and agent-owned migration jobs.
+              </p>
+            </EntityDetailPanel>
+          )}
+        </MasterDetailLayout>
       ) : null}
-    </div>
+    </ConsolePage>
   );
 }
 
-function AccessMetric({ label, value }: { label: string; value: string }) {
+function ApiAccessTabs({
+  activeSection,
+  canManageServiceAccounts,
+  onChange,
+}: {
+  activeSection: ApiAccessSection;
+  canManageServiceAccounts: boolean;
+  onChange: (section: ApiAccessSection) => void;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-50">
-        {value}
-      </div>
+    <div
+      aria-label="API access sections"
+      className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-100/80 p-1 dark:border-slate-800 dark:bg-slate-900/80 lg:w-auto"
+      role="tablist"
+    >
+      {apiAccessSections.map((section) => (
+        <button
+          aria-selected={activeSection === section.id}
+          className={`min-w-0 flex-1 rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors lg:min-w-44 ${
+            activeSection === section.id
+              ? "bg-white text-slate-950 shadow-sm dark:bg-slate-800 dark:text-slate-50"
+              : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-50"
+          }`}
+          key={section.id}
+          onClick={() => onChange(section.id)}
+          role="tab"
+          type="button"
+        >
+          <span className="block truncate">{section.label}</span>
+          <span className="mt-0.5 block truncate text-xs font-normal text-slate-500 dark:text-slate-400">
+            {section.id === "service" && !canManageServiceAccounts
+              ? "Admin only"
+              : section.description}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -512,10 +549,10 @@ function TokenCreateForm({
 
   return (
     <form
-      className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"
+      className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50"
       onSubmit={handleSubmit}
     >
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
           Token name
           <Input
@@ -548,7 +585,11 @@ function TokenCreateForm({
         </div>
       ) : null}
       {errorMessage ? <ErrorMessage message={errorMessage} /> : null}
-      <Button disabled={Boolean(disabledReason) || isSubmitting || !name.trim()} type="submit">
+      <Button
+        className="w-full justify-center"
+        disabled={Boolean(disabledReason) || isSubmitting || !name.trim()}
+        type="submit"
+      >
         {isSubmitting ? "Creating..." : submitLabel}
       </Button>
     </form>
@@ -575,18 +616,18 @@ function ScopePicker({
       <legend className="text-sm font-medium text-slate-700 dark:text-slate-300">
         Scopes
       </legend>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
         {migrationScopes.map((scope) => (
           <label
             key={scope}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+            className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
           >
             <input
               checked={selectedScopes.includes(scope)}
               onChange={() => toggleScope(scope)}
               type="checkbox"
             />
-            {scope}
+            <span className="truncate">{scope}</span>
           </label>
         ))}
       </div>
@@ -606,68 +647,92 @@ function TokenTable({
   tokens: ApiToken[];
 }) {
   if (isLoading) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        Loading API tokens...
-      </div>
-    );
+    return <EmptyState message="Loading API tokens..." />;
   }
   if (tokens.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        No API tokens yet.
-      </div>
-    );
+    return <EmptyState message="No API tokens yet." />;
   }
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
-      <table className="w-full text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-3">Name</th>
-            <th className="px-4 py-3">Prefix</th>
-            <th className="px-4 py-3">Scopes</th>
-            <th className="px-4 py-3">Expires</th>
-            <th className="px-4 py-3">Last used</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-          {tokens.map((token) => (
-            <tr key={token.id}>
-              <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
-                {token.name}
-              </td>
-              <td className="px-4 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">
-                {token.token_prefix}
-              </td>
-              <td className="px-4 py-3">
-                <ScopeBadges scopes={token.scopes} />
-              </td>
-              <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                {formatDate(token.expires_at)}
-              </td>
-              <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                {formatDate(token.last_used_at)}
-              </td>
-              <td className="px-4 py-3">
-                <TokenStatusBadge token={token} />
-              </td>
-              <td className="px-4 py-3">
-                <Button
-                  disabled={revokeDisabled || isTokenInactive(token)}
-                  onClick={() => onRevoke(token.id)}
-                  type="button"
-                  variant="secondary"
-                >
-                  Revoke
-                </Button>
-              </td>
+      <div className="max-h-[520px] overflow-auto">
+        <table className="w-full min-w-[840px] text-left text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Prefix</th>
+              <th className="px-4 py-3">Scopes</th>
+              <th className="px-4 py-3">Expires</th>
+              <th className="px-4 py-3">Last used</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {tokens.map((token) => (
+              <tr
+                className="bg-white transition-colors hover:bg-slate-50 dark:bg-slate-950 dark:hover:bg-slate-900"
+                key={token.id}
+              >
+                <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
+                  {token.name}
+                  <div className="mt-1 text-xs font-normal text-slate-500 dark:text-slate-400">
+                    {token.owner_type === "service_account"
+                      ? `service:${token.owner_name}`
+                      : token.owner_name}
+                  </div>
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">
+                  {token.token_prefix}
+                </td>
+                <td className="px-4 py-3">
+                  <ScopeBadges scopes={token.scopes} />
+                </td>
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                  {formatDate(token.expires_at)}
+                </td>
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                  {formatDate(token.last_used_at)}
+                </td>
+                <td className="px-4 py-3">
+                  <TokenStatusBadge token={token} />
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Button
+                    disabled={revokeDisabled || isTokenInactive(token)}
+                    onClick={() => onRevoke(token.id)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Revoke
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function TokenUsagePanel() {
+  return (
+    <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300">
+      <div className="rounded-xl border border-slate-200 bg-slate-950 p-4 font-mono text-xs leading-6 text-slate-100 dark:border-slate-800">
+        export SKEINRANK_API_TOKEN=&quot;sk_pat_...&quot;
+        <br />
+        poetry run skeinrank-migrate validate dictionary.json
+      </div>
+      <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Available scopes
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {migrationScopes.map((scope) => (
+            <Badge key={scope}>{scope}</Badge>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -709,7 +774,7 @@ function ServiceAccountCreateForm({
 
   return (
     <form
-      className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"
+      className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50"
       onSubmit={handleSubmit}
     >
       <div className="grid gap-3 md:grid-cols-2">
@@ -778,65 +843,59 @@ function ServiceAccountsTable({
   selectedName: string | null;
 }) {
   if (isLoading) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        Loading service accounts...
-      </div>
-    );
+    return <EmptyState message="Loading service accounts..." />;
   }
   if (accounts.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        No service accounts yet.
-      </div>
-    );
+    return <EmptyState message="No service accounts yet." />;
   }
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
-      <table className="w-full text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-3">Account</th>
-            <th className="px-4 py-3">Role</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Last used</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-          {accounts.map((account) => (
-            <tr
-              key={account.id}
-              className={
-                selectedName === account.name
-                  ? "bg-slate-50 dark:bg-slate-950"
-                  : undefined
-              }
-            >
-              <td className="px-4 py-3">
-                <button
-                  className="text-left font-medium text-slate-900 hover:underline dark:text-slate-100"
-                  onClick={() => onSelect(account.name)}
-                  type="button"
-                >
-                  {account.display_name || account.name}
-                </button>
-                <div className="text-xs text-slate-500 dark:text-slate-400">
-                  {account.name}
-                </div>
-              </td>
-              <td className="px-4 py-3">
-                <Badge>{account.role}</Badge>
-              </td>
-              <td className="px-4 py-3">
-                <ServiceAccountStatusBadge account={account} />
-              </td>
-              <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                {formatDate(account.last_used_at)}
-              </td>
+      <div className="max-h-[520px] overflow-auto">
+        <table className="w-full min-w-[680px] text-left text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-3">Account</th>
+              <th className="px-4 py-3">Role</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Last used</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {accounts.map((account) => (
+              <tr
+                key={account.id}
+                className={
+                  selectedName === account.name
+                    ? "bg-cyan-50/60 dark:bg-cyan-500/10"
+                    : "bg-white hover:bg-slate-50 dark:bg-slate-950 dark:hover:bg-slate-900"
+                }
+              >
+                <td className="px-4 py-3">
+                  <button
+                    className="text-left font-medium text-slate-900 hover:underline dark:text-slate-100"
+                    onClick={() => onSelect(account.name)}
+                    type="button"
+                  >
+                    {account.display_name || account.name}
+                  </button>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {account.name}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <Badge>{account.role}</Badge>
+                </td>
+                <td className="px-4 py-3">
+                  <ServiceAccountStatusBadge account={account} />
+                </td>
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                  {formatDate(account.last_used_at)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -866,28 +925,22 @@ function ServiceAccountDetailsPanel({
 }) {
   if (!account) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        Select or create a service account to manage its tokens.
-      </div>
+      <EntityDetailPanel
+        badge={<Badge>Empty</Badge>}
+        description="Select a service account to issue scoped automation tokens."
+        title="Automation details"
+      >
+        <EmptyState message="Select or create a service account to manage its tokens." />
+      </EntityDetailPanel>
     );
   }
   return (
-    <div className="space-y-5 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-slate-950 dark:text-slate-50">
-            {account.display_name || account.name}
-          </h3>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {account.description || "No description."}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Badge>{account.name}</Badge>
-            <Badge>{account.role}</Badge>
-            <ServiceAccountStatusBadge account={account} />
-          </div>
-        </div>
+    <EntityDetailPanel
+      badge={<ServiceAccountStatusBadge account={account} />}
+      description={account.description || "No description."}
+      footer={
         <Button
+          className="w-full justify-center"
           disabled={isToggling}
           onClick={() => onToggleAccount(account)}
           type="button"
@@ -897,35 +950,105 @@ function ServiceAccountDetailsPanel({
             ? "Suspend service account"
             : "Reactivate service account"}
         </Button>
+      }
+      title={account.display_name || account.name}
+    >
+      <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        <DetailStat label="Account" value={account.name} />
+        <DetailStat label="Role" value={account.role} />
+        <DetailStat label="Last used" value={formatDate(account.last_used_at)} />
+        <DetailStat label="Active tokens" value={countActiveTokens(tokens)} />
       </div>
 
-      <div>
-        <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-          Create service token
-        </h4>
-        <div className="mt-3">
-          <TokenCreateForm
-            defaultName="CI import token"
-            disabledReason={account.is_active ? null : "Reactivate this service account before creating new tokens."}
-            errorMessage={createErrorMessage}
-            isSubmitting={isCreatingToken}
-            onSubmit={onCreateToken}
-            submitLabel="Create service token"
-          />
+      <div className="space-y-3">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+            Create service token
+          </h4>
+          <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            Issue a one-time visible token for this bot identity.
+          </p>
         </div>
+        <TokenCreateForm
+          defaultName="CI import token"
+          disabledReason={
+            account.is_active
+              ? null
+              : "Reactivate this service account before creating new tokens."
+          }
+          errorMessage={createErrorMessage}
+          isSubmitting={isCreatingToken}
+          onSubmit={onCreateToken}
+          submitLabel="Create service token"
+        />
       </div>
 
-      <div>
-        <h4 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
           Service account tokens
         </h4>
-        <TokenTable
+        <TokenCards
           isLoading={tokensLoading}
           onRevoke={onRevokeToken}
           revokeDisabled={isRevokingToken}
           tokens={tokens}
         />
       </div>
+    </EntityDetailPanel>
+  );
+}
+
+function TokenCards({
+  isLoading,
+  onRevoke,
+  revokeDisabled,
+  tokens,
+}: {
+  isLoading: boolean;
+  onRevoke: (tokenId: number) => void;
+  revokeDisabled: boolean;
+  tokens: ApiToken[];
+}) {
+  if (isLoading) {
+    return <EmptyState message="Loading service account tokens..." />;
+  }
+  if (tokens.length === 0) {
+    return <EmptyState message="No service account tokens yet." />;
+  }
+  return (
+    <div className="space-y-2">
+      {tokens.map((token) => (
+        <div
+          className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/50"
+          key={token.id}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {token.name}
+              </div>
+              <div className="mt-1 font-mono text-xs text-slate-500 dark:text-slate-400">
+                {token.token_prefix}
+              </div>
+            </div>
+            <TokenStatusBadge token={token} />
+          </div>
+          <div className="mt-3">
+            <ScopeBadges scopes={token.scopes} />
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+            <span>Expires {formatDate(token.expires_at)}</span>
+            <Button
+              disabled={revokeDisabled || isTokenInactive(token)}
+              onClick={() => onRevoke(token.id)}
+              type="button"
+              variant="secondary"
+            >
+              Revoke
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -944,17 +1067,14 @@ function CopyOnceTokenPanel({
   }
 
   return (
-    <Card className="border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30">
-      <CardHeader>
-        <CardTitle>Copy this API token now</CardTitle>
-        <CardDescription>
-          This token is shown only once. Store it securely before closing this
-          panel.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <SectionCard
+      className="border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30"
+      description="This token is shown only once. Store it securely before closing this panel."
+      title="Copy this API token now"
+    >
+      <div className="space-y-3">
         <div
-          className="rounded-xl border border-amber-200 bg-white p-3 font-mono text-sm text-amber-950 dark:border-amber-900/60 dark:bg-slate-950 dark:text-amber-100"
+          className="break-all rounded-xl border border-amber-200 bg-white p-3 font-mono text-sm text-amber-950 dark:border-amber-900/60 dark:bg-slate-950 dark:text-amber-100"
           data-testid="copy-once-token"
         >
           {token.access_token}
@@ -967,8 +1087,29 @@ function CopyOnceTokenPanel({
             I have saved it
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SectionCard>
+  );
+}
+
+function DetailStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
+      <div className="mt-1 truncate font-medium text-slate-950 dark:text-slate-50">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+      {message}
+    </div>
   );
 }
 

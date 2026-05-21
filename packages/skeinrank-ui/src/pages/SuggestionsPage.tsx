@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Search, XCircle } from "lucide-react";
+import { CheckCircle, GitPullRequest, ListChecks, Search, ShieldCheck, Sparkles, XCircle } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { EvidenceDocumentsList } from "../components/EvidenceDocumentsList";
@@ -13,6 +13,14 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import {
+  ConsolePage,
+  EntityDetailPanel,
+  MasterDetailLayout,
+  MetricPill,
+  SectionCard,
+  WorkspaceHeader,
+} from "../components/layout/ConsolePrimitives";
 import {
   approveSuggestion,
   createSuggestion,
@@ -305,40 +313,102 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
     });
   }
 
-  const suggestionsCount = suggestionsQuery.data?.length ?? 0;
+  const suggestions = suggestionsQuery.data ?? [];
+  const suggestionsCount = suggestions.length;
   const selectedProfileLabel = selectedProfile ?? "No profile";
+  const evidenceSnapshotCount = suggestions.filter(
+    (suggestion) => suggestion.evidence_snapshot,
+  ).length;
+  const pendingCount = suggestions.filter(
+    (suggestion) => suggestion.status === "pending",
+  ).length;
+  const reviewReadinessLabel = selectedSuggestion?.evidence_snapshot
+    ? "Evidence ready"
+    : selectedSuggestion
+      ? "Evidence needed"
+      : "Select suggestion";
+
+  const handleSelectProfile = (profileName: string) => {
+    setSelectedProfile(profileName);
+    setSelectedSuggestionId(null);
+    setCreatedSuggestion(null);
+    createSuggestionMutation.reset();
+    approveSuggestionMutation.reset();
+    rejectSuggestionMutation.reset();
+    refreshEvidenceMutation.reset();
+  };
+
+  const handleSetStatusFilter = (status: SuggestionStatus | "all") => {
+    setStatusFilter(status);
+    setSelectedSuggestionId(null);
+  };
+
+  const handleSelectSuggestion = (suggestion: GovernanceSuggestion) => {
+    setSelectedSuggestionId(suggestion.id);
+    approveSuggestionMutation.reset();
+    rejectSuggestionMutation.reset();
+    refreshEvidenceMutation.reset();
+  };
 
   return (
-    <div className="space-y-6">
-      <SuggestionsSectionTabs
-        activeSection={activeSection}
-        onSelectSection={setActiveSection}
-        selectedProfile={selectedProfileLabel}
-        suggestionsCount={suggestionsCount}
+    <ConsolePage className="space-y-4">
+      <WorkspaceHeader
+        actions={
+          <SuggestionsSectionTabs
+            activeSection={activeSection}
+            onSelectSection={setActiveSection}
+            selectedProfile={selectedProfileLabel}
+            suggestionsCount={suggestionsCount}
+          />
+        }
+        description="Propose terminology changes, preserve evidence, and review what should become governed runtime context."
+        eyebrow="Suggestion workspace"
+        meta={
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricPill
+              helper={selectedProfileLabel}
+              icon={GitPullRequest}
+              label="Visible proposals"
+              tone={suggestionsCount > 0 ? "cyan" : "slate"}
+              value={suggestionsCount}
+            />
+            <MetricPill
+              helper={statusFilter === "all" ? "All statuses" : `${statusFilter} filter`}
+              icon={ListChecks}
+              label="Pending review"
+              tone={pendingCount > 0 ? "amber" : "emerald"}
+              value={pendingCount}
+            />
+            <MetricPill
+              helper="Saved Elasticsearch snapshots"
+              icon={ShieldCheck}
+              label="Evidence"
+              tone={evidenceSnapshotCount > 0 ? "emerald" : "slate"}
+              value={evidenceSnapshotCount}
+            />
+            <MetricPill
+              helper={selectedSuggestion ? suggestionDisplayValue(selectedSuggestion) : "No active selection"}
+              icon={Sparkles}
+              label="Review state"
+              tone={selectedSuggestion?.evidence_snapshot ? "emerald" : selectedSuggestion ? "amber" : "slate"}
+              value={reviewReadinessLabel}
+            />
+          </div>
+        }
+        title="Review terminology proposals"
       />
 
       {activeSection === "propose" ? (
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-6">
+        <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
+          <div className="space-y-4">
             <SuggestionsToolbar
               description="Choose the terminology namespace for the proposal."
               isLoading={profilesQuery.isLoading}
               loadErrorMessage={
                 profilesQuery.isError ? profilesQuery.error.message : null
               }
-              onSelectProfile={(profileName) => {
-                setSelectedProfile(profileName);
-                setSelectedSuggestionId(null);
-                setCreatedSuggestion(null);
-                createSuggestionMutation.reset();
-                approveSuggestionMutation.reset();
-                rejectSuggestionMutation.reset();
-                refreshEvidenceMutation.reset();
-              }}
-              onSetStatusFilter={(status) => {
-                setStatusFilter(status);
-                setSelectedSuggestionId(null);
-              }}
+              onSelectProfile={handleSelectProfile}
+              onSetStatusFilter={handleSetStatusFilter}
               profiles={profilesQuery.data ?? []}
               selectedProfile={selectedProfile}
               showStatusFilter={false}
@@ -375,43 +445,29 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
             />
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Proposal workflow</CardTitle>
-              <CardDescription>
-                Create a candidate change without mutating active terminology.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+          <SectionCard
+            description="A human-safe path from proposed terminology to governed runtime context."
+            title="Proposal workflow"
+          >
+            <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
               <WorkflowStep number="1" title="Pick a profile" />
               <WorkflowStep number="2" title="Propose an alias or canonical term" />
               <WorkflowStep number="3" title="Moderator reviews evidence" />
               <WorkflowStep number="4" title="Approved changes update Terms" />
-            </CardContent>
-          </Card>
-        </section>
+            </div>
+          </SectionCard>
+        </MasterDetailLayout>
       ) : (
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="space-y-6">
+        <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
+          <div className="space-y-4">
             <SuggestionsToolbar
               description="Filter proposals that need review or audit already reviewed changes."
               isLoading={profilesQuery.isLoading}
               loadErrorMessage={
                 profilesQuery.isError ? profilesQuery.error.message : null
               }
-              onSelectProfile={(profileName) => {
-                setSelectedProfile(profileName);
-                setSelectedSuggestionId(null);
-                setCreatedSuggestion(null);
-                createSuggestionMutation.reset();
-                approveSuggestionMutation.reset();
-                rejectSuggestionMutation.reset();
-                refreshEvidenceMutation.reset();
-              }}
-              onSetStatusFilter={(status) => {
-                setStatusFilter(status);
-                setSelectedSuggestionId(null);
-              }}
+              onSelectProfile={handleSelectProfile}
+              onSetStatusFilter={handleSetStatusFilter}
               profiles={profilesQuery.data ?? []}
               selectedProfile={selectedProfile}
               showStatusFilter
@@ -424,14 +480,9 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
               loadErrorMessage={
                 suggestionsQuery.isError ? suggestionsQuery.error.message : null
               }
-              onSelectSuggestion={(suggestion) => {
-                setSelectedSuggestionId(suggestion.id);
-                approveSuggestionMutation.reset();
-                rejectSuggestionMutation.reset();
-                refreshEvidenceMutation.reset();
-              }}
+              onSelectSuggestion={handleSelectSuggestion}
               selectedSuggestionId={selectedSuggestionId}
-              suggestions={suggestionsQuery.data ?? []}
+              suggestions={suggestions}
             />
           </div>
 
@@ -455,9 +506,9 @@ export function SuggestionsPage({ currentUser }: { currentUser: AuthUser }) {
             }
             suggestion={selectedSuggestion}
           />
-        </section>
+        </MasterDetailLayout>
       )}
-    </div>
+    </ConsolePage>
   );
 }
 
@@ -500,36 +551,24 @@ function SuggestionsSectionTabs({
   suggestionsCount: number;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-            Suggestion workspace
-          </h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Propose terminology changes separately from moderator review.
-          </p>
-        </div>
-        <div
-          aria-label="Suggestion section"
-          className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 lg:w-auto"
-          role="tablist"
-        >
-          <SuggestionsTabButton
-            isActive={activeSection === "propose"}
-            label="Propose"
-            meta={selectedProfile}
-            onClick={() => onSelectSection("propose")}
-          />
-          <SuggestionsTabButton
-            isActive={activeSection === "review"}
-            label="Review queue"
-            meta={`${suggestionsCount} visible`}
-            onClick={() => onSelectSection("review")}
-          />
-        </div>
-      </div>
-    </section>
+    <div
+      aria-label="Suggestion section"
+      className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 sm:w-auto"
+      role="tablist"
+    >
+      <SuggestionsTabButton
+        isActive={activeSection === "propose"}
+        label="Propose"
+        meta={selectedProfile}
+        onClick={() => onSelectSection("propose")}
+      />
+      <SuggestionsTabButton
+        isActive={activeSection === "review"}
+        label="Review queue"
+        meta={`${suggestionsCount} visible`}
+        onClick={() => onSelectSection("review")}
+      />
+    </div>
   );
 }
 
@@ -599,49 +638,49 @@ function SuggestionsToolbar({
   title: string;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
-        {isLoading ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Loading profiles...
-          </p>
-        ) : null}
-        {profiles.length > 0 ? (
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Profile
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {profiles.map((profile) => (
-                <button
-                  className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                    selectedProfile === profile.name
-                      ? "border-slate-950 bg-slate-950 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
-                  }`}
-                  key={profile.id}
-                  onClick={() => onSelectProfile(profile.name)}
-                  type="button"
-                >
-                  {profile.name}
-                </button>
-              ))}
-            </div>
+    <SectionCard
+      contentClassName="space-y-4"
+      description={description}
+      title={title}
+    >
+      {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
+      {isLoading ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Loading profiles...
+        </p>
+      ) : null}
+      {profiles.length > 0 ? (
+        <div className="space-y-2">
+          <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Profile
           </div>
-        ) : (
-          <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-            No profiles found. Create a terminology profile before collecting
-            suggestions.
-          </p>
-        )}
+          <div className="flex flex-wrap gap-2">
+            {profiles.map((profile) => (
+              <button
+                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  selectedProfile === profile.name
+                    ? "border-slate-950 bg-slate-950 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
+                }`}
+                key={profile.id}
+                onClick={() => onSelectProfile(profile.name)}
+                type="button"
+              >
+                {profile.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          No profiles found. Create a terminology profile before collecting
+          suggestions.
+        </p>
+      )}
 
-        {showStatusFilter ? (
-          <label className="block space-y-1.5">
+      {showStatusFilter ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <label className="block min-w-56 space-y-1.5">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
               Suggestion status
             </span>
@@ -659,9 +698,13 @@ function SuggestionsToolbar({
               ))}
             </select>
           </label>
-        ) : null}
-      </CardContent>
-    </Card>
+          <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
+            Keep the review queue focused on pending work, or switch to all for
+            audit and release notes.
+          </p>
+        </div>
+      ) : null}
+    </SectionCard>
   );
 }
 
@@ -1096,105 +1139,101 @@ function SuggestionsTable({
   suggestions: GovernanceSuggestion[];
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Review queue</CardTitle>
-        <CardDescription>
-          Pending, approved, and rejected alias/canonical term suggestions for
-          the selected profile.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        {loadErrorMessage ? (
-          <div className="p-5">
-            <InlineError message={loadErrorMessage} />
-          </div>
-        ) : null}
-        {isLoading ? (
-          <p className="p-5 text-sm text-slate-500 dark:text-slate-400">
-            Loading suggestions...
-          </p>
-        ) : null}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+    <SectionCard
+      contentClassName="p-0"
+      description="Pending, approved, and rejected alias/canonical term suggestions for the selected profile."
+      title="Review queue"
+    >
+      {loadErrorMessage ? (
+        <div className="p-5">
+          <InlineError message={loadErrorMessage} />
+        </div>
+      ) : null}
+      {isLoading ? (
+        <p className="p-5 text-sm text-slate-500 dark:text-slate-400">
+          Loading suggestions...
+        </p>
+      ) : null}
+      <div className="max-h-[min(720px,calc(100vh-19rem))] overflow-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+            <tr>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Suggestion
+              </th>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Slot
+              </th>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Status
+              </th>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Evidence
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {suggestions.length === 0 ? (
               <tr>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Type
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Suggestion
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Slot
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Status
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Source
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Evidence
-                </th>
+                <td
+                  className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400"
+                  colSpan={4}
+                >
+                  No suggestions found for this filter.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {suggestions.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400"
-                    colSpan={6}
-                  >
-                    No suggestions found for this filter.
-                  </td>
-                </tr>
-              ) : (
-                suggestions.map((suggestion) => (
-                  <tr
-                    className={`cursor-pointer transition-colors ${selectedSuggestionId === suggestion.id ? "bg-slate-100 dark:bg-slate-800/70" : "hover:bg-slate-50 dark:hover:bg-slate-900"}`}
-                    key={suggestion.id}
-                    onClick={() => onSelectSuggestion(suggestion)}
-                  >
-                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      <Badge>
+            ) : (
+              suggestions.map((suggestion) => (
+                <tr
+                  className={`cursor-pointer transition-colors ${
+                    selectedSuggestionId === suggestion.id
+                      ? "bg-cyan-50/80 dark:bg-cyan-500/10"
+                      : "hover:bg-slate-50 dark:hover:bg-slate-900"
+                  }`}
+                  key={suggestion.id}
+                  onClick={() => onSelectSuggestion(suggestion)}
+                >
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <Badge className="mt-0.5 shrink-0 bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
                         {suggestionTypeLabel(suggestion.suggestion_type)}
                       </Badge>
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      <div className="font-medium text-slate-950 dark:text-slate-50">
-                        {suggestionDisplayValue(suggestion)}
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-950 dark:text-slate-50">
+                          {suggestionDisplayValue(suggestion)}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {suggestionSubtitle(suggestion)}
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {suggestionSubtitle(suggestion)}
-                      </div>
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                    </div>
+                  </td>
+                  <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
                       {suggestion.slot}
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      <StatusBadge status={suggestion.status} />
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">
-                      {suggestion.source}
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      {suggestion.evidence_snapshot ? (
-                        <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
-                          Evidence
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+                    </span>
+                  </td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    <StatusBadge status={suggestion.status} />
+                  </td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    {suggestion.evidence_snapshot ? (
+                      <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+                        {suggestion.evidence_snapshot.documents.length} snippets
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                        Needs evidence
+                      </Badge>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -1278,19 +1317,14 @@ function SuggestionDetailsPanel({
 
   if (!suggestion) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Suggestion details</CardTitle>
-          <CardDescription>
-            Select a suggestion to inspect context and review actions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No suggestion selected.
-          </p>
-        </CardContent>
-      </Card>
+      <EntityDetailPanel
+        description="Select a suggestion to inspect context and review actions."
+        title="Suggestion details"
+      >
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          No suggestion selected.
+        </p>
+      </EntityDetailPanel>
     );
   }
 
@@ -1331,22 +1365,66 @@ function SuggestionDetailsPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>{suggestionDisplayValue(suggestion)}</CardTitle>
-            <CardDescription>{suggestionSubtitle(suggestion)}</CardDescription>
+    <EntityDetailPanel
+      badge={<StatusBadge status={suggestion.status} />}
+      contentClassName="space-y-4"
+      description={suggestionSubtitle(suggestion)}
+      footer={
+        <div className="space-y-3">
+          {reviewErrorMessage ? <InlineError message={reviewErrorMessage} /> : null}
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Review comment
+            </span>
+            <textarea
+              className="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-900 dark:focus:border-slate-500 dark:focus:ring-slate-800"
+              disabled={!canReviewPending || isApproving || isRejecting}
+              onChange={(event) => setReviewComment(event.target.value)}
+              placeholder="Optional reason for approve/reject."
+              value={reviewComment}
+            />
+          </label>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <Button
+              disabled={!canReviewPending || isApproving || isRejecting}
+              onClick={handleApprove}
+              type="button"
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              {isApproving ? "Approving..." : "Approve suggestion"}
+            </Button>
+            <Button
+              disabled={!canReviewPending || isApproving || isRejecting}
+              onClick={handleReject}
+              type="button"
+              variant="secondary"
+            >
+              <XCircle className="mr-2 h-4 w-4" />
+              {isRejecting ? "Rejecting..." : "Reject suggestion"}
+            </Button>
           </div>
-          <StatusBadge status={suggestion.status} />
         </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <dl className="grid gap-3 text-sm">
-          <DetailRow
-            label="Type"
-            value={suggestionTypeLabel(suggestion.suggestion_type)}
-          />
+      }
+      title={suggestionDisplayValue(suggestion)}
+    >
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        <DetailRow
+          label="Type"
+          value={suggestionTypeLabel(suggestion.suggestion_type)}
+        />
+        <DetailRow label="Slot" value={suggestion.slot} />
+        <DetailRow label="Source" value={suggestion.source} />
+        <DetailRow
+          label="Confidence"
+          value={formatConfidence(suggestion.confidence)}
+        />
+      </div>
+
+      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+        <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">
+          Candidate change
+        </div>
+        <dl className="mt-3 grid gap-2 text-sm">
           <DetailRow
             label="Canonical term"
             value={suggestion.canonical_value}
@@ -1357,215 +1435,153 @@ function SuggestionDetailsPanel({
               value={suggestion.alias_value ?? "—"}
             />
           ) : null}
-          <DetailRow label="Slot" value={suggestion.slot} />
           {suggestion.description ? (
             <DetailRow label="Description" value={suggestion.description} />
           ) : null}
-          <DetailRow label="Source" value={suggestion.source} />
-          <DetailRow
-            label="Confidence"
-            value={formatConfidence(suggestion.confidence)}
-          />
-          <DetailRow
-            label="Created by"
-            value={suggestion.created_by ?? "Unknown"}
-          />
-          {suggestion.reviewed_by ? (
-            <DetailRow label="Reviewed by" value={suggestion.reviewed_by} />
-          ) : null}
-          {suggestion.review_comment ? (
-            <DetailRow
-              label="Review comment"
-              value={suggestion.review_comment}
-            />
-          ) : null}
-          {suggestion.evidence_checked_by ? (
-            <DetailRow
-              label="Evidence checked by"
-              value={suggestion.evidence_checked_by}
-            />
-          ) : null}
         </dl>
+      </div>
 
-        <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
-          <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">
-            Context
+      <div className="rounded-xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+        <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">
+          Context
+        </div>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600 dark:text-slate-300">
+          {suggestion.context || "No context provided."}
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">
+              Evidence from Elasticsearch
+            </div>
+            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+              Save bounded snippets from the selected binding so reviewers can
+              approve with document evidence.
+            </p>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">
-            {suggestion.context || "No context provided."}
-          </p>
+          {suggestion.evidence_snapshot ? (
+            <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+              Snapshot saved
+            </Badge>
+          ) : (
+            <Badge className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+              No snapshot
+            </Badge>
+          )}
         </div>
 
-        <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-slate-950 dark:text-slate-50">
-                Evidence from Elasticsearch
-              </div>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Save bounded snippets from the selected binding so reviewers can
-                approve with document evidence.
-              </p>
+        <div className="mt-4 space-y-3">
+          {bindingsErrorMessage ? (
+            <InlineError message={bindingsErrorMessage} />
+          ) : null}
+          {bindingsLoading ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Loading Elasticsearch bindings...
+            </p>
+          ) : null}
+          {!bindingsLoading && bindings.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              No Elasticsearch bindings are configured for this profile. Add
+              one in Integrations before checking evidence.
             </div>
-            {suggestion.evidence_snapshot ? (
-              <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
-                Snapshot saved
-              </Badge>
-            ) : (
-              <Badge className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                No snapshot
-              </Badge>
-            )}
-          </div>
+          ) : null}
 
-          <div className="mt-4 space-y-3">
-            {bindingsErrorMessage ? (
-              <InlineError message={bindingsErrorMessage} />
-            ) : null}
-            {bindingsLoading ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Loading Elasticsearch bindings...
-              </p>
-            ) : null}
-            {!bindingsLoading && bindings.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                No Elasticsearch bindings are configured for this profile. Add
-                one in Integrations before checking evidence.
-              </div>
-            ) : null}
-
-            {bindings.length > 0 && suggestion.status === "pending" ? (
-              <div className="space-y-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+          {bindings.length > 0 && suggestion.status === "pending" ? (
+            <div className="space-y-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-900/60">
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Binding
+                </span>
+                <select
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-900 dark:focus:border-slate-500 dark:focus:ring-slate-800"
+                  disabled={isRefreshingEvidence}
+                  onChange={(event) =>
+                    setSelectedBindingId(Number(event.target.value))
+                  }
+                  value={selectedBindingId ?? ""}
+                >
+                  {bindings.map((binding) => (
+                    <option key={binding.id} value={binding.id}>
+                      {binding.name} · {binding.index_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px] xl:grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_110px]">
                 <label className="block space-y-1.5">
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Binding
+                    Evidence query
                   </span>
-                  <select
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-900 dark:focus:border-slate-500 dark:focus:ring-slate-800"
+                  <Input
                     disabled={isRefreshingEvidence}
-                    onChange={(event) =>
-                      setSelectedBindingId(Number(event.target.value))
-                    }
-                    value={selectedBindingId ?? ""}
-                  >
-                    {bindings.map((binding) => (
-                      <option key={binding.id} value={binding.id}>
-                        {binding.name} · {binding.index_name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(event) => setEvidenceQuery(event.target.value)}
+                    value={evidenceQuery}
+                  />
                 </label>
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px]">
-                  <label className="block space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Evidence query
-                    </span>
-                    <Input
-                      disabled={isRefreshingEvidence}
-                      onChange={(event) => setEvidenceQuery(event.target.value)}
-                      value={evidenceQuery}
-                    />
-                  </label>
-                  <label className="block space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Max docs
-                    </span>
-                    <Input
-                      disabled={isRefreshingEvidence}
-                      max={10}
-                      min={1}
-                      onChange={(event) =>
-                        setMaxDocuments(Number(event.target.value) || 1)
-                      }
-                      type="number"
-                      value={String(maxDocuments)}
-                    />
-                  </label>
-                </div>
-                <Button
-                  disabled={!canCheckEvidence}
-                  onClick={handleRefreshEvidence}
-                  type="button"
-                  variant="secondary"
-                >
-                  <Search className="mr-2 h-4 w-4" />
-                  {isRefreshingEvidence
-                    ? "Checking evidence..."
-                    : suggestion.evidence_snapshot
-                      ? "Refresh evidence"
-                      : "Check evidence"}
-                </Button>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Max docs
+                  </span>
+                  <Input
+                    disabled={isRefreshingEvidence}
+                    max={10}
+                    min={1}
+                    onChange={(event) =>
+                      setMaxDocuments(Number(event.target.value) || 1)
+                    }
+                    type="number"
+                    value={String(maxDocuments)}
+                  />
+                </label>
               </div>
-            ) : null}
+              <Button
+                disabled={!canCheckEvidence}
+                onClick={handleRefreshEvidence}
+                type="button"
+                variant="secondary"
+              >
+                <Search className="mr-2 h-4 w-4" />
+                {isRefreshingEvidence
+                  ? "Checking evidence..."
+                  : suggestion.evidence_snapshot
+                    ? "Refresh evidence"
+                    : "Check evidence"}
+              </Button>
+            </div>
+          ) : null}
 
-            {suggestion.status !== "pending" &&
-            !suggestion.evidence_snapshot ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                No evidence snapshot was saved before review.
-              </p>
-            ) : null}
-            {evidenceErrorMessage ? (
-              <InlineError message={evidenceErrorMessage} />
-            ) : null}
-            {suggestion.evidence_snapshot ? (
-              <SuggestionEvidenceSnapshotPanel
-                snapshot={suggestion.evidence_snapshot}
-              />
-            ) : null}
-          </div>
+          {suggestion.status !== "pending" &&
+          !suggestion.evidence_snapshot ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No evidence snapshot was saved before review.
+            </p>
+          ) : null}
+          {evidenceErrorMessage ? (
+            <InlineError message={evidenceErrorMessage} />
+          ) : null}
+          {suggestion.evidence_snapshot ? (
+            <SuggestionEvidenceSnapshotPanel
+              snapshot={suggestion.evidence_snapshot}
+            />
+          ) : null}
         </div>
+      </div>
 
-        {!canReview ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-            Contributors can create suggestions, but only admins and moderators
-            can approve or reject them.
-          </div>
-        ) : null}
-
-        {suggestion.status !== "pending" ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-            This suggestion has already been reviewed.
-          </div>
-        ) : null}
-
-        {reviewErrorMessage ? (
-          <InlineError message={reviewErrorMessage} />
-        ) : null}
-
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-            Review comment
-          </span>
-          <textarea
-            className="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-900 dark:focus:border-slate-500 dark:focus:ring-slate-800"
-            disabled={!canReviewPending || isApproving || isRejecting}
-            onChange={(event) => setReviewComment(event.target.value)}
-            placeholder="Optional reason for approve/reject."
-            value={reviewComment}
-          />
-        </label>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={!canReviewPending || isApproving || isRejecting}
-            onClick={handleApprove}
-            type="button"
-          >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            {isApproving ? "Approving..." : "Approve suggestion"}
-          </Button>
-          <Button
-            disabled={!canReviewPending || isApproving || isRejecting}
-            onClick={handleReject}
-            type="button"
-            variant="secondary"
-          >
-            <XCircle className="mr-2 h-4 w-4" />
-            {isRejecting ? "Rejecting..." : "Reject suggestion"}
-          </Button>
+      {!canReview ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          Contributors can create suggestions, but only admins and moderators
+          can approve or reject them.
         </div>
-      </CardContent>
-    </Card>
+      ) : null}
+
+      {suggestion.status !== "pending" ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+          This suggestion has already been reviewed.
+        </div>
+      ) : null}
+    </EntityDetailPanel>
   );
 }
 
