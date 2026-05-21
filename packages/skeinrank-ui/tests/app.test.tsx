@@ -3149,8 +3149,11 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
 
     expect(
-      await screen.findByText("Elasticsearch bindings"),
+      await screen.findByText("Elasticsearch runtime bindings"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Integrations cockpit")).toBeInTheDocument();
+    expect(screen.getByText("Binding inventory")).toBeInTheDocument();
+    expect(screen.getByText("Elasticsearch bindings")).toBeInTheDocument();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
     expect(screen.queryByText("Binding setup flow")).not.toBeInTheDocument();
     expect(screen.queryByText("Binding patterns")).not.toBeInTheDocument();

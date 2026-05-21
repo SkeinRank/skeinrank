@@ -19,6 +19,14 @@ import {
 } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import {
+  ConsolePage,
+  EntityDetailPanel,
+  MasterDetailLayout,
+  MetricPill,
+  SectionCard,
+  WorkspaceHeader,
+} from "../components/layout/ConsolePrimitives";
+import {
   cancelElasticsearchEnrichmentJob,
   createElasticsearchBinding,
   deleteElasticsearchBinding,
@@ -350,12 +358,42 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
   ).length;
 
   return (
-    <div className="space-y-6">
-      <IntegrationSummaryBar
-        profileName={selectedProfile ?? "None"}
-        readyBindings={readyBindings}
-        selectedProfileBindings={selectedProfileBindings.length}
-        staleBindings={staleBindings}
+    <ConsolePage className="space-y-4" maxWidthClassName="max-w-[1680px]">
+      <WorkspaceHeader
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              className={
+                connectionQuery.data?.ok
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
+                  : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200"
+              }
+            >
+              {connectionQuery.data?.ok ? "Elasticsearch connected" : "Check connection"}
+            </Badge>
+            <Button
+              onClick={() => {
+                void connectionQuery.refetch();
+                void indicesQuery.refetch();
+              }}
+              type="button"
+              variant="secondary"
+            >
+              Refresh discovery
+            </Button>
+          </div>
+        }
+        description="Bind terminology profiles to Elasticsearch indices, preview enrichment output, and publish versioned runtime snapshots for search and RAG."
+        eyebrow="Integrations cockpit"
+        meta={
+          <IntegrationSummaryBar
+            profileName={selectedProfile ?? "None"}
+            readyBindings={readyBindings}
+            selectedProfileBindings={selectedProfileBindings.length}
+            staleBindings={staleBindings}
+          />
+        }
+        title="Elasticsearch runtime bindings"
       />
 
       <IntegrationsSectionTabs
@@ -380,7 +418,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
             }}
           />
 
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_460px]">
+          <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_470px]">
             <div className="space-y-6">
               <IntegrationsToolbar
                 isLoading={profilesQuery.isLoading}
@@ -475,7 +513,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
               selectedJobId={selectedJobId}
               updateErrorMessage={getErrorMessage(updateMutation.error)}
             />
-          </section>
+          </MasterDetailLayout>
         </>
       ) : activeSection === "jobs" ? (
         <EnrichmentJobsDashboard
@@ -518,7 +556,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
           profiles={profilesQuery.data ?? []}
         />
       )}
-    </div>
+    </ConsolePage>
   );
 }
 
@@ -534,30 +572,31 @@ function IntegrationSummaryBar({
   staleBindings: number;
 }) {
   return (
-    <Card>
-      <CardContent className="grid gap-3 py-4 sm:grid-cols-2 xl:grid-cols-4">
-        <CompactMetric
-          help="The terminology profile currently used to filter this page."
-          label="Profile"
-          value={profileName}
-        />
-        <CompactMetric
-          help="Bindings that belong to the selected terminology profile."
-          label="Selected bindings"
-          value={String(selectedProfileBindings)}
-        />
-        <CompactMetric
-          help="Bindings with an active runtime snapshot ready for search."
-          label="Ready"
-          value={String(readyBindings)}
-        />
-        <CompactMetric
-          help="Bindings that need enrichment, failed, or need operator attention."
-          label="Attention"
-          value={String(staleBindings)}
-        />
-      </CardContent>
-    </Card>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <MetricPill
+        helper="Active profile scope"
+        label="Profile"
+        tone="cyan"
+        value={profileName}
+      />
+      <MetricPill
+        helper="Selected profile"
+        label="Bindings"
+        value={selectedProfileBindings}
+      />
+      <MetricPill
+        helper="Runtime snapshots ready"
+        label="Ready"
+        tone="emerald"
+        value={readyBindings}
+      />
+      <MetricPill
+        helper="Need operator review"
+        label="Attention"
+        tone={staleBindings > 0 ? "amber" : "slate"}
+        value={staleBindings}
+      />
+    </div>
   );
 }
 
@@ -636,7 +675,7 @@ function IntegrationsSectionTabs({
   ];
 
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-950/95 dark:shadow-black/20 sm:flex-row sm:items-center sm:justify-between">
       <div
         className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-900"
         role="tablist"
@@ -701,43 +740,40 @@ function ElasticsearchDiscoveryPanel({
   const shouldShowDetails = isOpen || Boolean(connection?.ok);
 
   return (
-    <Card>
-      <CardHeader className="py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <CardTitle>Elasticsearch discovery</CardTitle>
-              <Badge
-                className={
-                  connection?.ok
-                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
-                    : undefined
-                }
-              >
-                {statusText}
-              </Badge>
-              <HelpTooltip text="Optional helper for checking the Elasticsearch connection and reusing discovered index fields. Manual binding setup still works without it." />
-            </div>
-            <CardDescription className="mt-1">
-              Optional connection check and field suggestions.
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => setIsOpen((value) => !value)}
-              type="button"
-              variant="secondary"
-            >
-              {shouldShowDetails ? "Hide details" : "Show details"}
-            </Button>
-            <Button onClick={onRefresh} type="button" variant="secondary">
-              Test connection
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
+    <SectionCard
+      actions={
+        <>
+          <Button
+            onClick={() => setIsOpen((value) => !value)}
+            type="button"
+            variant="secondary"
+          >
+            {shouldShowDetails ? "Hide details" : "Show details"}
+          </Button>
+          <Button onClick={onRefresh} type="button" variant="secondary">
+            Test connection
+          </Button>
+        </>
+      }
+      description={
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <span>Optional connection check and field suggestions.</span>
+          <Badge
+            className={
+              connection?.ok
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
+                : undefined
+            }
+          >
+            {statusText}
+          </Badge>
+          <HelpTooltip text="Optional helper for checking the Elasticsearch connection and reusing discovered index fields. Manual binding setup still works without it." />
+        </span>
+      }
+      title="Elasticsearch discovery"
+    >
       {shouldShowDetails ? (
-        <CardContent className="space-y-3 border-t border-slate-100 py-4 text-sm dark:border-slate-800">
+        <div className="space-y-3 text-sm">
           {errorMessage ? <InlineError message={errorMessage} /> : null}
           <div className="flex flex-wrap items-center gap-2">
             {connection?.url ? (
@@ -796,9 +832,13 @@ function ElasticsearchDiscoveryPanel({
               )}
             </div>
           ) : null}
-        </CardContent>
-      ) : null}
-    </Card>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Discovery is folded to keep the binding cockpit focused. Use Show details for cluster metadata and discovered fields.
+        </p>
+      )}
+    </SectionCard>
   );
 }
 
@@ -816,12 +856,11 @@ function IntegrationsToolbar({
   selectedProfile: string | null;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Elasticsearch bindings</CardTitle>
-        <CardDescription>Profile-to-index runtime contexts.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <SectionCard
+      contentClassName="space-y-4"
+      description="Choose a profile scope before selecting or creating runtime bindings."
+      title="Elasticsearch bindings"
+    >
         {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
         {isLoading ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -856,8 +895,7 @@ function IntegrationsToolbar({
             Elasticsearch bindings.
           </p>
         )}
-      </CardContent>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -986,26 +1024,21 @@ function CreateBindingForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle>Create binding</CardTitle>
-            <CardDescription>
-              Create only when you need another runtime search context.
-            </CardDescription>
-          </div>
-          <Button
-            disabled={disabled || isSubmitting}
-            onClick={() => setIsOpen((value) => !value)}
-            type="button"
-            variant={isOpen ? "secondary" : undefined}
-          >
-            {isOpen ? "Hide wizard" : "Create binding"}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <SectionCard
+      actions={
+        <Button
+          disabled={disabled || isSubmitting}
+          onClick={() => setIsOpen((value) => !value)}
+          type="button"
+          variant={isOpen ? "secondary" : undefined}
+        >
+          {isOpen ? "Hide wizard" : "Create binding"}
+        </Button>
+      }
+      contentClassName="space-y-4"
+      description="Create only when you need another runtime search context."
+      title="Create binding"
+    >
         {readOnlyMessage ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
             {readOnlyMessage}
@@ -1327,8 +1360,7 @@ function CreateBindingForm({
             </div>
           </form>
         )}
-      </CardContent>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -1372,21 +1404,20 @@ function BindingsTable({
   selectedBindingId: number | null;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Saved bindings</CardTitle>
-        <CardDescription>Profile-to-index search contexts.</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <SectionCard
+      contentClassName="space-y-3"
+      description="Select a binding to inspect runtime state, preview enrichment, and run jobs."
+      title="Binding inventory"
+    >
         {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
         {isLoading ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Loading bindings...
           </p>
         ) : null}
-        <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+        <div className="max-h-[560px] overflow-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+          <table className="w-full min-w-[920px] border-collapse text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
                   Binding
@@ -1414,7 +1445,7 @@ function BindingsTable({
             <tbody>
               {bindings.map((binding) => (
                 <tr
-                  className={`cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-900 ${selectedBindingId === binding.id ? "bg-slate-50 dark:bg-slate-900" : ""}`}
+                  className={`cursor-pointer transition-colors hover:bg-cyan-50/60 dark:hover:bg-cyan-500/10 ${selectedBindingId === binding.id ? "bg-cyan-50/80 ring-1 ring-inset ring-cyan-200 dark:bg-cyan-500/10 dark:ring-cyan-500/25" : ""}`}
                   key={binding.id}
                   onClick={() => onSelectBinding(binding)}
                 >
@@ -1472,8 +1503,7 @@ function BindingsTable({
             </tbody>
           </table>
         </div>
-      </CardContent>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -1599,19 +1629,14 @@ function BindingDetailsPanel({
 
   if (!binding) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Binding details</CardTitle>
-          <CardDescription>
-            Select a binding to inspect or edit its Elasticsearch configuration.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No binding selected.
-          </p>
-        </CardContent>
-      </Card>
+      <EntityDetailPanel
+        description="Select a binding to inspect or edit its Elasticsearch configuration."
+        title="Binding details"
+      >
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          No binding selected.
+        </p>
+      </EntityDetailPanel>
     );
   }
 
@@ -1681,19 +1706,30 @@ function BindingDetailsPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>{binding.name}</CardTitle>
-            <CardDescription>
-              {binding.index_name} → {binding.target_field}
-            </CardDescription>
+    <EntityDetailPanel
+      badge={<BindingSnapshotStatusBadge status={binding.snapshot_status} />}
+      contentClassName="space-y-5"
+      description={`${binding.index_name} → ${binding.target_field}`}
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <BindingStatusBadge isEnabled={binding.is_enabled} />
+            <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              {binding.mode}
+            </Badge>
           </div>
-          <BindingStatusBadge isEnabled={binding.is_enabled} />
+          <Button
+            disabled={!canManage || isUpdating || isDeleting}
+            onClick={() => setIsEditing((value) => !value)}
+            type="button"
+            variant="secondary"
+          >
+            {isEditing ? "Close editor" : "Edit binding"}
+          </Button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
+      }
+      title={binding.name}
+    >
         {!canManage ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
             Contributors can inspect bindings, but only admins and moderators
@@ -1722,7 +1758,7 @@ function BindingDetailsPanel({
               type="button"
               variant="secondary"
             >
-              {isEditing ? "Close editor" : "Edit binding"}
+              {isEditing ? "Close editor" : "Open editor"}
             </Button>
           </div>
           {!canManage ? (
@@ -2055,8 +2091,7 @@ function BindingDetailsPanel({
           onStartJob={onStartJob}
           selectedJobId={selectedJobId}
         />
-      </CardContent>
-    </Card>
+    </EntityDetailPanel>
   );
 }
 
