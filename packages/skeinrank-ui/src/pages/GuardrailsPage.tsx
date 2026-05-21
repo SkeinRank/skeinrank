@@ -1,16 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Ban, Globe2, Layers3, ShieldCheck } from "lucide-react";
 
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import {
+  ConsolePage,
+  EntityDetailPanel,
+  MasterDetailLayout,
+  MetricPill,
+  SectionCard,
+  WorkspaceHeader,
+} from "../components/layout/ConsolePrimitives";
 import {
   createGlobalStopListEntry,
   createStopListEntry,
@@ -253,33 +255,68 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
     await deleteMutation.mutateAsync(entryId);
   }
 
+  const globalEntries = globalStopListQuery.data ?? [];
+  const profileEntries = stopListQuery.data ?? [];
+  const activeGlobalCount = globalEntries.filter((entry) => entry.is_active).length;
+  const activeProfileCount = profileEntries.filter((entry) => entry.is_active).length;
   return (
-    <div className="space-y-5">
+    <ConsolePage>
+      <WorkspaceHeader
+        actions={
+          <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+            {permissions.canManageStopLists ? "Manage mode" : "Read-only"}
+          </Badge>
+        }
+        description="Govern noisy aliases and canonical values before they reach suggestions, dictionary imports, enrichment jobs, and runtime search context."
+        eyebrow="Guardrails"
+        meta={
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricPill
+              helper={`${activeGlobalCount} active`}
+              icon={Globe2}
+              label="Global rules"
+              tone="violet"
+              value={globalEntries.length}
+            />
+            <MetricPill
+              helper={selectedProfile ?? "No profile selected"}
+              icon={Layers3}
+              label="Profile rules"
+              tone="cyan"
+              value={profileEntries.length}
+            />
+            <MetricPill
+              helper="Applied before review and enrichment"
+              icon={ShieldCheck}
+              label="Active blocks"
+              tone="emerald"
+              value={activeGlobalCount + activeProfileCount}
+            />
+            <MetricPill
+              helper="Global entries inherited by profiles"
+              icon={Ban}
+              label="Inherited"
+              tone="amber"
+              value={activeGlobalEntries.length}
+            />
+          </div>
+        }
+        title="Stop-list governance workspace"
+      />
+
       <GuardrailsScopeTabs
         activeSection={activeSection}
-        globalCount={globalStopListQuery.data?.length ?? 0}
+        globalCount={globalEntries.length}
         onSelectSection={setActiveSection}
-        profileCount={stopListQuery.data?.length ?? 0}
+        profileCount={profileEntries.length}
         selectedProfile={selectedProfile}
       />
 
       {activeSection === "global" ? (
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="space-y-5">
-            <CreateGlobalStopListEntryForm
-              disabled={!permissions.canManageStopLists}
-              errorMessage={errorMessage(createGlobalMutation.error)}
-              isSubmitting={createGlobalMutation.isPending}
-              onSubmit={handleCreateGlobalEntry}
-              readOnlyMessage={
-                permissions.canManageStopLists
-                  ? null
-                  : "Your role can inspect global guardrails, but only admins and moderators can update global stop lists."
-              }
-            />
-
+        <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
+          <div className="space-y-4">
             <GlobalStopListTable
-              entries={globalStopListQuery.data ?? []}
+              entries={globalEntries}
               isLoading={globalStopListQuery.isLoading}
               loadErrorMessage={
                 globalStopListQuery.isError
@@ -293,6 +330,18 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
               }}
               selectedEntryId={selectedGlobalEntryId}
             />
+
+            <CreateGlobalStopListEntryForm
+              disabled={!permissions.canManageStopLists}
+              errorMessage={errorMessage(createGlobalMutation.error)}
+              isSubmitting={createGlobalMutation.isPending}
+              onSubmit={handleCreateGlobalEntry}
+              readOnlyMessage={
+                permissions.canManageStopLists
+                  ? null
+                  : "Your role can inspect global guardrails, but only admins and moderators can update global stop lists."
+              }
+            />
           </div>
 
           <GlobalStopListEntryDetailsPanel
@@ -305,10 +354,10 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
             onUpdate={handleUpdateGlobalEntry}
             updateErrorMessage={errorMessage(updateGlobalMutation.error)}
           />
-        </section>
+        </MasterDetailLayout>
       ) : (
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="space-y-5">
+        <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
+          <div className="space-y-4">
             <ProfileScopeToolbar
               isLoading={profilesQuery.isLoading}
               loadErrorMessage={
@@ -327,6 +376,20 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
 
             <InheritedGlobalStopListPanel entries={activeGlobalEntries} />
 
+            <StopListTable
+              entries={profileEntries}
+              isLoading={stopListQuery.isLoading && Boolean(selectedProfile)}
+              loadErrorMessage={
+                stopListQuery.isError ? stopListQuery.error.message : null
+              }
+              onSelectEntry={(entry) => {
+                setSelectedEntryId(entry.id);
+                updateMutation.reset();
+                deleteMutation.reset();
+              }}
+              selectedEntryId={selectedEntryId}
+            />
+
             <CreateStopListEntryForm
               disabled={!selectedProfile || !permissions.canManageStopLists}
               errorMessage={errorMessage(createMutation.error)}
@@ -338,20 +401,6 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
                   ? null
                   : "Your role can inspect guardrails, but only admins and moderators can update stop lists."
               }
-            />
-
-            <StopListTable
-              entries={stopListQuery.data ?? []}
-              isLoading={stopListQuery.isLoading && Boolean(selectedProfile)}
-              loadErrorMessage={
-                stopListQuery.isError ? stopListQuery.error.message : null
-              }
-              onSelectEntry={(entry) => {
-                setSelectedEntryId(entry.id);
-                updateMutation.reset();
-                deleteMutation.reset();
-              }}
-              selectedEntryId={selectedEntryId}
             />
           </div>
 
@@ -365,12 +414,11 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
             onUpdate={handleUpdateEntry}
             updateErrorMessage={errorMessage(updateMutation.error)}
           />
-        </section>
+        </MasterDetailLayout>
       )}
-    </div>
+    </ConsolePage>
   );
 }
-
 function GuardrailsScopeTabs({
   activeSection,
   globalCount,
@@ -385,19 +433,11 @@ function GuardrailsScopeTabs({
   selectedProfile: string | null;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-            Stop-list scope
-          </h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Switch between inherited global guardrails and profile-local blocks.
-          </p>
-        </div>
+    <SectionCard
+      actions={
         <div
           aria-label="Guardrail scope"
-          className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 lg:w-auto"
+          className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900 sm:w-auto"
           role="tablist"
         >
           <GuardrailTabButton
@@ -413,8 +453,10 @@ function GuardrailsScopeTabs({
             onClick={() => onSelectSection("profile")}
           />
         </div>
-      </div>
-    </section>
+      }
+      description="Switch between organization-wide blocked values and profile-local guardrails inherited by runtime workflows."
+      title="Stop-list scope"
+    />
   );
 }
 
@@ -463,14 +505,11 @@ function ProfileScopeToolbar({
   selectedProfile: string | null;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Profile scope</CardTitle>
-        <CardDescription>
-          Choose which terminology profile receives local stop-list rules.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <SectionCard
+      description="Choose which terminology profile receives local stop-list rules."
+      title="Profile scope"
+    >
+      <div className="space-y-4">
         {loadErrorMessage ? <InlineError message={loadErrorMessage} /> : null}
         {isLoading ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -505,8 +544,8 @@ function ProfileScopeToolbar({
             profile stop-list guardrails.
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -549,15 +588,10 @@ function CreateGlobalStopListEntryForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Add global stop-list entry</CardTitle>
-        <CardDescription>
-          Block noisy values across every profile, suggestion, dry-run, and
-          enrichment job.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <SectionCard
+      description="Block noisy values across every profile, suggestion, dry-run, and enrichment job."
+      title="Add global stop-list entry"
+    >
         {readOnlyMessage ? (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
             {readOnlyMessage}
@@ -603,8 +637,7 @@ function CreateGlobalStopListEntryForm({
             {isSubmitting ? "Adding..." : "Add to global stop list"}
           </Button>
         </form>
-      </CardContent>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -651,15 +684,10 @@ function CreateStopListEntryForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Add profile stop-list entry</CardTitle>
-        <CardDescription>
-          Block exact values that are too generic, ambiguous, or unsafe for the
-          selected profile.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <SectionCard
+      description="Block exact values that are too generic, ambiguous, or unsafe for the selected profile."
+      title="Add profile stop-list entry"
+    >
         {readOnlyMessage ? (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
             {readOnlyMessage}
@@ -713,8 +741,7 @@ function CreateStopListEntryForm({
             {isSubmitting ? "Adding..." : "Add to stop list"}
           </Button>
         </form>
-      </CardContent>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -794,95 +821,101 @@ function StopListTableBase<TEntry extends StopListEntryLike>({
   selectedEntryId: number | null;
   title: string;
 }) {
+  const activeEntries = entries.filter((entry) => entry.is_active).length;
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </div>
-          {isGlobal ? (
-            <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">
-              Global
-            </Badge>
-          ) : null}
+    <SectionCard
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          {isGlobal ? <GlobalBadge /> : <Badge>Profile</Badge>}
+          <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            {activeEntries}/{entries.length} active
+          </Badge>
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {loadErrorMessage ? (
-          <div className="p-5">
-            <InlineError message={loadErrorMessage} />
-          </div>
-        ) : null}
-        {isLoading ? (
-          <p className="p-5 text-sm text-slate-500 dark:text-slate-400">
-            Loading stop-list entries...
-          </p>
-        ) : null}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+      }
+      contentClassName="p-0"
+      description={description}
+      title={title}
+    >
+      {loadErrorMessage ? (
+        <div className="p-5">
+          <InlineError message={loadErrorMessage} />
+        </div>
+      ) : null}
+      {isLoading ? (
+        <p className="p-5 text-sm text-slate-500 dark:text-slate-400">
+          Loading stop-list entries...
+        </p>
+      ) : null}
+      <div className="max-h-[520px] overflow-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+            <tr>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Value
+              </th>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Scope
+              </th>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Target
+              </th>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Status
+              </th>
+              <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
+                Reason
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.length === 0 ? (
               <tr>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Value
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Scope
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Target
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Status
-                </th>
-                <th className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-slate-800">
-                  Reason
-                </th>
+                <td
+                  className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400"
+                  colSpan={5}
+                >
+                  {emptyMessage}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {entries.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400"
-                    colSpan={5}
-                  >
-                    {emptyMessage}
+            ) : (
+              entries.map((entry) => (
+                <tr
+                  className={`cursor-pointer transition-colors ${
+                    selectedEntryId === entry.id
+                      ? "bg-cyan-50/80 dark:bg-cyan-500/10"
+                      : "hover:bg-slate-50 dark:hover:bg-slate-900"
+                  }`}
+                  key={entry.id}
+                  onClick={() => onSelectEntry(entry)}
+                >
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    <div className="font-medium text-slate-950 dark:text-slate-50">
+                      {entry.value}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {entry.normalized_value}
+                    </div>
+                  </td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    {isGlobal ? <GlobalBadge /> : <Badge>Profile</Badge>}
+                  </td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    <StopListTargetBadge target={entry.target} />
+                  </td>
+                  <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    <StopListStatusBadge isActive={entry.is_active} />
+                  </td>
+                  <td className="max-w-[360px] border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                    <span className="line-clamp-2">{entry.reason || "—"}</span>
                   </td>
                 </tr>
-              ) : (
-                entries.map((entry) => (
-                  <tr
-                    className={`cursor-pointer transition-colors ${selectedEntryId === entry.id ? "bg-slate-100 dark:bg-slate-800/70" : "hover:bg-slate-50 dark:hover:bg-slate-900"}`}
-                    key={entry.id}
-                    onClick={() => onSelectEntry(entry)}
-                  >
-                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      <span className="font-medium text-slate-950 dark:text-slate-50">
-                        {entry.value}
-                      </span>
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      {isGlobal ? <GlobalBadge /> : <Badge>Profile</Badge>}
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      <Badge>{entry.target}</Badge>
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                      <StopListStatusBadge isActive={entry.is_active} />
-                    </td>
-                    <td className="border-b border-slate-100 px-5 py-4 text-slate-600 dark:border-slate-800 dark:text-slate-300">
-                      {entry.reason || "—"}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -894,44 +927,34 @@ function InheritedGlobalStopListPanel({
   const sortedEntries = [...entries].sort(sortStopListEntries);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>Inherited global stop list</CardTitle>
-            <CardDescription>
-              Read-only global entries applied before the selected profile's
-              local stop list.
-            </CardDescription>
-          </div>
-          <GlobalBadge />
+    <SectionCard
+      actions={<GlobalBadge />}
+      description="Read-only global entries applied before the selected profile's local stop list."
+      title="Inherited global stop list"
+    >
+      {sortedEntries.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          No active global stop-list entries are inherited by this profile.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {sortedEntries.map((entry) => (
+            <div
+              className="flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-800 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-200"
+              key={entry.id}
+              title={entry.reason ?? undefined}
+            >
+              <span className="font-medium">{entry.value}</span>
+              <span className="text-indigo-500 dark:text-indigo-300">·</span>
+              <span>{entry.target}</span>
+              <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-indigo-700 dark:bg-indigo-900/70 dark:text-indigo-200">
+                Global
+              </span>
+            </div>
+          ))}
         </div>
-      </CardHeader>
-      <CardContent>
-        {sortedEntries.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-            No active global stop-list entries are inherited by this profile.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {sortedEntries.map((entry) => (
-              <div
-                className="flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-800 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-200"
-                key={entry.id}
-                title={entry.reason ?? undefined}
-              >
-                <span className="font-medium">{entry.value}</span>
-                <span className="text-indigo-500 dark:text-indigo-300">·</span>
-                <span>{entry.target}</span>
-                <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-indigo-700 dark:bg-indigo-900/70 dark:text-indigo-200">
-                  Global
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </SectionCard>
   );
 }
 
@@ -971,19 +994,15 @@ function GlobalStopListEntryDetailsPanel({
 
   if (!entry) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Global stop-list details</CardTitle>
-          <CardDescription>
-            Select a global entry to edit target, reason, or active status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No global stop-list entry selected.
-          </p>
-        </CardContent>
-      </Card>
+      <EntityDetailPanel
+        badge={<GlobalBadge />}
+        description="Select a global entry to edit target, reason, or active status."
+        title="Global stop-list details"
+      >
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          No global stop-list entry selected.
+        </p>
+      </EntityDetailPanel>
     );
   }
 
@@ -1014,91 +1033,86 @@ function GlobalStopListEntryDetailsPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>{entry.value}</CardTitle>
-            <CardDescription>
-              Global guardrail inherited by every profile.
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <GlobalBadge />
-            <StopListStatusBadge isActive={entry.is_active} />
-          </div>
+    <EntityDetailPanel
+      badge={
+        <div className="flex flex-wrap justify-end gap-2">
+          <GlobalBadge />
+          <StopListStatusBadge isActive={entry.is_active} />
         </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {!canManage ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-            Contributors can inspect global stop lists, but only admins and
-            moderators can update global guardrails.
-          </div>
-        ) : null}
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <label className="space-y-1.5">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Edit global blocked value
-            </span>
-            <Input
-              disabled={!canManage || isUpdating || isDeleting}
-              onChange={(event) => setValue(event.target.value)}
-              value={value}
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Edit global target
-            </span>
-            <StopListTargetSelect
-              disabled={!canManage || isUpdating || isDeleting}
-              onChange={setTarget}
-              value={target}
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Edit global reason
-            </span>
-            <Input
-              disabled={!canManage || isUpdating || isDeleting}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Optional reason"
-              value={reason}
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-            <input
-              checked={isActive}
-              disabled={!canManage || isUpdating || isDeleting}
-              onChange={(event) => setIsActive(event.target.checked)}
-              type="checkbox"
-            />
-            Active global guardrail
-          </label>
-          {updateErrorMessage ? (
-            <InlineError message={updateErrorMessage} />
-          ) : null}
-          {deleteErrorMessage ? (
-            <InlineError message={deleteErrorMessage} />
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={!canSave} type="submit">
-              {isUpdating ? "Saving..." : "Save global stop-list entry"}
-            </Button>
-            <Button
-              disabled={!canManage || isUpdating || isDeleting}
-              onClick={handleDelete}
-              type="button"
-              variant="secondary"
-            >
-              {isDeleting ? "Deleting..." : "Delete global stop-list entry"}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      }
+      description="Global guardrail inherited by every profile."
+      title={entry.value}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoTile label="Scope" value="Global" />
+        <InfoTile label="Target" value={entry.target} />
+        <InfoTile label="Status" value={entry.is_active ? "active" : "disabled"} />
+        <InfoTile label="Normalized" value={entry.normalized_value} />
+      </div>
+      {!canManage ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          Contributors can inspect global stop lists, but only admins and
+          moderators can update global guardrails.
+        </div>
+      ) : null}
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Edit global blocked value
+          </span>
+          <Input
+            disabled={!canManage || isUpdating || isDeleting}
+            onChange={(event) => setValue(event.target.value)}
+            value={value}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Edit global target
+          </span>
+          <StopListTargetSelect
+            disabled={!canManage || isUpdating || isDeleting}
+            onChange={setTarget}
+            value={target}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Edit global reason
+          </span>
+          <Input
+            disabled={!canManage || isUpdating || isDeleting}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Optional reason"
+            value={reason}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input
+            checked={isActive}
+            disabled={!canManage || isUpdating || isDeleting}
+            onChange={(event) => setIsActive(event.target.checked)}
+            type="checkbox"
+          />
+          Active global guardrail
+        </label>
+        {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}
+        {deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <Button disabled={!canSave} type="submit">
+            {isUpdating ? "Saving..." : "Save global stop-list entry"}
+          </Button>
+          <Button
+            disabled={!canManage || isUpdating || isDeleting}
+            onClick={handleDelete}
+            type="button"
+            variant="secondary"
+          >
+            {isDeleting ? "Deleting..." : "Delete global stop-list entry"}
+          </Button>
+        </div>
+      </form>
+    </EntityDetailPanel>
   );
 }
 
@@ -1138,19 +1152,15 @@ function StopListEntryDetailsPanel({
 
   if (!entry) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile stop-list details</CardTitle>
-          <CardDescription>
-            Select a local entry to edit target, reason, or active status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No profile stop-list entry selected.
-          </p>
-        </CardContent>
-      </Card>
+      <EntityDetailPanel
+        badge={<Badge>Profile</Badge>}
+        description="Select a local entry to edit target, reason, or active status."
+        title="Profile stop-list details"
+      >
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          No profile stop-list entry selected.
+        </p>
+      </EntityDetailPanel>
     );
   }
 
@@ -1181,88 +1191,86 @@ function StopListEntryDetailsPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>{entry.value}</CardTitle>
-            <CardDescription>
-              Profile guardrail for {entry.target} values.
-            </CardDescription>
-          </div>
+    <EntityDetailPanel
+      badge={
+        <div className="flex flex-wrap justify-end gap-2">
+          <Badge>Profile</Badge>
           <StopListStatusBadge isActive={entry.is_active} />
         </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {!canManage ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-            Contributors can inspect stop lists, but only admins and moderators
-            can update guardrails.
-          </div>
-        ) : null}
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <label className="space-y-1.5">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Edit blocked value
-            </span>
-            <Input
-              disabled={!canManage || isUpdating || isDeleting}
-              onChange={(event) => setValue(event.target.value)}
-              value={value}
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Edit target
-            </span>
-            <StopListTargetSelect
-              disabled={!canManage || isUpdating || isDeleting}
-              onChange={setTarget}
-              value={target}
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Edit reason
-            </span>
-            <Input
-              disabled={!canManage || isUpdating || isDeleting}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Optional reason"
-              value={reason}
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-            <input
-              checked={isActive}
-              disabled={!canManage || isUpdating || isDeleting}
-              onChange={(event) => setIsActive(event.target.checked)}
-              type="checkbox"
-            />
-            Active guardrail
-          </label>
-          {updateErrorMessage ? (
-            <InlineError message={updateErrorMessage} />
-          ) : null}
-          {deleteErrorMessage ? (
-            <InlineError message={deleteErrorMessage} />
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={!canSave} type="submit">
-              {isUpdating ? "Saving..." : "Save stop-list entry"}
-            </Button>
-            <Button
-              disabled={!canManage || isUpdating || isDeleting}
-              onClick={handleDelete}
-              type="button"
-              variant="secondary"
-            >
-              {isDeleting ? "Deleting..." : "Delete stop-list entry"}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      }
+      description={`Profile guardrail for ${entry.target} values.`}
+      title={entry.value}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoTile label="Scope" value="Profile" />
+        <InfoTile label="Target" value={entry.target} />
+        <InfoTile label="Status" value={entry.is_active ? "active" : "disabled"} />
+        <InfoTile label="Normalized" value={entry.normalized_value} />
+      </div>
+      {!canManage ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          Contributors can inspect stop lists, but only admins and moderators
+          can update guardrails.
+        </div>
+      ) : null}
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Edit blocked value
+          </span>
+          <Input
+            disabled={!canManage || isUpdating || isDeleting}
+            onChange={(event) => setValue(event.target.value)}
+            value={value}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Edit target
+          </span>
+          <StopListTargetSelect
+            disabled={!canManage || isUpdating || isDeleting}
+            onChange={setTarget}
+            value={target}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Edit reason
+          </span>
+          <Input
+            disabled={!canManage || isUpdating || isDeleting}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Optional reason"
+            value={reason}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input
+            checked={isActive}
+            disabled={!canManage || isUpdating || isDeleting}
+            onChange={(event) => setIsActive(event.target.checked)}
+            type="checkbox"
+          />
+          Active guardrail
+        </label>
+        {updateErrorMessage ? <InlineError message={updateErrorMessage} /> : null}
+        {deleteErrorMessage ? <InlineError message={deleteErrorMessage} /> : null}
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <Button disabled={!canSave} type="submit">
+            {isUpdating ? "Saving..." : "Save stop-list entry"}
+          </Button>
+          <Button
+            disabled={!canManage || isUpdating || isDeleting}
+            onClick={handleDelete}
+            type="button"
+            variant="secondary"
+          >
+            {isDeleting ? "Deleting..." : "Delete stop-list entry"}
+          </Button>
+        </div>
+      </form>
+    </EntityDetailPanel>
   );
 }
 
@@ -1288,6 +1296,31 @@ function StopListTargetSelect({
         </option>
       ))}
     </select>
+  );
+}
+
+
+function StopListTargetBadge({ target }: { target: StopListTarget }) {
+  const className =
+    target === "both"
+      ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200"
+      : target === "alias"
+        ? "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+        : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200";
+
+  return <Badge className={className}>{target}</Badge>;
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+      <div className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
+      <div className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-50">
+        {value}
+      </div>
+    </div>
   );
 }
 

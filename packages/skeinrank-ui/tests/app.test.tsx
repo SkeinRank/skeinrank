@@ -2907,6 +2907,8 @@ describe("App", () => {
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
 
+    expect(await screen.findByText("Stop-list governance workspace")).toBeInTheDocument();
+    expect(screen.getByText("Active blocks")).toBeInTheDocument();
     expect(await screen.findByText("Global stop list")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("unknown").length).toBeGreaterThan(0);
@@ -3031,6 +3033,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
     fireEvent.click(await screen.findByRole("tab", { name: /Profile/ }));
 
+    expect(await screen.findByText("Stop-list governance workspace")).toBeInTheDocument();
     expect(await screen.findByText("Profile scope")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("service").length).toBeGreaterThan(0);
