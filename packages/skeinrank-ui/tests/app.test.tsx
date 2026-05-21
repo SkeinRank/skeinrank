@@ -2321,8 +2321,13 @@ describe("App", () => {
     expect(
       await screen.findByText("Runtime search playground"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Runtime query lab")).toBeInTheDocument();
+    expect(screen.getByText("Binding-aware query lab")).toBeInTheDocument();
+    expect(screen.getByText("Canonical values")).toBeInTheDocument();
+    expect(screen.getByText("Runtime output")).toBeInTheDocument();
     expect(screen.getByText("Result preview")).toBeInTheDocument();
     expect(screen.getByText("Binding context")).toBeInTheDocument();
+    expect(screen.getByText("Runtime checks")).toBeInTheDocument();
     expect(screen.getByText("default_it → docs")).toBeInTheDocument();
     expect(
       screen.getByRole("option", {
