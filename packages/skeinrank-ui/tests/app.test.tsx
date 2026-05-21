@@ -2289,14 +2289,16 @@ describe("App", () => {
 
     await openSnapshotsPage();
 
-    expect(await screen.findByText("Runtime audit")).toBeInTheDocument();
+    expect(await screen.findByText("Snapshot release cockpit")).toBeInTheDocument();
+    expect(screen.getByText("Runtime audit")).toBeInTheDocument();
     expect(screen.getByText("Runtime bindings")).toBeInTheDocument();
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Profile drift")).toBeInTheDocument();
     expect(screen.getByText("Recent snapshot events")).toBeInTheDocument();
     expect(screen.getAllByText("default_it@abc123").length).toBeGreaterThan(0);
     expect(screen.getAllByText("ml_platform@old456").length).toBeGreaterThan(0);
     expect(screen.getByText("Pending: ml_platform@new789")).toBeInTheDocument();
-    expect(screen.getByText("profile changed")).toBeInTheDocument();
+    expect(screen.getAllByText("profile changed").length).toBeGreaterThan(0);
     expect(
       screen.getByText("ml docs needs runtime attention"),
     ).toBeInTheDocument();
