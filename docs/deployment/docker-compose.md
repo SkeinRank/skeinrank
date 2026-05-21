@@ -78,6 +78,34 @@ password: change-me
 
 The default credentials are for local development only.
 
+## Populate the platform preview
+
+For a screenshot-ready console, seed the local stack with a platform-operations knowledge base:
+
+```bash
+make demo-reset
+```
+
+This runs `examples/platform_ops_demo/seed_platform_demo.py`. It creates the `platform_ops` profile, loads `platform_knowledge_base`, creates a binding, adds review suggestions, refreshes evidence snapshots, and starts an enrichment job.
+
+Use the non-destructive variant after the first run:
+
+```bash
+make demo-seed
+```
+
+Check existing demo state without writing data:
+
+```bash
+make demo-status
+```
+
+Open Search Playground with:
+
+```text
+k8s pg timeout during phoenix rollout
+```
+
 ## Verify service health
 
 Use `GET /livez` for process liveness and `GET /readyz` for deployment readiness in a second terminal:
