@@ -3916,6 +3916,8 @@ describe("App", () => {
     await openTermsPage();
     fireEvent.click(screen.getByRole("button", { name: "API Access" }));
 
+    expect(await screen.findByText("API security control plane")).toBeInTheDocument();
+    expect(screen.getByText("Issue personal token")).toBeInTheDocument();
     expect(await screen.findByText("My API tokens")).toBeInTheDocument();
     expect(
       await screen.findByText("Existing Jupyter token"),
@@ -3971,6 +3973,8 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /Service accounts/ }));
 
+    expect(await screen.findByText("Service account identities")).toBeInTheDocument();
+    expect(screen.getByText("Automation details")).toBeInTheDocument();
     expect(await screen.findByText("Migration Bot")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Service account name"), {
