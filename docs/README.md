@@ -66,8 +66,9 @@ runtime terminology directly.
 ## OpenRouter alias scout foundation
 
 Patch 40F adds a local reference runner under
-`examples/agents/openrouter_alias_scout`. It is intentionally LLM-free for this
-step: it validates config, loads failed-query samples, builds deterministic
-idempotency keys, and wraps the existing `/v1/tools/*` REST facade. OpenRouter
-tool schemas, prompts, candidate pruning, and evidence sampling are follow-up
-patches.
+`examples/agents/openrouter_alias_scout`. Patch 40G adds the OpenRouter-facing
+contract layer: tool schemas, safety prompts, compact candidate-pack prompt
+helpers, and strict structured output parsing. The example remains LLM-free and
+does not execute tool calls yet; candidate pruning and evidence sampling are
+follow-up patches. Local previews are available through `--print-tool-schemas`,
+`--print-system-prompt`, and `--print-sample-review-prompt`.

@@ -400,8 +400,8 @@ The examples are documentation fixtures only; they do not introduce new API rout
 ## Reference agent runner foundation
 
 Patch 40F adds `examples/agents/openrouter_alias_scout` as the first reference
-agent integration. The example is not a new API surface and it does not call
-OpenRouter yet. It provides a small SkeinRank REST client for the existing tools:
+agent integration. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas and
+prompts on top of the same existing tools:
 
 ```text
 GET  /v1/tools/bindings
@@ -410,11 +410,16 @@ POST /v1/tools/validate-alias
 POST /v1/tools/suggest-alias
 ```
 
-Run the local dry-run plan with:
+Run the local previews with:
 
 ```bash
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-tool-schemas
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-prompt
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
 ```
 
-Future patches can add OpenRouter tool schemas, prompts, candidate pruning, and
-evidence sampling without changing the backend safety model.
+The example is not a new API surface and it does not call OpenRouter yet. Tool
+schemas map only to the existing `/v1/tools/*` facade, and the structured output
+parser keeps model judgments limited to `propose`, `reject`, or `needs_evidence`
+before any later runner validates and submits proposals.

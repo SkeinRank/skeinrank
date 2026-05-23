@@ -17,9 +17,21 @@ from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - import style depends on how the example is executed.
+    from .openrouter_tools import get_openrouter_tool_schemas
+    from .prompts import (
+        SYSTEM_PROMPT,
+        build_alias_review_prompt,
+        build_sample_candidate_pack,
+    )
     from .skeinrank_client import SkeinRankAgentClient
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from openrouter_tools import get_openrouter_tool_schemas
+    from prompts import (
+        SYSTEM_PROMPT,
+        build_alias_review_prompt,
+        build_sample_candidate_pack,
+    )
     from skeinrank_client import SkeinRankAgentClient
 
 JsonDict = dict[str, Any]
@@ -136,7 +148,7 @@ def build_run_plan(
         "default_binding_id": config.default_binding_id,
         "queries_loaded": len(scoped_queries),
         "next_steps": [
-            "Patch 40G will add OpenRouter tool schemas and prompts.",
+            "Patch 40G adds OpenRouter tool schemas and prompts.",
             "Patch 40H will add candidate discovery and pruning.",
             "Patch 40I will add compact evidence sampling.",
         ],
@@ -185,12 +197,40 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Print the local dry-run plan without calling OpenRouter.",
     )
+    parser.add_argument(
+        "--print-tool-schemas",
+        action="store_true",
+        help="Print OpenRouter/OpenAI-compatible SkeinRank tool schemas.",
+    )
+    parser.add_argument(
+        "--print-system-prompt",
+        action="store_true",
+        help="Print the alias scout system prompt.",
+    )
+    parser.add_argument(
+        "--print-sample-review-prompt",
+        action="store_true",
+        help="Print a sample alias-review prompt for local inspection.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
+
+    if args.print_tool_schemas:
+        print(json.dumps(get_openrouter_tool_schemas(), indent=2, sort_keys=True))
+        return 0
+
+    if args.print_system_prompt:
+        print(SYSTEM_PROMPT)
+        return 0
+
+    if args.print_sample_review_prompt:
+        sample_pack = build_sample_candidate_pack()
+        print(build_alias_review_prompt(sample_pack))
+        return 0
 
     if args.list_bindings:
         client = build_client(config)

@@ -931,13 +931,17 @@ agents:
 
 ```bash
 python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
+python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-tool-schemas
+python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-prompt
+python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
 ```
 
-Patch 40F keeps the runner dependency-light and LLM-free. It provides config,
-failed-query input, deterministic idempotency keys, and a REST client for
-`/v1/tools/*`. Later agent patches can add OpenRouter tool calling, candidate
-pruning, evidence windows, and LangGraph orchestration on top of the same safe
-proposal workflow.
+Patch 40F keeps the runner dependency-light and LLM-free. Patch 40G adds
+OpenRouter/OpenAI-compatible tool schemas, safety prompts, compact review prompt
+helpers, and strict structured output parsing. The example still does not call
+OpenRouter or execute model tool calls; it only documents the contract that later
+agent patches can wire to candidate pruning, evidence windows, and LangGraph
+orchestration on top of the same safe proposal workflow.
 
 
 ### Patch 38A/38B: term tags in governance and runtime

@@ -209,13 +209,21 @@ Patch 40F adds a dependency-light reference runner for agent integrations:
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
 ```
 
-The runner does not call OpenRouter yet. It establishes the local agent-side
-foundation: config, environment placeholders, failed-query input, deterministic
-idempotency keys, and a SkeinRank REST client for `/v1/tools/bindings`,
-`/v1/tools/explain-query`, `/v1/tools/validate-alias`, and
-`/v1/tools/suggest-alias`. This keeps the same safety contract: agents can
-validate and submit proposals, but runtime terminology changes only through
-reviewed batches and snapshots. See
+Patch 40G adds the OpenRouter/OpenAI-compatible layer around that runner:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-tool-schemas
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-prompt
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
+```
+
+The example still does not call OpenRouter. It now defines tool schemas for
+`skeinrank_list_bindings`, `skeinrank_explain_query`,
+`skeinrank_validate_alias`, and `skeinrank_submit_alias_proposal`, plus a
+safety-focused system prompt and strict parser for `propose`, `reject`, and
+`needs_evidence` judgments. The schemas map only to existing `/v1/tools/*`
+routes, so agents can validate and submit proposals, but runtime terminology
+changes only through reviewed batches and snapshots. See
 [`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout).
 
 ## Quickstart: local SDK / CLI
