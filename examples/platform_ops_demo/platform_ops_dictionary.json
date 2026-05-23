@@ -10,8 +10,20 @@
       "slot": "technology",
       "description": "Container orchestration platform used by platform services.",
       "aliases": [
-        { "value": "k8s", "confidence": 0.99, "notes": "Common incident shorthand." },
-        { "value": "kube", "confidence": 0.94, "notes": "Common engineering shorthand." }
+        {
+          "value": "k8s",
+          "confidence": 0.99,
+          "notes": "Common incident shorthand."
+        },
+        {
+          "value": "kube",
+          "confidence": 0.94,
+          "notes": "Common engineering shorthand."
+        }
+      ],
+      "tags": [
+        "infra",
+        "platform"
       ]
     },
     {
@@ -19,8 +31,19 @@
       "slot": "database",
       "description": "Primary relational database platform.",
       "aliases": [
-        { "value": "postgres", "confidence": 0.99 },
-        { "value": "pg", "confidence": 0.92, "notes": "Ambiguous outside platform bindings." }
+        {
+          "value": "postgres",
+          "confidence": 0.99
+        },
+        {
+          "value": "pg",
+          "confidence": 0.92,
+          "notes": "Ambiguous outside platform bindings."
+        }
+      ],
+      "tags": [
+        "backend",
+        "storage"
       ]
     },
     {
@@ -28,8 +51,18 @@
       "slot": "search_backend",
       "description": "Search and enrichment backend.",
       "aliases": [
-        { "value": "es", "confidence": 0.91 },
-        { "value": "elastic", "confidence": 0.93 }
+        {
+          "value": "es",
+          "confidence": 0.91
+        },
+        {
+          "value": "elastic",
+          "confidence": 0.93
+        }
+      ],
+      "tags": [
+        "search",
+        "infra"
       ]
     },
     {
@@ -37,8 +70,18 @@
       "slot": "message_broker",
       "description": "Message broker used by async workers.",
       "aliases": [
-        { "value": "amqp", "confidence": 0.87 },
-        { "value": "message broker", "confidence": 0.9 }
+        {
+          "value": "amqp",
+          "confidence": 0.87
+        },
+        {
+          "value": "message broker",
+          "confidence": 0.9
+        }
+      ],
+      "tags": [
+        "async",
+        "infra"
       ]
     },
     {
@@ -46,8 +89,18 @@
       "slot": "worker_runtime",
       "description": "Async task worker runtime.",
       "aliases": [
-        { "value": "worker queue", "confidence": 0.86 },
-        { "value": "task worker", "confidence": 0.88 }
+        {
+          "value": "worker queue",
+          "confidence": 0.86
+        },
+        {
+          "value": "task worker",
+          "confidence": 0.88
+        }
+      ],
+      "tags": [
+        "async",
+        "runtime"
       ]
     },
     {
@@ -55,8 +108,17 @@
       "slot": "observability",
       "description": "Metrics and alerting system.",
       "aliases": [
-        { "value": "prom", "confidence": 0.84 },
-        { "value": "prom alerts", "confidence": 0.86 }
+        {
+          "value": "prom",
+          "confidence": 0.84
+        },
+        {
+          "value": "prom alerts",
+          "confidence": 0.86
+        }
+      ],
+      "tags": [
+        "observability"
       ]
     },
     {
@@ -64,8 +126,17 @@
       "slot": "observability",
       "description": "Dashboard and incident analysis UI.",
       "aliases": [
-        { "value": "dashboards", "confidence": 0.78 },
-        { "value": "incident dashboards", "confidence": 0.83 }
+        {
+          "value": "dashboards",
+          "confidence": 0.78
+        },
+        {
+          "value": "incident dashboards",
+          "confidence": 0.83
+        }
+      ],
+      "tags": [
+        "observability"
       ]
     },
     {
@@ -73,8 +144,18 @@
       "slot": "cache",
       "description": "Cache backend used by APIs.",
       "aliases": [
-        { "value": "cache layer", "confidence": 0.82 },
-        { "value": "hot keys", "confidence": 0.76 }
+        {
+          "value": "cache layer",
+          "confidence": 0.82
+        },
+        {
+          "value": "hot keys",
+          "confidence": 0.76
+        }
+      ],
+      "tags": [
+        "backend",
+        "infra"
       ]
     },
     {
@@ -82,8 +163,18 @@
       "slot": "service",
       "description": "Edge gateway and API routing layer.",
       "aliases": [
-        { "value": "edge gateway", "confidence": 0.91 },
-        { "value": "gateway", "confidence": 0.82 }
+        {
+          "value": "edge gateway",
+          "confidence": 0.91
+        },
+        {
+          "value": "gateway",
+          "confidence": 0.82
+        }
+      ],
+      "tags": [
+        "service",
+        "backend"
       ]
     },
     {
@@ -91,8 +182,18 @@
       "slot": "service",
       "description": "Payments and billing API service.",
       "aliases": [
-        { "value": "billing api", "confidence": 0.95 },
-        { "value": "payments service", "confidence": 0.92 }
+        {
+          "value": "billing api",
+          "confidence": 0.95
+        },
+        {
+          "value": "payments service",
+          "confidence": 0.92
+        }
+      ],
+      "tags": [
+        "service",
+        "backend"
       ]
     },
     {
@@ -100,8 +201,17 @@
       "slot": "project",
       "description": "Demo rollout project used in platform incident documents.",
       "aliases": [
-        { "value": "phoenix", "confidence": 0.93 },
-        { "value": "phoenix rollout", "confidence": 0.96 }
+        {
+          "value": "phoenix",
+          "confidence": 0.93
+        },
+        {
+          "value": "phoenix rollout",
+          "confidence": 0.96
+        }
+      ],
+      "tags": [
+        "project"
       ]
     },
     {
@@ -109,8 +219,18 @@
       "slot": "workflow",
       "description": "Production incident or service degradation.",
       "aliases": [
-        { "value": "outage", "confidence": 0.9 },
-        { "value": "sev", "confidence": 0.86 }
+        {
+          "value": "outage",
+          "confidence": 0.9
+        },
+        {
+          "value": "sev",
+          "confidence": 0.86
+        }
+      ],
+      "tags": [
+        "workflow",
+        "incident-management"
       ]
     },
     {
@@ -118,7 +238,13 @@
       "slot": "document_type",
       "description": "Operational response document.",
       "aliases": [
-        { "value": "playbook", "confidence": 0.86 }
+        {
+          "value": "playbook",
+          "confidence": 0.86
+        }
+      ],
+      "tags": [
+        "knowledge-base"
       ]
     },
     {
@@ -126,26 +252,56 @@
       "slot": "metric",
       "description": "Tail latency metric used for incident triage.",
       "aliases": [
-        { "value": "tail latency", "confidence": 0.88 },
-        { "value": "latency p95", "confidence": 0.88 }
-      ]
+        {
+          "value": "tail latency",
+          "confidence": 0.88
+        },
+        {
+          "value": "latency p95",
+          "confidence": 0.88
+        }
+      ],
+      "tags": []
     },
     {
       "canonical_value": "canary rollout",
       "slot": "deployment_strategy",
       "description": "Phased deployment strategy used by platform teams.",
       "aliases": [
-        { "value": "canary", "confidence": 0.86 },
-        { "value": "phased rollout", "confidence": 0.9 }
-      ]
+        {
+          "value": "canary",
+          "confidence": 0.86
+        },
+        {
+          "value": "phased rollout",
+          "confidence": 0.9
+        }
+      ],
+      "tags": []
     }
   ],
   "profile_stop_list": [
-    { "value": "the", "target": "both", "reason": "Generic stop word." },
-    { "value": "and", "target": "both", "reason": "Generic stop word." }
+    {
+      "value": "the",
+      "target": "both",
+      "reason": "Generic stop word."
+    },
+    {
+      "value": "and",
+      "target": "both",
+      "reason": "Generic stop word."
+    }
   ],
   "global_stop_list": [
-    { "value": "todo", "target": "both", "reason": "Placeholder token." },
-    { "value": "unknown", "target": "both", "reason": "Low-quality placeholder." }
+    {
+      "value": "todo",
+      "target": "both",
+      "reason": "Placeholder token."
+    },
+    {
+      "value": "unknown",
+      "target": "both",
+      "reason": "Low-quality placeholder."
+    }
   ]
 }

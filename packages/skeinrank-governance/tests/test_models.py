@@ -7,8 +7,12 @@ from skeinrank_governance import (
     CanonicalTerm,
     ElasticsearchBinding,
     ElasticsearchEnrichmentJob,
+    GovernanceAmbiguousAlias,
+    GovernanceAmbiguousAliasCandidate,
     GovernanceApiToken,
     GovernanceAuthToken,
+    GovernanceBindingPolicy,
+    GovernanceConflictReview,
     GovernanceGlobalStopListEntry,
     GovernanceServiceAccount,
     GovernanceStopListEntry,
@@ -17,6 +21,7 @@ from skeinrank_governance import (
     ProfileSnapshot,
     TermAlias,
     TerminologyProfile,
+    TermTag,
     create_all,
     create_governance_engine,
     create_session_factory,
@@ -41,6 +46,7 @@ def test_metadata_contains_expected_tables():
         "terminology_profiles",
         "canonical_terms",
         "term_aliases",
+        "term_tags",
         "profile_snapshots",
         "audit_events",
         "governance_users",
@@ -48,6 +54,10 @@ def test_metadata_contains_expected_tables():
         "governance_service_accounts",
         "governance_api_tokens",
         "governance_suggestions",
+        "governance_conflict_reviews",
+        "governance_ambiguous_aliases",
+        "governance_ambiguous_alias_candidates",
+        "governance_binding_policies",
         "governance_stop_list_entries",
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
@@ -71,6 +81,7 @@ def test_create_governance_rows_and_normalized_values(session):
         alias_value="K8S",
         confidence=0.99,
     )
+    tag = TermTag(term=term, value="Infra")
     snapshot = ProfileSnapshot(
         profile=profile,
         version="default_it@v1",
@@ -98,6 +109,34 @@ def test_create_governance_rows_and_normalized_values(session):
             "warnings": [],
         },
         evidence_checked_by="tester",
+    )
+    conflict_review = GovernanceConflictReview(
+        profile=profile,
+        fingerprint="abc123",
+        conflict_type="alias_maps_to_multiple_canonicals",
+        normalized_value="pg",
+        severity="high",
+        review_status="ignored",
+        reviewed_by="tester",
+        review_note="Accepted cross-domain term",
+        details_json={"scope": "cross_profile"},
+    )
+    ambiguous_alias = GovernanceAmbiguousAlias(
+        profile=profile,
+        surface_value="PG",
+        status="open",
+        created_by="tester",
+        review_note="Needs binding policy",
+    )
+    ambiguous_candidate = GovernanceAmbiguousAliasCandidate(
+        ambiguous_alias=ambiguous_alias,
+        term=term,
+        canonical_value="Kubernetes",
+        slot="TOOL",
+        source="manual",
+        confidence=0.88,
+        status="candidate",
+        evidence_json={"query_count": 42},
     )
     stop_list_entry = GovernanceStopListEntry(
         profile=profile,
@@ -151,6 +190,23 @@ def test_create_governance_rows_and_normalized_values(session):
         timestamp_field="created_at",
         time_window_days=1825,
     )
+    binding_policy = GovernanceBindingPolicy(
+        binding=binding,
+        profile=profile,
+        preferred_slots=["database", " tool "],
+        allowed_tags=["Infra", " backend "],
+        deny_slots=["document_component"],
+        context_rules=[
+            {
+                "surface": "PG",
+                "prefer": "PostgreSQL",
+                "slot": "database",
+                "reason": "Infra binding",
+            }
+        ],
+        created_by="tester",
+        updated_by="tester",
+    )
     job = ElasticsearchEnrichmentJob(
         binding=binding,
         profile=profile,
@@ -174,8 +230,12 @@ def test_create_governance_rows_and_normalized_values(session):
             profile,
             term,
             alias,
+            tag,
             snapshot,
             suggestion,
+            conflict_review,
+            ambiguous_alias,
+            ambiguous_candidate,
             stop_list_entry,
             global_stop_list_entry,
             user,
@@ -193,6 +253,8 @@ def test_create_governance_rows_and_normalized_values(session):
     assert term.normalized_value == "kubernetes"
     assert term.slot == "TOOL"
     assert alias.normalized_alias == "k8s"
+    assert tag.value == "infra"
+    assert tag.normalized_value == "infra"
     assert snapshot.status == "draft"
     assert suggestion.suggestion_type == "alias"
     assert suggestion.normalized_canonical == "kubernetes"
@@ -201,6 +263,23 @@ def test_create_governance_rows_and_normalized_values(session):
     assert suggestion.status == "pending"
     assert suggestion.evidence_snapshot["query"] == "kube"
     assert suggestion.evidence_checked_by == "tester"
+    assert conflict_review.severity == "high"
+    assert conflict_review.review_status == "ignored"
+    assert conflict_review.review_note == "Accepted cross-domain term"
+    assert ambiguous_alias.normalized_surface == "pg"
+    assert ambiguous_alias.status == "open"
+    assert ambiguous_candidate.normalized_canonical == "kubernetes"
+    assert ambiguous_candidate.slot == "TOOL"
+    assert ambiguous_candidate.evidence_json == {"query_count": 42}
+    assert binding_policy.preferred_slots == [
+        "TOOL",
+        "DATABASE",
+    ] or binding_policy.preferred_slots == ["DATABASE", "TOOL"]
+    assert binding_policy.allowed_tags == ["backend", "infra"]
+    assert binding_policy.deny_slots == ["DOCUMENT_COMPONENT"]
+    assert binding_policy.context_rules[0]["normalized_surface"] == "pg"
+    assert binding_policy.context_rules[0]["normalized_prefer"] == "postgresql"
+    assert binding_policy.context_rules[0]["slot"] == "DATABASE"
     assert stop_list_entry.normalized_value == "service"
     assert stop_list_entry.target == "alias"
     assert stop_list_entry.is_active is True
@@ -511,6 +590,20 @@ def test_invalid_elasticsearch_enrichment_job_status_is_rejected(session):
         source_index="docs",
     )
     session.add(job)
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_term_tags_are_unique_per_term(session):
+    profile = TerminologyProfile(name="Default IT")
+    term = CanonicalTerm(profile=profile, canonical_value="PostgreSQL", slot="database")
+    session.add_all([profile, term])
+    session.flush()
+
+    session.add_all(
+        [TermTag(term=term, value="Storage"), TermTag(term=term, value=" storage ")]
+    )
 
     with pytest.raises(IntegrityError):
         session.commit()

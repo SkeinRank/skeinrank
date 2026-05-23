@@ -45,7 +45,11 @@ def _seed_dictionary(client: TestClient, headers: dict[str, str] | None = None) 
     assert (
         client.post(
             "/v1/governance/profiles/infra_incidents/terms",
-            json={"canonical_value": "kubernetes", "slot": "TOOL"},
+            json={
+                "canonical_value": "kubernetes",
+                "slot": "TOOL",
+                "tags": ["infra", "orchestration"],
+            },
             headers=headers,
         ).status_code
         == 201
@@ -69,7 +73,11 @@ def _seed_dictionary(client: TestClient, headers: dict[str, str] | None = None) 
     assert (
         client.post(
             "/v1/governance/profiles/infra_incidents/terms",
-            json={"canonical_value": "postgresql", "slot": "DATABASE"},
+            json={
+                "canonical_value": "postgresql",
+                "slot": "DATABASE",
+                "tags": ["backend", "storage"],
+            },
             headers=headers,
         ).status_code
         == 201
@@ -120,12 +128,18 @@ def test_text_canonicalize_replace_returns_canonical_text_and_evidence(tmp_path)
         "DATABASE": ["postgresql"],
         "TOOL": ["kubernetes"],
     }
+    assert payload["tags"] == {
+        "kubernetes": ["infra", "orchestration"],
+        "postgresql": ["backend", "storage"],
+    }
     assert payload["matched_aliases"] == ["k8s", "pg"]
     assert [item["matched_text"] for item in payload["replacements"]] == ["k8s", "pg"]
     assert payload["replacements"][0]["start"] == 0
     assert payload["replacements"][0]["end"] == 3
+    assert payload["replacements"][0]["tags"] == ["infra", "orchestration"]
     assert payload["evidence"][0]["reason"] == "Alias matched active canonical term"
     assert payload["evidence"][1]["canonical_value"] == "postgresql"
+    assert payload["evidence"][1]["tags"] == ["backend", "storage"]
 
 
 def test_text_canonicalize_annotate_does_not_change_text(tmp_path):

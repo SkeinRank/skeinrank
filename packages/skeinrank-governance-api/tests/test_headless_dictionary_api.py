@@ -44,6 +44,7 @@ def _dictionary_payload() -> dict:
                 "canonical_value": "kubernetes",
                 "slot": "TOOL",
                 "description": "Container orchestration platform",
+                "tags": ["infra", "orchestration"],
                 "aliases": [
                     "k8s",
                     {"value": "kube", "confidence": 0.95, "notes": "short form"},
@@ -52,6 +53,7 @@ def _dictionary_payload() -> dict:
             {
                 "canonical_value": "postgresql",
                 "slot": "DATABASE",
+                "tags": ["backend", "storage"],
                 "aliases": ["postgres", "pg"],
             },
         ],
@@ -106,6 +108,8 @@ def test_headless_dictionary_apply_and_export_round_trip(tmp_path):
     assert exported["schema_version"] == "skeinrank.dictionary.v1"
     assert exported["profile_name"] == "platform_ops"
     terms = {term["canonical_value"]: term for term in exported["terms"]}
+    assert terms["kubernetes"]["tags"] == ["infra", "orchestration"]
+    assert terms["postgresql"]["tags"] == ["backend", "storage"]
     assert terms["kubernetes"]["aliases"] == [
         {"value": "k8s", "confidence": 1.0, "status": "active", "notes": None},
         {

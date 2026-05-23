@@ -1,0 +1,14 @@
+{
+  "status": "active",
+  "preferred_slots": ["document_component", "technology"],
+  "allowed_tags": ["docs", "frontend"],
+  "deny_slots": ["database"],
+  "context_rules": [
+    {
+      "surface": "pg",
+      "prefer": "page",
+      "slot": "document_component",
+      "reason": "Documentation bindings use pg as page."
+    }
+  ]
+}

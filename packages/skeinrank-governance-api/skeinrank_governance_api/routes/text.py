@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
 from ..observability import start_span, trace_query_text
+from ..runtime_policy import RuntimePolicyDecision, resolve_runtime_binding_policy
 from ..runtime_snapshots import (
     active_runtime_alias_entries,
     alias_entries_from_snapshot,
@@ -47,6 +48,7 @@ class _AliasEntry:
     normalized_canonical: str
     slot: str
     confidence: float
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -54,10 +56,13 @@ class _CandidateMatch:
     alias_value: str
     canonical_value: str
     slot: str
+    tags: tuple[str, ...]
     matched_text: str
     start: int
     end: int
     confidence: float
+    source: str = "alias"
+    reason: str = "Alias matched active canonical term"
 
 
 @dataclass(frozen=True)
@@ -68,6 +73,7 @@ class _RuntimeAliasContext:
     snapshot_version: str | None
     snapshot_source: str
     warnings: list[str]
+    policy_decisions: list[RuntimePolicyDecision]
 
 
 @router.post("/canonicalize", response_model=TextCanonicalizeResponse)
@@ -122,19 +128,21 @@ def canonicalize_text(
 
     canonical_values = sorted({match.canonical_value for match in matches})
     slots = _slots_for_matches(matches)
+    tags = _tags_for_matches(matches)
     matched_aliases = sorted({match.alias_value for match in matches})
     evidence = (
         [
             TextCanonicalizeEvidence(
-                reason="Alias matched active canonical term",
+                reason=match.reason,
                 alias_value=match.alias_value,
                 canonical_value=match.canonical_value,
                 slot=match.slot,
+                tags=list(match.tags),
                 matched_text=match.matched_text,
                 start=match.start,
                 end=match.end,
                 confidence=match.confidence,
-                source="alias",
+                source=match.source,
             )
             for match in matches
         ]
@@ -164,10 +172,14 @@ def canonicalize_text(
         changed=canonical_text != request.text,
         canonical_values=canonical_values,
         slots=slots,
+        tags=tags,
         matched_aliases=matched_aliases,
         replacements=replacements,
         evidence=evidence,
         warnings=warnings,
+        policy_decisions=_policy_decisions_for_matches(
+            context.policy_decisions, matches
+        ),
     )
 
 
@@ -188,27 +200,38 @@ def _resolve_runtime_alias_context(
             )
         alias_entries = _alias_entries_from_binding_snapshot(binding)
         if alias_entries:
+            resolution = _apply_binding_policy(
+                session=session, binding=binding, alias_entries=alias_entries
+            )
+            warnings.extend(resolution.warnings)
             return _RuntimeAliasContext(
                 profile=binding.profile,
                 binding=binding,
-                alias_entries=alias_entries,
+                alias_entries=resolution.alias_entries,
                 snapshot_version=binding.last_successful_snapshot_version,
                 snapshot_source="binding_runtime_snapshot",
                 warnings=warnings,
+                policy_decisions=resolution.policy_decisions,
             )
         warnings.append(
             "Binding has no runtime snapshot yet; latest profile state was used."
         )
         latest_snapshot = build_runtime_snapshot_payload(session, binding.profile)
+        latest_entries = _alias_entries_from_runtime_entries(
+            active_runtime_alias_entries(session, binding.profile)
+        )
+        resolution = _apply_binding_policy(
+            session=session, binding=binding, alias_entries=latest_entries
+        )
+        warnings.extend(resolution.warnings)
         return _RuntimeAliasContext(
             profile=binding.profile,
             binding=binding,
-            alias_entries=_alias_entries_from_runtime_entries(
-                active_runtime_alias_entries(session, binding.profile)
-            ),
+            alias_entries=resolution.alias_entries,
             snapshot_version=str(latest_snapshot["version"]),
             snapshot_source="latest_profile",
             warnings=warnings,
+            policy_decisions=resolution.policy_decisions,
         )
 
     if profile_name is None:
@@ -225,6 +248,7 @@ def _resolve_runtime_alias_context(
         snapshot_version=str(latest_snapshot["version"]),
         snapshot_source="latest_profile",
         warnings=warnings,
+        policy_decisions=[],
     )
 
 
@@ -259,9 +283,30 @@ def _alias_entries_from_runtime_entries(entries) -> list[_AliasEntry]:
             normalized_canonical=entry.normalized_canonical,
             slot=entry.slot,
             confidence=entry.confidence,
+            tags=tuple(getattr(entry, "tags", ()) or ()),
         )
         for entry in entries
     ]
+
+
+@dataclass(frozen=True)
+class _PolicyResolutionView:
+    alias_entries: list[_AliasEntry]
+    policy_decisions: list[RuntimePolicyDecision]
+    warnings: list[str]
+
+
+def _apply_binding_policy(
+    *, session: Session, binding: ElasticsearchBinding, alias_entries: list[_AliasEntry]
+) -> _PolicyResolutionView:
+    resolution = resolve_runtime_binding_policy(
+        session=session, binding=binding, alias_entries=alias_entries
+    )
+    return _PolicyResolutionView(
+        alias_entries=_alias_entries_from_runtime_entries(resolution.alias_entries),
+        policy_decisions=resolution.decisions,
+        warnings=resolution.warnings,
+    )
 
 
 def _get_profile_or_404(session: Session, profile_name: str) -> TerminologyProfile:
@@ -314,6 +359,7 @@ def _active_alias_entries_for_profile(
                 normalized_canonical=alias.term.normalized_value,
                 slot=alias.term.slot,
                 confidence=alias.confidence,
+                tags=_tags_for_term(alias.term),
             )
         )
     return entries
@@ -356,6 +402,7 @@ def _find_alias_matches(
                     alias_value=alias_entry.alias_value,
                     canonical_value=alias_entry.canonical_value,
                     slot=alias_entry.slot,
+                    tags=alias_entry.tags,
                     matched_text=match.group(0),
                     start=match.start(),
                     end=match.end(),
@@ -414,11 +461,43 @@ def _match_response(match: _CandidateMatch) -> TextCanonicalizeMatch:
         alias_value=match.alias_value,
         canonical_value=match.canonical_value,
         slot=match.slot,
+        tags=list(match.tags),
         matched_text=match.matched_text,
         start=match.start,
         end=match.end,
         confidence=match.confidence,
-        source="alias",
+        source=match.source,
+    )
+
+
+def _policy_decisions_for_matches(
+    decisions: list[RuntimePolicyDecision], matches: list[_CandidateMatch]
+) -> list[dict[str, object]]:
+    matched_surfaces = {normalize_value(match.alias_value) for match in matches}
+    return [
+        decision.to_dict()
+        for decision in decisions
+        if decision.normalized_surface in matched_surfaces
+    ]
+
+
+def _tags_for_matches(matches: list[_CandidateMatch]) -> dict[str, list[str]]:
+    tags: dict[str, set[str]] = {}
+    for match in matches:
+        if match.tags:
+            tags.setdefault(match.canonical_value, set()).update(match.tags)
+    return {canonical: sorted(values) for canonical, values in sorted(tags.items())}
+
+
+def _tags_for_term(term: CanonicalTerm) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                tag.normalized_value
+                for tag in getattr(term, "tags", [])
+                if str(tag.normalized_value or "").strip()
+            }
+        )
     )
 
 

@@ -27,6 +27,7 @@ def _dictionary_payload():
                 "canonical_value": "kubernetes",
                 "slot": "TOOL",
                 "description": "Container orchestration platform",
+                "tags": ["infra", "orchestration", "infra"],
                 "aliases": [
                     "k8s",
                     {"value": "kube", "confidence": 0.95, "notes": "short form"},
@@ -68,6 +69,7 @@ def test_load_dictionary_from_console_migration_payload():
 
     assert dictionary.profile_name == "infra_incidents"
     assert dictionary.terms[0].canonical_value == "kubernetes"
+    assert dictionary.terms[0].tags == ["infra", "orchestration"]
     assert dictionary.terms[0].aliases[1].value == "kube"
     assert dictionary.terms[0].aliases[1].confidence == 0.95
     assert dictionary.terms[1].slot == "DATABASE"

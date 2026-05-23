@@ -36,11 +36,13 @@ def _dictionary_payload() -> dict:
             {
                 "canonical_value": "kubernetes",
                 "slot": "TOOL",
+                "tags": ["infra", "orchestration"],
                 "aliases": ["k8s", "kube"],
             },
             {
                 "canonical_value": "postgresql",
                 "slot": "DATABASE",
+                "tags": ["storage", "backend"],
                 "aliases": ["postgres", "pg"],
             },
         ],
@@ -96,6 +98,12 @@ def test_headless_snapshot_artifact_export_builds_from_latest_profile(tmp_path):
     assert artifact["runtime_snapshot"]["version"] == "platform_ops@v1"
     assert artifact["runtime_snapshot"]["normalized_profile_name"] == "platform_ops"
     assert len(artifact["runtime_snapshot"]["alias_entries"]) == 4
+    entry_by_alias = {
+        item["normalized_alias"]: item
+        for item in artifact["runtime_snapshot"]["alias_entries"]
+    }
+    assert entry_by_alias["k8s"]["tags"] == ["infra", "orchestration"]
+    assert entry_by_alias["pg"]["tags"] == ["backend", "storage"]
     assert artifact["manifest"]["snapshot_source"] == "latest_profile"
     assert artifact["manifest"]["snapshot_version"] == "platform_ops@v1"
     assert artifact["manifest"]["alias_entries_total"] == 4
@@ -169,10 +177,15 @@ def test_runtime_snapshot_artifact_loader_reads_file_and_summarizes(tmp_path):
         "pg",
         "postgres",
     }
+    loaded_by_alias = {entry.normalized_alias: entry for entry in loaded.alias_entries}
+    assert loaded_by_alias["k8s"].tags == ("infra", "orchestration")
+    assert loaded_by_alias["pg"].tags == ("backend", "storage")
     assert summary["schema_version"] == "skeinrank.runtime_snapshot_artifact.v1"
     assert summary["binding_id"] == binding_id
     assert summary["profile_name"] == "platform_ops"
     assert summary["alias_entries_total"] == 4
+    assert summary["tags_total"] == 4
+    assert summary["tags"] == ["backend", "infra", "orchestration", "storage"]
     assert summary["index_name"] == "platform_kb"
     assert summary["text_fields"] == ["title", "body"]
 

@@ -32,11 +32,16 @@ def test_profile_term_alias_workflow(tmp_path):
 
     term_response = client.post(
         "/v1/governance/profiles/default_it/terms",
-        json={"canonical_value": "kubernetes", "slot": "tool"},
+        json={
+            "canonical_value": "kubernetes",
+            "slot": "tool",
+            "tags": ["infra", "orchestration", "infra"],
+        },
     )
     assert term_response.status_code == 201
     assert term_response.json()["canonical_value"] == "kubernetes"
     assert term_response.json()["slot"] == "TOOL"
+    assert term_response.json()["tags"] == ["infra", "orchestration"]
     assert term_response.json()["aliases"] == []
 
     alias_response = client.post(
@@ -53,13 +58,40 @@ def test_profile_term_alias_workflow(tmp_path):
     terms = terms_response.json()
     assert len(terms) == 1
     assert terms[0]["canonical_value"] == "kubernetes"
+    assert terms[0]["tags"] == ["infra", "orchestration"]
     assert terms[0]["aliases"][0]["alias_value"] == "k8s"
 
     term_detail_response = client.get(
         "/v1/governance/profiles/default_it/terms/kubernetes"
     )
     assert term_detail_response.status_code == 200
+    assert term_detail_response.json()["tags"] == ["infra", "orchestration"]
     assert term_detail_response.json()["aliases"][0]["alias_value"] == "k8s"
+
+
+def test_update_term_tags_replaces_normalized_tag_set(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={
+            "canonical_value": "postgresql",
+            "slot": "database",
+            "tags": ["infra", "storage"],
+        },
+    )
+
+    response = client.patch(
+        "/v1/governance/profiles/default_it/terms/postgresql",
+        json={"tags": ["Backend", "storage", "backend"]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["tags"] == ["backend", "storage"]
+
+    detail = client.get("/v1/governance/profiles/default_it/terms/postgresql")
+    assert detail.status_code == 200
+    assert detail.json()["tags"] == ["backend", "storage"]
 
 
 def test_duplicate_profile_returns_conflict(tmp_path):

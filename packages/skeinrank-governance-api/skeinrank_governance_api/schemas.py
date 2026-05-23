@@ -258,6 +258,7 @@ class TermCreateRequest(BaseModel):
     slot: str = Field(..., min_length=1, max_length=64)
     description: str | None = None
     status: str = "active"
+    tags: list[str] = Field(default_factory=list)
 
 
 class TermUpdateRequest(BaseModel):
@@ -267,6 +268,7 @@ class TermUpdateRequest(BaseModel):
     slot: str | None = Field(default=None, min_length=1, max_length=64)
     description: str | None = None
     status: str | None = None
+    tags: list[str] | None = None
 
 
 class AliasCreateRequest(BaseModel):
@@ -309,6 +311,7 @@ class TermResponse(BaseModel):
     slot: str
     status: str
     description: str | None = None
+    tags: list[str] = Field(default_factory=list)
     aliases: list[AliasResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -442,6 +445,44 @@ class ElasticsearchBindingResponse(BaseModel):
     updated_at: datetime
 
 
+class BindingPolicyContextRule(BaseModel):
+    """One binding-scoped rule for resolving an ambiguous surface form."""
+
+    surface: str = Field(..., min_length=1, max_length=256)
+    prefer: str = Field(..., min_length=1, max_length=256)
+    slot: str | None = Field(default=None, max_length=64)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class BindingPolicyUpsertRequest(BaseModel):
+    """Create or replace a binding-scoped terminology policy."""
+
+    status: str = "active"
+    preferred_slots: list[str] = Field(default_factory=list)
+    allowed_tags: list[str] = Field(default_factory=list)
+    deny_slots: list[str] = Field(default_factory=list)
+    context_rules: list[BindingPolicyContextRule] = Field(default_factory=list)
+
+
+class BindingPolicyResponse(BaseModel):
+    """Persisted binding policy response."""
+
+    id: int
+    binding_id: int
+    profile_id: int
+    profile_name: str
+    binding_name: str
+    status: str
+    preferred_slots: list[str] = Field(default_factory=list)
+    allowed_tags: list[str] = Field(default_factory=list)
+    deny_slots: list[str] = Field(default_factory=list)
+    context_rules: list[dict[str, Any]] = Field(default_factory=list)
+    created_by: str | None = None
+    updated_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class ElasticsearchConnectionStatusResponse(BaseModel):
     """Elasticsearch connection discovery status."""
 
@@ -546,6 +587,128 @@ class ElasticsearchEvidenceResponse(BaseModel):
     max_documents: int
     documents: list[ElasticsearchEvidenceDocument]
     warnings: list[str] = Field(default_factory=list)
+
+
+class ConflictEntityResponse(BaseModel):
+    """One entity participating in a terminology conflict report item."""
+
+    entity_type: str
+    id: int | None = None
+    profile_id: int | None = None
+    profile_name: str | None = None
+    term_id: int | None = None
+    alias_id: int | None = None
+    suggestion_id: int | None = None
+    stop_list_id: int | None = None
+    canonical_value: str | None = None
+    alias_value: str | None = None
+    normalized_value: str | None = None
+    slot: str | None = None
+    status: str | None = None
+    target: str | None = None
+    source: str | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConflictReportItemResponse(BaseModel):
+    """One read-only conflict found by the coverage scanner."""
+
+    fingerprint: str
+    conflict_type: str
+    scope: str
+    profile_name: str | None = None
+    normalized_value: str
+    title: str
+    message: str
+    suggested_action: str
+    severity: str = "medium"
+    review_status: str = "open"
+    review_note: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    entities: list[ConflictEntityResponse] = Field(default_factory=list)
+
+
+class ConflictReviewUpdateRequest(BaseModel):
+    """Update human review state for a current terminology conflict."""
+
+    severity: str | None = None
+    review_status: str | None = None
+    review_note: str | None = Field(default=None, max_length=2000)
+
+
+class ConflictReportResponse(BaseModel):
+    """Read-only terminology conflict report."""
+
+    profile_name: str | None = None
+    normalized_profile_name: str | None = None
+    include_suggestions: bool = True
+    total: int
+    conflicts: list[ConflictReportItemResponse] = Field(default_factory=list)
+
+
+class AmbiguousAliasCandidateInput(BaseModel):
+    """One candidate interpretation for an ambiguous alias surface."""
+
+    canonical_value: str = Field(..., min_length=1, max_length=256)
+    slot: str = Field(..., min_length=1, max_length=64)
+    term_id: int | None = None
+    source: str = "manual"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: str = "candidate"
+    evidence: dict[str, Any] | None = None
+
+
+class AmbiguousAliasUpsertRequest(BaseModel):
+    """Create or update an ambiguous alias surface and its candidates."""
+
+    surface_value: str = Field(..., min_length=1, max_length=256)
+    status: str = "open"
+    review_note: str | None = Field(default=None, max_length=2000)
+    candidates: list[AmbiguousAliasCandidateInput] = Field(default_factory=list)
+
+
+class AmbiguousAliasUpdateRequest(BaseModel):
+    """Update ambiguous alias reviewer state."""
+
+    surface_value: str | None = Field(default=None, min_length=1, max_length=256)
+    status: str | None = None
+    review_note: str | None = Field(default=None, max_length=2000)
+
+
+class AmbiguousAliasCandidateResponse(BaseModel):
+    """One persisted ambiguous alias candidate."""
+
+    id: int
+    ambiguous_alias_id: int
+    term_id: int | None = None
+    canonical_value: str
+    normalized_canonical: str
+    slot: str
+    source: str
+    confidence: float
+    status: str
+    evidence: dict[str, Any] | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AmbiguousAliasResponse(BaseModel):
+    """Ambiguous alias surface with candidate interpretations."""
+
+    id: int
+    profile_id: int
+    profile_name: str
+    surface_value: str
+    normalized_surface: str
+    status: str
+    created_by: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    review_note: str | None = None
+    candidates: list[AmbiguousAliasCandidateResponse] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
 
 
 class SuggestionEvidenceSnapshot(BaseModel):
@@ -882,6 +1045,7 @@ class TextCanonicalizeMatch(BaseModel):
     alias_value: str
     canonical_value: str
     slot: str
+    tags: list[str] = Field(default_factory=list)
     matched_text: str
     start: int
     end: int
@@ -896,6 +1060,7 @@ class TextCanonicalizeEvidence(BaseModel):
     alias_value: str
     canonical_value: str
     slot: str
+    tags: list[str] = Field(default_factory=list)
     matched_text: str
     start: int
     end: int
@@ -917,9 +1082,11 @@ class TextCanonicalizeResponse(BaseModel):
     changed: bool
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -952,9 +1119,11 @@ class QueryPlanResponse(BaseModel):
     snapshot_source: str = "latest_profile"
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
     elasticsearch: dict[str, Any]
     warnings: list[str] = Field(default_factory=list)
 
@@ -1000,9 +1169,11 @@ class SearchResponse(BaseModel):
     snapshot_source: str = "latest_profile"
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
     elasticsearch: dict[str, Any]
     total: dict[str, Any] | int | None = None
     hits: list[SearchHitResponse] = Field(default_factory=list)
@@ -1046,7 +1217,9 @@ class MultiSearchBindingResponse(BaseModel):
     changed: bool | None = None
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
     total: dict[str, Any] | int | None = None
     hits_count: int = 0
     warnings: list[str] = Field(default_factory=list)
@@ -1084,6 +1257,7 @@ class ConsoleDictionaryTermInput(BaseModel):
     slot: str = Field(..., min_length=1, max_length=64)
     description: str | None = None
     status: str = "active"
+    tags: list[str] = Field(default_factory=list)
     aliases: list[str | ConsoleDictionaryAliasInput] = Field(default_factory=list)
 
 

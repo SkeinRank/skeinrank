@@ -192,3 +192,28 @@ This patch intentionally does not add Celery/RabbitMQ yet. The API executes the
 MVP job inline and records a durable job row so a future worker implementation
 can reuse the same contract.
 
+
+
+### Patch 38A: term tags
+
+Dictionary terms and governance term APIs now accept optional `tags` on canonical
+terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
+that complement the primary `slot` without changing runtime snapshot behavior.
+
+
+## Conflict review state
+
+`GovernanceConflictReview` stores persisted review metadata for computed terminology conflicts. Conflict scanners remain read-only; review rows track fingerprint, severity, review status, reviewer, note, and compact conflict details.
+
+### Ambiguous alias candidates
+
+The governance model includes `GovernanceAmbiguousAlias` and `GovernanceAmbiguousAliasCandidate` for recording multi-interpretation alias surfaces such as `pg`. These rows are review metadata and do not mutate active aliases directly.
+
+### Binding policy model
+
+`GovernanceBindingPolicy` stores optional policy metadata for one `ElasticsearchBinding`. It keeps runtime-context constraints such as preferred slots, allowed tags, denied slots, and context-specific surface rules close to the binding without changing the terminology profile itself.
+
+
+## Coverage framework documentation
+
+The governance package models the state used by the Phase C coverage framework. For end-to-end examples, see `docs/concepts/coverage-framework.md`, `docs/guides/coverage-framework.md`, and `examples/coverage-framework/`.

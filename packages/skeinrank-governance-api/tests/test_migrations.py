@@ -42,6 +42,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "terminology_profiles",
         "canonical_terms",
         "term_aliases",
+        "term_tags",
         "profile_snapshots",
         "audit_events",
         "governance_users",
@@ -85,6 +86,11 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "revoked_at",
     }.issubset(api_token_columns)
 
+    tag_columns = {column["name"] for column in inspector.get_columns("term_tags")}
+    assert {"term_id", "value", "normalized_value"}.issubset(tag_columns)
+    tag_indexes = {index["name"]: index for index in inspector.get_indexes("term_tags")}
+    assert "ix_term_tags_normalized_value" in tag_indexes
+
     suggestion_columns = {
         column["name"] for column in inspector.get_columns("governance_suggestions")
     }
@@ -114,6 +120,77 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         )
         is True
     )
+
+    conflict_review_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_conflict_reviews")
+    }
+    assert {
+        "profile_id",
+        "fingerprint",
+        "conflict_type",
+        "normalized_value",
+        "severity",
+        "review_status",
+        "reviewed_by",
+        "reviewed_at",
+        "review_note",
+        "details_json",
+    }.issubset(conflict_review_columns)
+    conflict_review_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_conflict_reviews")
+    }
+    assert "ix_governance_conflict_reviews_profile_status" in conflict_review_indexes
+    assert "ix_governance_conflict_reviews_type_severity" in conflict_review_indexes
+
+    ambiguous_alias_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_ambiguous_aliases")
+    }
+    assert {
+        "profile_id",
+        "surface_value",
+        "normalized_surface",
+        "status",
+        "created_by",
+        "reviewed_by",
+        "reviewed_at",
+        "review_note",
+    }.issubset(ambiguous_alias_columns)
+    ambiguous_alias_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_ambiguous_aliases")
+    }
+    assert "ix_governance_ambiguous_aliases_profile_status" in ambiguous_alias_indexes
+    assert "ix_governance_ambiguous_aliases_surface" in ambiguous_alias_indexes
+
+    ambiguous_candidate_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_ambiguous_alias_candidates")
+    }
+    assert {
+        "ambiguous_alias_id",
+        "term_id",
+        "canonical_value",
+        "normalized_canonical",
+        "slot",
+        "source",
+        "confidence",
+        "status",
+        "evidence_json",
+    }.issubset(ambiguous_candidate_columns)
+    ambiguous_candidate_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_ambiguous_alias_candidates")
+    }
+    assert (
+        "ix_governance_ambiguous_alias_candidates_term" in ambiguous_candidate_indexes
+    )
+    assert (
+        "ix_governance_ambiguous_alias_candidates_status" in ambiguous_candidate_indexes
+    )
+
     stop_list_columns = {
         column["name"]
         for column in inspector.get_columns("governance_stop_list_entries")
@@ -159,6 +236,33 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "is_enabled",
     }.issubset(binding_columns)
 
+    binding_policy_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_binding_policies")
+    }
+    assert {
+        "binding_id",
+        "profile_id",
+        "status",
+        "preferred_slots",
+        "allowed_tags",
+        "deny_slots",
+        "context_rules",
+        "created_by",
+        "updated_by",
+    }.issubset(binding_policy_columns)
+    binding_policy_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_binding_policies")
+    }
+    assert "ix_governance_binding_policies_profile" in binding_policy_indexes
+    assert "ix_governance_binding_policies_status" in binding_policy_indexes
+    binding_policy_uniques = {
+        item["name"]: item
+        for item in inspector.get_unique_constraints("governance_binding_policies")
+    }
+    assert "uq_governance_binding_policies_binding_id" in binding_policy_uniques
+
     job_columns = {
         column["name"]
         for column in inspector.get_columns("elasticsearch_enrichment_jobs")
@@ -181,7 +285,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260523_0017"
+    assert revision == "20260523_0021"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

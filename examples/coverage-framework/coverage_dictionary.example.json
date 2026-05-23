@@ -1,0 +1,43 @@
+{
+  "schema_version": "skeinrank.dictionary.v1",
+  "profile_name": "coverage_ops",
+  "profile_description": "Coverage framework example with tags and ambiguous surfaces.",
+  "create_profile": true,
+  "mode": "upsert",
+  "terms": [
+    {
+      "canonical_value": "postgresql",
+      "slot": "database",
+      "description": "PostgreSQL database engine.",
+      "tags": ["infra", "backend", "storage"],
+      "aliases": [
+        {"value": "postgres", "confidence": 1.0},
+        {"value": "psql", "confidence": 0.95}
+      ]
+    },
+    {
+      "canonical_value": "page",
+      "slot": "document_component",
+      "description": "Documentation page or UI page.",
+      "tags": ["docs", "frontend"],
+      "aliases": [
+        {"value": "doc page", "confidence": 0.9}
+      ]
+    },
+    {
+      "canonical_value": "kubernetes",
+      "slot": "technology",
+      "description": "Container orchestration platform.",
+      "tags": ["infra", "orchestration", "cloud-native"],
+      "aliases": ["k8s", "kube"]
+    }
+  ],
+  "profile_stop_list": [
+    {
+      "value": "tmp",
+      "target": "alias",
+      "reason": "Too generic for this profile"
+    }
+  ],
+  "global_stop_list": []
+}

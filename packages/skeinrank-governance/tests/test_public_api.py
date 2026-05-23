@@ -7,6 +7,11 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.TerminologyProfile.__tablename__ == "terminology_profiles"
     assert governance.CanonicalTerm.__tablename__ == "canonical_terms"
     assert governance.TermAlias.__tablename__ == "term_aliases"
+    assert governance.TermTag.__tablename__ == "term_tags"
+    assert (
+        governance.GovernanceBindingPolicy.__tablename__
+        == "governance_binding_policies"
+    )
     assert governance.ProfileSnapshot.__tablename__ == "profile_snapshots"
     assert governance.AuditEvent.__tablename__ == "audit_events"
     assert governance.GovernanceUser.__tablename__ == "governance_users"
@@ -21,6 +26,18 @@ def test_public_api_exports_governance_models_and_helpers():
         == "elasticsearch_enrichment_jobs"
     )
     assert governance.GovernanceSuggestion.__tablename__ == "governance_suggestions"
+    assert (
+        governance.GovernanceAmbiguousAlias.__tablename__
+        == "governance_ambiguous_aliases"
+    )
+    assert (
+        governance.GovernanceAmbiguousAliasCandidate.__tablename__
+        == "governance_ambiguous_alias_candidates"
+    )
+    assert (
+        governance.GovernanceConflictReview.__tablename__
+        == "governance_conflict_reviews"
+    )
     assert (
         governance.GovernanceStopListEntry.__tablename__
         == "governance_stop_list_entries"
@@ -41,6 +58,23 @@ def test_public_api_exports_governance_models_and_helpers():
         "job",
         "import",
     )
+    assert governance.CONFLICT_SEVERITIES == ("low", "medium", "high")
+    assert governance.CONFLICT_REVIEW_STATUSES == ("open", "ignored", "resolved")
+    assert governance.AMBIGUOUS_ALIAS_STATUSES == ("open", "resolved", "ignored")
+    assert governance.AMBIGUOUS_ALIAS_CANDIDATE_STATUSES == (
+        "candidate",
+        "preferred",
+        "rejected",
+    )
+    assert governance.AMBIGUOUS_ALIAS_CANDIDATE_SOURCES == (
+        "manual",
+        "active_alias",
+        "suggestion",
+        "conflict",
+        "agent",
+        "import",
+    )
+    assert governance.BINDING_POLICY_STATUSES == ("active", "disabled")
     assert governance.STOP_LIST_TARGETS == ("alias", "canonical", "both")
     assert governance.ELASTICSEARCH_BINDING_MODES == ("dry_run", "write")
     assert governance.ELASTICSEARCH_BINDING_WRITE_STRATEGIES == (
@@ -61,5 +95,7 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.create_profile is not None
     assert governance.add_term is not None
     assert governance.add_alias is not None
+    assert governance.normalize_tag_values(["Infra", " infra "]) == ["infra"]
+    assert governance.set_term_tags is not None
     assert governance.build_snapshot is not None
     assert governance.export_snapshot is not None

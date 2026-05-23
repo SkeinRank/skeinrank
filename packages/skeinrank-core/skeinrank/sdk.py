@@ -57,6 +57,7 @@ class DictionaryTerm(BaseModel):
     slot: str
     description: str | None = None
     status: str = Field(default="active")
+    tags: list[str] = Field(default_factory=list)
     aliases: list[DictionaryAlias] = Field(default_factory=list)
 
     @field_validator("canonical_value")
@@ -79,6 +80,17 @@ class DictionaryTerm(BaseModel):
     @classmethod
     def _normalize_status(cls, value: str) -> str:
         return _normalize_status(value)
+
+    @field_validator("tags")
+    @classmethod
+    def _normalize_tags(cls, values: list[str]) -> list[str]:
+        return sorted(
+            {
+                " ".join(value.strip().lower().split())
+                for value in values
+                if value.strip()
+            }
+        )
 
 
 class DictionaryStopListEntry(BaseModel):
@@ -462,6 +474,7 @@ def _term_from_payload(raw: Any) -> DictionaryTerm:
         slot=str(raw.get("slot") or ""),
         description=raw.get("description"),
         status=_normalize_status(str(raw.get("status", "active"))),
+        tags=[str(item) for item in raw.get("tags", [])],
         aliases=aliases,
     )
 

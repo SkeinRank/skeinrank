@@ -18,6 +18,7 @@ from skeinrank_governance.models import (
     GovernanceStopListEntry,
     TermAlias,
     TerminologyProfile,
+    normalize_value,
     utc_now,
 )
 from sqlalchemy import select
@@ -34,6 +35,7 @@ class RuntimeAliasEntry:
     normalized_canonical: str
     slot: str
     confidence: float
+    tags: tuple[str, ...] = ()
 
 
 RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION = "skeinrank.runtime_snapshot_artifact.v1"
@@ -197,20 +199,32 @@ def runtime_snapshot_artifact_summary(
         "runtime_checksum": loaded.manifest.get("runtime_checksum"),
         "snapshot_source": loaded.manifest.get("snapshot_source"),
         "alias_entries_total": len(loaded.alias_entries),
+        "tags_total": len(
+            {tag for entry in loaded.alias_entries for tag in entry.tags}
+        ),
+        "tags": sorted({tag for entry in loaded.alias_entries for tag in entry.tags}),
         "text_fields": loaded.binding.get("text_fields") or [],
         "target_field": loaded.binding.get("target_field"),
         "index_name": loaded.binding.get("index_name"),
+        "binding_policy_status": (loaded.artifact.get("binding_policy") or {}).get(
+            "status"
+        )
+        if isinstance(loaded.artifact.get("binding_policy"), dict)
+        else None,
     }
 
 
 def _runtime_snapshot_artifact_core(payload: dict[str, Any]) -> dict[str, Any]:
-    return {
+    core = {
         "schema_version": payload.get("schema_version"),
         "artifact_type": payload.get("artifact_type"),
         "binding": payload.get("binding"),
         "profile": payload.get("profile"),
         "runtime_snapshot": payload.get("runtime_snapshot"),
     }
+    if "binding_policy" in payload:
+        core["binding_policy"] = payload.get("binding_policy")
+    return core
 
 
 def build_runtime_snapshot_artifact(
@@ -257,6 +271,7 @@ def build_runtime_snapshot_artifact(
         "artifact_type": "runtime_snapshot",
         "binding": _binding_artifact_payload(binding),
         "profile": _profile_artifact_payload(binding.profile),
+        "binding_policy": _binding_policy_artifact_payload(binding),
         "runtime_snapshot": runtime_snapshot,
     }
     checksum = _snapshot_checksum(artifact_core)
@@ -294,6 +309,22 @@ def _binding_artifact_payload(binding: ElasticsearchBinding) -> dict[str, Any]:
     }
 
 
+def _binding_policy_artifact_payload(
+    binding: ElasticsearchBinding,
+) -> dict[str, Any] | None:
+    policy = getattr(binding, "policy", None)
+    if policy is None:
+        return None
+    return {
+        "id": policy.id,
+        "status": policy.status,
+        "preferred_slots": list(policy.preferred_slots or []),
+        "allowed_tags": list(policy.allowed_tags or []),
+        "deny_slots": list(policy.deny_slots or []),
+        "context_rules": list(policy.context_rules or []),
+    }
+
+
 def _profile_artifact_payload(profile: TerminologyProfile) -> dict[str, Any]:
     return {
         "id": profile.id,
@@ -325,6 +356,7 @@ def build_runtime_snapshot_payload(
             "normalized_canonical": entry.normalized_canonical,
             "slot": entry.slot,
             "confidence": entry.confidence,
+            "tags": list(entry.tags),
         }
         for entry in entries
     ]
@@ -379,9 +411,37 @@ def active_runtime_alias_entries(
                 normalized_canonical=alias.term.normalized_value,
                 slot=alias.term.slot,
                 confidence=alias.confidence,
+                tags=_tags_for_term(alias.term),
             )
         )
     return entries
+
+
+def _tags_for_term(term: CanonicalTerm) -> tuple[str, ...]:
+    """Return normalized term tags in deterministic order for runtime payloads."""
+
+    return tuple(
+        sorted(
+            {
+                tag.normalized_value
+                for tag in getattr(term, "tags", [])
+                if str(tag.normalized_value or "").strip()
+            }
+        )
+    )
+
+
+def _normalize_snapshot_tags(value: Any) -> tuple[str, ...]:
+    """Normalize tags found in stored or externally loaded snapshots."""
+
+    if not isinstance(value, list):
+        return ()
+    normalized: set[str] = set()
+    for item in value:
+        item_value = str(item or "").strip()
+        if item_value:
+            normalized.add(normalize_value(item_value))
+    return tuple(sorted(normalized))
 
 
 def alias_entries_from_snapshot(
@@ -419,6 +479,7 @@ def alias_entries_from_snapshot(
                 normalized_canonical=normalized_canonical,
                 slot=slot,
                 confidence=confidence,
+                tags=_normalize_snapshot_tags(item.get("tags")),
             )
         )
     return result

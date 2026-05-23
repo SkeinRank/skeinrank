@@ -208,3 +208,81 @@ model and does not bypass validation, idempotency, role checks, or batch publish
 logic. Agents can call tools such as `skeinrank_validate_alias` and
 `skeinrank_submit_alias_proposal`, while SkeinRank remains the policy boundary
 that validates, stores, reviews, and snapshots terminology changes.
+
+
+## Coverage framework: term tags
+
+Patch 38A introduces term tags as normalized facets on canonical terms. A term
+still has one primary `slot`, while `tags` provide additional classification
+for later conflict analysis, policies, and retrieval evaluation. Tags are stored
+in governance state and exported through dictionary APIs.
+
+Patch 38B carries those tags into runtime snapshot alias entries. Headless
+artifacts, binding-pinned snapshots, `/v1/text/canonicalize`, and
+`/v1/query/plan` can now expose matched term tags as runtime debug metadata.
+This keeps existing alias tuple compatibility for enrichment while making tags
+available to future conflict detection, policy resolution, and evaluation.
+
+
+## Conflict detection report
+
+Patch 38C adds a read-only conflict report as the first coverage-framework layer.
+It scans governed terminology for alias drift, stop-list collisions, canonical slot
+drift, and pending proposal conflicts. The report does not publish snapshots or
+change active terms; it gives reviewers and agents a safe diagnostic surface
+before later ambiguous-alias and binding-policy layers.
+
+### Ambiguous aliases
+
+An ambiguous alias is a governance record for a surface form that can safely mean different canonical terms in different runtime contexts. It stores candidates and review state, but it does not change production canonicalization unless a binding policy resolver selects one of its candidates for a binding-specific runtime context.
+
+Patch 38F connects ambiguous aliases to proposals. A conflicting alias proposal is still stored as a pending proposal, but SkeinRank now also records candidate interpretations on the matching ambiguous alias surface. Active aliases become `active_alias` candidates, while proposal interpretations become `suggestion` candidates. This turns agent ambiguity into an auditable review object instead of silently rejecting or applying the proposal.
+
+### Binding policy (Phase C)
+
+A binding policy is optional metadata attached to a runtime binding. It does not mutate active terminology or publish a snapshot by itself. It records the constraints that later runtime resolution can use when an alias has multiple candidate interpretations:
+
+- `preferred_slots` lists slots that should be preferred in this binding context.
+- `allowed_tags` lists term tags that are safe for this binding context.
+- `deny_slots` lists slots that should not be selected in this binding context.
+- `context_rules` can pin a surface form to a preferred canonical value, for example `pg -> postgresql` for an infra binding.
+
+This keeps the governance model explicit: ambiguous candidates are reviewed separately, while the binding policy describes how a specific runtime context is allowed to resolve them.
+
+
+### Runtime policy resolver
+
+Patch 38H applies active binding policies during binding-scoped runtime canonicalization and query planning. The resolver keeps active aliases as the default source, adds reviewed ambiguous candidates for the same surface, applies hard constraints (`deny_slots`, `allowed_tags`), and then selects a candidate through `context_rules`, preferred candidate status, or `preferred_slots`. Responses expose `policy_decisions` so reviewers can see why a surface such as `pg` resolved to `postgresql` in one binding and can remain unresolved or different in another.
+
+## Snapshot evaluation contract
+
+Patch 38I introduces an offline before/after evaluation report for runtime
+snapshot artifacts. It compares two immutable artifacts and optionally applies a
+sample query set to both alias maps.
+
+```text
+snapshot artifact v1 -> evaluator -> snapshot evaluation v1
+```
+
+The evaluator is intentionally read-only. It is suitable for CI/CD and GitOps
+release gates where a team wants to inspect terminology drift before promoting a
+new artifact. It highlights:
+
+- added, removed, and changed aliases;
+- added or removed runtime tags;
+- sample queries whose canonicalized form changed;
+- risk notes for removed aliases, changed mappings, and query-plan changes.
+
+Agents and humans can use this report to decide whether a proposal batch should
+be published, rolled back, or sent for additional review.
+
+
+## Coverage framework examples
+
+Patch 38J adds dedicated coverage docs and examples:
+
+- `docs/concepts/coverage-framework.md` for the conceptual model;
+- `docs/guides/coverage-framework.md` for API walkthroughs;
+- `examples/coverage-framework/` for tagged dictionary, ambiguous alias, binding policy, and evaluation query payloads.
+
+These files document the existing Phase C APIs. They do not add new runtime behavior; the resolver, policy model, ambiguous alias model, and evaluator are implemented by the preceding 38A-38I patches.

@@ -23,9 +23,16 @@ from skeinrank_governance.cli import (
     create_profile,
     get_profile,
     get_term,
+    set_term_tags,
 )
 from skeinrank_governance.models import (
     ALIAS_STATUSES,
+    AMBIGUOUS_ALIAS_CANDIDATE_SOURCES,
+    AMBIGUOUS_ALIAS_CANDIDATE_STATUSES,
+    AMBIGUOUS_ALIAS_STATUSES,
+    BINDING_POLICY_STATUSES,
+    CONFLICT_REVIEW_STATUSES,
+    CONFLICT_SEVERITIES,
     ELASTICSEARCH_BINDING_MODES,
     ELASTICSEARCH_BINDING_PROVIDERS,
     ELASTICSEARCH_BINDING_WRITE_STRATEGIES,
@@ -38,6 +45,9 @@ from skeinrank_governance.models import (
     CanonicalTerm,
     ElasticsearchBinding,
     ElasticsearchEnrichmentJob,
+    GovernanceAmbiguousAlias,
+    GovernanceAmbiguousAliasCandidate,
+    GovernanceBindingPolicy,
     GovernanceGlobalStopListEntry,
     GovernanceStopListEntry,
     GovernanceSuggestion,
@@ -51,7 +61,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..ambiguous_proposals import sync_ambiguous_alias_candidates_for_suggestion
 from ..auth import AuthContext, require_roles
+from ..conflict_detection import (
+    build_conflict_report,
+    find_current_conflict,
+    merge_conflict_with_review_state,
+    upsert_conflict_review_state,
+)
 from ..dependencies import get_session
 from ..elasticsearch import (
     ElasticsearchDiscoveryClient,
@@ -86,6 +103,15 @@ from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
     AliasUpdateRequest,
+    AmbiguousAliasCandidateResponse,
+    AmbiguousAliasResponse,
+    AmbiguousAliasUpdateRequest,
+    AmbiguousAliasUpsertRequest,
+    BindingPolicyResponse,
+    BindingPolicyUpsertRequest,
+    ConflictReportItemResponse,
+    ConflictReportResponse,
+    ConflictReviewUpdateRequest,
     ElasticsearchBindingCreateRequest,
     ElasticsearchBindingDryRunDocument,
     ElasticsearchBindingDryRunRequest,
@@ -796,6 +822,97 @@ def delete_elasticsearch_binding(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get(
+    "/elasticsearch/bindings/{binding_id}/policy",
+    response_model=BindingPolicyResponse,
+)
+def get_elasticsearch_binding_policy(
+    binding_id: int,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> BindingPolicyResponse:
+    """Return the policy attached to one runtime binding."""
+
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    policy = _get_binding_policy_or_404(session, binding)
+    return _binding_policy_response(policy)
+
+
+@router.put(
+    "/elasticsearch/bindings/{binding_id}/policy",
+    response_model=BindingPolicyResponse,
+)
+def upsert_elasticsearch_binding_policy(
+    binding_id: int,
+    request: BindingPolicyUpsertRequest,
+    response: Response,
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> BindingPolicyResponse:
+    """Create or update binding-scoped runtime policy metadata."""
+
+    _validate_status(request.status, BINDING_POLICY_STATUSES, "binding policy")
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    policy = session.scalar(
+        select(GovernanceBindingPolicy).where(
+            GovernanceBindingPolicy.binding_id == binding.id
+        )
+    )
+    response_status = status.HTTP_200_OK
+    context_rules = [
+        rule.model_dump(exclude_none=True) for rule in request.context_rules
+    ]
+    if policy is None:
+        response_status = status.HTTP_201_CREATED
+        policy = GovernanceBindingPolicy(
+            binding=binding,
+            profile=binding.profile,
+            status=request.status,
+            preferred_slots=request.preferred_slots,
+            allowed_tags=request.allowed_tags,
+            deny_slots=request.deny_slots,
+            context_rules=context_rules,
+            created_by=current_user.username,
+            updated_by=current_user.username,
+        )
+        session.add(policy)
+    else:
+        policy.status = request.status
+        policy.preferred_slots = request.preferred_slots
+        policy.allowed_tags = request.allowed_tags
+        policy.deny_slots = request.deny_slots
+        policy.context_rules = context_rules
+        policy.updated_by = current_user.username
+    try:
+        session.commit()
+        session.refresh(policy)
+        response.status_code = response_status
+        return _binding_policy_response(policy)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.delete(
+    "/elasticsearch/bindings/{binding_id}/policy",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_elasticsearch_binding_policy(
+    binding_id: int,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> Response:
+    """Delete a binding policy without changing the binding or terminology."""
+
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    policy = _get_binding_policy_or_404(session, binding)
+    session.delete(policy)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post(
     "/elasticsearch/bindings/{binding_id}/dry-run",
     response_model=ElasticsearchBindingDryRunResponse,
@@ -1245,6 +1362,7 @@ def list_profile_terms(
     )
     for term in terms:
         term.aliases.sort(key=lambda alias: alias.normalized_alias)
+        term.tags.sort(key=lambda tag: tag.normalized_value)
     return [_term_response(term) for term in terms]
 
 
@@ -1278,11 +1396,13 @@ def add_profile_term(
             slot=request.slot,
             description=request.description,
             status=request.status,
+            tags=request.tags,
             actor="api",
         )
         session.commit()
         session.refresh(term)
         term.aliases.sort(key=lambda alias: alias.normalized_alias)
+        term.tags.sort(key=lambda tag: tag.normalized_value)
         return _term_response(term)
     except GovernanceCliError as exc:
         session.rollback()
@@ -1317,6 +1437,7 @@ def get_profile_term(
     except GovernanceCliError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     term.aliases.sort(key=lambda alias: alias.normalized_alias)
+    term.tags.sort(key=lambda tag: tag.normalized_value)
     return _term_response(term)
 
 
@@ -1377,10 +1498,14 @@ def update_profile_term(
     if "description" in fields:
         term.description = request.description
 
+    if "tags" in fields:
+        set_term_tags(session, term, request.tags or [])
+
     try:
         session.commit()
         session.refresh(term)
         term.aliases.sort(key=lambda alias: alias.normalized_alias)
+        term.tags.sort(key=lambda tag: tag.normalized_value)
         return _term_response(term)
     except IntegrityError as exc:
         session.rollback()
@@ -1602,6 +1727,247 @@ def list_proposal_source_quality(
 
 
 @router.get(
+    "/profiles/{profile_name}/ambiguous-aliases",
+    response_model=list[AmbiguousAliasResponse],
+)
+def list_profile_ambiguous_aliases(
+    profile_name: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[AmbiguousAliasResponse]:
+    """List ambiguous alias surfaces for one terminology profile."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    aliases = list(
+        session.scalars(
+            select(GovernanceAmbiguousAlias)
+            .where(GovernanceAmbiguousAlias.profile_id == profile.id)
+            .order_by(
+                GovernanceAmbiguousAlias.normalized_surface,
+                GovernanceAmbiguousAlias.id,
+            )
+        )
+    )
+    return [_ambiguous_alias_response(alias) for alias in aliases]
+
+
+@router.post(
+    "/profiles/{profile_name}/ambiguous-aliases",
+    response_model=AmbiguousAliasResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def upsert_profile_ambiguous_alias(
+    profile_name: str,
+    request: AmbiguousAliasUpsertRequest,
+    response: Response,
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> AmbiguousAliasResponse:
+    """Create or update an ambiguous alias surface and candidate interpretations."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    _validate_ambiguous_alias_status(request.status)
+    normalized_surface = normalize_value(request.surface_value)
+    ambiguous_alias = session.scalar(
+        select(GovernanceAmbiguousAlias).where(
+            GovernanceAmbiguousAlias.profile_id == profile.id,
+            GovernanceAmbiguousAlias.normalized_surface == normalized_surface,
+        )
+    )
+    response_status = status.HTTP_200_OK
+    if ambiguous_alias is None:
+        response_status = status.HTTP_201_CREATED
+        ambiguous_alias = GovernanceAmbiguousAlias(
+            profile=profile,
+            surface_value=request.surface_value,
+            normalized_surface=normalized_surface,
+            status=request.status,
+            created_by=current_user.username,
+        )
+        session.add(ambiguous_alias)
+        session.flush()
+    else:
+        ambiguous_alias.surface_value = request.surface_value
+        ambiguous_alias.status = request.status
+
+    if "review_note" in request.model_fields_set:
+        ambiguous_alias.review_note = request.review_note
+        ambiguous_alias.reviewed_by = current_user.username
+        ambiguous_alias.reviewed_at = utc_now()
+
+    _upsert_ambiguous_alias_candidates(
+        session,
+        profile=profile,
+        ambiguous_alias=ambiguous_alias,
+        candidates=request.candidates,
+    )
+    try:
+        session.commit()
+        session.refresh(ambiguous_alias)
+        response.status_code = response_status
+        return _ambiguous_alias_response(ambiguous_alias)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.get(
+    "/profiles/{profile_name}/ambiguous-aliases/{surface_value}",
+    response_model=AmbiguousAliasResponse,
+)
+def get_profile_ambiguous_alias(
+    profile_name: str,
+    surface_value: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> AmbiguousAliasResponse:
+    """Return one ambiguous alias surface by normalized value."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    ambiguous_alias = _get_ambiguous_alias_or_404(session, profile, surface_value)
+    return _ambiguous_alias_response(ambiguous_alias)
+
+
+@router.patch(
+    "/profiles/{profile_name}/ambiguous-aliases/{surface_value}",
+    response_model=AmbiguousAliasResponse,
+)
+def update_profile_ambiguous_alias(
+    profile_name: str,
+    surface_value: str,
+    request: AmbiguousAliasUpdateRequest,
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> AmbiguousAliasResponse:
+    """Update ambiguous alias reviewer state without changing candidates."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    ambiguous_alias = _get_ambiguous_alias_or_404(session, profile, surface_value)
+    if request.surface_value is not None:
+        next_normalized = normalize_value(request.surface_value)
+        if next_normalized != ambiguous_alias.normalized_surface:
+            existing = session.scalar(
+                select(GovernanceAmbiguousAlias).where(
+                    GovernanceAmbiguousAlias.profile_id == profile.id,
+                    GovernanceAmbiguousAlias.normalized_surface == next_normalized,
+                    GovernanceAmbiguousAlias.id != ambiguous_alias.id,
+                )
+            )
+            if existing is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Ambiguous alias already exists in profile {profile.name!r}: "
+                        f"{request.surface_value}"
+                    ),
+                )
+            ambiguous_alias.normalized_surface = next_normalized
+        ambiguous_alias.surface_value = request.surface_value
+    if request.status is not None:
+        _validate_ambiguous_alias_status(request.status)
+        ambiguous_alias.status = request.status
+        ambiguous_alias.reviewed_by = current_user.username
+        ambiguous_alias.reviewed_at = utc_now()
+    if "review_note" in request.model_fields_set:
+        ambiguous_alias.review_note = request.review_note
+        ambiguous_alias.reviewed_by = current_user.username
+        ambiguous_alias.reviewed_at = utc_now()
+    try:
+        session.commit()
+        session.refresh(ambiguous_alias)
+        return _ambiguous_alias_response(ambiguous_alias)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.get(
+    "/conflicts",
+    response_model=ConflictReportResponse,
+)
+def list_terminology_conflicts(
+    profile_name: str | None = Query(default=None, min_length=1, max_length=128),
+    include_suggestions: bool = Query(default=True),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> ConflictReportResponse:
+    """Return a read-only report of terminology conflicts and drift risks."""
+
+    if profile_name is not None:
+        _get_profile_or_404(session, profile_name)
+    report = build_conflict_report(
+        session,
+        profile_name=profile_name,
+        include_suggestions=include_suggestions,
+    )
+    return ConflictReportResponse(**report)
+
+
+@router.patch(
+    "/conflicts/{fingerprint}/review",
+    response_model=ConflictReportItemResponse,
+)
+def update_conflict_review_state(
+    fingerprint: str,
+    request: ConflictReviewUpdateRequest,
+    profile_name: str | None = Query(default=None, min_length=1, max_length=128),
+    admin_or_moderator: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ConflictReportItemResponse:
+    """Persist reviewer state for a current terminology conflict."""
+
+    if request.severity is not None and request.severity not in CONFLICT_SEVERITIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported conflict severity: {request.severity}",
+        )
+    if (
+        request.review_status is not None
+        and request.review_status not in CONFLICT_REVIEW_STATUSES
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported conflict review status: {request.review_status}",
+        )
+    if profile_name is not None:
+        _get_profile_or_404(session, profile_name)
+
+    conflict = find_current_conflict(
+        session,
+        fingerprint=fingerprint,
+        profile_name=profile_name,
+        include_suggestions=True,
+    )
+    if conflict is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Current conflict not found: {fingerprint}",
+        )
+
+    review = upsert_conflict_review_state(
+        session,
+        conflict=conflict,
+        severity=request.severity,
+        review_status=request.review_status,
+        review_note=request.review_note
+        if "review_note" in request.model_fields_set
+        else None,
+        reviewed_by=admin_or_moderator.username,
+    )
+    session.commit()
+    session.refresh(review)
+    return ConflictReportItemResponse(
+        **merge_conflict_with_review_state(conflict, review)
+    )
+
+
+@router.get(
     "/profiles/{profile_name}/suggestions",
     response_model=list[SuggestionResponse],
 )
@@ -1804,8 +2170,12 @@ def create_profile_suggestion(
         status="pending",
         created_by=current_user.username,
     )
-    session.add(suggestion)
     try:
+        session.add(suggestion)
+        session.flush()
+        sync_ambiguous_alias_candidates_for_suggestion(
+            session, suggestion, actor=current_user.username
+        )
         session.commit()
         session.refresh(suggestion)
         record_proposal_submission(
@@ -2825,6 +3195,41 @@ def _get_elasticsearch_binding_or_404(
     return binding
 
 
+def _get_binding_policy_or_404(
+    session: Session, binding: ElasticsearchBinding
+) -> GovernanceBindingPolicy:
+    policy = session.scalar(
+        select(GovernanceBindingPolicy).where(
+            GovernanceBindingPolicy.binding_id == binding.id
+        )
+    )
+    if policy is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Binding policy not found for binding: {binding.id}",
+        )
+    return policy
+
+
+def _binding_policy_response(policy: GovernanceBindingPolicy) -> BindingPolicyResponse:
+    return BindingPolicyResponse(
+        id=policy.id,
+        binding_id=policy.binding_id,
+        profile_id=policy.profile_id,
+        profile_name=policy.profile.name,
+        binding_name=policy.binding.name,
+        status=policy.status,
+        preferred_slots=list(policy.preferred_slots or []),
+        allowed_tags=list(policy.allowed_tags or []),
+        deny_slots=list(policy.deny_slots or []),
+        context_rules=list(policy.context_rules or []),
+        created_by=policy.created_by,
+        updated_by=policy.updated_by,
+        created_at=policy.created_at,
+        updated_at=policy.updated_at,
+    )
+
+
 def _validate_elasticsearch_binding_provider(provider: str) -> None:
     if provider not in ELASTICSEARCH_BINDING_PROVIDERS:
         allowed_values = ", ".join(ELASTICSEARCH_BINDING_PROVIDERS)
@@ -3272,6 +3677,151 @@ def _ensure_pending_suggestion(suggestion: GovernanceSuggestion) -> None:
         )
 
 
+def _get_ambiguous_alias_or_404(
+    session: Session,
+    profile: TerminologyProfile,
+    surface_value: str,
+) -> GovernanceAmbiguousAlias:
+    ambiguous_alias = session.scalar(
+        select(GovernanceAmbiguousAlias).where(
+            GovernanceAmbiguousAlias.profile_id == profile.id,
+            GovernanceAmbiguousAlias.normalized_surface
+            == normalize_value(surface_value),
+        )
+    )
+    if ambiguous_alias is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Ambiguous alias not found for profile {profile.name!r}: "
+                f"{surface_value}"
+            ),
+        )
+    return ambiguous_alias
+
+
+def _upsert_ambiguous_alias_candidates(
+    session: Session,
+    *,
+    profile: TerminologyProfile,
+    ambiguous_alias: GovernanceAmbiguousAlias,
+    candidates: list,
+) -> None:
+    existing_by_key = {
+        (candidate.normalized_canonical, candidate.slot): candidate
+        for candidate in list(ambiguous_alias.candidates)
+    }
+    next_candidates: list[GovernanceAmbiguousAliasCandidate] = []
+    for candidate_input in candidates:
+        _validate_ambiguous_alias_candidate_status(candidate_input.status)
+        _validate_ambiguous_alias_candidate_source(candidate_input.source)
+        normalized_canonical = normalize_value(candidate_input.canonical_value)
+        slot = candidate_input.slot.strip().upper()
+        term = _resolve_candidate_term(
+            session,
+            profile=profile,
+            term_id=candidate_input.term_id,
+            normalized_canonical=normalized_canonical,
+            slot=slot,
+        )
+        key = (normalized_canonical, slot)
+        candidate = existing_by_key.get(key)
+        if candidate is None:
+            candidate = GovernanceAmbiguousAliasCandidate(
+                ambiguous_alias=ambiguous_alias,
+                canonical_value=candidate_input.canonical_value,
+                normalized_canonical=normalized_canonical,
+                slot=slot,
+            )
+            session.add(candidate)
+        candidate.term = term
+        candidate.canonical_value = candidate_input.canonical_value
+        candidate.source = candidate_input.source
+        candidate.confidence = candidate_input.confidence
+        candidate.status = candidate_input.status
+        candidate.evidence_json = candidate_input.evidence
+        next_candidates.append(candidate)
+
+    if candidates:
+        ambiguous_alias.candidates = next_candidates
+        session.flush()
+
+
+def _resolve_candidate_term(
+    session: Session,
+    *,
+    profile: TerminologyProfile,
+    term_id: int | None,
+    normalized_canonical: str,
+    slot: str,
+) -> CanonicalTerm | None:
+    if term_id is not None:
+        term = session.scalar(
+            select(CanonicalTerm).where(
+                CanonicalTerm.id == term_id,
+                CanonicalTerm.profile_id == profile.id,
+            )
+        )
+        if term is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Canonical term not found for profile {profile.name!r}: {term_id}",
+            )
+        if term.normalized_value != normalized_canonical or term.slot != slot:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Candidate term_id does not match canonical_value/slot: "
+                    f"{term_id}"
+                ),
+            )
+        return term
+
+    return session.scalar(
+        select(CanonicalTerm).where(
+            CanonicalTerm.profile_id == profile.id,
+            CanonicalTerm.normalized_value == normalized_canonical,
+            CanonicalTerm.slot == slot,
+        )
+    )
+
+
+def _validate_ambiguous_alias_status(value: str) -> None:
+    if value not in AMBIGUOUS_ALIAS_STATUSES:
+        allowed_values = ", ".join(AMBIGUOUS_ALIAS_STATUSES)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Invalid ambiguous alias status: {value}. "
+                f"Allowed values: {allowed_values}"
+            ),
+        )
+
+
+def _validate_ambiguous_alias_candidate_status(value: str) -> None:
+    if value not in AMBIGUOUS_ALIAS_CANDIDATE_STATUSES:
+        allowed_values = ", ".join(AMBIGUOUS_ALIAS_CANDIDATE_STATUSES)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Invalid ambiguous alias candidate status: {value}. "
+                f"Allowed values: {allowed_values}"
+            ),
+        )
+
+
+def _validate_ambiguous_alias_candidate_source(value: str) -> None:
+    if value not in AMBIGUOUS_ALIAS_CANDIDATE_SOURCES:
+        allowed_values = ", ".join(AMBIGUOUS_ALIAS_CANDIDATE_SOURCES)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Invalid ambiguous alias candidate source: {value}. "
+                f"Allowed values: {allowed_values}"
+            ),
+        )
+
+
 def _validate_status(value: str, allowed: tuple[str, ...], entity_name: str) -> None:
     if value not in allowed:
         allowed_values = ", ".join(allowed)
@@ -3307,9 +3857,63 @@ def _term_response(term: CanonicalTerm) -> TermResponse:
         slot=term.slot,
         status=term.status,
         description=term.description,
+        tags=[
+            tag.value
+            for tag in sorted(term.tags, key=lambda item: item.normalized_value)
+        ],
         aliases=[_alias_response(alias) for alias in term.aliases],
         created_at=term.created_at,
         updated_at=term.updated_at,
+    )
+
+
+def _ambiguous_alias_response(
+    ambiguous_alias: GovernanceAmbiguousAlias,
+) -> AmbiguousAliasResponse:
+    return AmbiguousAliasResponse(
+        id=ambiguous_alias.id,
+        profile_id=ambiguous_alias.profile_id,
+        profile_name=ambiguous_alias.profile.name,
+        surface_value=ambiguous_alias.surface_value,
+        normalized_surface=ambiguous_alias.normalized_surface,
+        status=ambiguous_alias.status,
+        created_by=ambiguous_alias.created_by,
+        reviewed_by=ambiguous_alias.reviewed_by,
+        reviewed_at=ambiguous_alias.reviewed_at,
+        review_note=ambiguous_alias.review_note,
+        candidates=[
+            _ambiguous_alias_candidate_response(candidate)
+            for candidate in sorted(
+                ambiguous_alias.candidates,
+                key=lambda item: (
+                    item.status != "preferred",
+                    item.normalized_canonical,
+                    item.slot,
+                    item.id,
+                ),
+            )
+        ],
+        created_at=ambiguous_alias.created_at,
+        updated_at=ambiguous_alias.updated_at,
+    )
+
+
+def _ambiguous_alias_candidate_response(
+    candidate: GovernanceAmbiguousAliasCandidate,
+) -> AmbiguousAliasCandidateResponse:
+    return AmbiguousAliasCandidateResponse(
+        id=candidate.id,
+        ambiguous_alias_id=candidate.ambiguous_alias_id,
+        term_id=candidate.term_id,
+        canonical_value=candidate.canonical_value,
+        normalized_canonical=candidate.normalized_canonical,
+        slot=candidate.slot,
+        source=candidate.source,
+        confidence=candidate.confidence,
+        status=candidate.status,
+        evidence=candidate.evidence_json,
+        created_at=candidate.created_at,
+        updated_at=candidate.updated_at,
     )
 
 

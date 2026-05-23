@@ -132,6 +132,33 @@ The governance API exposes CRUD-style endpoints for:
 
 Snapshots are exported from governed terminology and served to runtime paths as immutable dictionary versions.
 
+
+## Conflict detection report
+
+Coverage framework Phase C starts with a read-only conflict report. It does not
+change active terminology or runtime snapshots; it only surfaces drift risks for
+reviewers and future ambiguous-alias policy work.
+
+```text
+GET /v1/governance/conflicts
+GET /v1/governance/conflicts?profile_name=infra_incidents
+GET /v1/governance/conflicts?profile_name=infra_incidents&include_suggestions=false
+PATCH /v1/governance/conflicts/{fingerprint}/review
+```
+
+Each conflict item includes a deterministic `fingerprint`, default `severity`, and persisted review state (`open`, `ignored`, or `resolved`). Admins and moderators can update review state without changing terms, aliases, proposals, or runtime snapshots.
+
+The report currently detects:
+
+- active alias surfaces reused across profiles;
+- active aliases that map to multiple canonical terms;
+- canonical surfaces used with different primary slots;
+- active aliases/canonical terms that now collide with profile or global stop lists;
+- pending alias proposals that conflict with active aliases or other pending proposals.
+
+This is intentionally a report-only API. Severity, review state, and explicit
+ambiguous-alias candidates are added in later coverage-framework patches.
+
 ## Suggestions and evidence
 
 Reviewer workflows can refresh evidence for pending suggestions:
@@ -298,3 +325,74 @@ skeinrank_get_proposal_status
 The MCP adapter keeps the same production rule as the REST tools: an agent can
 submit a proposal, validate a candidate alias, or explain a query, but it does
 not mutate active runtime terminology directly.
+
+
+### Patch 38A/38B: term tags in governance and runtime
+
+Dictionary terms and governance term APIs now accept optional `tags` on canonical
+terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
+that complement the primary `slot`. Runtime snapshot alias entries now carry
+those tags too, so exported artifacts and query/canonicalization debug output
+can explain both the primary slot and richer term facets.
+
+### Ambiguous alias candidates
+
+Phase C adds reviewer-facing ambiguous alias endpoints:
+
+- `GET /v1/governance/profiles/{profile_name}/ambiguous-aliases`
+- `POST /v1/governance/profiles/{profile_name}/ambiguous-aliases`
+- `GET /v1/governance/profiles/{profile_name}/ambiguous-aliases/{surface_value}`
+- `PATCH /v1/governance/profiles/{profile_name}/ambiguous-aliases/{surface_value}`
+
+Ambiguous aliases record possible canonical interpretations for one surface form without changing active runtime behavior. Patch 38H adds runtime BindingPolicy resolution for binding-scoped canonicalization and query planning.
+
+Patch 38F connects this coverage layer to the proposal pipeline: when an alias proposal conflicts with an active alias or with another pending proposal for the same surface, SkeinRank creates or updates the corresponding ambiguous alias candidates. This keeps the proposal accepted for review, records the competing interpretations, and still avoids direct runtime mutation.
+
+### Binding policy API
+
+Patch 38G adds binding-scoped policy metadata and Patch 38H uses it during runtime resolution.
+
+```http
+GET /v1/governance/elasticsearch/bindings/{binding_id}/policy
+PUT /v1/governance/elasticsearch/bindings/{binding_id}/policy
+DELETE /v1/governance/elasticsearch/bindings/{binding_id}/policy
+```
+
+A policy can define `preferred_slots`, `allowed_tags`, `deny_slots`, and `context_rules`. These fields are normalized on write. The API stores policy metadata separately. Runtime endpoints can use the active policy to select safe candidates, but the policy still does not mutate terms, aliases, ambiguous candidates, or snapshots.
+
+
+### Runtime policy decision output
+
+When `/v1/text/canonicalize`, `/v1/query/plan`, `/v1/search`, or `/v1/search/multi` runs with a `binding_id`, SkeinRank applies the active binding policy if one exists. The response may include `policy_decisions`, each containing the matched surface, selected canonical, selected slot, reason, and candidate summaries.
+
+## Snapshot before/after evaluation
+
+Patch 38I adds an offline CLI evaluator for runtime snapshot artifacts. It does
+not mutate PostgreSQL, active terminology, bindings, or runtime snapshots.
+
+```bash
+skeinrank-migrate snapshot-eval \
+  --before snapshots/platform_ops.binding-7.v1.json \
+  --after snapshots/platform_ops.binding-7.v2.json \
+  --queries queries.jsonl \
+  --output eval-report.json
+```
+
+Supported query files are JSON arrays of strings/objects or JSONL with one
+string/object per line. Object items may include `query` and optional `id` or
+`query_id`.
+
+The report uses `schema_version: skeinrank.snapshot_evaluation.v1` and includes
+alias diff totals, tag diff totals, optional query-plan changes, and a compact
+risk summary.
+
+
+## Coverage framework docs and examples
+
+Patch 38J collects the Phase C coverage model in documentation and example payloads:
+
+- `docs/concepts/coverage-framework.md` explains slots vs tags, ambiguous candidates, binding policies, runtime policy decisions, and before/after evaluation.
+- `docs/guides/coverage-framework.md` provides a headless API walkthrough.
+- `examples/coverage-framework/` contains JSON/JSONL payloads for a tagged dictionary, ambiguous `pg` candidates, binding policies, and evaluation queries.
+
+The examples are documentation fixtures only; they do not introduce new API routes or mutate runtime state by themselves.
