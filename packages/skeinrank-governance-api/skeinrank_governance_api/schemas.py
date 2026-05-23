@@ -681,6 +681,45 @@ class SuggestionResponse(BaseModel):
     updated_at: datetime
 
 
+class ProposalBatchApplyRequest(BaseModel):
+    """Apply pending proposals as one audited batch.
+
+    If ``suggestion_ids`` is omitted, all pending suggestions for the profile are
+    applied. Snapshot publishing is optional and requires ``binding_id``.
+    """
+
+    suggestion_ids: list[int] | None = Field(default=None, min_length=1)
+    review_comment: str | None = None
+    publish_snapshot: bool = False
+    binding_id: int | None = Field(default=None, ge=1)
+    snapshot_version: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class ProposalBatchSnapshotResponse(BaseModel):
+    """Runtime snapshot information produced by a proposal batch."""
+
+    published: bool = False
+    binding_id: int | None = None
+    snapshot_version: str | None = None
+    snapshot_status: str = "unpublished"
+    checksum: str | None = None
+    alias_entries_total: int = 0
+
+
+class ProposalBatchApplyResponse(BaseModel):
+    """Result of applying a batch of pending proposals."""
+
+    status: str = "applied"
+    profile_name: str
+    normalized_profile_name: str
+    requested_suggestion_ids: list[int] = Field(default_factory=list)
+    applied_suggestion_ids: list[int] = Field(default_factory=list)
+    created_terms: int = 0
+    created_aliases: int = 0
+    snapshot: ProposalBatchSnapshotResponse
+    suggestions: list[SuggestionResponse] = Field(default_factory=list)
+
+
 class AgentToolBindingContextResponse(BaseModel):
     """Binding context exposed to agents and automation tools."""
 

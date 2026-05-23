@@ -185,6 +185,18 @@ workers without querying PostgreSQL on every request. Patch 36E adds a local
 artifact loader/cache that validates the artifact checksum and reloads the file
 when it changes.
 
+## Proposal batch apply
+
+Patch 37D adds a release path for agent/human proposals:
+
+```bash
+POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch
+```
+
+The endpoint applies pending suggestions atomically. With `publish_snapshot=true`
+and a matching `binding_id`, it also pins the resulting runtime snapshot on that
+binding so headless runtime clients can consume a reviewed version.
+
 ## User Console API
 
 Patch 27 adds a migration-friendly API surface for users who work from JupyterHub, scripts, bots, or future CLI tools. It reuses the same governance database and role checks as the UI, but accepts a bulk dictionary JSON so companies do not need to enter existing dictionaries by hand. New payloads should include `schema_version: skeinrank.dictionary.v1`; legacy payloads without a schema version are treated as v1 for backward compatibility.

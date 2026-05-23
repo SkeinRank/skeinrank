@@ -169,6 +169,18 @@ The tools reuse the same proposal validation registry and runtime query planner.
 They create pending suggestions only through `suggest-alias`; validation and
 query explanation are read-only.
 
+Patch 37D adds an atomic batch apply and snapshot publish path for reviewed
+proposals:
+
+```text
+POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch
+```
+
+A moderator/admin can apply selected pending suggestions in one transaction and,
+when a `binding_id` is provided, pin a fresh runtime snapshot on that binding.
+This keeps agent proposals separate from production terminology until a reviewed
+batch is intentionally released.
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.

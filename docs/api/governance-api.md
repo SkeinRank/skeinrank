@@ -162,6 +162,20 @@ suggestion. `suggest-alias` creates a pending suggestion with
 `proposal_source_type=agent` by default. `explain-query` reuses the runtime query
 planner so agents can inspect canonicalization before proposing changes.
 
+### Proposal batch apply
+
+Patch 37D adds an atomic release endpoint for reviewed proposal batches:
+
+```text
+POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch
+```
+
+The request can provide explicit `suggestion_ids`, or omit them to apply all
+pending suggestions for the profile. Setting `publish_snapshot=true` requires a
+matching `binding_id` and pins a fresh runtime snapshot on that binding in the
+same transaction. Suggestions with `validation_summary.status = blocked` are not
+applied by the batch endpoint.
+
 Saved evidence includes binding metadata, query metadata, warnings, and highlighted snippets.
 
 ## Elasticsearch discovery and bindings

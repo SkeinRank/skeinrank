@@ -67,6 +67,7 @@ from ..runtime_snapshots import (
     build_runtime_snapshot_payload,
     clear_binding_pending_snapshot,
     mark_binding_snapshot_success,
+    publish_binding_runtime_snapshot,
     restore_binding_previous_snapshot,
 )
 from ..schemas import (
@@ -97,6 +98,9 @@ from ..schemas import (
     ProfileCreateRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    ProposalBatchApplyRequest,
+    ProposalBatchApplyResponse,
+    ProposalBatchSnapshotResponse,
     RuntimeSnapshotResponse,
     SnapshotExportRequest,
     StopListCreateRequest,
@@ -1809,6 +1813,132 @@ def reject_profile_suggestion(
 
 
 @router.post(
+    "/profiles/{profile_name}/suggestions/apply-batch",
+    response_model=ProposalBatchApplyResponse,
+)
+def apply_profile_suggestion_batch(
+    profile_name: str,
+    request: ProposalBatchApplyRequest | None = Body(default=None),
+    reviewer: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ProposalBatchApplyResponse:
+    """Apply pending proposals as one atomic batch and optionally publish a snapshot.
+
+    This endpoint is the headless proposal release path: agents and tools submit
+    pending suggestions, then a moderator/admin applies a reviewed set in one
+    transaction. When requested, the same transaction pins a fresh runtime
+    snapshot on the target binding.
+    """
+
+    request = request or ProposalBatchApplyRequest()
+    profile = _get_profile_or_404(session, profile_name)
+    binding = None
+    if request.publish_snapshot and request.binding_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="publish_snapshot requires binding_id.",
+        )
+    if request.binding_id is not None:
+        binding = _get_elasticsearch_binding_or_404(session, request.binding_id)
+        if binding.profile_id != profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Proposal batch binding must belong to the profile.",
+            )
+
+    suggestions = _pending_suggestions_for_batch(
+        session=session,
+        profile=profile,
+        suggestion_ids=request.suggestion_ids,
+    )
+    if not suggestions:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No pending suggestions are available for this batch.",
+        )
+
+    _ensure_batch_suggestions_are_applyable(suggestions)
+
+    created_terms = 0
+    created_aliases = 0
+    now = utc_now()
+    for suggestion in _ordered_suggestions_for_apply(suggestions):
+        if suggestion.suggestion_type == "canonical_term":
+            _approve_canonical_term_suggestion(session, profile, suggestion)
+            created_terms += 1
+        elif suggestion.suggestion_type == "alias":
+            _approve_alias_suggestion(session, profile, suggestion)
+            created_aliases += 1
+        else:  # pragma: no cover - guarded by database/API validation
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Invalid suggestion type: {suggestion.suggestion_type}",
+            )
+        suggestion.status = "approved"
+        suggestion.reviewed_by = reviewer.username
+        suggestion.review_comment = request.review_comment
+        suggestion.reviewed_at = now
+
+    snapshot_response = ProposalBatchSnapshotResponse(published=False)
+    if request.publish_snapshot and binding is not None:
+        session.flush()
+        snapshot_payload = publish_binding_runtime_snapshot(
+            session,
+            binding,
+            snapshot_version=request.snapshot_version,
+        )
+        snapshot_response = ProposalBatchSnapshotResponse(
+            published=True,
+            binding_id=binding.id,
+            snapshot_version=str(snapshot_payload.get("version") or ""),
+            snapshot_status=binding_snapshot_status(binding),
+            checksum=str(snapshot_payload.get("checksum") or ""),
+            alias_entries_total=len(alias_tuples_from_snapshot(snapshot_payload)),
+        )
+
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+    for suggestion in suggestions:
+        session.refresh(suggestion)
+    if binding is not None:
+        session.refresh(binding)
+        if snapshot_response.published:
+            snapshot_response = ProposalBatchSnapshotResponse(
+                published=True,
+                binding_id=binding.id,
+                snapshot_version=binding.last_successful_snapshot_version,
+                snapshot_status=binding_snapshot_status(binding),
+                checksum=str(
+                    (binding.runtime_snapshot_json or {}).get("checksum") or ""
+                ),
+                alias_entries_total=len(
+                    alias_tuples_from_snapshot(binding.runtime_snapshot_json)
+                ),
+            )
+
+    requested_ids = (
+        list(dict.fromkeys(request.suggestion_ids))
+        if request.suggestion_ids is not None
+        else [suggestion.id for suggestion in suggestions]
+    )
+    return ProposalBatchApplyResponse(
+        status="applied",
+        profile_name=profile.name,
+        normalized_profile_name=profile.normalized_name,
+        requested_suggestion_ids=requested_ids,
+        applied_suggestion_ids=[suggestion.id for suggestion in suggestions],
+        created_terms=created_terms,
+        created_aliases=created_aliases,
+        snapshot=snapshot_response,
+        suggestions=[_suggestion_response(suggestion) for suggestion in suggestions],
+    )
+
+
+@router.post(
     "/profiles/{profile_name}/snapshot/export",
     response_model=RuntimeSnapshotResponse,
 )
@@ -2780,6 +2910,79 @@ def _get_alias_or_404(
             detail=f"Alias not found for canonical term {term.canonical_value!r}: {alias_id}",
         )
     return alias
+
+
+def _pending_suggestions_for_batch(
+    *,
+    session: Session,
+    profile: TerminologyProfile,
+    suggestion_ids: list[int] | None,
+) -> list[GovernanceSuggestion]:
+    query = select(GovernanceSuggestion).where(
+        GovernanceSuggestion.profile_id == profile.id,
+        GovernanceSuggestion.status == "pending",
+    )
+    requested_ids: list[int] | None = None
+    if suggestion_ids is not None:
+        requested_ids = list(dict.fromkeys(suggestion_ids))
+        query = query.where(GovernanceSuggestion.id.in_(requested_ids))
+
+    suggestions = list(
+        session.scalars(
+            query.order_by(
+                GovernanceSuggestion.suggestion_type.desc(),
+                GovernanceSuggestion.id,
+            )
+        )
+    )
+    if requested_ids is not None:
+        found_ids = {suggestion.id for suggestion in suggestions}
+        missing_ids = [
+            suggestion_id
+            for suggestion_id in requested_ids
+            if suggestion_id not in found_ids
+        ]
+        if missing_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"Pending suggestions not found for profile {profile.name!r}: "
+                    f"{missing_ids}"
+                ),
+            )
+    return suggestions
+
+
+def _ordered_suggestions_for_apply(
+    suggestions: list[GovernanceSuggestion],
+) -> list[GovernanceSuggestion]:
+    """Apply canonical-term proposals before alias proposals in one batch."""
+
+    return sorted(
+        suggestions,
+        key=lambda suggestion: (
+            0 if suggestion.suggestion_type == "canonical_term" else 1,
+            suggestion.id,
+        ),
+    )
+
+
+def _ensure_batch_suggestions_are_applyable(
+    suggestions: list[GovernanceSuggestion],
+) -> None:
+    blocked_ids: list[int] = []
+    for suggestion in suggestions:
+        summary = suggestion.validation_summary_json or {}
+        if isinstance(summary, dict) and summary.get("status") == "blocked":
+            blocked_ids.append(suggestion.id)
+    if blocked_ids:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Proposal batch contains blocked suggestions. "
+                f"Review or reject them before applying: {blocked_ids}"
+            ),
+        )
 
 
 def _get_suggestion_or_404(
