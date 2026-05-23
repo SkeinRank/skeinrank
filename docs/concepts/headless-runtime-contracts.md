@@ -97,11 +97,12 @@ The current project already exposes core pieces of this contract:
 
 | Surface | Current route or tool |
 | --- | --- |
-| Dictionary validate/import/export | `/v1/console/dictionary/*` |
+| Dictionary validate/apply/export | `/v1/headless/dictionaries/*` |
 | Text canonicalization | `/v1/text/canonicalize` |
 | Query planning | `/v1/query/plan` |
 | Binding-aware search | `/v1/search` |
 | Multi-binding search | `/v1/search/multi` |
+| Snapshot artifact export | `/v1/headless/snapshots/export?binding_id=...` |
 | Snapshot state | `/v1/snapshots/summary` |
 | Health/readiness | `/livez`, `/readyz` |
 | Metrics | `/metrics` |
@@ -123,3 +124,21 @@ This facade intentionally reuses the same dictionary spec v1 contract as the
 console migration endpoints. The route names describe the product contract rather
 than the current UI implementation: dictionaries can be validated, applied, and
 exported without opening the governance console.
+
+## Snapshot artifact export
+
+Headless workers should not depend on browser workflows or live draft edits.
+They can export a binding-scoped runtime artifact instead:
+
+```text
+GET /v1/headless/snapshots/export?binding_id=7
+```
+
+The exported artifact is intentionally binding-first: it contains the profile,
+index/field/filter context, and the compiled runtime snapshot. This makes it safe
+to store the artifact in Git, object storage, or a deployment bundle and later
+load it into a lightweight runtime worker.
+
+Use `source=latest` to build from current profile state. Use `source=runtime` to
+export the currently pinned binding runtime snapshot.
+

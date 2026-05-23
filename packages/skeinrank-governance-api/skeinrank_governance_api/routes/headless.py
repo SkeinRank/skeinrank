@@ -7,11 +7,14 @@ endpoints while reusing the existing console migration implementation.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from skeinrank_governance.models import ElasticsearchBinding
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
+from ..runtime_snapshots import build_runtime_snapshot_artifact
 from ..schemas import (
     ConsoleDictionaryExportResponse,
     ConsoleDictionaryPayload,
@@ -104,3 +107,50 @@ def export_headless_dictionary(
         _scope=scope,
         session=session,
     )
+
+
+@router.get("/snapshots/export")
+def export_headless_snapshot_artifact(
+    binding_id: int = Query(..., ge=1),
+    source: str = Query(
+        default="latest",
+        pattern="^(latest|runtime)$",
+        description="Use latest profile state or the binding-pinned runtime snapshot.",
+    ),
+    snapshot_version: str | None = Query(default=None, min_length=1, max_length=128),
+    description: str | None = Query(default=None, max_length=512),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("migration:export")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Export a portable binding-scoped runtime snapshot artifact.
+
+    The artifact is intended for headless workers, GitOps commits, and object
+    storage. ``source=latest`` builds from the current profile state.
+    ``source=runtime`` exports the binding-pinned runtime snapshot and fails when
+    the binding has not published one yet.
+    """
+
+    binding = session.scalar(
+        select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
+    )
+    if binding is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Elasticsearch binding not found: {binding_id}",
+        )
+    try:
+        return build_runtime_snapshot_artifact(
+            session,
+            binding,
+            source=source,
+            snapshot_version=snapshot_version,
+            description=description,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc

@@ -232,3 +232,7 @@ SkeinRank is an active open-source platform preview, not a hosted SaaS. The curr
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE).
+
+### Headless snapshot artifacts
+
+Phase A adds a binding-first snapshot artifact export for GitOps/headless runtime flows: `GET /v1/headless/snapshots/export?binding_id=...` or `skeinrank-migrate snapshot-export --binding-id ... --output runtime-snapshot.json`.

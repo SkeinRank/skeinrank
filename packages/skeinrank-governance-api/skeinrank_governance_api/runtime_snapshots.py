@@ -34,6 +34,99 @@ class RuntimeAliasEntry:
     confidence: float
 
 
+RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION = "skeinrank.runtime_snapshot_artifact.v1"
+RUNTIME_SNAPSHOT_ARTIFACT_SOURCES = {"latest", "runtime"}
+
+
+def build_runtime_snapshot_artifact(
+    session: Session,
+    binding: ElasticsearchBinding,
+    *,
+    source: str = "latest",
+    snapshot_version: str | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
+    """Build a portable binding-scoped runtime snapshot artifact.
+
+    The artifact is the headless read model for runtime workers and GitOps flows:
+    it includes the binding context, the profile identity, and a compiled runtime
+    snapshot payload. By default it is built from the latest profile state. Passing
+    ``source="runtime"`` exports the binding-pinned runtime snapshot instead.
+    """
+
+    normalized_source = source.strip().lower()
+    if normalized_source not in RUNTIME_SNAPSHOT_ARTIFACT_SOURCES:
+        raise ValueError(
+            "Unsupported snapshot artifact source: "
+            f"{source!r}. Expected one of: latest, runtime."
+        )
+
+    if normalized_source == "runtime":
+        if not isinstance(binding.runtime_snapshot_json, dict):
+            raise ValueError(
+                "Binding has no pinned runtime snapshot. Export with "
+                "source='latest' to build from current profile state."
+            )
+        runtime_snapshot = dict(binding.runtime_snapshot_json)
+        snapshot_source = "binding_runtime_snapshot"
+    else:
+        runtime_snapshot = build_runtime_snapshot_payload(
+            session,
+            binding.profile,
+            snapshot_version=snapshot_version,
+        )
+        snapshot_source = "latest_profile"
+
+    artifact_core = {
+        "schema_version": RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION,
+        "artifact_type": "runtime_snapshot",
+        "binding": _binding_artifact_payload(binding),
+        "profile": _profile_artifact_payload(binding.profile),
+        "runtime_snapshot": runtime_snapshot,
+    }
+    checksum = _snapshot_checksum(artifact_core)
+    manifest = {
+        "created_at": utc_now().isoformat(),
+        "checksum": checksum,
+        "snapshot_source": snapshot_source,
+        "snapshot_version": str(runtime_snapshot.get("version") or ""),
+        "runtime_checksum": str(runtime_snapshot.get("checksum") or ""),
+        "alias_entries_total": len(alias_entries_from_snapshot(runtime_snapshot)),
+    }
+    if description is not None:
+        manifest["description"] = description
+    return {**artifact_core, "manifest": manifest}
+
+
+def _binding_artifact_payload(binding: ElasticsearchBinding) -> dict[str, Any]:
+    return {
+        "id": binding.id,
+        "name": binding.name,
+        "normalized_name": binding.normalized_name,
+        "provider": binding.provider,
+        "index_name": binding.index_name,
+        "text_fields": list(binding.text_fields or []),
+        "target_field": binding.target_field,
+        "filter_field": binding.filter_field,
+        "filter_value": binding.filter_value,
+        "timestamp_field": binding.timestamp_field,
+        "time_window_days": binding.time_window_days,
+        "mode": binding.mode,
+        "write_strategy": binding.write_strategy,
+        "is_enabled": binding.is_enabled,
+        "last_successful_snapshot_version": binding.last_successful_snapshot_version,
+        "pending_snapshot_version": binding.pending_snapshot_version,
+    }
+
+
+def _profile_artifact_payload(profile: TerminologyProfile) -> dict[str, Any]:
+    return {
+        "id": profile.id,
+        "name": profile.name,
+        "normalized_name": profile.normalized_name,
+    }
+
+
 def build_runtime_snapshot_payload(
     session: Session,
     profile: TerminologyProfile,
@@ -257,6 +350,6 @@ def _active_global_stop_values_for_target(
     return set(values)
 
 
-def _snapshot_checksum(alias_entries: list[dict[str, Any]]) -> str:
-    serialized = json.dumps(alias_entries, ensure_ascii=False, sort_keys=True)
+def _snapshot_checksum(payload: Any) -> str:
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()

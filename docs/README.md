@@ -36,3 +36,5 @@ GET  /v1/headless/dictionaries/export?profile_name=...
 
 They share the same dictionary spec v1 payload as the console migration routes,
 but are named for CI/CD, agents, and service-to-service workflows.
+
+- Snapshot artifact export: `GET /v1/headless/snapshots/export?binding_id=...` and `skeinrank-migrate snapshot-export`.

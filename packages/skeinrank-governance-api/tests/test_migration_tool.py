@@ -226,3 +226,79 @@ def test_migration_tool_validate_command_reads_yaml(tmp_path, monkeypatch, capsy
 
     assert exit_code == 0
     assert capsys.readouterr().out == '{"status":"valid"}\n'
+
+
+def test_dictionary_migration_client_exports_snapshot_artifact(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        return _FakeResponse(
+            {"schema_version": "skeinrank.runtime_snapshot_artifact.v1"}
+        )
+
+    monkeypatch.setattr(migration_tool, "urlopen", fake_urlopen)
+    client = DictionaryMigrationClient("http://api.example.test")
+
+    result = client.export_snapshot_artifact(
+        7,
+        source="runtime",
+        snapshot_version="platform_ops@v1",
+        description="release candidate",
+    )
+
+    assert result == {"schema_version": "skeinrank.runtime_snapshot_artifact.v1"}
+    assert captured["method"] == "GET"
+    assert captured["url"] == (
+        "http://api.example.test/v1/headless/snapshots/export?"
+        "binding_id=7&source=runtime&snapshot_version=platform_ops%40v1&"
+        "description=release+candidate"
+    )
+
+
+def test_migration_tool_snapshot_export_command_writes_artifact(tmp_path, monkeypatch):
+    output_path = tmp_path / "runtime-snapshot.json"
+
+    def fake_export_snapshot_artifact(
+        self,
+        binding_id,
+        *,
+        source="latest",
+        snapshot_version=None,
+        description=None,
+    ):
+        assert binding_id == 7
+        assert source == "latest"
+        assert snapshot_version == "platform_ops@v1"
+        assert description == "release candidate"
+        return {
+            "schema_version": "skeinrank.runtime_snapshot_artifact.v1",
+            "binding": {"id": 7},
+        }
+
+    monkeypatch.setattr(
+        DictionaryMigrationClient,
+        "export_snapshot_artifact",
+        fake_export_snapshot_artifact,
+    )
+
+    exit_code = main(
+        [
+            "snapshot-export",
+            "--binding-id",
+            "7",
+            "--snapshot-version",
+            "platform_ops@v1",
+            "--description",
+            "release candidate",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert json.loads(output_path.read_text(encoding="utf-8")) == {
+        "schema_version": "skeinrank.runtime_snapshot_artifact.v1",
+        "binding": {"id": 7},
+    }

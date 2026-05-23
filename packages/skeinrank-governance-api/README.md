@@ -140,6 +140,31 @@ curl -X POST http://127.0.0.1:8010/v1/auth/users \
 ```
 
 
+## Headless dictionary and snapshot APIs
+
+Patch 36C/36D add automation-first routes for CI/CD, agents, and headless
+runtime workers:
+
+```bash
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=infra_incidents
+GET  /v1/headless/snapshots/export?binding_id=1
+```
+
+Export a binding-scoped runtime artifact from the CLI:
+
+```bash
+poetry run skeinrank-migrate snapshot-export \
+  --binding-id 1 \
+  --snapshot-version infra_incidents@v1 \
+  --output runtime-snapshot.json
+```
+
+The snapshot artifact includes the binding context and compiled runtime aliases,
+so it can be committed to GitOps repositories or loaded by future lightweight
+runtime workers without querying PostgreSQL on every request.
+
 ## User Console API
 
 Patch 27 adds a migration-friendly API surface for users who work from JupyterHub, scripts, bots, or future CLI tools. It reuses the same governance database and role checks as the UI, but accepts a bulk dictionary JSON so companies do not need to enter existing dictionaries by hand. New payloads should include `schema_version: skeinrank.dictionary.v1`; legacy payloads without a schema version are treated as v1 for backward compatibility.

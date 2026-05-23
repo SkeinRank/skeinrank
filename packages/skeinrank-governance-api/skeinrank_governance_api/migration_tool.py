@@ -75,6 +75,27 @@ class DictionaryMigrationClient:
             },
         )
 
+    def export_snapshot_artifact(
+        self,
+        binding_id: int,
+        *,
+        source: str = "latest",
+        snapshot_version: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        """Export a binding-scoped runtime snapshot artifact."""
+
+        query = {"binding_id": str(binding_id), "source": source}
+        if snapshot_version:
+            query["snapshot_version"] = snapshot_version
+        if description:
+            query["description"] = description
+        return self._request(
+            "GET",
+            "/v1/headless/snapshots/export",
+            query=query,
+        )
+
     def _request(
         self,
         method: str,
@@ -162,6 +183,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _write_json(result, args.output, pretty=not args.compact)
             return 0
+        if args.command == "snapshot-export":
+            result = client.export_snapshot_artifact(
+                args.binding_id,
+                source=args.source,
+                snapshot_version=args.snapshot_version,
+                description=args.description,
+            )
+            _write_json(result, args.output, pretty=not args.compact)
+            return 0
     except (OSError, ValueError, MigrationToolError) as exc:
         print(f"skeinrank-migrate: {exc}", file=sys.stderr)
         return 1
@@ -246,6 +276,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exclude the global stop list from export output.",
     )
     export_parser.set_defaults(include_global_stop_list=True)
+
+    snapshot_export_parser = subparsers.add_parser(
+        "snapshot-export",
+        help="Export a binding-scoped runtime snapshot artifact.",
+    )
+    _add_subcommand_compact_option(snapshot_export_parser)
+    snapshot_export_parser.add_argument(
+        "--binding-id", type=int, required=True, help="Binding id to export."
+    )
+    snapshot_export_parser.add_argument(
+        "--source",
+        choices=("latest", "runtime"),
+        default="latest",
+        help=(
+            "Snapshot source: latest builds from current profile state; "
+            "runtime exports the binding-pinned runtime snapshot."
+        ),
+    )
+    snapshot_export_parser.add_argument(
+        "--snapshot-version",
+        default=None,
+        help="Optional version to use when building from latest profile state.",
+    )
+    snapshot_export_parser.add_argument(
+        "--description", default=None, help="Optional artifact description."
+    )
+    snapshot_export_parser.add_argument(
+        "-o", "--output", help="Write artifact JSON to a file."
+    )
     return parser
 
 

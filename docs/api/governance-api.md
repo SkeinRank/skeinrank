@@ -56,6 +56,37 @@ validate -> apply -> export -> create/publish runtime snapshot
 profile, term, alias, and stop-list changes in one transaction. `export` returns
 the current profile dictionary with `schema_version`.
 
+## Headless snapshot artifact export
+
+After a dictionary is applied and a binding exists, automation can export a
+portable binding-scoped runtime artifact:
+
+```text
+GET /v1/headless/snapshots/export?binding_id=7
+GET /v1/headless/snapshots/export?binding_id=7&source=runtime
+```
+
+`source=latest` is the default and builds an artifact from the current profile
+state. `source=runtime` exports the binding-pinned runtime snapshot and returns
+`409` when the binding has not published one yet.
+
+The artifact contains:
+
+- `schema_version: skeinrank.runtime_snapshot_artifact.v1`;
+- binding context: index, fields, filters, target field, write strategy;
+- profile identity;
+- compiled `runtime_snapshot`;
+- manifest checksum, source, snapshot version, and alias count.
+
+CLI example:
+
+```bash
+skeinrank-migrate snapshot-export \
+  --binding-id 7 \
+  --snapshot-version platform_ops@v1 \
+  --output snapshots/platform_ops.binding-7.v1.json
+```
+
 ## Console dictionary workflows
 
 The console endpoints remain available for the existing governance UI and legacy
