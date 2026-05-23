@@ -938,6 +938,8 @@ python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --discove
 python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
 python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-evidence
 python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
+python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report
+python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-demo-review-prompt
 ```
 
 Patch 40F keeps the runner dependency-light and LLM-free. Patch 40G adds
@@ -946,9 +948,11 @@ helpers, and strict structured output parsing. Patch 40H adds deterministic
 failed-query candidate discovery, pruning, scoring, and compact fact-pack output.
 Patch 40I adds local compact evidence windows with explicit size limits, producing
 `skeinrank.agent_evidence_sampling.v1` and LLM-ready evidence packs without
-calling OpenRouter. The example still does not execute model tool calls; it only
-documents the contract that later agent patches can wire to model review and
-LangGraph orchestration on top of the same safe proposal workflow.
+calling OpenRouter. Patch 40K adds `skeinrank.agent_demo_report.v1`, a local E2E
+report that stitches discovery and evidence into a review queue while keeping
+`proposals_submitted` at `0`. The example still does not execute model tool calls;
+it only documents the contract that later agent patches can wire to model review
+and LangGraph orchestration on top of the same safe proposal workflow.
 
 
 ### Patch 38A/38B: term tags in governance and runtime

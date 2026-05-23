@@ -71,8 +71,12 @@ contract layer: tool schemas, safety prompts, compact candidate-pack prompt
 helpers, and strict structured output parsing. Patch 40H adds deterministic
 failed-query candidate discovery and pruning before any LLM call. Patch 40I adds
 compact evidence windows with `max_docs`, `max_windows`, and `max_total_chars`
-limits. The example remains LLM-free and does not execute tool calls yet. Local
-previews are available through `--print-tool-schemas`, `--print-system-prompt`,
+limits. Patch 40K adds a local E2E demo report (`skeinrank.agent_demo_report.v1`)
+that prepares a review queue and source-quality placeholder without calling
+OpenRouter, Elasticsearch, or the SkeinRank API. Local previews are available
+through `--print-tool-schemas`, `--print-system-prompt`,
 `--print-sample-review-prompt`, `--discover-candidates`,
-`--print-sample-candidate-pack`, `--sample-evidence`, and
-`--print-sample-evidence-pack`.
+`--print-sample-candidate-pack`, `--sample-evidence`,
+`--print-sample-evidence-pack`, `--run-demo-report`, and
+`--print-demo-review-prompt`. See `docs/guides/openrouter-agent.md` for the
+agent milestone walkthrough.

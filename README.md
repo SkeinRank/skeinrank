@@ -231,15 +231,25 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-eviden
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
 ```
 
+Patch 40K adds the local E2E demo report:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-demo-review-prompt
+make agent-demo
+```
+
 The example still does not call OpenRouter. It now defines tool schemas for
 `skeinrank_list_bindings`, `skeinrank_explain_query`,
 `skeinrank_validate_alias`, and `skeinrank_submit_alias_proposal`, plus a
 safety-focused system prompt, strict parser for `propose`, `reject`, and
 `needs_evidence` judgments, a deterministic `skeinrank.agent_candidate_discovery.v1`
 report for failed-query candidates, and a local `skeinrank.agent_evidence_sampling.v1`
-report with short context windows. The schemas map only to existing `/v1/tools/*`
-routes, so agents can validate and submit proposals, but runtime terminology
-changes only through reviewed batches and snapshots. See
+report with short context windows, and a deterministic
+`skeinrank.agent_demo_report.v1` report that prepares a review queue without
+calling external services. The schemas map only to existing `/v1/tools/*` routes,
+so agents can validate and submit proposals, but runtime terminology changes
+only through reviewed batches and snapshots. See
 [`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout).
 
 ## Quickstart: local SDK / CLI

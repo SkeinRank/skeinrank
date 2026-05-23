@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -25,3 +25,10 @@ headless-reset:
 
 headless-golden-path:
 	deploy/docker/scripts/headless-golden-path.sh
+
+agent-demo:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report
+
+agent-demo-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-demo-report examples/agents/openrouter_alias_scout/reports/demo-report.json

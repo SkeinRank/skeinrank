@@ -66,5 +66,10 @@
       "message",
       "content"
     ]
+  },
+  "demo_report": {
+    "max_candidates_for_review": 5,
+    "include_prompt_previews": false,
+    "prompt_preview_chars": 800
   }
 }

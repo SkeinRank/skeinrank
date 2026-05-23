@@ -23,6 +23,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_candidate_fact_pack,
         discover_alias_candidates,
     )
+    from .demo_report import (
+        DemoReportConfig,
+        build_alias_scout_demo_report,
+        build_demo_review_prompt,
+    )
     from .evidence_sampler import (
         EvidenceSamplerConfig,
         build_candidate_evidence_pack,
@@ -44,6 +49,11 @@ except ImportError:  # pragma: no cover
         build_candidate_discovery_report,
         build_candidate_fact_pack,
         discover_alias_candidates,
+    )
+    from demo_report import (
+        DemoReportConfig,
+        build_alias_scout_demo_report,
+        build_demo_review_prompt,
     )
     from evidence_sampler import (
         EvidenceSamplerConfig,
@@ -80,6 +90,7 @@ class AgentRunnerConfig:
     max_queries_per_run: int
     candidate_discovery: CandidateDiscoveryConfig
     evidence_sampler: EvidenceSamplerConfig
+    demo_report: DemoReportConfig
     dry_run: bool = True
 
     @classmethod
@@ -128,6 +139,7 @@ class AgentRunnerConfig:
             evidence_sampler=EvidenceSamplerConfig.from_mapping(
                 raw.get("evidence_sampler")
             ),
+            demo_report=DemoReportConfig.from_mapping(raw.get("demo_report")),
             dry_run=bool(raw.get("dry_run", True)),
         )
 
@@ -194,7 +206,8 @@ def build_run_plan(
         "next_steps": [
             "Patch 40G added OpenRouter tool schemas and prompts.",
             "Patch 40H added candidate discovery and pruning.",
-            "Patch 40I adds compact evidence sampling.",
+            "Patch 40I added compact evidence sampling.",
+            "Patch 40K adds the local E2E demo report.",
         ],
         "sample_queries": [
             {
@@ -269,12 +282,33 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--sample-evidence",
         action="store_true",
-        help="Sample compact evidence windows for discovered candidates without LLM calls.",
+        help=(
+            "Sample compact evidence windows for discovered candidates without LLM "
+            "calls."
+        ),
     )
     parser.add_argument(
         "--print-sample-evidence-pack",
         action="store_true",
-        help="Print the top candidate with sampled evidence windows as an LLM-ready pack.",
+        help=(
+            "Print the top candidate with sampled evidence windows as an "
+            "LLM-ready pack."
+        ),
+    )
+    parser.add_argument(
+        "--run-demo-report",
+        action="store_true",
+        help="Run the local E2E candidate/evidence demo and print a JSON report.",
+    )
+    parser.add_argument(
+        "--write-demo-report",
+        type=Path,
+        help="Write the local E2E demo report to this JSON path.",
+    )
+    parser.add_argument(
+        "--print-demo-review-prompt",
+        action="store_true",
+        help="Print the first real-sample review prompt without calling OpenRouter.",
     )
     return parser.parse_args(argv)
 
@@ -368,6 +402,48 @@ def main(argv: list[str] | None = None) -> int:
             profile_name=config.default_profile_name,
         )
         print(json.dumps(pack, indent=2, sort_keys=True))
+        return 0
+
+    if args.run_demo_report or args.write_demo_report:
+        candidates_report_queries = failed_queries
+        evidence_records = load_jsonl_records(
+            config.evidence_records_path, limit=config.evidence_sampler.max_records
+        )
+        report = build_alias_scout_demo_report(
+            candidates_report_queries,
+            evidence_records,
+            candidate_config=config.candidate_discovery,
+            evidence_config=config.evidence_sampler,
+            demo_config=config.demo_report,
+            binding_id=config.default_binding_id,
+            profile_name=config.default_profile_name,
+            proposal_source_name=config.proposal_source_name,
+            openrouter_model=config.openrouter_model,
+        )
+        if args.write_demo_report:
+            args.write_demo_report.parent.mkdir(parents=True, exist_ok=True)
+            args.write_demo_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.print_demo_review_prompt:
+        evidence_records = load_jsonl_records(
+            config.evidence_records_path, limit=config.evidence_sampler.max_records
+        )
+        print(
+            build_demo_review_prompt(
+                failed_queries,
+                evidence_records,
+                candidate_config=config.candidate_discovery,
+                evidence_config=config.evidence_sampler,
+                binding_id=config.default_binding_id,
+                profile_name=config.default_profile_name,
+            )
+        )
         return 0
 
     plan = build_run_plan(config, failed_queries)
