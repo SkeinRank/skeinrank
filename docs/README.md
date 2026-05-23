@@ -45,3 +45,17 @@ but are named for CI/CD, agents, and service-to-service workflows.
 ## Headless quickstart
 
 Use `docker-compose.headless.yml` for the API/PostgreSQL-only Phase A path. See `deployment/headless-quickstart.md` for the dictionary apply -> binding -> snapshot artifact workflow.
+
+## Agent MCP tools
+
+Patch 37F adds a minimal MCP stdio adapter for agent workflows:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+It exposes binding discovery, query explanation, alias validation, alias proposal
+submission, and proposal status lookup. The adapter delegates to `/v1/tools/*`,
+so agents still go through proposal validation and review rather than mutating
+runtime terminology directly.

@@ -29,6 +29,7 @@ from skeinrank_governance.models import (
     ELASTICSEARCH_BINDING_MODES,
     ELASTICSEARCH_BINDING_PROVIDERS,
     ELASTICSEARCH_BINDING_WRITE_STRATEGIES,
+    PROPOSAL_SOURCE_TYPES,
     STOP_LIST_TARGETS,
     SUGGESTION_SOURCES,
     SUGGESTION_STATUSES,
@@ -59,12 +60,26 @@ from ..elasticsearch import (
     get_source_values,
     source_preview,
 )
+from ..observability.metrics import (
+    record_proposal_batch_apply,
+    record_proposal_review,
+    record_proposal_submission,
+)
+from ..proposal_idempotency import (
+    ProposalIdempotencyConflict,
+    normalize_idempotency_key,
+    resolve_idempotent_suggestion,
+    resolve_idempotent_suggestion_from_validation_summary,
+)
+from ..proposal_quality import build_proposal_source_quality, validation_status
+from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import (
     alias_tuples_from_snapshot,
     binding_snapshot_status,
     build_runtime_snapshot_payload,
     clear_binding_pending_snapshot,
     mark_binding_snapshot_success,
+    publish_binding_runtime_snapshot,
     restore_binding_previous_snapshot,
 )
 from ..schemas import (
@@ -95,6 +110,10 @@ from ..schemas import (
     ProfileCreateRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    ProposalBatchApplyRequest,
+    ProposalBatchApplyResponse,
+    ProposalBatchSnapshotResponse,
+    ProposalSourceQualityResponse,
     RuntimeSnapshotResponse,
     SnapshotExportRequest,
     StopListCreateRequest,
@@ -1532,6 +1551,57 @@ def delete_term_alias(
 
 
 @router.get(
+    "/proposals/source-quality",
+    response_model=list[ProposalSourceQualityResponse],
+)
+def list_proposal_source_quality(
+    profile_name: str | None = Query(default=None, min_length=1, max_length=128),
+    proposal_source_type: str | None = Query(default=None, max_length=32),
+    proposal_source_name: str | None = Query(default=None, max_length=128),
+    _current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> list[ProposalSourceQualityResponse]:
+    """Return aggregate quality signals for proposal sources.
+
+    This endpoint is intentionally computed from persisted proposal state rather
+    than Prometheus counters, so reviewers can inspect source quality after
+    restarts and across manual/agent proposal flows.
+    """
+
+    if proposal_source_type is not None:
+        _validate_status(
+            proposal_source_type,
+            PROPOSAL_SOURCE_TYPES,
+            "proposal source type",
+        )
+    rows = build_proposal_source_quality(
+        session,
+        profile_name=profile_name,
+        proposal_source_type=proposal_source_type,
+        proposal_source_name=proposal_source_name,
+    )
+    return [
+        ProposalSourceQualityResponse(
+            proposal_source_type=row.proposal_source_type,
+            proposal_source_name=row.proposal_source_name,
+            proposals_total=row.proposals_total,
+            pending=row.pending,
+            approved=row.approved,
+            rejected=row.rejected,
+            validation_passed=row.validation_passed,
+            validation_warning=row.validation_warning,
+            validation_blocked=row.validation_blocked,
+            validation_unknown=row.validation_unknown,
+            approval_rate=row.approval_rate,
+            rejection_rate=row.rejection_rate,
+            blocked_rate=row.blocked_rate,
+            average_confidence=row.average_confidence,
+        )
+        for row in rows
+    ]
+
+
+@router.get(
     "/profiles/{profile_name}/suggestions",
     response_model=list[SuggestionResponse],
 )
@@ -1573,6 +1643,7 @@ def list_profile_suggestions(
 def create_profile_suggestion(
     profile_name: str,
     request: SuggestionCreateRequest,
+    response: Response,
     current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
@@ -1583,6 +1654,51 @@ def create_profile_suggestion(
     profile = _get_profile_or_404(session, profile_name)
     _validate_status(request.source, SUGGESTION_SOURCES, "suggestion source")
     _validate_status(request.suggestion_type, SUGGESTION_TYPES, "suggestion type")
+    _validate_status(
+        request.proposal_source_type,
+        PROPOSAL_SOURCE_TYPES,
+        "proposal source type",
+    )
+
+    binding_id = request.binding_id
+    if request.binding_id is not None:
+        binding = _get_elasticsearch_binding_or_404(session, request.binding_id)
+        if binding.profile_id != profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Proposal binding must belong to the suggestion profile.",
+            )
+        binding_id = binding.id
+
+    idempotency_key = normalize_idempotency_key(request.idempotency_key)
+    try:
+        existing_suggestion = resolve_idempotent_suggestion(
+            session,
+            profile=profile,
+            idempotency_key=idempotency_key,
+            suggestion_type=request.suggestion_type,
+            canonical_value=request.canonical_value,
+            alias_value=request.alias_value,
+            slot=request.slot,
+            binding_id=binding_id,
+            proposal_source_type=request.proposal_source_type,
+        )
+    except ProposalIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    if existing_suggestion is not None:
+        response.status_code = status.HTTP_200_OK
+        record_proposal_submission(
+            source_type=existing_suggestion.proposal_source_type,
+            suggestion_type=existing_suggestion.suggestion_type,
+            validation_status=validation_status(
+                existing_suggestion.validation_summary_json
+            ),
+            outcome="idempotent_retry",
+        )
+        return _suggestion_response(existing_suggestion)
 
     if request.suggestion_type == "alias":
         if request.alias_value is None or not request.alias_value.strip():
@@ -1626,6 +1742,49 @@ def create_profile_suggestion(
                 ),
             )
 
+    validation_summary = request.validation_summary
+    if validation_summary is None:
+        validation_summary = build_proposal_validation_summary(
+            session,
+            profile,
+            suggestion_type=request.suggestion_type,
+            canonical_value=request.canonical_value,
+            alias_value=request.alias_value,
+            slot=request.slot,
+            confidence=request.confidence,
+            proposal_source_type=request.proposal_source_type,
+            proposal_source_name=request.proposal_source_name,
+            idempotency_key=idempotency_key,
+            source_payload=request.source_payload,
+        )
+        try:
+            existing_suggestion = resolve_idempotent_suggestion_from_validation_summary(
+                session,
+                validation_summary,
+                suggestion_type=request.suggestion_type,
+                canonical_value=request.canonical_value,
+                alias_value=request.alias_value,
+                slot=request.slot,
+                binding_id=binding_id,
+                proposal_source_type=request.proposal_source_type,
+            )
+        except ProposalIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
+        if existing_suggestion is not None:
+            response.status_code = status.HTTP_200_OK
+            record_proposal_submission(
+                source_type=existing_suggestion.proposal_source_type,
+                suggestion_type=existing_suggestion.suggestion_type,
+                validation_status=validation_status(
+                    existing_suggestion.validation_summary_json
+                ),
+                outcome="idempotent_retry",
+            )
+            return _suggestion_response(existing_suggestion)
+
     suggestion = GovernanceSuggestion(
         profile=profile,
         suggestion_type=request.suggestion_type,
@@ -1636,6 +1795,12 @@ def create_profile_suggestion(
         confidence=request.confidence,
         source=request.source,
         context=request.context,
+        binding_id=binding_id,
+        proposal_source_type=request.proposal_source_type,
+        proposal_source_name=request.proposal_source_name,
+        idempotency_key=idempotency_key,
+        source_payload_json=request.source_payload,
+        validation_summary_json=validation_summary,
         status="pending",
         created_by=current_user.username,
     )
@@ -1643,9 +1808,43 @@ def create_profile_suggestion(
     try:
         session.commit()
         session.refresh(suggestion)
+        record_proposal_submission(
+            source_type=suggestion.proposal_source_type,
+            suggestion_type=suggestion.suggestion_type,
+            validation_status=validation_status(suggestion.validation_summary_json),
+            outcome="created",
+        )
         return _suggestion_response(suggestion)
     except IntegrityError as exc:
         session.rollback()
+        try:
+            existing_suggestion = resolve_idempotent_suggestion(
+                session,
+                profile=profile,
+                idempotency_key=idempotency_key,
+                suggestion_type=request.suggestion_type,
+                canonical_value=request.canonical_value,
+                alias_value=request.alias_value,
+                slot=request.slot,
+                binding_id=binding_id,
+                proposal_source_type=request.proposal_source_type,
+            )
+        except ProposalIdempotencyConflict as conflict_exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(conflict_exc),
+            ) from conflict_exc
+        if existing_suggestion is not None:
+            response.status_code = status.HTTP_200_OK
+            record_proposal_submission(
+                source_type=existing_suggestion.proposal_source_type,
+                suggestion_type=existing_suggestion.suggestion_type,
+                validation_status=validation_status(
+                    existing_suggestion.validation_summary_json
+                ),
+                outcome="idempotent_retry",
+            )
+            return _suggestion_response(existing_suggestion)
         raise _integrity_conflict(exc) from exc
 
 
@@ -1737,6 +1936,10 @@ def approve_profile_suggestion(
     try:
         session.commit()
         session.refresh(suggestion)
+        record_proposal_review(
+            source_type=suggestion.proposal_source_type,
+            decision="approved",
+        )
         return _suggestion_response(suggestion)
     except IntegrityError as exc:
         session.rollback()
@@ -1768,7 +1971,148 @@ def reject_profile_suggestion(
 
     session.commit()
     session.refresh(suggestion)
+    record_proposal_review(
+        source_type=suggestion.proposal_source_type,
+        decision="rejected",
+    )
     return _suggestion_response(suggestion)
+
+
+@router.post(
+    "/profiles/{profile_name}/suggestions/apply-batch",
+    response_model=ProposalBatchApplyResponse,
+)
+def apply_profile_suggestion_batch(
+    profile_name: str,
+    request: ProposalBatchApplyRequest | None = Body(default=None),
+    reviewer: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ProposalBatchApplyResponse:
+    """Apply pending proposals as one atomic batch and optionally publish a snapshot.
+
+    This endpoint is the headless proposal release path: agents and tools submit
+    pending suggestions, then a moderator/admin applies a reviewed set in one
+    transaction. When requested, the same transaction pins a fresh runtime
+    snapshot on the target binding.
+    """
+
+    request = request or ProposalBatchApplyRequest()
+    profile = _get_profile_or_404(session, profile_name)
+    binding = None
+    if request.publish_snapshot and request.binding_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="publish_snapshot requires binding_id.",
+        )
+    if request.binding_id is not None:
+        binding = _get_elasticsearch_binding_or_404(session, request.binding_id)
+        if binding.profile_id != profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Proposal batch binding must belong to the profile.",
+            )
+
+    suggestions = _pending_suggestions_for_batch(
+        session=session,
+        profile=profile,
+        suggestion_ids=request.suggestion_ids,
+    )
+    if not suggestions:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No pending suggestions are available for this batch.",
+        )
+
+    _ensure_batch_suggestions_are_applyable(suggestions)
+
+    created_terms = 0
+    created_aliases = 0
+    now = utc_now()
+    for suggestion in _ordered_suggestions_for_apply(suggestions):
+        if suggestion.suggestion_type == "canonical_term":
+            _approve_canonical_term_suggestion(session, profile, suggestion)
+            created_terms += 1
+        elif suggestion.suggestion_type == "alias":
+            _approve_alias_suggestion(session, profile, suggestion)
+            created_aliases += 1
+        else:  # pragma: no cover - guarded by database/API validation
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Invalid suggestion type: {suggestion.suggestion_type}",
+            )
+        suggestion.status = "approved"
+        suggestion.reviewed_by = reviewer.username
+        suggestion.review_comment = request.review_comment
+        suggestion.reviewed_at = now
+
+    snapshot_response = ProposalBatchSnapshotResponse(published=False)
+    if request.publish_snapshot and binding is not None:
+        session.flush()
+        snapshot_payload = publish_binding_runtime_snapshot(
+            session,
+            binding,
+            snapshot_version=request.snapshot_version,
+        )
+        snapshot_response = ProposalBatchSnapshotResponse(
+            published=True,
+            binding_id=binding.id,
+            snapshot_version=str(snapshot_payload.get("version") or ""),
+            snapshot_status=binding_snapshot_status(binding),
+            checksum=str(snapshot_payload.get("checksum") or ""),
+            alias_entries_total=len(alias_tuples_from_snapshot(snapshot_payload)),
+        )
+
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+    record_proposal_batch_apply(
+        status="applied",
+        publish_snapshot=request.publish_snapshot,
+        suggestions_count=len(suggestions),
+    )
+    for suggestion in suggestions:
+        record_proposal_review(
+            source_type=suggestion.proposal_source_type,
+            decision="batch_approved",
+        )
+
+    for suggestion in suggestions:
+        session.refresh(suggestion)
+    if binding is not None:
+        session.refresh(binding)
+        if snapshot_response.published:
+            snapshot_response = ProposalBatchSnapshotResponse(
+                published=True,
+                binding_id=binding.id,
+                snapshot_version=binding.last_successful_snapshot_version,
+                snapshot_status=binding_snapshot_status(binding),
+                checksum=str(
+                    (binding.runtime_snapshot_json or {}).get("checksum") or ""
+                ),
+                alias_entries_total=len(
+                    alias_tuples_from_snapshot(binding.runtime_snapshot_json)
+                ),
+            )
+
+    requested_ids = (
+        list(dict.fromkeys(request.suggestion_ids))
+        if request.suggestion_ids is not None
+        else [suggestion.id for suggestion in suggestions]
+    )
+    return ProposalBatchApplyResponse(
+        status="applied",
+        profile_name=profile.name,
+        normalized_profile_name=profile.normalized_name,
+        requested_suggestion_ids=requested_ids,
+        applied_suggestion_ids=[suggestion.id for suggestion in suggestions],
+        created_terms=created_terms,
+        created_aliases=created_aliases,
+        snapshot=snapshot_response,
+        suggestions=[_suggestion_response(suggestion) for suggestion in suggestions],
+    )
 
 
 @router.post(
@@ -2745,6 +3089,79 @@ def _get_alias_or_404(
     return alias
 
 
+def _pending_suggestions_for_batch(
+    *,
+    session: Session,
+    profile: TerminologyProfile,
+    suggestion_ids: list[int] | None,
+) -> list[GovernanceSuggestion]:
+    query = select(GovernanceSuggestion).where(
+        GovernanceSuggestion.profile_id == profile.id,
+        GovernanceSuggestion.status == "pending",
+    )
+    requested_ids: list[int] | None = None
+    if suggestion_ids is not None:
+        requested_ids = list(dict.fromkeys(suggestion_ids))
+        query = query.where(GovernanceSuggestion.id.in_(requested_ids))
+
+    suggestions = list(
+        session.scalars(
+            query.order_by(
+                GovernanceSuggestion.suggestion_type.desc(),
+                GovernanceSuggestion.id,
+            )
+        )
+    )
+    if requested_ids is not None:
+        found_ids = {suggestion.id for suggestion in suggestions}
+        missing_ids = [
+            suggestion_id
+            for suggestion_id in requested_ids
+            if suggestion_id not in found_ids
+        ]
+        if missing_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"Pending suggestions not found for profile {profile.name!r}: "
+                    f"{missing_ids}"
+                ),
+            )
+    return suggestions
+
+
+def _ordered_suggestions_for_apply(
+    suggestions: list[GovernanceSuggestion],
+) -> list[GovernanceSuggestion]:
+    """Apply canonical-term proposals before alias proposals in one batch."""
+
+    return sorted(
+        suggestions,
+        key=lambda suggestion: (
+            0 if suggestion.suggestion_type == "canonical_term" else 1,
+            suggestion.id,
+        ),
+    )
+
+
+def _ensure_batch_suggestions_are_applyable(
+    suggestions: list[GovernanceSuggestion],
+) -> None:
+    blocked_ids: list[int] = []
+    for suggestion in suggestions:
+        summary = suggestion.validation_summary_json or {}
+        if isinstance(summary, dict) and summary.get("status") == "blocked":
+            blocked_ids.append(suggestion.id)
+    if blocked_ids:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Proposal batch contains blocked suggestions. "
+                f"Review or reject them before applying: {blocked_ids}"
+            ),
+        )
+
+
 def _get_suggestion_or_404(
     session: Session, profile: TerminologyProfile, suggestion_id: int
 ) -> GovernanceSuggestion:
@@ -2902,6 +3319,7 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         profile_id=suggestion.profile_id,
         term_id=suggestion.term_id,
         alias_id=suggestion.alias_id,
+        binding_id=suggestion.binding_id,
         suggestion_type=suggestion.suggestion_type,
         canonical_value=suggestion.canonical_value,
         normalized_canonical=suggestion.normalized_canonical,
@@ -2912,6 +3330,11 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         confidence=suggestion.confidence,
         source=suggestion.source,
         context=suggestion.context,
+        proposal_source_type=suggestion.proposal_source_type,
+        proposal_source_name=suggestion.proposal_source_name,
+        idempotency_key=suggestion.idempotency_key,
+        source_payload=suggestion.source_payload_json,
+        validation_summary=suggestion.validation_summary_json,
         status=suggestion.status,
         created_by=suggestion.created_by,
         reviewed_by=suggestion.reviewed_by,

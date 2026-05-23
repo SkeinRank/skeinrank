@@ -530,6 +530,120 @@ def test_suggestion_lifecycle_approves_into_active_alias(tmp_path):
     assert aliases[0]["notes"] == "People search for kube in incident runbooks."
 
 
+def test_agent_proposal_metadata_is_persisted_with_suggestion(tmp_path):
+    client = _client(tmp_path)
+    client.post(
+        "/v1/governance/profiles",
+        json={"name": "infra_incidents", "description": "Infra incidents"},
+    )
+    client.post(
+        "/v1/governance/profiles/infra_incidents/terms",
+        json={"canonical_value": "postgresql", "slot": "database"},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "infra_incidents",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+        },
+    )
+    assert binding_response.status_code == 201
+    binding_id = binding_response.json()["id"]
+
+    suggestion_response = client.post(
+        "/v1/governance/profiles/infra_incidents/suggestions",
+        json={
+            "canonical_value": "postgresql",
+            "alias_value": "pg",
+            "slot": "database",
+            "confidence": 0.91,
+            "source": "discovery",
+            "context": "Search logs contain pg timeout queries.",
+            "binding_id": binding_id,
+            "proposal_source_type": "agent",
+            "proposal_source_name": "search-log-scout",
+            "idempotency_key": "search-log-scout:infra:pg",
+            "source_payload": {"query_count": 42},
+            "validation_summary": {"checks": {"duplicate_alias": "passed"}},
+        },
+    )
+
+    assert suggestion_response.status_code == 201
+    suggestion = suggestion_response.json()
+    assert suggestion["binding_id"] == binding_id
+    assert suggestion["proposal_source_type"] == "agent"
+    assert suggestion["proposal_source_name"] == "search-log-scout"
+    assert suggestion["idempotency_key"] == "search-log-scout:infra:pg"
+    assert suggestion["source_payload"] == {"query_count": 42}
+    assert suggestion["validation_summary"] == {"checks": {"duplicate_alias": "passed"}}
+
+    list_response = client.get(
+        "/v1/governance/profiles/infra_incidents/suggestions?status=pending"
+    )
+    assert list_response.status_code == 200
+    assert list_response.json()[0]["proposal_source_type"] == "agent"
+
+
+def test_agent_proposal_binding_must_match_profile(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "infra_incidents"})
+    client.post("/v1/governance/profiles", json={"name": "security_docs"})
+    client.post(
+        "/v1/governance/profiles/infra_incidents/terms",
+        json={"canonical_value": "postgresql", "slot": "database"},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "security docs",
+            "profile_name": "security_docs",
+            "index_name": "security-docs",
+            "text_fields": ["body"],
+            "target_field": "skeinrank",
+        },
+    )
+    assert binding_response.status_code == 201
+
+    response = client.post(
+        "/v1/governance/profiles/infra_incidents/suggestions",
+        json={
+            "canonical_value": "postgresql",
+            "alias_value": "pg",
+            "slot": "database",
+            "binding_id": binding_response.json()["id"],
+            "proposal_source_type": "agent",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Proposal binding must belong" in response.json()["detail"]
+
+
+def test_agent_proposal_rejects_invalid_source_type(tmp_path):
+    client = _client(tmp_path)
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "tool"},
+    )
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "tool",
+            "proposal_source_type": "rogue",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Invalid proposal source type" in response.json()["detail"]
+
+
 def test_suggestion_reject_does_not_create_alias(tmp_path):
     client = _client(tmp_path)
     client.post("/v1/governance/profiles", json={"name": "default_it"})

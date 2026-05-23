@@ -185,6 +185,18 @@ workers without querying PostgreSQL on every request. Patch 36E adds a local
 artifact loader/cache that validates the artifact checksum and reloads the file
 when it changes.
 
+## Proposal batch apply
+
+Patch 37D adds a release path for agent/human proposals:
+
+```bash
+POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch
+```
+
+The endpoint applies pending suggestions atomically. With `publish_snapshot=true`
+and a matching `binding_id`, it also pins the resulting runtime snapshot on that
+binding so headless runtime clients can consume a reviewed version.
+
 ## User Console API
 
 Patch 27 adds a migration-friendly API surface for users who work from JupyterHub, scripts, bots, or future CLI tools. It reuses the same governance database and role checks as the UI, but accepts a bulk dictionary JSON so companies do not need to enter existing dictionaries by hand. New payloads should include `schema_version: skeinrank.dictionary.v1`; legacy payloads without a schema version are treated as v1 for backward compatibility.
@@ -498,6 +510,40 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions
 curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions/1/reject \
   -H "Content-Type: application/json" \
   -d '{"review_comment":"Not used by this corpus."}'
+```
+
+Agent-ready proposal metadata can be attached to the same suggestion workflow:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions \
+  -H "Content-Type: application/json" \
+  -d '{"suggestion_type":"alias","canonical_value":"kubernetes","alias_value":"kube","slot":"TOOL","source":"discovery","proposal_source_type":"agent","proposal_source_name":"search-log-scout","idempotency_key":"search-log-scout:default_it:kube","source_payload":{"query_count":42}}'
+```
+
+Supported `proposal_source_type` values are `human`, `agent`, `cli`, `api`, `job`, and `import`. If `binding_id` is provided, it must reference a binding for the same profile. If `validation_summary` is omitted, SkeinRank stores an automatic proposal validation summary with checks for canonical availability, alias collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints, and agent audit payloads. Callers may still provide their own `validation_summary` when they already ran an external checker. Patch 37E enforces idempotency keys for safe retries. Patch 37G adds proposal metrics and source quality reporting:
+
+```bash
+curl http://127.0.0.1:8010/v1/governance/proposals/source-quality \
+  -H "X-SkeinRank-Role: admin"
+```
+
+Prometheus counters include proposal submissions, review decisions, and batch apply operations.
+
+Agent-friendly REST tools expose the same flow without requiring callers to know
+the full profile suggestions route shape:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/tools/validate-alias \
+  -H "Content-Type: application/json" \
+  -d '{"profile_name":"default_it","canonical_value":"kubernetes","alias_value":"kube","slot":"TOOL","proposal_source_name":"search-log-scout"}'
+
+curl -X POST http://127.0.0.1:8010/v1/tools/suggest-alias \
+  -H "Content-Type: application/json" \
+  -d '{"profile_name":"default_it","canonical_value":"kubernetes","alias_value":"kube","slot":"TOOL","proposal_source_name":"search-log-scout","source_payload":{"query_count":42}}'
+
+curl -X POST http://127.0.0.1:8010/v1/tools/explain-query \
+  -H "Content-Type: application/json" \
+  -d '{"profile_name":"default_it","query":"k8s timeout","text_fields":["title","body"],"target_field":"skeinrank"}'
 ```
 
 Approved alias suggestions create active aliases. Approved canonical term suggestions create active canonical terms.
@@ -845,3 +891,35 @@ GET  /v1/headless/dictionaries/export?profile_name=...
 
 The legacy console migration routes remain available and use the same
 implementation. New automation should prefer `/v1/headless/dictionaries/*`.
+
+## MCP server MVP
+
+Patch 37F adds a small Model Context Protocol (MCP) stdio server that adapts
+agent tool calls to the existing REST API. It has no mandatory third-party MCP
+runtime dependency; business logic stays in the governance API routes.
+
+Start the governance API first, then run:
+
+```bash
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+Environment variables:
+
+```bash
+export SKEINRANK_MCP_GOVERNANCE_API_URL=http://127.0.0.1:8010
+export SKEINRANK_MCP_ROLE=admin
+# optional when auth is enabled
+export SKEINRANK_MCP_API_TOKEN=...
+```
+
+MCP tools exposed in this MVP:
+
+- `skeinrank_list_bindings`
+- `skeinrank_explain_query`
+- `skeinrank_validate_alias`
+- `skeinrank_submit_alias_proposal`
+- `skeinrank_get_proposal_status`
+
+Agents submit proposals for review; they do not mutate active runtime
+terminology directly.

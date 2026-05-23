@@ -143,6 +143,64 @@ GET  /v1/headless/dictionaries/export?profile_name=...
 The legacy `/v1/console/dictionary/*` routes remain available for the governance
 console and older scripts. Both surfaces share the same validation/apply logic.
 
+## Agent-ready proposals and validation
+
+Phase B extends the existing suggestions review queue into an agent-safe proposal
+path. Manual suggestions still work as before, while agents, CLI jobs, and
+service integrations can attach optional `binding_id`, `proposal_source_type`,
+`proposal_source_name`, `idempotency_key`, and `source_payload` fields. When a
+caller does not provide `validation_summary`, SkeinRank now runs a proposal
+checker registry and stores structured results for canonical availability, alias
+collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints,
+and agent audit payloads. These records remain pending until a moderator/admin
+reviews them, so LLMs and agents do not mutate runtime terminology directly.
+
+Patch 37C adds a small REST tool facade for agents and service integrations that
+need stable, task-shaped calls without learning the full console API surface:
+
+```text
+GET  /v1/tools/bindings
+POST /v1/tools/validate-alias
+POST /v1/tools/suggest-alias
+POST /v1/tools/explain-query
+```
+
+The tools reuse the same proposal validation registry and runtime query planner.
+They create pending suggestions only through `suggest-alias`; validation and
+query explanation are read-only.
+
+Patch 37D adds an atomic batch apply and snapshot publish path for reviewed
+proposals:
+
+```text
+POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch
+```
+
+A moderator/admin can apply selected pending suggestions in one transaction and,
+when a `binding_id` is provided, pin a fresh runtime snapshot on that binding.
+This keeps agent proposals separate from production terminology until a reviewed
+batch is intentionally released.
+
+Patch 37F adds a dependency-light MCP stdio adapter on top of the REST tools:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+The MCP server exposes `skeinrank_list_bindings`, `skeinrank_explain_query`,
+`skeinrank_validate_alias`, `skeinrank_submit_alias_proposal`, and
+`skeinrank_get_proposal_status`. It does not own business logic; it only adapts
+MCP tool calls to the existing `/v1/tools/*` and proposal review APIs.
+
+Patch 37G adds proposal metrics and source quality reporting so reviewers can
+identify useful agents and noisy sources:
+
+```text
+GET /v1/governance/proposals/source-quality
+GET /metrics
+```
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.

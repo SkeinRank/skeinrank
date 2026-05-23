@@ -490,6 +490,30 @@ def restore_binding_previous_snapshot(
         binding.last_successful_job_id = None
 
 
+def publish_binding_runtime_snapshot(
+    session: Session,
+    binding: ElasticsearchBinding,
+    *,
+    snapshot_version: str | None = None,
+) -> dict[str, Any]:
+    """Build and pin a runtime snapshot on one binding.
+
+    This is the lightweight headless publish path used by proposal batches: it
+    promotes the current approved profile state into the binding runtime read
+    model without starting an Elasticsearch enrichment job.
+    """
+
+    snapshot_payload = build_runtime_snapshot_payload(
+        session, binding.profile, snapshot_version=snapshot_version
+    )
+    binding.last_successful_snapshot_version = str(snapshot_payload["version"])
+    binding.last_successful_snapshot_at = utc_now()
+    binding.last_successful_job_id = None
+    binding.pending_snapshot_version = None
+    binding.runtime_snapshot_json = dict(snapshot_payload)
+    return snapshot_payload
+
+
 def binding_snapshot_status(binding: ElasticsearchBinding) -> str:
     """Return a compact runtime snapshot state for API clients."""
 

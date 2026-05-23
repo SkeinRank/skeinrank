@@ -43,6 +43,8 @@ Important constraints:
 - API tokens must belong to exactly one owner: either one user or one service account
 - suggestions are constrained to `pending`, `approved`, and `rejected` review states
 - suggestion types are constrained to `alias` and `canonical_term`
+- proposal source types are constrained to `human`, `agent`, `cli`, `api`, `job`, and `import`
+- suggestions can optionally carry `binding_id`, `idempotency_key`, source payload, and validation summary metadata for future agent proposal workflows
 
 ## Local development
 

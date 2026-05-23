@@ -33,6 +33,14 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.API_TOKEN_OWNER_TYPES == ("personal", "service_account")
     assert governance.SUGGESTION_STATUSES == ("pending", "approved", "rejected")
     assert governance.SUGGESTION_TYPES == ("alias", "canonical_term")
+    assert governance.PROPOSAL_SOURCE_TYPES == (
+        "human",
+        "agent",
+        "cli",
+        "api",
+        "job",
+        "import",
+    )
     assert governance.STOP_LIST_TARGETS == ("alias", "canonical", "both")
     assert governance.ELASTICSEARCH_BINDING_MODES == ("dry_run", "write")
     assert governance.ELASTICSEARCH_BINDING_WRITE_STRATEGIES == (

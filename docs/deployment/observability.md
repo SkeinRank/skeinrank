@@ -61,6 +61,10 @@ The built-in metrics include:
 | `skeinrank_enrichment_documents_seen_total` | counter | Documents seen by enrichment jobs. |
 | `skeinrank_enrichment_documents_enriched_total` | counter | Documents enriched by enrichment jobs. |
 | `skeinrank_enrichment_documents_failed_total` | counter | Documents failed during enrichment jobs. |
+| `skeinrank_proposals_submitted_total` | counter | Proposal submissions by source type, suggestion type, validation status, and outcome. |
+| `skeinrank_proposal_reviews_total` | counter | Proposal review decisions by source type and decision. |
+| `skeinrank_proposal_batch_apply_total` | counter | Proposal batch apply operations by status and snapshot publish flag. |
+| `skeinrank_proposal_batch_suggestions_total` | counter | Suggestions processed by proposal batch apply operations. |
 
 ## Environment variables
 

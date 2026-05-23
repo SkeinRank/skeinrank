@@ -142,6 +142,58 @@ POST /v1/governance/profiles/{profile_name}/suggestions/{suggestion_id}/evidence
 
 The request references an Elasticsearch binding for the same profile. If `query` is omitted, alias suggestions use their alias value and canonical-term suggestions use their canonical value.
 
+Suggestions also support proposal metadata for headless/agent workflows. Existing manual requests remain valid, and automation can optionally provide `binding_id`, `proposal_source_type`, `proposal_source_name`, `idempotency_key`, `source_payload`, and `validation_summary`. The binding must belong to the same profile as the suggestion. If `validation_summary` is omitted, the API runs the proposal checker registry and stores structured results covering canonical availability, alias collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints, and agent audit payloads.
+
+### Agent-friendly proposal tools
+
+Patch 37C adds task-shaped routes for agents, CLI jobs, and service
+integrations. They are a facade over existing governance/runtime logic, not a
+second proposal model:
+
+```text
+GET  /v1/tools/bindings
+POST /v1/tools/validate-alias
+POST /v1/tools/suggest-alias
+POST /v1/tools/explain-query
+```
+
+`validate-alias` runs the proposal checker registry without creating a
+suggestion. `suggest-alias` creates a pending suggestion with
+`proposal_source_type=agent` by default. `explain-query` reuses the runtime query
+planner so agents can inspect canonicalization before proposing changes.
+
+### Proposal source quality
+
+Patch 37G adds a reviewer-oriented source quality endpoint:
+
+```text
+GET /v1/governance/proposals/source-quality
+```
+
+Optional filters: `profile_name`, `proposal_source_type`, and `proposal_source_name`.
+The response aggregates persisted proposal state by source and includes totals,
+pending/approved/rejected counts, validation status counts, approval rate,
+rejection rate, blocked rate, and average confidence. This is intentionally
+computed from PostgreSQL state rather than from Prometheus counters so it
+remains useful after restarts.
+
+Prometheus also exposes proposal flow counters for submission outcomes, review
+decisions, and batch apply operations.
+
+### Proposal batch apply
+
+Patch 37D adds an atomic release endpoint for reviewed proposal batches:
+
+```text
+POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch
+```
+
+The request can provide explicit `suggestion_ids`, or omit them to apply all
+pending suggestions for the profile. Setting `publish_snapshot=true` requires a
+matching `binding_id` and pins a fresh runtime snapshot on that binding in the
+same transaction. Suggestions with `validation_summary.status = blocked` are not
+applied by the batch endpoint.
+
 Saved evidence includes binding metadata, query metadata, warnings, and highlighted snippets.
 
 ## Elasticsearch discovery and bindings
@@ -213,3 +265,36 @@ SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND
 ```
 
 Do not use default credentials or permissive CORS settings in production. See `docs/deployment/security.md`.
+
+## MCP server MVP
+
+Patch 37F exposes the same agent-safe proposal tools through a small stdio MCP
+adapter. The MCP server delegates to the REST API instead of duplicating business
+logic.
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+Environment variables:
+
+```text
+SKEINRANK_MCP_GOVERNANCE_API_URL=http://127.0.0.1:8010
+SKEINRANK_MCP_ROLE=admin
+SKEINRANK_MCP_API_TOKEN=optional-bearer-token
+```
+
+MCP tools:
+
+```text
+skeinrank_list_bindings
+skeinrank_explain_query
+skeinrank_validate_alias
+skeinrank_submit_alias_proposal
+skeinrank_get_proposal_status
+```
+
+The MCP adapter keeps the same production rule as the REST tools: an agent can
+submit a proposal, validate a candidate alias, or explain a query, but it does
+not mutate active runtime terminology directly.
