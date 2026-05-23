@@ -402,7 +402,8 @@ The examples are documentation fixtures only; they do not introduce new API rout
 Patch 40F adds `examples/agents/openrouter_alias_scout` as the first reference
 agent integration. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas and
 prompts on top of the same existing tools. Patch 40H adds local candidate
-discovery and pruning before any LLM/OpenRouter call:
+discovery and pruning before any LLM/OpenRouter call. Patch 40I adds compact
+evidence windows around discovered candidates while staying local-only:
 
 ```text
 GET  /v1/tools/bindings
@@ -420,6 +421,8 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-candidates
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-evidence
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
 ```
 
 The example is not a new API surface and it does not call OpenRouter yet. Tool
@@ -427,4 +430,6 @@ schemas map only to the existing `/v1/tools/*` facade, and the structured output
 parser keeps model judgments limited to `propose`, `reject`, or `needs_evidence`
 before any later runner validates and submits proposals. The Patch 40H discovery
 report is local-only (`skeinrank.agent_candidate_discovery.v1`) and does not infer
-canonical values or submit proposals.
+canonical values or submit proposals. The Patch 40I evidence report is also
+local-only (`skeinrank.agent_evidence_sampling.v1`) and keeps context windows
+short so full documents are not sent to future model review.

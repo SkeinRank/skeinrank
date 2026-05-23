@@ -936,14 +936,18 @@ python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-s
 python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
 python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-candidates
 python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
+python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-evidence
+python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
 ```
 
 Patch 40F keeps the runner dependency-light and LLM-free. Patch 40G adds
 OpenRouter/OpenAI-compatible tool schemas, safety prompts, compact review prompt
 helpers, and strict structured output parsing. Patch 40H adds deterministic
 failed-query candidate discovery, pruning, scoring, and compact fact-pack output.
-The example still does not call OpenRouter or execute model tool calls; it only
-documents the contract that later agent patches can wire to evidence windows and
+Patch 40I adds local compact evidence windows with explicit size limits, producing
+`skeinrank.agent_evidence_sampling.v1` and LLM-ready evidence packs without
+calling OpenRouter. The example still does not execute model tool calls; it only
+documents the contract that later agent patches can wire to model review and
 LangGraph orchestration on top of the same safe proposal workflow.
 
 

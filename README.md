@@ -224,12 +224,20 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-cand
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
 ```
 
+Patch 40I adds compact evidence sampling around discovered candidates:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-evidence
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
+```
+
 The example still does not call OpenRouter. It now defines tool schemas for
 `skeinrank_list_bindings`, `skeinrank_explain_query`,
 `skeinrank_validate_alias`, and `skeinrank_submit_alias_proposal`, plus a
 safety-focused system prompt, strict parser for `propose`, `reject`, and
-`needs_evidence` judgments, and a deterministic `skeinrank.agent_candidate_discovery.v1`
-report for failed-query candidates. The schemas map only to existing `/v1/tools/*`
+`needs_evidence` judgments, a deterministic `skeinrank.agent_candidate_discovery.v1`
+report for failed-query candidates, and a local `skeinrank.agent_evidence_sampling.v1`
+report with short context windows. The schemas map only to existing `/v1/tools/*`
 routes, so agents can validate and submit proposals, but runtime terminology
 changes only through reviewed batches and snapshots. See
 [`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout).

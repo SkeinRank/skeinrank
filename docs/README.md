@@ -69,8 +69,10 @@ Patch 40F adds a local reference runner under
 `examples/agents/openrouter_alias_scout`. Patch 40G adds the OpenRouter-facing
 contract layer: tool schemas, safety prompts, compact candidate-pack prompt
 helpers, and strict structured output parsing. Patch 40H adds deterministic
-failed-query candidate discovery and pruning before any LLM call. The example
-remains LLM-free and does not execute tool calls yet; evidence sampling is a
-follow-up patch. Local previews are available through `--print-tool-schemas`,
-`--print-system-prompt`, `--print-sample-review-prompt`, `--discover-candidates`,
-and `--print-sample-candidate-pack`.
+failed-query candidate discovery and pruning before any LLM call. Patch 40I adds
+compact evidence windows with `max_docs`, `max_windows`, and `max_total_chars`
+limits. The example remains LLM-free and does not execute tool calls yet. Local
+previews are available through `--print-tool-schemas`, `--print-system-prompt`,
+`--print-sample-review-prompt`, `--discover-candidates`,
+`--print-sample-candidate-pack`, `--sample-evidence`, and
+`--print-sample-evidence-pack`.

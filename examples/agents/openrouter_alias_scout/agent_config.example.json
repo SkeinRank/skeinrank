@@ -49,5 +49,22 @@
       "and",
       "or"
     ]
+  },
+  "evidence_records_path": "evidence_records.example.jsonl",
+  "evidence_sampler": {
+    "max_records": 50,
+    "max_docs": 5,
+    "max_windows": 7,
+    "window_chars": 90,
+    "max_window_chars": 220,
+    "max_total_chars": 1000,
+    "text_fields": [
+      "query",
+      "snippet",
+      "title",
+      "text",
+      "message",
+      "content"
+    ]
   }
 }

@@ -23,6 +23,13 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_candidate_fact_pack,
         discover_alias_candidates,
     )
+    from .evidence_sampler import (
+        EvidenceSamplerConfig,
+        build_candidate_evidence_pack,
+        build_evidence_sampling_report,
+        load_jsonl_records,
+        sample_evidence_windows,
+    )
     from .openrouter_tools import get_openrouter_tool_schemas
     from .prompts import (
         SYSTEM_PROMPT,
@@ -37,6 +44,13 @@ except ImportError:  # pragma: no cover
         build_candidate_discovery_report,
         build_candidate_fact_pack,
         discover_alias_candidates,
+    )
+    from evidence_sampler import (
+        EvidenceSamplerConfig,
+        build_candidate_evidence_pack,
+        build_evidence_sampling_report,
+        load_jsonl_records,
+        sample_evidence_windows,
     )
     from openrouter_tools import get_openrouter_tool_schemas
     from prompts import (
@@ -62,8 +76,10 @@ class AgentRunnerConfig:
     default_binding_id: int | None
     proposal_source_name: str
     failed_queries_path: Path
+    evidence_records_path: Path
     max_queries_per_run: int
     candidate_discovery: CandidateDiscoveryConfig
+    evidence_sampler: EvidenceSamplerConfig
     dry_run: bool = True
 
     @classmethod
@@ -75,6 +91,11 @@ class AgentRunnerConfig:
         )
         if not failed_queries.is_absolute():
             failed_queries = base_dir / failed_queries
+        evidence_records = Path(
+            raw.get("evidence_records_path", "evidence_records.example.jsonl")
+        )
+        if not evidence_records.is_absolute():
+            evidence_records = base_dir / evidence_records
         binding_id = raw.get("default_binding_id")
         return cls(
             skeinrank_api_url=str(
@@ -99,9 +120,13 @@ class AgentRunnerConfig:
                 raw.get("proposal_source_name", "openrouter-alias-scout")
             ),
             failed_queries_path=failed_queries,
+            evidence_records_path=evidence_records,
             max_queries_per_run=int(raw.get("max_queries_per_run", 50)),
             candidate_discovery=CandidateDiscoveryConfig.from_mapping(
                 raw.get("candidate_discovery")
+            ),
+            evidence_sampler=EvidenceSamplerConfig.from_mapping(
+                raw.get("evidence_sampler")
             ),
             dry_run=bool(raw.get("dry_run", True)),
         )
@@ -164,10 +189,12 @@ def build_run_plan(
         "default_binding_id": config.default_binding_id,
         "queries_loaded": len(scoped_queries),
         "candidate_discovery_enabled": True,
+        "evidence_sampling_enabled": True,
+        "evidence_records_path": str(config.evidence_records_path),
         "next_steps": [
             "Patch 40G added OpenRouter tool schemas and prompts.",
-            "Patch 40H adds candidate discovery and pruning.",
-            "Patch 40I will add compact evidence sampling.",
+            "Patch 40H added candidate discovery and pruning.",
+            "Patch 40I adds compact evidence sampling.",
         ],
         "sample_queries": [
             {
@@ -239,6 +266,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Print the top discovered candidate as a compact fact pack.",
     )
+    parser.add_argument(
+        "--sample-evidence",
+        action="store_true",
+        help="Sample compact evidence windows for discovered candidates without LLM calls.",
+    )
+    parser.add_argument(
+        "--print-sample-evidence-pack",
+        action="store_true",
+        help="Print the top candidate with sampled evidence windows as an LLM-ready pack.",
+    )
     return parser.parse_args(argv)
 
 
@@ -287,6 +324,46 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError("No candidates discovered from failed-query input.")
         pack = build_candidate_fact_pack(
             candidates[0],
+            binding_id=config.default_binding_id,
+            profile_name=config.default_profile_name,
+        )
+        print(json.dumps(pack, indent=2, sort_keys=True))
+        return 0
+
+    if args.sample_evidence:
+        candidates = discover_alias_candidates(
+            failed_queries, config=config.candidate_discovery
+        )
+        evidence_records = load_jsonl_records(
+            config.evidence_records_path, limit=config.evidence_sampler.max_records
+        )
+        report = build_evidence_sampling_report(
+            candidates,
+            evidence_records,
+            config=config.evidence_sampler,
+            binding_id=config.default_binding_id,
+            profile_name=config.default_profile_name,
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.print_sample_evidence_pack:
+        candidates = discover_alias_candidates(
+            failed_queries, config=config.candidate_discovery
+        )
+        if not candidates:
+            raise RuntimeError("No candidates discovered from failed-query input.")
+        evidence_records = load_jsonl_records(
+            config.evidence_records_path, limit=config.evidence_sampler.max_records
+        )
+        windows = sample_evidence_windows(
+            candidates[0].surface, evidence_records, config=config.evidence_sampler
+        )
+        if not windows:
+            raise RuntimeError("No evidence windows found for the top candidate.")
+        pack = build_candidate_evidence_pack(
+            candidates[0],
+            windows,
             binding_id=config.default_binding_id,
             profile_name=config.default_profile_name,
         )
