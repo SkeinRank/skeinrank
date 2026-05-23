@@ -340,3 +340,7 @@ can explain both the primary slot and richer term facets.
 - Conflict detection report with severity and persisted review state for alias drift, stop-list collisions, and pending proposal conflicts.
 
 - Coverage framework now includes term tags, conflict review state, and ambiguous alias candidates for controlled multi-interpretation review. Conflicting alias proposals now automatically populate ambiguous alias candidates for reviewer follow-up without changing active runtime terminology.
+
+### Binding policies
+
+Phase C adds binding policies as the bridge between ambiguous alias candidates and future runtime resolution. A policy belongs to a binding and can record preferred slots, allowed tags, denied slots, and context-specific rules such as `pg -> postgresql` for an infra binding.

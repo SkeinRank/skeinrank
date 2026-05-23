@@ -56,6 +56,7 @@ AMBIGUOUS_ALIAS_CANDIDATE_SOURCES = (
     "agent",
     "import",
 )
+BINDING_POLICY_STATUSES = ("active", "disabled")
 STOP_LIST_TARGETS = ("alias", "canonical", "both")
 ELASTICSEARCH_BINDING_MODES = ("dry_run", "write")
 ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
@@ -943,6 +944,12 @@ class ElasticsearchBinding(TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    policy: Mapped[GovernanceBindingPolicy | None] = relationship(
+        back_populates="binding",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -952,6 +959,58 @@ class ElasticsearchBinding(TimestampMixin, Base):
             f"write_strategy={self.write_strategy!r}, "
             f"timestamp_field={self.timestamp_field!r}, "
             f"time_window_days={self.time_window_days!r})"
+        )
+
+
+class GovernanceBindingPolicy(TimestampMixin, Base):
+    """Binding-scoped policy for resolving ambiguous terminology safely.
+
+    A profile defines terminology. A binding defines the runtime context where
+    that terminology is allowed to operate. Binding policy is the governance
+    layer that can prefer slots, restrict tags, deny noisy slots, and pin
+    surface-specific choices before runtime resolution is added.
+    """
+
+    __tablename__ = "governance_binding_policies"
+    __table_args__ = (
+        UniqueConstraint(
+            "binding_id",
+            name="uq_governance_binding_policies_binding_id",
+        ),
+        CheckConstraint(
+            f"status IN {BINDING_POLICY_STATUSES!r}",
+            name="governance_binding_policy_status",
+        ),
+        Index("ix_governance_binding_policies_profile", "profile_id"),
+        Index("ix_governance_binding_policies_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    binding_id: Mapped[int] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="CASCADE"), nullable=False
+    )
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)
+    preferred_slots: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    allowed_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    deny_slots: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    context_rules: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    updated_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    binding: Mapped[ElasticsearchBinding] = relationship(back_populates="policy")
+    profile: Mapped[TerminologyProfile] = relationship()
+
+    def __repr__(self) -> str:
+        return (
+            "GovernanceBindingPolicy("
+            f"binding_id={self.binding_id!r}, status={self.status!r})"
         )
 
 
@@ -1177,6 +1236,72 @@ def _fill_normalized_ambiguous_alias_candidate(
     target.status = (target.status or "candidate").strip().lower()
 
 
+def _normalize_policy_slots(values: list[str] | None) -> list[str]:
+    return sorted(
+        {
+            value.strip().upper()
+            for value in (values or [])
+            if isinstance(value, str) and value.strip()
+        }
+    )
+
+
+def _normalize_policy_tags(values: list[str] | None) -> list[str]:
+    return sorted(
+        {
+            normalize_value(value)
+            for value in (values or [])
+            if isinstance(value, str) and value.strip()
+        }
+    )
+
+
+def _normalize_policy_context_rules(
+    rules: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    normalized_rules: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str | None]] = set()
+    for rule in rules or []:
+        if not isinstance(rule, dict):
+            continue
+        surface = str(rule.get("surface", "")).strip()
+        prefer = str(rule.get("prefer", "")).strip()
+        if not surface or not prefer:
+            continue
+        slot_value = rule.get("slot")
+        slot = str(slot_value).strip().upper() if slot_value else None
+        normalized_surface = normalize_value(surface)
+        normalized_prefer = normalize_value(prefer)
+        key = (normalized_surface, normalized_prefer, slot)
+        if key in seen:
+            continue
+        seen.add(key)
+        item: dict[str, Any] = {
+            "surface": surface,
+            "normalized_surface": normalized_surface,
+            "prefer": prefer,
+            "normalized_prefer": normalized_prefer,
+        }
+        if slot is not None:
+            item["slot"] = slot
+        reason = rule.get("reason")
+        if isinstance(reason, str) and reason.strip():
+            item["reason"] = reason.strip()
+        normalized_rules.append(item)
+    return normalized_rules
+
+
+def _fill_normalized_binding_policy(
+    mapper: Any, connection: Any, target: GovernanceBindingPolicy
+) -> None:
+    del mapper, connection
+    target.status = (target.status or "active").strip().lower()
+    target.preferred_slots = _normalize_policy_slots(target.preferred_slots)
+    target.allowed_tags = _normalize_policy_tags(target.allowed_tags)
+    target.deny_slots = _normalize_policy_slots(target.deny_slots)
+    target.context_rules = _normalize_policy_context_rules(target.context_rules)
+
+
 def _fill_normalized_stop_list_entry(
     mapper: Any, connection: Any, target: GovernanceStopListEntry
 ) -> None:
@@ -1267,3 +1392,5 @@ event.listen(
 event.listen(
     ElasticsearchBinding, "before_update", _fill_normalized_elasticsearch_binding
 )
+event.listen(GovernanceBindingPolicy, "before_insert", _fill_normalized_binding_policy)
+event.listen(GovernanceBindingPolicy, "before_update", _fill_normalized_binding_policy)

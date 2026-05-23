@@ -952,3 +952,7 @@ review state. Admins and moderators can update review state through
 ### Ambiguous alias candidates
 
 The API exposes profile-scoped ambiguous alias candidate endpoints for coverage review. They let reviewers record surfaces like `pg` with multiple candidate canonicals while keeping runtime snapshots unchanged until binding policy resolution is added. Patch 38F also links conflicting proposals to this model: when a new alias proposal disagrees with an active alias or another pending proposal, SkeinRank upserts ambiguous alias candidates automatically and leaves the proposal pending for review.
+
+### Binding policies
+
+The governance API exposes binding-scoped policy metadata under `/v1/governance/elasticsearch/bindings/{binding_id}/policy`. Policies are optional and are used to describe how a binding should later resolve ambiguous candidates. They currently store `preferred_slots`, `allowed_tags`, `deny_slots`, and `context_rules` without changing runtime snapshots.

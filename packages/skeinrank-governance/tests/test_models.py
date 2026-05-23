@@ -11,6 +11,7 @@ from skeinrank_governance import (
     GovernanceAmbiguousAliasCandidate,
     GovernanceApiToken,
     GovernanceAuthToken,
+    GovernanceBindingPolicy,
     GovernanceConflictReview,
     GovernanceGlobalStopListEntry,
     GovernanceServiceAccount,
@@ -56,6 +57,7 @@ def test_metadata_contains_expected_tables():
         "governance_conflict_reviews",
         "governance_ambiguous_aliases",
         "governance_ambiguous_alias_candidates",
+        "governance_binding_policies",
         "governance_stop_list_entries",
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
@@ -188,6 +190,23 @@ def test_create_governance_rows_and_normalized_values(session):
         timestamp_field="created_at",
         time_window_days=1825,
     )
+    binding_policy = GovernanceBindingPolicy(
+        binding=binding,
+        profile=profile,
+        preferred_slots=["database", " tool "],
+        allowed_tags=["Infra", " backend "],
+        deny_slots=["document_component"],
+        context_rules=[
+            {
+                "surface": "PG",
+                "prefer": "PostgreSQL",
+                "slot": "database",
+                "reason": "Infra binding",
+            }
+        ],
+        created_by="tester",
+        updated_by="tester",
+    )
     job = ElasticsearchEnrichmentJob(
         binding=binding,
         profile=profile,
@@ -252,6 +271,15 @@ def test_create_governance_rows_and_normalized_values(session):
     assert ambiguous_candidate.normalized_canonical == "kubernetes"
     assert ambiguous_candidate.slot == "TOOL"
     assert ambiguous_candidate.evidence_json == {"query_count": 42}
+    assert binding_policy.preferred_slots == [
+        "TOOL",
+        "DATABASE",
+    ] or binding_policy.preferred_slots == ["DATABASE", "TOOL"]
+    assert binding_policy.allowed_tags == ["backend", "infra"]
+    assert binding_policy.deny_slots == ["DOCUMENT_COMPONENT"]
+    assert binding_policy.context_rules[0]["normalized_surface"] == "pg"
+    assert binding_policy.context_rules[0]["normalized_prefer"] == "postgresql"
+    assert binding_policy.context_rules[0]["slot"] == "DATABASE"
     assert stop_list_entry.normalized_value == "service"
     assert stop_list_entry.target == "alias"
     assert stop_list_entry.is_active is True

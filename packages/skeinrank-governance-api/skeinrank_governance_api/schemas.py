@@ -445,6 +445,44 @@ class ElasticsearchBindingResponse(BaseModel):
     updated_at: datetime
 
 
+class BindingPolicyContextRule(BaseModel):
+    """One binding-scoped rule for resolving an ambiguous surface form."""
+
+    surface: str = Field(..., min_length=1, max_length=256)
+    prefer: str = Field(..., min_length=1, max_length=256)
+    slot: str | None = Field(default=None, max_length=64)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class BindingPolicyUpsertRequest(BaseModel):
+    """Create or replace a binding-scoped terminology policy."""
+
+    status: str = "active"
+    preferred_slots: list[str] = Field(default_factory=list)
+    allowed_tags: list[str] = Field(default_factory=list)
+    deny_slots: list[str] = Field(default_factory=list)
+    context_rules: list[BindingPolicyContextRule] = Field(default_factory=list)
+
+
+class BindingPolicyResponse(BaseModel):
+    """Persisted binding policy response."""
+
+    id: int
+    binding_id: int
+    profile_id: int
+    profile_name: str
+    binding_name: str
+    status: str
+    preferred_slots: list[str] = Field(default_factory=list)
+    allowed_tags: list[str] = Field(default_factory=list)
+    deny_slots: list[str] = Field(default_factory=list)
+    context_rules: list[dict[str, Any]] = Field(default_factory=list)
+    created_by: str | None = None
+    updated_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class ElasticsearchConnectionStatusResponse(BaseModel):
     """Elasticsearch connection discovery status."""
 

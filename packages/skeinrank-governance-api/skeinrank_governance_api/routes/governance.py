@@ -30,6 +30,7 @@ from skeinrank_governance.models import (
     AMBIGUOUS_ALIAS_CANDIDATE_SOURCES,
     AMBIGUOUS_ALIAS_CANDIDATE_STATUSES,
     AMBIGUOUS_ALIAS_STATUSES,
+    BINDING_POLICY_STATUSES,
     CONFLICT_REVIEW_STATUSES,
     CONFLICT_SEVERITIES,
     ELASTICSEARCH_BINDING_MODES,
@@ -46,6 +47,7 @@ from skeinrank_governance.models import (
     ElasticsearchEnrichmentJob,
     GovernanceAmbiguousAlias,
     GovernanceAmbiguousAliasCandidate,
+    GovernanceBindingPolicy,
     GovernanceGlobalStopListEntry,
     GovernanceStopListEntry,
     GovernanceSuggestion,
@@ -105,6 +107,8 @@ from ..schemas import (
     AmbiguousAliasResponse,
     AmbiguousAliasUpdateRequest,
     AmbiguousAliasUpsertRequest,
+    BindingPolicyResponse,
+    BindingPolicyUpsertRequest,
     ConflictReportItemResponse,
     ConflictReportResponse,
     ConflictReviewUpdateRequest,
@@ -814,6 +818,97 @@ def delete_elasticsearch_binding(
 
     binding = _get_elasticsearch_binding_or_404(session, binding_id)
     session.delete(binding)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/elasticsearch/bindings/{binding_id}/policy",
+    response_model=BindingPolicyResponse,
+)
+def get_elasticsearch_binding_policy(
+    binding_id: int,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> BindingPolicyResponse:
+    """Return the policy attached to one runtime binding."""
+
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    policy = _get_binding_policy_or_404(session, binding)
+    return _binding_policy_response(policy)
+
+
+@router.put(
+    "/elasticsearch/bindings/{binding_id}/policy",
+    response_model=BindingPolicyResponse,
+)
+def upsert_elasticsearch_binding_policy(
+    binding_id: int,
+    request: BindingPolicyUpsertRequest,
+    response: Response,
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> BindingPolicyResponse:
+    """Create or update binding-scoped runtime policy metadata."""
+
+    _validate_status(request.status, BINDING_POLICY_STATUSES, "binding policy")
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    policy = session.scalar(
+        select(GovernanceBindingPolicy).where(
+            GovernanceBindingPolicy.binding_id == binding.id
+        )
+    )
+    response_status = status.HTTP_200_OK
+    context_rules = [
+        rule.model_dump(exclude_none=True) for rule in request.context_rules
+    ]
+    if policy is None:
+        response_status = status.HTTP_201_CREATED
+        policy = GovernanceBindingPolicy(
+            binding=binding,
+            profile=binding.profile,
+            status=request.status,
+            preferred_slots=request.preferred_slots,
+            allowed_tags=request.allowed_tags,
+            deny_slots=request.deny_slots,
+            context_rules=context_rules,
+            created_by=current_user.username,
+            updated_by=current_user.username,
+        )
+        session.add(policy)
+    else:
+        policy.status = request.status
+        policy.preferred_slots = request.preferred_slots
+        policy.allowed_tags = request.allowed_tags
+        policy.deny_slots = request.deny_slots
+        policy.context_rules = context_rules
+        policy.updated_by = current_user.username
+    try:
+        session.commit()
+        session.refresh(policy)
+        response.status_code = response_status
+        return _binding_policy_response(policy)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.delete(
+    "/elasticsearch/bindings/{binding_id}/policy",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_elasticsearch_binding_policy(
+    binding_id: int,
+    _editor: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> Response:
+    """Delete a binding policy without changing the binding or terminology."""
+
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    policy = _get_binding_policy_or_404(session, binding)
+    session.delete(policy)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -3098,6 +3193,41 @@ def _get_elasticsearch_binding_or_404(
             detail=f"Elasticsearch binding not found: {binding_id}",
         )
     return binding
+
+
+def _get_binding_policy_or_404(
+    session: Session, binding: ElasticsearchBinding
+) -> GovernanceBindingPolicy:
+    policy = session.scalar(
+        select(GovernanceBindingPolicy).where(
+            GovernanceBindingPolicy.binding_id == binding.id
+        )
+    )
+    if policy is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Binding policy not found for binding: {binding.id}",
+        )
+    return policy
+
+
+def _binding_policy_response(policy: GovernanceBindingPolicy) -> BindingPolicyResponse:
+    return BindingPolicyResponse(
+        id=policy.id,
+        binding_id=policy.binding_id,
+        profile_id=policy.profile_id,
+        profile_name=policy.profile.name,
+        binding_name=policy.binding.name,
+        status=policy.status,
+        preferred_slots=list(policy.preferred_slots or []),
+        allowed_tags=list(policy.allowed_tags or []),
+        deny_slots=list(policy.deny_slots or []),
+        context_rules=list(policy.context_rules or []),
+        created_by=policy.created_by,
+        updated_by=policy.updated_by,
+        created_at=policy.created_at,
+        updated_at=policy.updated_at,
+    )
 
 
 def _validate_elasticsearch_binding_provider(provider: str) -> None:

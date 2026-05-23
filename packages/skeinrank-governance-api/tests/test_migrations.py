@@ -236,6 +236,33 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "is_enabled",
     }.issubset(binding_columns)
 
+    binding_policy_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_binding_policies")
+    }
+    assert {
+        "binding_id",
+        "profile_id",
+        "status",
+        "preferred_slots",
+        "allowed_tags",
+        "deny_slots",
+        "context_rules",
+        "created_by",
+        "updated_by",
+    }.issubset(binding_policy_columns)
+    binding_policy_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_binding_policies")
+    }
+    assert "ix_governance_binding_policies_profile" in binding_policy_indexes
+    assert "ix_governance_binding_policies_status" in binding_policy_indexes
+    binding_policy_uniques = {
+        item["name"]: item
+        for item in inspector.get_unique_constraints("governance_binding_policies")
+    }
+    assert "uq_governance_binding_policies_binding_id" in binding_policy_uniques
+
     job_columns = {
         column["name"]
         for column in inspector.get_columns("elasticsearch_enrichment_jobs")
@@ -258,7 +285,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260523_0020"
+    assert revision == "20260523_0021"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

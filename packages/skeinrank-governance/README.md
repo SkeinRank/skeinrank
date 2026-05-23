@@ -208,3 +208,7 @@ that complement the primary `slot` without changing runtime snapshot behavior.
 ### Ambiguous alias candidates
 
 The governance model includes `GovernanceAmbiguousAlias` and `GovernanceAmbiguousAliasCandidate` for recording multi-interpretation alias surfaces such as `pg`. These rows are review metadata and do not mutate active aliases directly.
+
+### Binding policy model
+
+`GovernanceBindingPolicy` stores optional policy metadata for one `ElasticsearchBinding`. It keeps runtime-context constraints such as preferred slots, allowed tags, denied slots, and context-specific surface rules close to the binding without changing the terminology profile itself.

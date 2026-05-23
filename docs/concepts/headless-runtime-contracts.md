@@ -237,3 +237,14 @@ before later ambiguous-alias and binding-policy layers.
 An ambiguous alias is a governance record for a surface form that can safely mean different canonical terms in different runtime contexts. It stores candidates and review state, but it does not change production canonicalization until a later binding policy resolver uses it.
 
 Patch 38F connects ambiguous aliases to proposals. A conflicting alias proposal is still stored as a pending proposal, but SkeinRank now also records candidate interpretations on the matching ambiguous alias surface. Active aliases become `active_alias` candidates, while proposal interpretations become `suggestion` candidates. This turns agent ambiguity into an auditable review object instead of silently rejecting or applying the proposal.
+
+### Binding policy (Phase C)
+
+A binding policy is optional metadata attached to a runtime binding. It does not mutate active terminology or publish a snapshot by itself. It records the constraints that later runtime resolution can use when an alias has multiple candidate interpretations:
+
+- `preferred_slots` lists slots that should be preferred in this binding context.
+- `allowed_tags` lists term tags that are safe for this binding context.
+- `deny_slots` lists slots that should not be selected in this binding context.
+- `context_rules` can pin a surface form to a preferred canonical value, for example `pg -> postgresql` for an infra binding.
+
+This keeps the governance model explicit: ambiguous candidates are reviewed separately, while the binding policy describes how a specific runtime context is allowed to resolve them.

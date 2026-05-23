@@ -8,6 +8,10 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.CanonicalTerm.__tablename__ == "canonical_terms"
     assert governance.TermAlias.__tablename__ == "term_aliases"
     assert governance.TermTag.__tablename__ == "term_tags"
+    assert (
+        governance.GovernanceBindingPolicy.__tablename__
+        == "governance_binding_policies"
+    )
     assert governance.ProfileSnapshot.__tablename__ == "profile_snapshots"
     assert governance.AuditEvent.__tablename__ == "audit_events"
     assert governance.GovernanceUser.__tablename__ == "governance_users"
@@ -70,6 +74,7 @@ def test_public_api_exports_governance_models_and_helpers():
         "agent",
         "import",
     )
+    assert governance.BINDING_POLICY_STATUSES == ("active", "disabled")
     assert governance.STOP_LIST_TARGETS == ("alias", "canonical", "both")
     assert governance.ELASTICSEARCH_BINDING_MODES == ("dry_run", "write")
     assert governance.ELASTICSEARCH_BINDING_WRITE_STRATEGIES == (

@@ -347,3 +347,15 @@ Phase C adds reviewer-facing ambiguous alias endpoints:
 Ambiguous aliases record possible canonical interpretations for one surface form without changing active runtime behavior. BindingPolicy resolution is intentionally left for a later phase.
 
 Patch 38F connects this coverage layer to the proposal pipeline: when an alias proposal conflicts with an active alias or with another pending proposal for the same surface, SkeinRank creates or updates the corresponding ambiguous alias candidates. This keeps the proposal accepted for review, records the competing interpretations, and still avoids direct runtime mutation.
+
+### Binding policy API
+
+Patch 38G adds binding-scoped policy metadata for future ambiguous alias resolution.
+
+```http
+GET /v1/governance/elasticsearch/bindings/{binding_id}/policy
+PUT /v1/governance/elasticsearch/bindings/{binding_id}/policy
+DELETE /v1/governance/elasticsearch/bindings/{binding_id}/policy
+```
+
+A policy can define `preferred_slots`, `allowed_tags`, `deny_slots`, and `context_rules`. These fields are normalized on write. The API stores policy metadata only; it does not mutate terms, aliases, ambiguous candidates, or runtime snapshots.
