@@ -17,6 +17,11 @@ from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - import style depends on how the example is executed.
+    from .alias_scout_workflow import (
+        LlmReviewConfig,
+        build_llm_review_plan,
+        run_openrouter_llm_review_workflow,
+    )
     from .candidate_discovery import (
         CandidateDiscoveryConfig,
         build_candidate_discovery_report,
@@ -35,6 +40,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         load_jsonl_records,
         sample_evidence_windows,
     )
+    from .openrouter_client import OpenRouterClient
     from .openrouter_tools import get_openrouter_tool_schemas
     from .prompts import (
         SYSTEM_PROMPT,
@@ -44,6 +50,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
     from .skeinrank_client import SkeinRankAgentClient
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from alias_scout_workflow import (
+        LlmReviewConfig,
+        build_llm_review_plan,
+        run_openrouter_llm_review_workflow,
+    )
     from candidate_discovery import (
         CandidateDiscoveryConfig,
         build_candidate_discovery_report,
@@ -62,6 +73,7 @@ except ImportError:  # pragma: no cover
         load_jsonl_records,
         sample_evidence_windows,
     )
+    from openrouter_client import OpenRouterClient
     from openrouter_tools import get_openrouter_tool_schemas
     from prompts import (
         SYSTEM_PROMPT,
@@ -91,6 +103,10 @@ class AgentRunnerConfig:
     candidate_discovery: CandidateDiscoveryConfig
     evidence_sampler: EvidenceSamplerConfig
     demo_report: DemoReportConfig
+    llm_review: LlmReviewConfig
+    openrouter_base_url: str
+    openrouter_app_title: str
+    openrouter_http_referer: str | None
     dry_run: bool = True
 
     @classmethod
@@ -124,7 +140,12 @@ class AgentRunnerConfig:
             openrouter_api_key_env=str(
                 raw.get("openrouter_api_key_env", "OPENROUTER_API_KEY")
             ),
-            openrouter_model=str(raw.get("openrouter_model", "openai/gpt-4o-mini")),
+            openrouter_model=str(
+                os.getenv(
+                    "OPENROUTER_MODEL",
+                    raw.get("openrouter_model", "openai/gpt-4o-mini"),
+                )
+            ),
             default_profile_name=raw.get("default_profile_name"),
             default_binding_id=int(binding_id) if binding_id is not None else None,
             proposal_source_name=str(
@@ -140,6 +161,17 @@ class AgentRunnerConfig:
                 raw.get("evidence_sampler")
             ),
             demo_report=DemoReportConfig.from_mapping(raw.get("demo_report")),
+            llm_review=LlmReviewConfig.from_mapping(raw.get("llm_review")),
+            openrouter_base_url=str(
+                os.getenv(
+                    "OPENROUTER_BASE_URL",
+                    raw.get("openrouter_base_url", "https://openrouter.ai/api/v1"),
+                )
+            ),
+            openrouter_app_title=str(
+                raw.get("openrouter_app_title", "SkeinRank OpenRouter Alias Scout")
+            ),
+            openrouter_http_referer=raw.get("openrouter_http_referer"),
             dry_run=bool(raw.get("dry_run", True)),
         )
 
@@ -147,6 +179,11 @@ class AgentRunnerConfig:
         """Read the configured SkeinRank API token from the environment."""
 
         return os.getenv(self.api_token_env) if self.api_token_env else None
+
+    def openrouter_api_key(self) -> str | None:
+        """Read the configured OpenRouter API key from the environment."""
+
+        return os.getenv(self.openrouter_api_key_env)
 
 
 def load_failed_queries(path: Path, *, limit: int | None = None) -> list[JsonDict]:
@@ -208,6 +245,7 @@ def build_run_plan(
             "Patch 40H added candidate discovery and pruning.",
             "Patch 40I added compact evidence sampling.",
             "Patch 40K adds the local E2E demo report.",
+            "Patch 40J adds OpenRouter execution and a LangGraph-ready workflow.",
         ],
         "sample_queries": [
             {
@@ -231,6 +269,23 @@ def build_client(config: AgentRunnerConfig) -> SkeinRankAgentClient:
         base_url=config.skeinrank_api_url,
         role=config.skeinrank_role,
         api_token=config.api_token(),
+    )
+
+
+def build_openrouter_client(config: AgentRunnerConfig) -> OpenRouterClient:
+    """Create the OpenRouter client used by live LLM review."""
+
+    api_key = config.openrouter_api_key()
+    if not api_key:
+        raise RuntimeError(
+            f"OpenRouter API key is required. Set {config.openrouter_api_key_env} "
+            "or use --print-llm-review-plan for an offline preview."
+        )
+    return OpenRouterClient(
+        api_key=api_key,
+        base_url=config.openrouter_base_url,
+        app_title=config.openrouter_app_title,
+        http_referer=config.openrouter_http_referer,
     )
 
 
@@ -310,7 +365,55 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Print the first real-sample review prompt without calling OpenRouter.",
     )
+    parser.add_argument(
+        "--print-llm-review-plan",
+        action="store_true",
+        help=(
+            "Print the OpenRouter/LangGraph-ready review plan without calling "
+            "OpenRouter."
+        ),
+    )
+    parser.add_argument(
+        "--llm-review",
+        action="store_true",
+        help=(
+            "Call OpenRouter for structured alias judgments. Requires the "
+            "configured OPENROUTER_API_KEY env var."
+        ),
+    )
+    parser.add_argument(
+        "--write-llm-review-report",
+        type=Path,
+        help="Call OpenRouter and write the LLM review report to this JSON path.",
+    )
+    parser.add_argument(
+        "--model",
+        help="Override the configured OpenRouter model for this run.",
+    )
+    parser.add_argument(
+        "--max-candidates",
+        type=int,
+        help="Override llm_review.max_candidates for this run.",
+    )
     return parser.parse_args(argv)
+
+
+def _llm_review_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> LlmReviewConfig:
+    if args.max_candidates is None:
+        return config.llm_review
+    return LlmReviewConfig(
+        max_candidates=args.max_candidates,
+        min_confidence_to_prepare_proposal=(
+            config.llm_review.min_confidence_to_prepare_proposal
+        ),
+        temperature=config.llm_review.temperature,
+        max_tokens=config.llm_review.max_tokens,
+        include_tools=config.llm_review.include_tools,
+        response_format_json=config.llm_review.response_format_json,
+        submit_proposals=config.llm_review.submit_proposals,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -444,6 +547,56 @@ def main(argv: list[str] | None = None) -> int:
                 profile_name=config.default_profile_name,
             )
         )
+        return 0
+
+    if args.print_llm_review_plan:
+        evidence_records = load_jsonl_records(
+            config.evidence_records_path, limit=config.evidence_sampler.max_records
+        )
+        llm_config = _llm_review_config_from_args(config, args)
+        plan = build_llm_review_plan(
+            failed_queries,
+            evidence_records,
+            candidate_config=config.candidate_discovery,
+            evidence_config=config.evidence_sampler,
+            demo_config=config.demo_report,
+            llm_config=llm_config,
+            binding_id=config.default_binding_id,
+            profile_name=config.default_profile_name,
+            proposal_source_name=config.proposal_source_name,
+            openrouter_model=args.model or config.openrouter_model,
+        )
+        print(json.dumps(plan, indent=2, sort_keys=True))
+        return 0
+
+    if args.llm_review or args.write_llm_review_report:
+        evidence_records = load_jsonl_records(
+            config.evidence_records_path, limit=config.evidence_sampler.max_records
+        )
+        llm_config = _llm_review_config_from_args(config, args)
+        client = build_openrouter_client(config)
+        report = run_openrouter_llm_review_workflow(
+            failed_queries,
+            evidence_records,
+            openrouter_client=client,
+            candidate_config=config.candidate_discovery,
+            evidence_config=config.evidence_sampler,
+            demo_config=config.demo_report,
+            llm_config=llm_config,
+            binding_id=config.default_binding_id,
+            profile_name=config.default_profile_name,
+            proposal_source_name=config.proposal_source_name,
+            openrouter_model=args.model or config.openrouter_model,
+            tools=get_openrouter_tool_schemas(),
+        )
+        if args.write_llm_review_report:
+            args.write_llm_review_report.parent.mkdir(parents=True, exist_ok=True)
+            args.write_llm_review_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
         return 0
 
     plan = build_run_plan(config, failed_queries)

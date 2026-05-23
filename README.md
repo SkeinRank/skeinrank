@@ -239,17 +239,14 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-demo-re
 make agent-demo
 ```
 
-The example still does not call OpenRouter. It now defines tool schemas for
-`skeinrank_list_bindings`, `skeinrank_explain_query`,
-`skeinrank_validate_alias`, and `skeinrank_submit_alias_proposal`, plus a
-safety-focused system prompt, strict parser for `propose`, `reject`, and
-`needs_evidence` judgments, a deterministic `skeinrank.agent_candidate_discovery.v1`
-report for failed-query candidates, and a local `skeinrank.agent_evidence_sampling.v1`
-report with short context windows, and a deterministic
-`skeinrank.agent_demo_report.v1` report that prepares a review queue without
-calling external services. The schemas map only to existing `/v1/tools/*` routes,
-so agents can validate and submit proposals, but runtime terminology changes
-only through reviewed batches and snapshots. See
+Patch 40J adds the first live OpenRouter execution path: export
+`OPENROUTER_API_KEY`, run `--print-llm-review-plan` for an offline preview, then
+run `--llm-review --model openai/gpt-4o-mini --max-candidates 3` to obtain strict
+`propose`, `reject`, or `needs_evidence` judgments. The workflow emits
+`skeinrank.agent_llm_review_report.v1`, is LangGraph-ready, and still does not
+submit proposals or mutate SkeinRank state by default. The schemas map only to
+existing `/v1/tools/*` routes, so agents can validate and submit proposals later,
+but runtime terminology changes only through reviewed batches and snapshots. See
 [`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout).
 
 ## Quickstart: local SDK / CLI

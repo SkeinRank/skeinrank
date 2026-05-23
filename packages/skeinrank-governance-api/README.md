@@ -1013,3 +1013,19 @@ canonicalization plan.
 ## Coverage framework examples
 
 See `docs/concepts/coverage-framework.md`, `docs/guides/coverage-framework.md`, and `examples/coverage-framework/` for the Phase C controlled-coverage workflow: term tags, conflict reports, ambiguous alias candidates, binding policies, runtime policy decisions, and snapshot before/after evaluation.
+
+### Patch 40J — OpenRouter execution / LangGraph-ready workflow
+
+Patch 40J adds the first live OpenRouter execution path for the alias scout. Use
+`--print-llm-review-plan` to preview the LangGraph-ready state-machine workflow
+without network calls, then set `OPENROUTER_API_KEY` and run `--llm-review` to
+call OpenRouter `/chat/completions` for strict `propose`, `reject`, or
+`needs_evidence` judgments. The output schema is
+`skeinrank.agent_llm_review_report.v1`. Proposal submission remains disabled by
+default, so the workflow prepares proposal payloads but does not mutate SkeinRank
+state.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-llm-review-plan
+OPENROUTER_API_KEY=... python examples/agents/openrouter_alias_scout/run_alias_scout.py --llm-review --model openai/gpt-4o-mini --max-candidates 3
+```

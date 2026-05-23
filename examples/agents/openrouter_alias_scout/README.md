@@ -1,6 +1,6 @@
 # OpenRouter alias scout foundation
 
-This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together, still without OpenRouter calls or model-requested tool execution.
+This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default.
 
 The safety rule stays unchanged:
 
@@ -21,6 +21,8 @@ Agents must not mutate production terminology directly. They can only validate a
 | `candidate_discovery.py` | Dependency-light failed-query candidate mining, pruning, scoring, and fact-pack helpers. |
 | `evidence_sampler.py` | Dependency-light compact window sampler for candidate evidence packs. |
 | `demo_report.py` | Local E2E demo report builder for discovery + evidence + review queue output. |
+| `openrouter_client.py` | Dependency-light OpenRouter `/chat/completions` client with testable transport injection. |
+| `alias_scout_workflow.py` | LangGraph-ready state-machine workflow for LLM review and proposal payload preparation. |
 | `skeinrank_client.py` | Dependency-light client for `/v1/tools/*`. |
 | `openrouter_tools.py` | OpenRouter/OpenAI-compatible tool schemas for the existing SkeinRank tools. |
 | `prompts.py` | System prompt, alias-review prompt builder, and compact candidate pack helper. |
@@ -83,8 +85,9 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-
 ```
 
 The report is `skeinrank.agent_evidence_sampling.v1`. It is still local-only:
-no Elasticsearch calls, no OpenRouter calls, and no proposals are submitted. The
-example does not call OpenRouter yet.
+no Elasticsearch calls, no OpenRouter calls, and no proposals are submitted. These
+40I preview commands do not call OpenRouter yet. This local evidence mode
+does not call OpenRouter yet.
 
 ## Run the local E2E demo report
 
@@ -118,6 +121,41 @@ no OpenRouter calls, no Elasticsearch calls, no SkeinRank API calls, and no
 proposals are submitted. The report shows which candidates are ready for later
 LLM review, how many compact evidence windows were found, and a source-quality
 placeholder for future accepted/rejected proposal metrics.
+
+## Run OpenRouter LLM review
+
+Patch 40J adds OpenRouter execution for structured alias judgments. Preview the
+LangGraph-ready workflow without calling OpenRouter:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-llm-review-plan
+```
+
+Run a real model review after exporting a local key:
+
+```bash
+export OPENROUTER_API_KEY=...
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review \
+  --model openai/gpt-4o-mini \
+  --max-candidates 3
+```
+
+Or write the LLM report to disk:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-llm-review-report /tmp/skeinrank-alias-scout-llm-report.json
+```
+
+The report schema is `skeinrank.agent_llm_review_report.v1`. The workflow calls
+OpenRouter but still does not call SkeinRank API and does not submit proposals.
+It prepares proposal payloads only when the model returns a strict `propose`
+judgment above the configured confidence threshold. The workflow is
+LangGraph-ready (`collect_failed_queries -> discover_candidates -> sample_evidence
+-> build_review_queue -> openrouter_review -> parse_structured_judgment ->
+prepare_proposal_payload -> write_run_report`) but does not require the
+`langgraph` package yet.
 
 ## List SkeinRank bindings
 
@@ -168,5 +206,5 @@ risk_flags: string[]
 
 ## What comes next
 
-- Patch 40J: optional LangGraph workflow wrapper after the plain runner is proven.
 - Patch 40L: service-account/security profile for real proposal submission.
+- Patch 40M: budget limits and cache for model review.

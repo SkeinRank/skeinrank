@@ -3,6 +3,9 @@
   "skeinrank_role": "contributor",
   "api_token_env": "SKEINRANK_AGENT_API_TOKEN",
   "openrouter_api_key_env": "OPENROUTER_API_KEY",
+  "openrouter_base_url": "https://openrouter.ai/api/v1",
+  "openrouter_app_title": "SkeinRank OpenRouter Alias Scout",
+  "openrouter_http_referer": null,
   "openrouter_model": "openai/gpt-4o-mini",
   "default_profile_name": "infra_incidents",
   "default_binding_id": null,
@@ -71,5 +74,14 @@
     "max_candidates_for_review": 5,
     "include_prompt_previews": false,
     "prompt_preview_chars": 800
+  },
+  "llm_review": {
+    "max_candidates": 3,
+    "min_confidence_to_prepare_proposal": 0.75,
+    "temperature": 0.0,
+    "max_tokens": 700,
+    "include_tools": false,
+    "response_format_json": true,
+    "submit_proposals": false
   }
 }
