@@ -55,9 +55,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     validate_parser = subparsers.add_parser(
         "validate-dictionary",
-        help="Validate a SkeinRank dictionary JSON file.",
+        help="Validate a SkeinRank dictionary JSON/YAML file.",
     )
-    validate_parser.add_argument("dictionary", help="Path to dictionary JSON.")
+    validate_parser.add_argument("dictionary", help="Path to dictionary JSON/YAML.")
     validate_parser.add_argument(
         "--json",
         action="store_true",
@@ -168,7 +168,7 @@ def _add_dictionary_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--dictionary",
         required=True,
-        help="Path to SkeinRank dictionary JSON.",
+        help="Path to SkeinRank dictionary JSON/YAML.",
     )
 
 

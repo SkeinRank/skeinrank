@@ -2,6 +2,8 @@
 
 SkeinRank treats terminology as governed runtime infrastructure, not as a static helper list buried inside application code.
 
+The headless runtime contract keeps the browser console optional for the main write path: CI jobs, services, and agents can submit governed changes, while runtime readers consume binding-aware snapshots.
+
 A terminology control plane lets teams:
 
 - normalize noisy aliases into canonical values;

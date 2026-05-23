@@ -17,6 +17,7 @@ from .routes.auth import router as auth_router
 from .routes.console import router as console_router
 from .routes.dashboard import router as dashboard_router
 from .routes.governance import router as governance_router
+from .routes.headless import router as headless_router
 from .routes.health import router as health_router
 from .routes.metrics import metrics_response
 from .routes.metrics import router as metrics_router
@@ -72,4 +73,5 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
     app.include_router(snapshots_router)
     app.include_router(governance_router)
     app.include_router(console_router)
+    app.include_router(headless_router)
     return app

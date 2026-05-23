@@ -13,6 +13,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from .dictionary_spec import load_mapping_document
+from .runtime_snapshots import (
+    RuntimeSnapshotArtifactCache,
+    runtime_snapshot_artifact_summary,
+)
+
 DEFAULT_API_URL = "http://127.0.0.1:8010"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
@@ -71,6 +77,27 @@ class DictionaryMigrationClient:
                 "profile_name": profile_name,
                 "include_global_stop_list": str(include_global_stop_list).lower(),
             },
+        )
+
+    def export_snapshot_artifact(
+        self,
+        binding_id: int,
+        *,
+        source: str = "latest",
+        snapshot_version: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        """Export a binding-scoped runtime snapshot artifact."""
+
+        query = {"binding_id": str(binding_id), "source": source}
+        if snapshot_version:
+            query["snapshot_version"] = snapshot_version
+        if description:
+            query["description"] = description
+        return self._request(
+            "GET",
+            "/v1/headless/snapshots/export",
+            query=query,
         )
 
     def _request(
@@ -142,14 +169,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     try:
         if args.command == "validate":
-            payload = _load_json_object(args.file)
+            payload = _load_dictionary_object(args.file)
             result = client.validate_dictionary(payload)
             _write_json(result, args.output, pretty=not args.compact)
             if result.get("status") != "valid" and not args.allow_invalid:
                 return 2
             return 0
         if args.command == "apply":
-            payload = _load_json_object(args.file)
+            payload = _load_dictionary_object(args.file)
             result = client.import_dictionary(payload)
             _write_json(result, args.output, pretty=not args.compact)
             return 0
@@ -158,6 +185,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.profile_name,
                 include_global_stop_list=args.include_global_stop_list,
             )
+            _write_json(result, args.output, pretty=not args.compact)
+            return 0
+        if args.command == "snapshot-export":
+            result = client.export_snapshot_artifact(
+                args.binding_id,
+                source=args.source,
+                snapshot_version=args.snapshot_version,
+                description=args.description,
+            )
+            _write_json(result, args.output, pretty=not args.compact)
+            return 0
+        if args.command == "snapshot-inspect":
+            loaded = RuntimeSnapshotArtifactCache().get(args.file)
+            result = runtime_snapshot_artifact_summary(loaded)
             _write_json(result, args.output, pretty=not args.compact)
             return 0
     except (OSError, ValueError, MigrationToolError) as exc:
@@ -203,10 +244,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     validate_parser = subparsers.add_parser(
         "validate",
-        help="Validate a dictionary migration JSON file without writing changes.",
+        help="Validate a dictionary migration JSON/YAML file without writing changes.",
     )
     _add_subcommand_compact_option(validate_parser)
-    validate_parser.add_argument("file", help="Input JSON file path, or '-' for stdin.")
+    validate_parser.add_argument(
+        "file", help="Input JSON/YAML file path, or '-' for stdin."
+    )
     validate_parser.add_argument(
         "-o", "--output", help="Write response JSON to a file."
     )
@@ -218,10 +261,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     apply_parser = subparsers.add_parser(
         "apply",
-        help="Apply a dictionary migration JSON file through the import API.",
+        help="Apply a dictionary migration JSON/YAML file through the import API.",
     )
     _add_subcommand_compact_option(apply_parser)
-    apply_parser.add_argument("file", help="Input JSON file path, or '-' for stdin.")
+    apply_parser.add_argument(
+        "file", help="Input JSON/YAML file path, or '-' for stdin."
+    )
     apply_parser.add_argument("-o", "--output", help="Write response JSON to a file.")
 
     export_parser = subparsers.add_parser(
@@ -240,6 +285,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exclude the global stop list from export output.",
     )
     export_parser.set_defaults(include_global_stop_list=True)
+
+    snapshot_export_parser = subparsers.add_parser(
+        "snapshot-export",
+        help="Export a binding-scoped runtime snapshot artifact.",
+    )
+    _add_subcommand_compact_option(snapshot_export_parser)
+    snapshot_export_parser.add_argument(
+        "--binding-id", type=int, required=True, help="Binding id to export."
+    )
+    snapshot_export_parser.add_argument(
+        "--source",
+        choices=("latest", "runtime"),
+        default="latest",
+        help=(
+            "Snapshot source: latest builds from current profile state; "
+            "runtime exports the binding-pinned runtime snapshot."
+        ),
+    )
+    snapshot_export_parser.add_argument(
+        "--snapshot-version",
+        default=None,
+        help="Optional version to use when building from latest profile state.",
+    )
+    snapshot_export_parser.add_argument(
+        "--description", default=None, help="Optional artifact description."
+    )
+    snapshot_export_parser.add_argument(
+        "-o", "--output", help="Write artifact JSON to a file."
+    )
+
+    snapshot_inspect_parser = subparsers.add_parser(
+        "snapshot-inspect",
+        help="Validate and summarize a local runtime snapshot artifact file.",
+    )
+    _add_subcommand_compact_option(snapshot_inspect_parser)
+    snapshot_inspect_parser.add_argument(
+        "file", help="Runtime snapshot artifact JSON file path."
+    )
+    snapshot_inspect_parser.add_argument(
+        "-o", "--output", help="Write summary JSON to a file."
+    )
     return parser
 
 
@@ -252,15 +338,23 @@ def _add_subcommand_compact_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _load_dictionary_object(path: str) -> dict[str, Any]:
+    if path == "-":
+        raw = sys.stdin.read()
+        try:
+            loaded = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON in stdin: {exc}") from exc
+        if not isinstance(loaded, dict):
+            raise ValueError("Dictionary document root must be an object")
+        return loaded
+    return load_mapping_document(path)
+
+
 def _load_json_object(path: str) -> dict[str, Any]:
-    raw = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
-    try:
-        loaded = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
-    if not isinstance(loaded, dict):
-        raise ValueError("Migration JSON root must be an object")
-    return loaded
+    """Backward-compatible test helper for legacy JSON migration inputs."""
+
+    return _load_dictionary_object(path)
 
 
 def _write_json(

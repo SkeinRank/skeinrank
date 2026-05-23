@@ -1,4 +1,5 @@
 {
+  "schema_version": "skeinrank.dictionary.v1",
   "profile_name": "platform_ops",
   "profile_description": "Demo terminology profile for platform operations, incidents, runbooks, Elasticsearch enrichment, and RAG/search workflows.",
   "create_profile": true,

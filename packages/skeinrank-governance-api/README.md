@@ -140,9 +140,54 @@ curl -X POST http://127.0.0.1:8010/v1/auth/users \
 ```
 
 
+
+## Headless Compose quickstart
+
+From the repository root, start the API/PostgreSQL-only profile and run the golden path helper:
+
+```bash
+docker compose \
+  --env-file deploy/docker/headless.env.example \
+  -f docker-compose.headless.yml \
+  up --build -d
+
+deploy/docker/scripts/headless-golden-path.sh
+```
+
+The helper applies the example dictionary, creates a local binding, exports a `skeinrank.runtime_snapshot_artifact.v1` file, and prints a summary. See `docs/deployment/headless-quickstart.md` for the manual curl flow.
+
+## Headless dictionary and snapshot APIs
+
+Patch 36C/36D add automation-first routes for CI/CD, agents, and headless
+runtime workers:
+
+```bash
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=infra_incidents
+GET  /v1/headless/snapshots/export?binding_id=1
+```
+
+Export a binding-scoped runtime artifact from the CLI:
+
+```bash
+poetry run skeinrank-migrate snapshot-export \
+  --binding-id 1 \
+  --snapshot-version infra_incidents@v1 \
+  --output runtime-snapshot.json
+
+poetry run skeinrank-migrate snapshot-inspect runtime-snapshot.json
+```
+
+The snapshot artifact includes the binding context and compiled runtime aliases,
+so it can be committed to GitOps repositories or loaded by lightweight runtime
+workers without querying PostgreSQL on every request. Patch 36E adds a local
+artifact loader/cache that validates the artifact checksum and reloads the file
+when it changes.
+
 ## User Console API
 
-Patch 27 adds a migration-friendly API surface for users who work from JupyterHub, scripts, bots, or future CLI tools. It reuses the same governance database and role checks as the UI, but accepts a bulk dictionary JSON so companies do not need to enter existing dictionaries by hand.
+Patch 27 adds a migration-friendly API surface for users who work from JupyterHub, scripts, bots, or future CLI tools. It reuses the same governance database and role checks as the UI, but accepts a bulk dictionary JSON so companies do not need to enter existing dictionaries by hand. New payloads should include `schema_version: skeinrank.dictionary.v1`; legacy payloads without a schema version are treated as v1 for backward compatibility.
 
 Endpoints:
 
@@ -162,6 +207,7 @@ Minimal import payload:
 
 ```json
 {
+  "schema_version": "skeinrank.dictionary.v1",
   "profile_name": "infra_incidents",
   "profile_description": "Infra incident dictionary",
   "mode": "upsert",
@@ -202,7 +248,7 @@ curl -X POST http://127.0.0.1:8010/v1/console/dictionary/import \
   -d @company_dictionary.json
 ```
 
-Export a profile back to the same stable shape:
+Export a profile back to the same stable shape. Exports include `schema_version`:
 
 ```bash
 curl "http://127.0.0.1:8010/v1/console/dictionary/export?profile_name=infra_incidents" \
@@ -214,7 +260,7 @@ Import modes:
 - `upsert` — create missing values and update existing values.
 - `strict` — report conflicts when the payload already exists.
 
-The validation/import report includes planned create/update counts, duplicate warnings, alias/canonical conflicts, and stop-list blocks.
+The validation/import report includes the resolved schema version, planned create/update counts, duplicate warnings, alias/canonical conflicts, unsupported schema-version errors, and stop-list blocks.
 
 
 ## Dictionary Migration Tool
@@ -229,10 +275,11 @@ poetry run skeinrank-migrate --help
 
 The API URL defaults to `http://127.0.0.1:8010` and can be overridden with `--api-url` or `SKEINRANK_CONSOLE_API_URL`. When API auth is enabled, pass a bearer token with `--token` or `SKEINRANK_API_TOKEN`.
 
-Validate a dictionary JSON without writing changes:
+Validate a dictionary JSON/YAML file without writing changes:
 
 ```bash
 poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.json
+poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.yaml
 ```
 
 Apply the dictionary after validation:
@@ -241,7 +288,7 @@ Apply the dictionary after validation:
 poetry run skeinrank-migrate apply ../../examples/migration/console_dictionary.example.json
 ```
 
-Export a profile back to the same stable migration JSON shape:
+Export a profile back to the same stable migration JSON shape. Exports include `schema_version`:
 
 ```bash
 poetry run skeinrank-migrate export --profile-name infra_incidents \
@@ -784,3 +831,17 @@ The rollback endpoint is conservative: it only works for succeeded
 candidate, and a current alias state that still matches the expected
 post-rollout indices. Successful rollback writes `result_json.rollout.rollback`
 and marks the rollout status as `rolled_back`.
+
+
+### Headless dictionary facade
+
+Use the headless facade for CI/CD, agents, and service integrations:
+
+```text
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=...
+```
+
+The legacy console migration routes remain available and use the same
+implementation. New automation should prefer `/v1/headless/dictionaries/*`.

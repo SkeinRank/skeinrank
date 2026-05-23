@@ -24,6 +24,11 @@ from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
+from ..dictionary_spec import (
+    DICTIONARY_SCHEMA_VERSION,
+    is_supported_dictionary_schema_version,
+    resolve_dictionary_schema_version,
+)
 from ..schemas import (
     ConsoleDictionaryAliasInput,
     ConsoleDictionaryExportResponse,
@@ -211,6 +216,7 @@ def export_console_dictionary(
         )
 
     return ConsoleDictionaryExportResponse(
+        schema_version=DICTIONARY_SCHEMA_VERSION,
         profile_name=profile.name,
         profile_description=profile.description,
         terms=exported_terms,
@@ -227,6 +233,7 @@ def _build_console_dictionary_report(
     *,
     applied: bool,
 ) -> ConsoleDictionaryReport:
+    schema_version = resolve_dictionary_schema_version(request.model_dump())
     normalized_profile_name = normalize_profile_name(request.profile_name)
     profile = _find_profile(session, request.profile_name)
     terms = _normalize_terms(request.terms)
@@ -244,6 +251,18 @@ def _build_console_dictionary_report(
     )
     errors: list[ConsoleDictionaryIssue] = []
     warnings: list[ConsoleDictionaryIssue] = []
+
+    if not is_supported_dictionary_schema_version(request.model_dump()):
+        _add_error(
+            errors,
+            summary,
+            code="unsupported_schema_version",
+            message=(
+                "Unsupported dictionary schema_version: "
+                f"{schema_version}. Supported version: {DICTIONARY_SCHEMA_VERSION}."
+            ),
+            path="schema_version",
+        )
 
     if request.mode not in IMPORT_MODES:
         _add_error(
@@ -297,6 +316,7 @@ def _build_console_dictionary_report(
     _set_issue_totals(summary, errors, warnings)
     return ConsoleDictionaryReport(
         status="applied" if applied else ("valid" if not errors else "invalid"),
+        schema_version=schema_version,
         profile_name=request.profile_name,
         normalized_profile_name=normalized_profile_name,
         profile_exists=profile is not None,
@@ -449,6 +469,7 @@ def _apply_console_dictionary(
     _set_issue_totals(summary, report.errors, report.warnings)
     return ConsoleDictionaryReport(
         status="applied",
+        schema_version=resolve_dictionary_schema_version(request.model_dump()),
         profile_name=profile.name,
         normalized_profile_name=profile.normalized_name,
         profile_exists=True,

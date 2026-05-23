@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from .dictionary_spec import DICTIONARY_SCHEMA_VERSION
+
 
 class ServiceInfo(BaseModel):
     """Service metadata returned by health endpoints."""
@@ -937,6 +939,7 @@ class ConsoleStopListInput(BaseModel):
 class ConsoleDictionaryPayload(BaseModel):
     """Dictionary migration payload for validation and import."""
 
+    schema_version: str | None = Field(default=DICTIONARY_SCHEMA_VERSION)
     profile_name: str = Field(..., min_length=1, max_length=128)
     profile_description: str | None = None
     create_profile: bool = True
@@ -989,6 +992,7 @@ class ConsoleDictionaryReport(BaseModel):
     """Validation/import report for a dictionary migration payload."""
 
     status: str
+    schema_version: str
     profile_name: str
     normalized_profile_name: str
     profile_exists: bool
@@ -1001,6 +1005,7 @@ class ConsoleDictionaryReport(BaseModel):
 class ConsoleDictionaryExportResponse(BaseModel):
     """Stable user-console dictionary export shape."""
 
+    schema_version: str = DICTIONARY_SCHEMA_VERSION
     profile_name: str
     profile_description: str | None = None
     terms: list[ConsoleDictionaryTermInput]

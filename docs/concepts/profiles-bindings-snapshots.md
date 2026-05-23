@@ -64,6 +64,8 @@ binding 2:
 
 This is why production runtime should use `binding_id`, not just `profile_name`.
 
+For the headless-first contract, the binding is also the safest boundary between proposal-time changes and runtime behavior. Agents, CI jobs, and CLI tools can suggest or apply changes through governance surfaces, but production readers should use a binding plus an immutable snapshot. See [`headless-runtime-contracts.md`](headless-runtime-contracts.md) for the contract map.
+
 ## Snapshot
 
 A snapshot is an immutable runtime export of a profile.

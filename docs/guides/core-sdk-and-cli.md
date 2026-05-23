@@ -24,7 +24,7 @@ poetry install
 poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.json
 ```
 
-The validator checks dictionary shape and helps catch alias/canonicalization issues before a profile is imported into the governance platform.
+The dictionary spec baseline is `skeinrank.dictionary.v1`. JSON is the canonical interchange format, and YAML files are accepted by the CLI for human-edited dictionaries when PyYAML is available. The validator checks dictionary shape and helps catch alias/canonicalization issues before a profile is imported into the governance platform.
 
 ## Extract canonical terms from text
 

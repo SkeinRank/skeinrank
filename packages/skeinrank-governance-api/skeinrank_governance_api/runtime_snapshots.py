@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from skeinrank_governance.models import (
@@ -32,6 +34,272 @@ class RuntimeAliasEntry:
     normalized_canonical: str
     slot: str
     confidence: float
+
+
+RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION = "skeinrank.runtime_snapshot_artifact.v1"
+RUNTIME_SNAPSHOT_ARTIFACT_SOURCES = {"latest", "runtime"}
+
+
+@dataclass(frozen=True)
+class LoadedRuntimeSnapshotArtifact:
+    """A validated runtime snapshot artifact loaded from JSON."""
+
+    artifact: dict[str, Any]
+    runtime_snapshot: dict[str, Any]
+    alias_entries: tuple[RuntimeAliasEntry, ...]
+    binding: dict[str, Any]
+    profile: dict[str, Any]
+    manifest: dict[str, Any]
+    path: Path | None = None
+
+    @property
+    def snapshot_version(self) -> str:
+        """Return the runtime snapshot version stored in the artifact."""
+
+        return str(self.runtime_snapshot.get("version") or "")
+
+    @property
+    def checksum(self) -> str:
+        """Return the manifest checksum for the loaded artifact."""
+
+        return str(self.manifest.get("checksum") or "")
+
+
+@dataclass(frozen=True)
+class _CachedRuntimeSnapshotArtifact:
+    stat_key: tuple[int, int]
+    loaded: LoadedRuntimeSnapshotArtifact
+
+
+class RuntimeSnapshotArtifactCache:
+    """Small file cache for immutable runtime snapshot artifacts.
+
+    Runtime workers can keep a compiled artifact in memory and reload it only
+    when the file timestamp or size changes. The cache is intentionally local
+    and dependency-free so it can be used by lightweight headless processes.
+    """
+
+    def __init__(self, *, max_entries: int = 16) -> None:
+        if max_entries < 1:
+            raise ValueError("max_entries must be at least 1")
+        self.max_entries = max_entries
+        self._items: OrderedDict[Path, _CachedRuntimeSnapshotArtifact] = OrderedDict()
+
+    def get(self, path: str | Path) -> LoadedRuntimeSnapshotArtifact:
+        """Load and cache a runtime snapshot artifact from ``path``."""
+
+        resolved_path = Path(path).expanduser().resolve()
+        stat = resolved_path.stat()
+        stat_key = (stat.st_mtime_ns, stat.st_size)
+        cached = self._items.get(resolved_path)
+        if cached is not None and cached.stat_key == stat_key:
+            self._items.move_to_end(resolved_path)
+            return cached.loaded
+
+        loaded = load_runtime_snapshot_artifact(resolved_path)
+        self._items[resolved_path] = _CachedRuntimeSnapshotArtifact(
+            stat_key=stat_key,
+            loaded=loaded,
+        )
+        self._items.move_to_end(resolved_path)
+        while len(self._items) > self.max_entries:
+            self._items.popitem(last=False)
+        return loaded
+
+    def clear(self) -> None:
+        """Drop all cached runtime snapshot artifacts."""
+
+        self._items.clear()
+
+
+def load_runtime_snapshot_artifact(path: str | Path) -> LoadedRuntimeSnapshotArtifact:
+    """Load and validate a runtime snapshot artifact JSON file."""
+
+    artifact_path = Path(path).expanduser().resolve()
+    try:
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid runtime snapshot artifact JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Runtime snapshot artifact root must be an object")
+    return runtime_snapshot_artifact_from_mapping(payload, path=artifact_path)
+
+
+def runtime_snapshot_artifact_from_mapping(
+    payload: dict[str, Any], *, path: Path | None = None
+) -> LoadedRuntimeSnapshotArtifact:
+    """Validate an artifact mapping and return its runtime read model."""
+
+    if payload.get("schema_version") != RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION:
+        raise ValueError(
+            "Unsupported runtime snapshot artifact schema_version: "
+            f"{payload.get('schema_version')!r}. Supported version: "
+            f"{RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION}."
+        )
+    if payload.get("artifact_type") != "runtime_snapshot":
+        raise ValueError("Runtime snapshot artifact_type must be 'runtime_snapshot'")
+
+    binding = payload.get("binding")
+    profile = payload.get("profile")
+    runtime_snapshot = payload.get("runtime_snapshot")
+    manifest = payload.get("manifest")
+    if not isinstance(binding, dict):
+        raise ValueError("Runtime snapshot artifact binding must be an object")
+    if not isinstance(profile, dict):
+        raise ValueError("Runtime snapshot artifact profile must be an object")
+    if not isinstance(runtime_snapshot, dict):
+        raise ValueError("Runtime snapshot artifact runtime_snapshot must be an object")
+    if not isinstance(manifest, dict):
+        raise ValueError("Runtime snapshot artifact manifest must be an object")
+
+    expected_checksum = str(manifest.get("checksum") or "")
+    if not expected_checksum:
+        raise ValueError("Runtime snapshot artifact manifest.checksum is required")
+    actual_checksum = runtime_snapshot_artifact_checksum(payload)
+    if actual_checksum != expected_checksum:
+        raise ValueError(
+            "Runtime snapshot artifact checksum mismatch: "
+            f"expected {expected_checksum}, got {actual_checksum}."
+        )
+
+    alias_entries = tuple(alias_entries_from_snapshot(runtime_snapshot))
+    return LoadedRuntimeSnapshotArtifact(
+        artifact=dict(payload),
+        runtime_snapshot=dict(runtime_snapshot),
+        alias_entries=alias_entries,
+        binding=dict(binding),
+        profile=dict(profile),
+        manifest=dict(manifest),
+        path=path,
+    )
+
+
+def runtime_snapshot_artifact_checksum(payload: dict[str, Any]) -> str:
+    """Return the checksum used by runtime snapshot artifact manifests."""
+
+    return _snapshot_checksum(_runtime_snapshot_artifact_core(payload))
+
+
+def runtime_snapshot_artifact_summary(
+    loaded: LoadedRuntimeSnapshotArtifact,
+) -> dict[str, Any]:
+    """Build a compact human-readable summary for a loaded artifact."""
+
+    return {
+        "schema_version": RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION,
+        "artifact_type": "runtime_snapshot",
+        "path": str(loaded.path) if loaded.path is not None else None,
+        "binding_id": loaded.binding.get("id"),
+        "binding_name": loaded.binding.get("name"),
+        "profile_name": loaded.profile.get("name"),
+        "snapshot_version": loaded.snapshot_version,
+        "checksum": loaded.checksum,
+        "runtime_checksum": loaded.manifest.get("runtime_checksum"),
+        "snapshot_source": loaded.manifest.get("snapshot_source"),
+        "alias_entries_total": len(loaded.alias_entries),
+        "text_fields": loaded.binding.get("text_fields") or [],
+        "target_field": loaded.binding.get("target_field"),
+        "index_name": loaded.binding.get("index_name"),
+    }
+
+
+def _runtime_snapshot_artifact_core(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": payload.get("schema_version"),
+        "artifact_type": payload.get("artifact_type"),
+        "binding": payload.get("binding"),
+        "profile": payload.get("profile"),
+        "runtime_snapshot": payload.get("runtime_snapshot"),
+    }
+
+
+def build_runtime_snapshot_artifact(
+    session: Session,
+    binding: ElasticsearchBinding,
+    *,
+    source: str = "latest",
+    snapshot_version: str | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
+    """Build a portable binding-scoped runtime snapshot artifact.
+
+    The artifact is the headless read model for runtime workers and GitOps flows:
+    it includes the binding context, the profile identity, and a compiled runtime
+    snapshot payload. By default it is built from the latest profile state. Passing
+    ``source="runtime"`` exports the binding-pinned runtime snapshot instead.
+    """
+
+    normalized_source = source.strip().lower()
+    if normalized_source not in RUNTIME_SNAPSHOT_ARTIFACT_SOURCES:
+        raise ValueError(
+            "Unsupported snapshot artifact source: "
+            f"{source!r}. Expected one of: latest, runtime."
+        )
+
+    if normalized_source == "runtime":
+        if not isinstance(binding.runtime_snapshot_json, dict):
+            raise ValueError(
+                "Binding has no pinned runtime snapshot. Export with "
+                "source='latest' to build from current profile state."
+            )
+        runtime_snapshot = dict(binding.runtime_snapshot_json)
+        snapshot_source = "binding_runtime_snapshot"
+    else:
+        runtime_snapshot = build_runtime_snapshot_payload(
+            session,
+            binding.profile,
+            snapshot_version=snapshot_version,
+        )
+        snapshot_source = "latest_profile"
+
+    artifact_core = {
+        "schema_version": RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION,
+        "artifact_type": "runtime_snapshot",
+        "binding": _binding_artifact_payload(binding),
+        "profile": _profile_artifact_payload(binding.profile),
+        "runtime_snapshot": runtime_snapshot,
+    }
+    checksum = _snapshot_checksum(artifact_core)
+    manifest = {
+        "created_at": utc_now().isoformat(),
+        "checksum": checksum,
+        "snapshot_source": snapshot_source,
+        "snapshot_version": str(runtime_snapshot.get("version") or ""),
+        "runtime_checksum": str(runtime_snapshot.get("checksum") or ""),
+        "alias_entries_total": len(alias_entries_from_snapshot(runtime_snapshot)),
+    }
+    if description is not None:
+        manifest["description"] = description
+    return {**artifact_core, "manifest": manifest}
+
+
+def _binding_artifact_payload(binding: ElasticsearchBinding) -> dict[str, Any]:
+    return {
+        "id": binding.id,
+        "name": binding.name,
+        "normalized_name": binding.normalized_name,
+        "provider": binding.provider,
+        "index_name": binding.index_name,
+        "text_fields": list(binding.text_fields or []),
+        "target_field": binding.target_field,
+        "filter_field": binding.filter_field,
+        "filter_value": binding.filter_value,
+        "timestamp_field": binding.timestamp_field,
+        "time_window_days": binding.time_window_days,
+        "mode": binding.mode,
+        "write_strategy": binding.write_strategy,
+        "is_enabled": binding.is_enabled,
+        "last_successful_snapshot_version": binding.last_successful_snapshot_version,
+        "pending_snapshot_version": binding.pending_snapshot_version,
+    }
+
+
+def _profile_artifact_payload(profile: TerminologyProfile) -> dict[str, Any]:
+    return {
+        "id": profile.id,
+        "name": profile.name,
+        "normalized_name": profile.normalized_name,
+    }
 
 
 def build_runtime_snapshot_payload(
@@ -257,6 +525,6 @@ def _active_global_stop_values_for_target(
     return set(values)
 
 
-def _snapshot_checksum(alias_entries: list[dict[str, Any]]) -> str:
-    serialized = json.dumps(alias_entries, ensure_ascii=False, sort_keys=True)
+def _snapshot_checksum(payload: Any) -> str:
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
