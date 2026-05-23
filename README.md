@@ -217,11 +217,19 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
 ```
 
+Patch 40H adds the local candidate discovery/pruning step before any LLM call:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-candidates
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
+```
+
 The example still does not call OpenRouter. It now defines tool schemas for
 `skeinrank_list_bindings`, `skeinrank_explain_query`,
 `skeinrank_validate_alias`, and `skeinrank_submit_alias_proposal`, plus a
-safety-focused system prompt and strict parser for `propose`, `reject`, and
-`needs_evidence` judgments. The schemas map only to existing `/v1/tools/*`
+safety-focused system prompt, strict parser for `propose`, `reject`, and
+`needs_evidence` judgments, and a deterministic `skeinrank.agent_candidate_discovery.v1`
+report for failed-query candidates. The schemas map only to existing `/v1/tools/*`
 routes, so agents can validate and submit proposals, but runtime terminology
 changes only through reviewed batches and snapshots. See
 [`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout).

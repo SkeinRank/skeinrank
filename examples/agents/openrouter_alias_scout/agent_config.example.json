@@ -9,5 +9,45 @@
   "proposal_source_name": "openrouter-alias-scout",
   "failed_queries_path": "failed_queries.example.jsonl",
   "max_queries_per_run": 25,
-  "dry_run": true
+  "dry_run": true,
+  "candidate_discovery": {
+    "max_candidates": 20,
+    "min_token_length": 2,
+    "min_weighted_count": 1,
+    "min_score": 1.0,
+    "max_examples_per_candidate": 5,
+    "known_terms": [
+      "kubernetes",
+      "postgresql",
+      "postgres",
+      "database",
+      "production",
+      "cluster"
+    ],
+    "noise_tokens": [
+      "timeout",
+      "incident",
+      "runbook",
+      "restart",
+      "worker",
+      "stuck",
+      "rollout",
+      "failover",
+      "pool",
+      "pod",
+      "dns",
+      "exhausted"
+    ],
+    "stop_words": [
+      "after",
+      "during",
+      "in",
+      "the",
+      "to",
+      "with",
+      "for",
+      "and",
+      "or"
+    ]
+  }
 }

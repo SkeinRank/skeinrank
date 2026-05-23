@@ -1,6 +1,6 @@
 # OpenRouter alias scout foundation
 
-This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. The example does not call OpenRouter yet and does not execute model-requested tools yet.
+This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. The example does not call OpenRouter yet and does not execute model-requested tools yet.
 
 The safety rule stays unchanged:
 
@@ -16,7 +16,8 @@ Agents must not mutate production terminology directly. They can only validate a
 | --- | --- |
 | `agent_config.example.json` | Local runner config. JSON only; no secrets. |
 | `env.example` | Environment variable names for local testing. |
-| `failed_queries.example.jsonl` | Tiny failed-query sample for later candidate discovery. |
+| `failed_queries.example.jsonl` | Tiny failed-query sample for local candidate discovery. |
+| `candidate_discovery.py` | Dependency-light failed-query candidate mining, pruning, scoring, and fact-pack helpers. |
 | `skeinrank_client.py` | Dependency-light client for `/v1/tools/*`. |
 | `openrouter_tools.py` | OpenRouter/OpenAI-compatible tool schemas for the existing SkeinRank tools. |
 | `prompts.py` | System prompt, alias-review prompt builder, and compact candidate pack helper. |
@@ -51,6 +52,21 @@ skeinrank_submit_alias_proposal
 ```
 
 They map to existing Governance API routes and do not introduce new backend calls.
+
+## Discover and prune candidates locally
+
+Patch 40H adds a deterministic pre-LLM discovery step. It reads failed-query rows,
+extracts alias-like surfaces such as `pg`, `k8s`, and `kube`, prunes configured
+noise/known terms, and prints a compact JSON report:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-candidates
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
+```
+
+The report is `skeinrank.agent_candidate_discovery.v1`. It does not call
+OpenRouter, does not infer canonical values, and does not submit proposals. Later
+patches can feed the compact fact packs into evidence sampling and model review.
 
 ## List SkeinRank bindings
 
@@ -101,7 +117,6 @@ risk_flags: string[]
 
 ## What comes next
 
-- Patch 40H: candidate discovery and pruning.
 - Patch 40I: compact evidence windows, so the agent does not read entire documents.
 - Patch 40K: end-to-end agent demo and run report.
 - Patch 40J: optional LangGraph workflow wrapper after the plain runner is proven.

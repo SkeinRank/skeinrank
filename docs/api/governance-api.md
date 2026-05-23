@@ -401,7 +401,8 @@ The examples are documentation fixtures only; they do not introduce new API rout
 
 Patch 40F adds `examples/agents/openrouter_alias_scout` as the first reference
 agent integration. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas and
-prompts on top of the same existing tools:
+prompts on top of the same existing tools. Patch 40H adds local candidate
+discovery and pruning before any LLM/OpenRouter call:
 
 ```text
 GET  /v1/tools/bindings
@@ -417,9 +418,13 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-tool-schemas
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-prompt
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-candidates
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
 ```
 
 The example is not a new API surface and it does not call OpenRouter yet. Tool
 schemas map only to the existing `/v1/tools/*` facade, and the structured output
 parser keeps model judgments limited to `propose`, `reject`, or `needs_evidence`
-before any later runner validates and submits proposals.
+before any later runner validates and submits proposals. The Patch 40H discovery
+report is local-only (`skeinrank.agent_candidate_discovery.v1`) and does not infer
+canonical values or submit proposals.

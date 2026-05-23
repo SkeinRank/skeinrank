@@ -17,6 +17,12 @@ from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - import style depends on how the example is executed.
+    from .candidate_discovery import (
+        CandidateDiscoveryConfig,
+        build_candidate_discovery_report,
+        build_candidate_fact_pack,
+        discover_alias_candidates,
+    )
     from .openrouter_tools import get_openrouter_tool_schemas
     from .prompts import (
         SYSTEM_PROMPT,
@@ -26,6 +32,12 @@ try:  # pragma: no cover - import style depends on how the example is executed.
     from .skeinrank_client import SkeinRankAgentClient
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from candidate_discovery import (
+        CandidateDiscoveryConfig,
+        build_candidate_discovery_report,
+        build_candidate_fact_pack,
+        discover_alias_candidates,
+    )
     from openrouter_tools import get_openrouter_tool_schemas
     from prompts import (
         SYSTEM_PROMPT,
@@ -51,6 +63,7 @@ class AgentRunnerConfig:
     proposal_source_name: str
     failed_queries_path: Path
     max_queries_per_run: int
+    candidate_discovery: CandidateDiscoveryConfig
     dry_run: bool = True
 
     @classmethod
@@ -87,6 +100,9 @@ class AgentRunnerConfig:
             ),
             failed_queries_path=failed_queries,
             max_queries_per_run=int(raw.get("max_queries_per_run", 50)),
+            candidate_discovery=CandidateDiscoveryConfig.from_mapping(
+                raw.get("candidate_discovery")
+            ),
             dry_run=bool(raw.get("dry_run", True)),
         )
 
@@ -147,9 +163,10 @@ def build_run_plan(
         "default_profile_name": config.default_profile_name,
         "default_binding_id": config.default_binding_id,
         "queries_loaded": len(scoped_queries),
+        "candidate_discovery_enabled": True,
         "next_steps": [
-            "Patch 40G adds OpenRouter tool schemas and prompts.",
-            "Patch 40H will add candidate discovery and pruning.",
+            "Patch 40G added OpenRouter tool schemas and prompts.",
+            "Patch 40H adds candidate discovery and pruning.",
             "Patch 40I will add compact evidence sampling.",
         ],
         "sample_queries": [
@@ -212,6 +229,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Print a sample alias-review prompt for local inspection.",
     )
+    parser.add_argument(
+        "--discover-candidates",
+        action="store_true",
+        help="Mine alias-like candidates from failed-query JSONL without LLM calls.",
+    )
+    parser.add_argument(
+        "--print-sample-candidate-pack",
+        action="store_true",
+        help="Print the top discovered candidate as a compact fact pack.",
+    )
     return parser.parse_args(argv)
 
 
@@ -241,6 +268,31 @@ def main(argv: list[str] | None = None) -> int:
     failed_queries = load_failed_queries(
         config.failed_queries_path, limit=config.max_queries_per_run
     )
+
+    if args.discover_candidates:
+        report = build_candidate_discovery_report(
+            failed_queries,
+            config=config.candidate_discovery,
+            binding_id=config.default_binding_id,
+            profile_name=config.default_profile_name,
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.print_sample_candidate_pack:
+        candidates = discover_alias_candidates(
+            failed_queries, config=config.candidate_discovery
+        )
+        if not candidates:
+            raise RuntimeError("No candidates discovered from failed-query input.")
+        pack = build_candidate_fact_pack(
+            candidates[0],
+            binding_id=config.default_binding_id,
+            profile_name=config.default_profile_name,
+        )
+        print(json.dumps(pack, indent=2, sort_keys=True))
+        return 0
+
     plan = build_run_plan(config, failed_queries)
     print(json.dumps(plan, indent=2, sort_keys=True))
     return 0
