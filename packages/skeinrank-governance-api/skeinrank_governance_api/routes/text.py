@@ -47,6 +47,7 @@ class _AliasEntry:
     normalized_canonical: str
     slot: str
     confidence: float
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class _CandidateMatch:
     alias_value: str
     canonical_value: str
     slot: str
+    tags: tuple[str, ...]
     matched_text: str
     start: int
     end: int
@@ -122,6 +124,7 @@ def canonicalize_text(
 
     canonical_values = sorted({match.canonical_value for match in matches})
     slots = _slots_for_matches(matches)
+    tags = _tags_for_matches(matches)
     matched_aliases = sorted({match.alias_value for match in matches})
     evidence = (
         [
@@ -130,6 +133,7 @@ def canonicalize_text(
                 alias_value=match.alias_value,
                 canonical_value=match.canonical_value,
                 slot=match.slot,
+                tags=list(match.tags),
                 matched_text=match.matched_text,
                 start=match.start,
                 end=match.end,
@@ -164,6 +168,7 @@ def canonicalize_text(
         changed=canonical_text != request.text,
         canonical_values=canonical_values,
         slots=slots,
+        tags=tags,
         matched_aliases=matched_aliases,
         replacements=replacements,
         evidence=evidence,
@@ -259,6 +264,7 @@ def _alias_entries_from_runtime_entries(entries) -> list[_AliasEntry]:
             normalized_canonical=entry.normalized_canonical,
             slot=entry.slot,
             confidence=entry.confidence,
+            tags=tuple(getattr(entry, "tags", ()) or ()),
         )
         for entry in entries
     ]
@@ -314,6 +320,7 @@ def _active_alias_entries_for_profile(
                 normalized_canonical=alias.term.normalized_value,
                 slot=alias.term.slot,
                 confidence=alias.confidence,
+                tags=_tags_for_term(alias.term),
             )
         )
     return entries
@@ -356,6 +363,7 @@ def _find_alias_matches(
                     alias_value=alias_entry.alias_value,
                     canonical_value=alias_entry.canonical_value,
                     slot=alias_entry.slot,
+                    tags=alias_entry.tags,
                     matched_text=match.group(0),
                     start=match.start(),
                     end=match.end(),
@@ -414,11 +422,32 @@ def _match_response(match: _CandidateMatch) -> TextCanonicalizeMatch:
         alias_value=match.alias_value,
         canonical_value=match.canonical_value,
         slot=match.slot,
+        tags=list(match.tags),
         matched_text=match.matched_text,
         start=match.start,
         end=match.end,
         confidence=match.confidence,
         source="alias",
+    )
+
+
+def _tags_for_matches(matches: list[_CandidateMatch]) -> dict[str, list[str]]:
+    tags: dict[str, set[str]] = {}
+    for match in matches:
+        if match.tags:
+            tags.setdefault(match.canonical_value, set()).update(match.tags)
+    return {canonical: sorted(values) for canonical, values in sorted(tags.items())}
+
+
+def _tags_for_term(term: CanonicalTerm) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                tag.normalized_value
+                for tag in getattr(term, "tags", [])
+                if str(tag.normalized_value or "").strip()
+            }
+        )
     )
 
 

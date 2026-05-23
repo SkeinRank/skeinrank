@@ -885,6 +885,7 @@ class TextCanonicalizeMatch(BaseModel):
     alias_value: str
     canonical_value: str
     slot: str
+    tags: list[str] = Field(default_factory=list)
     matched_text: str
     start: int
     end: int
@@ -899,6 +900,7 @@ class TextCanonicalizeEvidence(BaseModel):
     alias_value: str
     canonical_value: str
     slot: str
+    tags: list[str] = Field(default_factory=list)
     matched_text: str
     start: int
     end: int
@@ -920,6 +922,7 @@ class TextCanonicalizeResponse(BaseModel):
     changed: bool
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
@@ -955,6 +958,7 @@ class QueryPlanResponse(BaseModel):
     snapshot_source: str = "latest_profile"
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
@@ -1003,6 +1007,7 @@ class SearchResponse(BaseModel):
     snapshot_source: str = "latest_profile"
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
@@ -1049,6 +1054,7 @@ class MultiSearchBindingResponse(BaseModel):
     changed: bool | None = None
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
     total: dict[str, Any] | int | None = None
     hits_count: int = 0

@@ -215,5 +215,10 @@ that validates, stores, reviews, and snapshots terminology changes.
 Patch 38A introduces term tags as normalized facets on canonical terms. A term
 still has one primary `slot`, while `tags` provide additional classification
 for later conflict analysis, policies, and retrieval evaluation. Tags are stored
-in governance state and exported through dictionary APIs, but runtime snapshot
-resolution remains unchanged until the dedicated tags-in-runtime step.
+in governance state and exported through dictionary APIs.
+
+Patch 38B carries those tags into runtime snapshot alias entries. Headless
+artifacts, binding-pinned snapshots, `/v1/text/canonicalize`, and
+`/v1/query/plan` can now expose matched term tags as runtime debug metadata.
+This keeps existing alias tuple compatibility for enrichment while making tags
+available to future conflict detection, policy resolution, and evaluation.

@@ -37,6 +37,7 @@ from .text import (
     _resolve_runtime_alias_context,
     _select_non_overlapping_matches,
     _slots_for_matches,
+    _tags_for_matches,
 )
 
 router = APIRouter(prefix="/v1", tags=["runtime"])
@@ -279,6 +280,7 @@ def search_multiple_bindings(
                     changed=plan["changed"],
                     canonical_values=plan["canonical_values"],
                     slots=plan["slots"],
+                    tags=plan["tags"],
                     matched_aliases=plan["matched_aliases"],
                     total=total,
                     hits_count=len(hits),
@@ -375,6 +377,7 @@ def _build_runtime_plan(
     canonical_query = _replace_matches(query_text, matches)
     canonical_values = sorted({match.canonical_value for match in matches})
     slots = _slots_for_matches(matches)
+    tags = _tags_for_matches(matches)
     matched_aliases = sorted({match.alias_value for match in matches})
     replacements = [_match_response(match) for match in matches]
     evidence = (
@@ -384,6 +387,7 @@ def _build_runtime_plan(
                 alias_value=match.alias_value,
                 canonical_value=match.canonical_value,
                 slot=match.slot,
+                tags=list(match.tags),
                 matched_text=match.matched_text,
                 start=match.start,
                 end=match.end,
@@ -425,6 +429,7 @@ def _build_runtime_plan(
         "snapshot_source": context.snapshot_source,
         "canonical_values": canonical_values,
         "slots": slots,
+        "tags": tags,
         "matched_aliases": matched_aliases,
         "replacements": replacements,
         "evidence": evidence,

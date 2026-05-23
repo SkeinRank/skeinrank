@@ -109,7 +109,11 @@ def _seed_dictionary(client: TestClient, headers: dict[str, str] | None = None) 
     assert (
         client.post(
             "/v1/governance/profiles/infra_incidents/terms",
-            json={"canonical_value": "kubernetes", "slot": "TOOL"},
+            json={
+                "canonical_value": "kubernetes",
+                "slot": "TOOL",
+                "tags": ["infra", "orchestration"],
+            },
             headers=headers,
         ).status_code
         == 201
@@ -125,7 +129,11 @@ def _seed_dictionary(client: TestClient, headers: dict[str, str] | None = None) 
     assert (
         client.post(
             "/v1/governance/profiles/infra_incidents/terms",
-            json={"canonical_value": "postgresql", "slot": "DATABASE"},
+            json={
+                "canonical_value": "postgresql",
+                "slot": "DATABASE",
+                "tags": ["backend", "storage"],
+            },
             headers=headers,
         ).status_code
         == 201
@@ -162,6 +170,10 @@ def test_query_plan_builds_canonical_terms_and_es_dsl(tmp_path):
     assert payload["slots"] == {
         "DATABASE": ["postgresql"],
         "TOOL": ["kubernetes"],
+    }
+    assert payload["tags"] == {
+        "kubernetes": ["infra", "orchestration"],
+        "postgresql": ["backend", "storage"],
     }
     assert payload["matched_aliases"] == ["k8s", "pg"]
     assert payload["replacements"][0]["start"] == 0

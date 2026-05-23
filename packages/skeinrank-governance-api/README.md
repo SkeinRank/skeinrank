@@ -925,8 +925,10 @@ Agents submit proposals for review; they do not mutate active runtime
 terminology directly.
 
 
-### Patch 38A: term tags
+### Patch 38A/38B: term tags in governance and runtime
 
 Dictionary terms and governance term APIs now accept optional `tags` on canonical
 terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
-that complement the primary `slot` without changing runtime snapshot behavior.
+that complement the primary `slot`. Runtime snapshot alias entries now carry
+those tags too, so exported artifacts and query/canonicalization debug output
+can explain both the primary slot and richer term facets.
