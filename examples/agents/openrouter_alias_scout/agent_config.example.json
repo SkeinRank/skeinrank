@@ -83,5 +83,28 @@
     "include_tools": false,
     "response_format_json": true,
     "submit_proposals": false
+  },
+  "security_profile": {
+    "service_account_name": "openrouter-alias-scout",
+    "required_role": "contributor",
+    "allowed_roles": [
+      "contributor"
+    ],
+    "allow_proposal_submission": false,
+    "allow_runtime_mutation": false,
+    "require_skeinrank_api_token_for_submission": true,
+    "blocked_actions": [
+      "direct_dictionary_write",
+      "snapshot_publish",
+      "direct_git_push",
+      "runtime_mutation"
+    ],
+    "allowed_skeinrank_tool_paths": [
+      "GET /v1/tools/bindings",
+      "POST /v1/tools/explain-query",
+      "POST /v1/tools/validate-alias",
+      "POST /v1/tools/suggest-alias"
+    ],
+    "redact_env_values": true
   }
 }

@@ -456,3 +456,27 @@ state.
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-llm-review-plan
 OPENROUTER_API_KEY=... python examples/agents/openrouter_alias_scout/run_alias_scout.py --llm-review --model openai/gpt-4o-mini --max-candidates 3
 ```
+
+## Patch 40L — Agent security profile
+
+Patch 40L documents the security envelope for the OpenRouter alias scout. It does
+not add or change Governance API routes. The runner only references the existing
+agent-safe facade:
+
+```text
+GET  /v1/tools/bindings
+POST /v1/tools/explain-query
+POST /v1/tools/validate-alias
+POST /v1/tools/suggest-alias
+```
+
+Use the local security report before live model review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-security-profile
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-security-profile
+```
+
+The `skeinrank.agent_security_profile.v1` report redacts secrets, checks the
+configured contributor role, and keeps proposal submission/runtime mutation
+disabled by default.

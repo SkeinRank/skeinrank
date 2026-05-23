@@ -208,3 +208,28 @@ risk_flags: string[]
 
 - Patch 40L: service-account/security profile for real proposal submission.
 - Patch 40M: budget limits and cache for model review.
+
+### Patch 40L — Service-account security profile
+
+Patch 40L adds the service-account security profile for the alias scout. It is
+still safe by default: OpenRouter review can run, proposal payloads can be
+prepared, but proposal submission remains disabled and runtime mutation is
+blocked.
+
+Preview the sanitized security profile without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-security-profile
+```
+
+Validate it in CI/local checks:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-security-profile
+```
+
+The report schema is `skeinrank.agent_security_profile.v1`. It shows whether
+`OPENROUTER_API_KEY` and `SKEINRANK_AGENT_API_TOKEN` are configured, but redacts
+secret values. The reference profile expects `SKEINRANK_AGENT_ROLE=contributor`,
+blocks direct dictionary writes, snapshot publishing, direct Git pushes, and
+runtime mutation, and only documents the existing safe `/v1/tools/*` facade.

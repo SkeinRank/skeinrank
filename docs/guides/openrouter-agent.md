@@ -71,3 +71,39 @@ state.
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-llm-review-plan
 OPENROUTER_API_KEY=... python examples/agents/openrouter_alias_scout/run_alias_scout.py --llm-review --model openai/gpt-4o-mini --max-candidates 3
 ```
+
+## Patch 40L — Agent security profile
+
+Patch 40L adds a sanitized service-account security profile for the OpenRouter
+alias scout. This does not introduce new backend routes and it does not enable
+proposal submission. It makes the safety envelope explicit before later patches
+add validation/submission, budget controls, evaluation, and deployment recipes.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-security-profile
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-security-profile
+```
+
+The output schema is `skeinrank.agent_security_profile.v1`. It redacts secret
+environment variables, verifies the configured role, documents allowed
+`/v1/tools/*` paths, and keeps these actions blocked for the reference agent:
+
+```text
+direct_dictionary_write
+snapshot_publish
+direct_git_push
+runtime_mutation
+```
+
+Recommended local environment:
+
+```bash
+export SKEINRANK_AGENT_ROLE=contributor
+export SKEINRANK_AGENT_API_TOKEN=...   # scoped contributor/service token; never commit
+export OPENROUTER_API_KEY=...          # model key; never commit
+```
+
+`llm_review.submit_proposals` stays `false` in the example config. If someone
+sets it to `true` without an explicit security policy and scoped token,
+`--check-security-profile` exits non-zero and live review fails before model
+execution.

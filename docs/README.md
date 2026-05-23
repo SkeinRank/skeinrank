@@ -96,3 +96,19 @@ state.
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-llm-review-plan
 OPENROUTER_API_KEY=... python examples/agents/openrouter_alias_scout/run_alias_scout.py --llm-review --model openai/gpt-4o-mini --max-candidates 3
 ```
+
+## Patch 40L — OpenRouter agent security profile
+
+Patch 40L adds a safe service-account profile to the OpenRouter alias scout. The
+runner can now print and validate a redacted security report before live model
+review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-security-profile
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-security-profile
+```
+
+The report schema is `skeinrank.agent_security_profile.v1`. Proposal submission
+remains disabled by default; the agent may prepare proposal payloads, but it
+must not directly write dictionaries, publish snapshots, push to Git, or mutate
+runtime state.

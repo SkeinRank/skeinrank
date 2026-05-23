@@ -417,3 +417,19 @@ promoting it to runtime.
 ### Patch 38J: coverage docs and examples
 
 Phase C documentation is collected in [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md) and [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md). Example payloads live in [`examples/coverage-framework`](examples/coverage-framework) and show a complete controlled-coverage flow: tagged dictionary, ambiguous `pg` candidates, infra/docs binding policies, and snapshot-evaluation queries.
+
+## Patch 40L — OpenRouter agent security profile
+
+Patch 40L adds a safe service-account profile to the OpenRouter alias scout. The
+runner can now print and validate a redacted security report before live model
+review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-security-profile
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-security-profile
+```
+
+The report schema is `skeinrank.agent_security_profile.v1`. Proposal submission
+remains disabled by default; the agent may prepare proposal payloads, but it
+must not directly write dictionaries, publish snapshots, push to Git, or mutate
+runtime state.

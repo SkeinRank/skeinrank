@@ -47,6 +47,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_alias_review_prompt,
         build_sample_candidate_pack,
     )
+    from .security_profile import (
+        SecurityProfileConfig,
+        assert_security_allows_llm_review,
+        build_security_profile_report,
+    )
     from .skeinrank_client import SkeinRankAgentClient
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -80,6 +85,11 @@ except ImportError:  # pragma: no cover
         build_alias_review_prompt,
         build_sample_candidate_pack,
     )
+    from security_profile import (
+        SecurityProfileConfig,
+        assert_security_allows_llm_review,
+        build_security_profile_report,
+    )
     from skeinrank_client import SkeinRankAgentClient
 
 JsonDict = dict[str, Any]
@@ -104,6 +114,7 @@ class AgentRunnerConfig:
     evidence_sampler: EvidenceSamplerConfig
     demo_report: DemoReportConfig
     llm_review: LlmReviewConfig
+    security_profile: SecurityProfileConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -162,6 +173,9 @@ class AgentRunnerConfig:
             ),
             demo_report=DemoReportConfig.from_mapping(raw.get("demo_report")),
             llm_review=LlmReviewConfig.from_mapping(raw.get("llm_review")),
+            security_profile=SecurityProfileConfig.from_mapping(
+                raw.get("security_profile")
+            ),
             openrouter_base_url=str(
                 os.getenv(
                     "OPENROUTER_BASE_URL",
@@ -246,6 +260,7 @@ def build_run_plan(
             "Patch 40I added compact evidence sampling.",
             "Patch 40K adds the local E2E demo report.",
             "Patch 40J adds OpenRouter execution and a LangGraph-ready workflow.",
+            "Patch 40L adds a service-account security profile.",
         ],
         "sample_queries": [
             {
@@ -395,6 +410,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         help="Override llm_review.max_candidates for this run.",
     )
+    parser.add_argument(
+        "--print-security-profile",
+        action="store_true",
+        help="Print the sanitized agent security profile without network calls.",
+    )
+    parser.add_argument(
+        "--check-security-profile",
+        action="store_true",
+        help="Validate the sanitized agent security profile and exit non-zero on errors.",
+    )
     return parser.parse_args(argv)
 
 
@@ -416,9 +441,31 @@ def _llm_review_config_from_args(
     )
 
 
+def build_security_report_for_config(config: AgentRunnerConfig) -> JsonDict:
+    """Build the sanitized 40L security profile report for CLI/tests."""
+
+    return build_security_profile_report(
+        security_config=config.security_profile,
+        skeinrank_api_url=config.skeinrank_api_url,
+        skeinrank_role=config.skeinrank_role,
+        api_token_env=config.api_token_env,
+        openrouter_api_key_env=config.openrouter_api_key_env,
+        proposal_source_name=config.proposal_source_name,
+        dry_run=config.dry_run,
+        llm_submit_proposals=config.llm_review.submit_proposals,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
+
+    if args.print_security_profile or args.check_security_profile:
+        report = build_security_report_for_config(config)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        if args.check_security_profile and report["status"] != "ok":
+            return 2
+        return 0
 
     if args.print_tool_schemas:
         print(json.dumps(get_openrouter_tool_schemas(), indent=2, sort_keys=True))
@@ -574,6 +621,12 @@ def main(argv: list[str] | None = None) -> int:
             config.evidence_records_path, limit=config.evidence_sampler.max_records
         )
         llm_config = _llm_review_config_from_args(config, args)
+        assert_security_allows_llm_review(
+            security_config=config.security_profile,
+            skeinrank_role=config.skeinrank_role,
+            api_token_env=config.api_token_env,
+            llm_submit_proposals=llm_config.submit_proposals,
+        )
         client = build_openrouter_client(config)
         report = run_openrouter_llm_review_workflow(
             failed_queries,
