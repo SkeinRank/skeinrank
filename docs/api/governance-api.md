@@ -142,7 +142,7 @@ POST /v1/governance/profiles/{profile_name}/suggestions/{suggestion_id}/evidence
 
 The request references an Elasticsearch binding for the same profile. If `query` is omitted, alias suggestions use their alias value and canonical-term suggestions use their canonical value.
 
-Suggestions now also support proposal metadata for headless/agent workflows. Existing manual requests remain valid, and automation can optionally provide `binding_id`, `proposal_source_type`, `proposal_source_name`, `idempotency_key`, `source_payload`, and `validation_summary`. The binding must belong to the same profile as the suggestion.
+Suggestions also support proposal metadata for headless/agent workflows. Existing manual requests remain valid, and automation can optionally provide `binding_id`, `proposal_source_type`, `proposal_source_name`, `idempotency_key`, `source_payload`, and `validation_summary`. The binding must belong to the same profile as the suggestion. If `validation_summary` is omitted, the API runs the proposal checker registry and stores structured results covering canonical availability, alias collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints, and agent audit payloads.
 
 Saved evidence includes binding metadata, query metadata, warnings, and highlighted snippets.
 

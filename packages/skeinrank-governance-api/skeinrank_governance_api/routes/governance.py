@@ -60,6 +60,7 @@ from ..elasticsearch import (
     get_source_values,
     source_preview,
 )
+from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import (
     alias_tuples_from_snapshot,
     binding_snapshot_status,
@@ -1640,6 +1641,22 @@ def create_profile_suggestion(
                 ),
             )
 
+    validation_summary = request.validation_summary
+    if validation_summary is None:
+        validation_summary = build_proposal_validation_summary(
+            session,
+            profile,
+            suggestion_type=request.suggestion_type,
+            canonical_value=request.canonical_value,
+            alias_value=request.alias_value,
+            slot=request.slot,
+            confidence=request.confidence,
+            proposal_source_type=request.proposal_source_type,
+            proposal_source_name=request.proposal_source_name,
+            idempotency_key=request.idempotency_key,
+            source_payload=request.source_payload,
+        )
+
     suggestion = GovernanceSuggestion(
         profile=profile,
         suggestion_type=request.suggestion_type,
@@ -1655,7 +1672,7 @@ def create_profile_suggestion(
         proposal_source_name=request.proposal_source_name,
         idempotency_key=request.idempotency_key,
         source_payload_json=request.source_payload,
-        validation_summary_json=request.validation_summary,
+        validation_summary_json=validation_summary,
         status="pending",
         created_by=current_user.username,
     )

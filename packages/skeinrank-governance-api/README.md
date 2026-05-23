@@ -505,10 +505,10 @@ Agent-ready proposal metadata can be attached to the same suggestion workflow:
 ```bash
 curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions \
   -H "Content-Type: application/json" \
-  -d '{"suggestion_type":"alias","canonical_value":"kubernetes","alias_value":"kube","slot":"TOOL","source":"discovery","proposal_source_type":"agent","proposal_source_name":"search-log-scout","idempotency_key":"search-log-scout:default_it:kube","source_payload":{"query_count":42},"validation_summary":{"duplicate_alias":"passed"}}'
+  -d '{"suggestion_type":"alias","canonical_value":"kubernetes","alias_value":"kube","slot":"TOOL","source":"discovery","proposal_source_type":"agent","proposal_source_name":"search-log-scout","idempotency_key":"search-log-scout:default_it:kube","source_payload":{"query_count":42}}'
 ```
 
-Supported `proposal_source_type` values are `human`, `agent`, `cli`, `api`, `job`, and `import`. If `binding_id` is provided, it must reference a binding for the same profile. Idempotency enforcement and richer validation are planned for later Phase B patches; this patch stores the metadata safely on the existing review queue.
+Supported `proposal_source_type` values are `human`, `agent`, `cli`, `api`, `job`, and `import`. If `binding_id` is provided, it must reference a binding for the same profile. If `validation_summary` is omitted, SkeinRank stores an automatic proposal validation summary with checks for canonical availability, alias collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints, and agent audit payloads. Callers may still provide their own `validation_summary` when they already ran an external checker. Full idempotency enforcement is planned for Patch 37E.
 
 Approved alias suggestions create active aliases. Approved canonical term suggestions create active canonical terms.
 

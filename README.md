@@ -143,13 +143,16 @@ GET  /v1/headless/dictionaries/export?profile_name=...
 The legacy `/v1/console/dictionary/*` routes remain available for the governance
 console and older scripts. Both surfaces share the same validation/apply logic.
 
-## Agent-ready proposal metadata
+## Agent-ready proposals and validation
 
-Phase B starts by extending the existing suggestions review queue with proposal
-metadata. Manual suggestions still work as before, while agents, CLI jobs, and
+Phase B extends the existing suggestions review queue into an agent-safe proposal
+path. Manual suggestions still work as before, while agents, CLI jobs, and
 service integrations can attach optional `binding_id`, `proposal_source_type`,
-`proposal_source_name`, `idempotency_key`, `source_payload`, and
-`validation_summary` fields. These records remain pending until a moderator/admin
+`proposal_source_name`, `idempotency_key`, and `source_payload` fields. When a
+caller does not provide `validation_summary`, SkeinRank now runs a proposal
+checker registry and stores structured results for canonical availability, alias
+collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints,
+and agent audit payloads. These records remain pending until a moderator/admin
 reviews them, so LLMs and agents do not mutate runtime terminology directly.
 
 ## Quickstart: local SDK / CLI
