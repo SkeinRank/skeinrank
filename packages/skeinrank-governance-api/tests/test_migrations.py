@@ -102,6 +102,18 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "source_payload_json",
         "validation_summary_json",
     }.issubset(suggestion_columns)
+    suggestion_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_suggestions")
+    }
+    assert (
+        bool(
+            suggestion_indexes["ix_governance_suggestions_profile_idempotency"][
+                "unique"
+            ]
+        )
+        is True
+    )
     stop_list_columns = {
         column["name"]
         for column in inspector.get_columns("governance_stop_list_entries")
@@ -169,7 +181,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260523_0016"
+    assert revision == "20260523_0017"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

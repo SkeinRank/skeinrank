@@ -60,6 +60,12 @@ from ..elasticsearch import (
     get_source_values,
     source_preview,
 )
+from ..proposal_idempotency import (
+    ProposalIdempotencyConflict,
+    normalize_idempotency_key,
+    resolve_idempotent_suggestion,
+    resolve_idempotent_suggestion_from_validation_summary,
+)
 from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import (
     alias_tuples_from_snapshot,
@@ -1579,6 +1585,7 @@ def list_profile_suggestions(
 def create_profile_suggestion(
     profile_name: str,
     request: SuggestionCreateRequest,
+    response: Response,
     current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
@@ -1595,6 +1602,7 @@ def create_profile_suggestion(
         "proposal source type",
     )
 
+    binding_id = request.binding_id
     if request.binding_id is not None:
         binding = _get_elasticsearch_binding_or_404(session, request.binding_id)
         if binding.profile_id != profile.id:
@@ -1602,6 +1610,29 @@ def create_profile_suggestion(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Proposal binding must belong to the suggestion profile.",
             )
+        binding_id = binding.id
+
+    idempotency_key = normalize_idempotency_key(request.idempotency_key)
+    try:
+        existing_suggestion = resolve_idempotent_suggestion(
+            session,
+            profile=profile,
+            idempotency_key=idempotency_key,
+            suggestion_type=request.suggestion_type,
+            canonical_value=request.canonical_value,
+            alias_value=request.alias_value,
+            slot=request.slot,
+            binding_id=binding_id,
+            proposal_source_type=request.proposal_source_type,
+        )
+    except ProposalIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    if existing_suggestion is not None:
+        response.status_code = status.HTTP_200_OK
+        return _suggestion_response(existing_suggestion)
 
     if request.suggestion_type == "alias":
         if request.alias_value is None or not request.alias_value.strip():
@@ -1657,9 +1688,28 @@ def create_profile_suggestion(
             confidence=request.confidence,
             proposal_source_type=request.proposal_source_type,
             proposal_source_name=request.proposal_source_name,
-            idempotency_key=request.idempotency_key,
+            idempotency_key=idempotency_key,
             source_payload=request.source_payload,
         )
+        try:
+            existing_suggestion = resolve_idempotent_suggestion_from_validation_summary(
+                session,
+                validation_summary,
+                suggestion_type=request.suggestion_type,
+                canonical_value=request.canonical_value,
+                alias_value=request.alias_value,
+                slot=request.slot,
+                binding_id=binding_id,
+                proposal_source_type=request.proposal_source_type,
+            )
+        except ProposalIdempotencyConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
+        if existing_suggestion is not None:
+            response.status_code = status.HTTP_200_OK
+            return _suggestion_response(existing_suggestion)
 
     suggestion = GovernanceSuggestion(
         profile=profile,
@@ -1671,10 +1721,10 @@ def create_profile_suggestion(
         confidence=request.confidence,
         source=request.source,
         context=request.context,
-        binding_id=request.binding_id,
+        binding_id=binding_id,
         proposal_source_type=request.proposal_source_type,
         proposal_source_name=request.proposal_source_name,
-        idempotency_key=request.idempotency_key,
+        idempotency_key=idempotency_key,
         source_payload_json=request.source_payload,
         validation_summary_json=validation_summary,
         status="pending",
@@ -1687,6 +1737,26 @@ def create_profile_suggestion(
         return _suggestion_response(suggestion)
     except IntegrityError as exc:
         session.rollback()
+        try:
+            existing_suggestion = resolve_idempotent_suggestion(
+                session,
+                profile=profile,
+                idempotency_key=idempotency_key,
+                suggestion_type=request.suggestion_type,
+                canonical_value=request.canonical_value,
+                alias_value=request.alias_value,
+                slot=request.slot,
+                binding_id=binding_id,
+                proposal_source_type=request.proposal_source_type,
+            )
+        except ProposalIdempotencyConflict as conflict_exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(conflict_exc),
+            ) from conflict_exc
+        if existing_suggestion is not None:
+            response.status_code = status.HTTP_200_OK
+            return _suggestion_response(existing_suggestion)
         raise _integrity_conflict(exc) from exc
 
 

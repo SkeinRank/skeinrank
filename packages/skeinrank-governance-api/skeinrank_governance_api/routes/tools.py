@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from skeinrank_governance.models import (
     PROPOSAL_SOURCE_TYPES,
     ElasticsearchBinding,
@@ -16,6 +16,12 @@ from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
+from ..proposal_idempotency import (
+    ProposalIdempotencyConflict,
+    normalize_idempotency_key,
+    resolve_idempotent_suggestion,
+    resolve_idempotent_suggestion_from_validation_summary,
+)
 from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import binding_snapshot_status
 from ..schemas import (
@@ -79,6 +85,7 @@ def validate_alias_tool(
         profile_name=request.profile_name,
         binding_id=request.binding_id,
     )
+    idempotency_key = normalize_idempotency_key(request.idempotency_key)
     validation_summary = build_proposal_validation_summary(
         session,
         profile,
@@ -89,7 +96,7 @@ def validate_alias_tool(
         confidence=request.confidence,
         proposal_source_type=request.proposal_source_type,
         proposal_source_name=request.proposal_source_name,
-        idempotency_key=request.idempotency_key,
+        idempotency_key=idempotency_key,
         source_payload=request.source_payload,
     )
     return AgentToolValidateAliasResponse(
@@ -102,7 +109,7 @@ def validate_alias_tool(
         confidence=request.confidence,
         proposal_source_type=request.proposal_source_type,
         proposal_source_name=request.proposal_source_name,
-        idempotency_key=request.idempotency_key,
+        idempotency_key=idempotency_key,
         validation_summary=validation_summary,
     )
 
@@ -114,6 +121,7 @@ def validate_alias_tool(
 )
 def suggest_alias_tool(
     request: AgentToolSuggestAliasRequest,
+    response: Response,
     current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
@@ -127,6 +135,33 @@ def suggest_alias_tool(
         profile_name=request.profile_name,
         binding_id=request.binding_id,
     )
+    binding_id = binding.id if binding is not None else None
+    idempotency_key = normalize_idempotency_key(request.idempotency_key)
+    try:
+        existing_suggestion = resolve_idempotent_suggestion(
+            session,
+            profile=profile,
+            idempotency_key=idempotency_key,
+            suggestion_type="alias",
+            canonical_value=request.canonical_value,
+            alias_value=request.alias_value,
+            slot=request.slot,
+            binding_id=binding_id,
+            proposal_source_type=request.proposal_source_type,
+        )
+    except ProposalIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    if existing_suggestion is not None:
+        response.status_code = status.HTTP_200_OK
+        return AgentToolSuggestAliasResponse(
+            created=False,
+            suggestion=_suggestion_response(existing_suggestion),
+            validation_summary=existing_suggestion.validation_summary_json or {},
+        )
+
     validation_summary = build_proposal_validation_summary(
         session,
         profile,
@@ -137,9 +172,33 @@ def suggest_alias_tool(
         confidence=request.confidence,
         proposal_source_type=request.proposal_source_type,
         proposal_source_name=request.proposal_source_name,
-        idempotency_key=request.idempotency_key,
+        idempotency_key=idempotency_key,
         source_payload=request.source_payload,
     )
+    try:
+        existing_suggestion = resolve_idempotent_suggestion_from_validation_summary(
+            session,
+            validation_summary,
+            suggestion_type="alias",
+            canonical_value=request.canonical_value,
+            alias_value=request.alias_value,
+            slot=request.slot,
+            binding_id=binding_id,
+            proposal_source_type=request.proposal_source_type,
+        )
+    except ProposalIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    if existing_suggestion is not None:
+        response.status_code = status.HTTP_200_OK
+        return AgentToolSuggestAliasResponse(
+            created=False,
+            suggestion=_suggestion_response(existing_suggestion),
+            validation_summary=existing_suggestion.validation_summary_json or {},
+        )
+
     suggestion = GovernanceSuggestion(
         profile=profile,
         suggestion_type="alias",
@@ -150,10 +209,10 @@ def suggest_alias_tool(
         confidence=request.confidence,
         source="discovery",
         context=request.context,
-        binding_id=binding.id if binding is not None else None,
+        binding_id=binding_id,
         proposal_source_type=request.proposal_source_type,
         proposal_source_name=request.proposal_source_name,
-        idempotency_key=request.idempotency_key,
+        idempotency_key=idempotency_key,
         source_payload_json=request.source_payload,
         validation_summary_json=validation_summary,
         status="pending",
@@ -165,15 +224,39 @@ def suggest_alias_tool(
         session.refresh(suggestion)
     except IntegrityError as exc:
         session.rollback()
+        try:
+            existing_suggestion = resolve_idempotent_suggestion(
+                session,
+                profile=profile,
+                idempotency_key=idempotency_key,
+                suggestion_type="alias",
+                canonical_value=request.canonical_value,
+                alias_value=request.alias_value,
+                slot=request.slot,
+                binding_id=binding_id,
+                proposal_source_type=request.proposal_source_type,
+            )
+        except ProposalIdempotencyConflict as conflict_exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(conflict_exc),
+            ) from conflict_exc
+        if existing_suggestion is not None:
+            response.status_code = status.HTTP_200_OK
+            return AgentToolSuggestAliasResponse(
+                created=False,
+                suggestion=_suggestion_response(existing_suggestion),
+                validation_summary=existing_suggestion.validation_summary_json or {},
+            )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Could not create alias proposal.",
         ) from exc
 
-    response = _suggestion_response(suggestion)
+    suggestion_response = _suggestion_response(suggestion)
     return AgentToolSuggestAliasResponse(
         created=True,
-        suggestion=response,
+        suggestion=suggestion_response,
         validation_summary=validation_summary,
     )
 
