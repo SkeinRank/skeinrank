@@ -298,3 +298,10 @@ skeinrank_get_proposal_status
 The MCP adapter keeps the same production rule as the REST tools: an agent can
 submit a proposal, validate a candidate alias, or explain a query, but it does
 not mutate active runtime terminology directly.
+
+
+### Patch 38A: term tags
+
+Dictionary terms and governance term APIs now accept optional `tags` on canonical
+terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
+that complement the primary `slot` without changing runtime snapshot behavior.

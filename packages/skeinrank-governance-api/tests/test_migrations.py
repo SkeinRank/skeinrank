@@ -42,6 +42,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "terminology_profiles",
         "canonical_terms",
         "term_aliases",
+        "term_tags",
         "profile_snapshots",
         "audit_events",
         "governance_users",
@@ -84,6 +85,11 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "expires_at",
         "revoked_at",
     }.issubset(api_token_columns)
+
+    tag_columns = {column["name"] for column in inspector.get_columns("term_tags")}
+    assert {"term_id", "value", "normalized_value"}.issubset(tag_columns)
+    tag_indexes = {index["name"]: index for index in inspector.get_indexes("term_tags")}
+    assert "ix_term_tags_normalized_value" in tag_indexes
 
     suggestion_columns = {
         column["name"] for column in inspector.get_columns("governance_suggestions")
@@ -181,7 +187,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260523_0017"
+    assert revision == "20260523_0018"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

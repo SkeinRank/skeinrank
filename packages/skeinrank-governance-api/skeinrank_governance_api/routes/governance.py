@@ -23,6 +23,7 @@ from skeinrank_governance.cli import (
     create_profile,
     get_profile,
     get_term,
+    set_term_tags,
 )
 from skeinrank_governance.models import (
     ALIAS_STATUSES,
@@ -1245,6 +1246,7 @@ def list_profile_terms(
     )
     for term in terms:
         term.aliases.sort(key=lambda alias: alias.normalized_alias)
+        term.tags.sort(key=lambda tag: tag.normalized_value)
     return [_term_response(term) for term in terms]
 
 
@@ -1278,11 +1280,13 @@ def add_profile_term(
             slot=request.slot,
             description=request.description,
             status=request.status,
+            tags=request.tags,
             actor="api",
         )
         session.commit()
         session.refresh(term)
         term.aliases.sort(key=lambda alias: alias.normalized_alias)
+        term.tags.sort(key=lambda tag: tag.normalized_value)
         return _term_response(term)
     except GovernanceCliError as exc:
         session.rollback()
@@ -1317,6 +1321,7 @@ def get_profile_term(
     except GovernanceCliError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     term.aliases.sort(key=lambda alias: alias.normalized_alias)
+    term.tags.sort(key=lambda tag: tag.normalized_value)
     return _term_response(term)
 
 
@@ -1377,10 +1382,14 @@ def update_profile_term(
     if "description" in fields:
         term.description = request.description
 
+    if "tags" in fields:
+        set_term_tags(session, term, request.tags or [])
+
     try:
         session.commit()
         session.refresh(term)
         term.aliases.sort(key=lambda alias: alias.normalized_alias)
+        term.tags.sort(key=lambda tag: tag.normalized_value)
         return _term_response(term)
     except IntegrityError as exc:
         session.rollback()
@@ -3307,6 +3316,10 @@ def _term_response(term: CanonicalTerm) -> TermResponse:
         slot=term.slot,
         status=term.status,
         description=term.description,
+        tags=[
+            tag.value
+            for tag in sorted(term.tags, key=lambda item: item.normalized_value)
+        ],
         aliases=[_alias_response(alias) for alias in term.aliases],
         created_at=term.created_at,
         updated_at=term.updated_at,

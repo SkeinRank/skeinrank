@@ -192,9 +192,45 @@ class CanonicalTerm(TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    tags: Mapped[list[TermTag]] = relationship(
+        back_populates="term",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return f"CanonicalTerm(value={self.canonical_value!r}, slot={self.slot!r})"
+
+
+class TermTag(TimestampMixin, Base):
+    """A normalized classification tag attached to a canonical term.
+
+    Tags are facets for richer governance and later retrieval policy work. They
+    are intentionally separate from ``slot``: one term keeps one primary slot,
+    but can carry multiple tags such as ``infra``, ``backend`` or ``storage``.
+    """
+
+    __tablename__ = "term_tags"
+    __table_args__ = (
+        UniqueConstraint(
+            "term_id",
+            "normalized_value",
+            name="uq_term_tags_term_normalized_value",
+        ),
+        Index("ix_term_tags_normalized_value", "normalized_value"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    term_id: Mapped[int] = mapped_column(
+        ForeignKey("canonical_terms.id", ondelete="CASCADE"), nullable=False
+    )
+    value: Mapped[str] = mapped_column(String(128), nullable=False)
+    normalized_value: Mapped[str] = mapped_column(String(128), nullable=False)
+
+    term: Mapped[CanonicalTerm] = relationship(back_populates="tags")
+
+    def __repr__(self) -> str:
+        return f"TermTag(value={self.value!r}, term_id={self.term_id!r})"
 
 
 class TermAlias(TimestampMixin, Base):
@@ -868,6 +904,12 @@ def _fill_normalized_alias(mapper: Any, connection: Any, target: TermAlias) -> N
     target.normalized_alias = normalize_value(target.alias_value)
 
 
+def _fill_normalized_term_tag(mapper: Any, connection: Any, target: TermTag) -> None:
+    del mapper, connection
+    target.value = normalize_value(target.value)
+    target.normalized_value = normalize_value(target.value)
+
+
 def _fill_normalized_user(mapper: Any, connection: Any, target: GovernanceUser) -> None:
     del mapper, connection
     target.normalized_username = normalize_profile_name(target.username)
@@ -947,6 +989,8 @@ event.listen(CanonicalTerm, "before_insert", _fill_normalized_term)
 event.listen(CanonicalTerm, "before_update", _fill_normalized_term)
 event.listen(TermAlias, "before_insert", _fill_normalized_alias)
 event.listen(TermAlias, "before_update", _fill_normalized_alias)
+event.listen(TermTag, "before_insert", _fill_normalized_term_tag)
+event.listen(TermTag, "before_update", _fill_normalized_term_tag)
 
 event.listen(GovernanceUser, "before_insert", _fill_normalized_user)
 event.listen(GovernanceUser, "before_update", _fill_normalized_user)

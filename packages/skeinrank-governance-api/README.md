@@ -923,3 +923,10 @@ MCP tools exposed in this MVP:
 
 Agents submit proposals for review; they do not mutate active runtime
 terminology directly.
+
+
+### Patch 38A: term tags
+
+Dictionary terms and governance term APIs now accept optional `tags` on canonical
+terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
+that complement the primary `slot` without changing runtime snapshot behavior.

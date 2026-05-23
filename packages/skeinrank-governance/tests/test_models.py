@@ -17,6 +17,7 @@ from skeinrank_governance import (
     ProfileSnapshot,
     TermAlias,
     TerminologyProfile,
+    TermTag,
     create_all,
     create_governance_engine,
     create_session_factory,
@@ -41,6 +42,7 @@ def test_metadata_contains_expected_tables():
         "terminology_profiles",
         "canonical_terms",
         "term_aliases",
+        "term_tags",
         "profile_snapshots",
         "audit_events",
         "governance_users",
@@ -71,6 +73,7 @@ def test_create_governance_rows_and_normalized_values(session):
         alias_value="K8S",
         confidence=0.99,
     )
+    tag = TermTag(term=term, value="Infra")
     snapshot = ProfileSnapshot(
         profile=profile,
         version="default_it@v1",
@@ -174,6 +177,7 @@ def test_create_governance_rows_and_normalized_values(session):
             profile,
             term,
             alias,
+            tag,
             snapshot,
             suggestion,
             stop_list_entry,
@@ -193,6 +197,8 @@ def test_create_governance_rows_and_normalized_values(session):
     assert term.normalized_value == "kubernetes"
     assert term.slot == "TOOL"
     assert alias.normalized_alias == "k8s"
+    assert tag.value == "infra"
+    assert tag.normalized_value == "infra"
     assert snapshot.status == "draft"
     assert suggestion.suggestion_type == "alias"
     assert suggestion.normalized_canonical == "kubernetes"
@@ -511,6 +517,20 @@ def test_invalid_elasticsearch_enrichment_job_status_is_rejected(session):
         source_index="docs",
     )
     session.add(job)
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_term_tags_are_unique_per_term(session):
+    profile = TerminologyProfile(name="Default IT")
+    term = CanonicalTerm(profile=profile, canonical_value="PostgreSQL", slot="database")
+    session.add_all([profile, term])
+    session.flush()
+
+    session.add_all(
+        [TermTag(term=term, value="Storage"), TermTag(term=term, value=" storage ")]
+    )
 
     with pytest.raises(IntegrityError):
         session.commit()

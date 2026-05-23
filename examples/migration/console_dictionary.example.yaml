@@ -7,6 +7,9 @@ terms:
   - canonical_value: kubernetes
     slot: TOOL
     description: Container orchestration platform
+    tags:
+      - infra
+      - orchestration
     aliases:
       - k8s
       - value: kube
@@ -14,6 +17,9 @@ terms:
         notes: short form
   - canonical_value: postgresql
     slot: DATABASE
+    tags:
+      - backend
+      - storage
     aliases:
       - postgres
       - pg

@@ -43,6 +43,7 @@ def _dictionary_payload() -> dict:
                 "canonical_value": "kubernetes",
                 "slot": "TOOL",
                 "description": "Container orchestration platform",
+                "tags": ["infra", "orchestration", "infra"],
                 "aliases": [
                     "k8s",
                     {"value": "kube", "confidence": 0.95, "notes": "short form"},
@@ -51,6 +52,7 @@ def _dictionary_payload() -> dict:
             {
                 "canonical_value": "postgresql",
                 "slot": "DATABASE",
+                "tags": ["storage", "backend"],
                 "aliases": ["postgres", "pg"],
             },
         ],
@@ -119,6 +121,8 @@ def test_console_dictionary_import_and_export_round_trip(tmp_path):
     assert exported["profile_name"] == "infra_incidents"
     assert exported["profile_description"] == "Infra incident dictionary"
     exported_terms = {term["canonical_value"]: term for term in exported["terms"]}
+    assert exported_terms["kubernetes"]["tags"] == ["infra", "orchestration"]
+    assert exported_terms["postgresql"]["tags"] == ["backend", "storage"]
     assert exported_terms["kubernetes"]["aliases"] == [
         {"value": "k8s", "confidence": 1.0, "status": "active", "notes": None},
         {
@@ -153,6 +157,7 @@ def test_console_dictionary_import_updates_existing_values(tmp_path):
 
     update_payload = _dictionary_payload()
     update_payload["terms"][0]["description"] = "Updated description"
+    update_payload["terms"][0]["tags"] = ["platform", "infra", "platform"]
     update_payload["terms"][0]["aliases"] = [
         {"value": "k8s", "confidence": 0.9},
         {"value": "kubernetes cluster", "confidence": 0.8},
@@ -172,6 +177,7 @@ def test_console_dictionary_import_updates_existing_values(tmp_path):
     assert term_response.status_code == 200
     payload = term_response.json()
     assert payload["description"] == "Updated description"
+    assert payload["tags"] == ["infra", "platform"]
     aliases = {alias["alias_value"]: alias for alias in payload["aliases"]}
     assert aliases["k8s"]["confidence"] == 0.9
     assert aliases["kubernetes cluster"]["confidence"] == 0.8

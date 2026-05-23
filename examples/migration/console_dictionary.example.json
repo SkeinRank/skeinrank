@@ -16,12 +16,23 @@
           "confidence": 0.95,
           "notes": "short form"
         }
+      ],
+      "tags": [
+        "infra",
+        "orchestration"
       ]
     },
     {
       "canonical_value": "postgresql",
       "slot": "DATABASE",
-      "aliases": ["postgres", "pg"]
+      "aliases": [
+        "postgres",
+        "pg"
+      ],
+      "tags": [
+        "backend",
+        "storage"
+      ]
     }
   ],
   "profile_stop_list": [

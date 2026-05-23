@@ -14,7 +14,9 @@ from .cli import (
     export_snapshot,
     get_profile,
     list_terms,
+    normalize_tag_values,
     resolve_database_url,
+    set_term_tags,
 )
 from .db import Base, create_all, create_governance_engine, create_session_factory
 from .models import (
@@ -48,6 +50,7 @@ from .models import (
     ProfileSnapshot,
     TermAlias,
     TerminologyProfile,
+    TermTag,
     normalize_profile_name,
     normalize_value,
 )
@@ -61,7 +64,9 @@ __all__ = [
     "export_snapshot",
     "get_profile",
     "list_terms",
+    "normalize_tag_values",
     "resolve_database_url",
+    "set_term_tags",
     "ACTIVE_STATUS",
     "ALIAS_STATUSES",
     "API_TOKEN_OWNER_TYPES",
@@ -92,6 +97,7 @@ __all__ = [
     "USER_ROLES",
     "USER_STATUSES",
     "TermAlias",
+    "TermTag",
     "TerminologyProfile",
     "create_all",
     "create_governance_engine",

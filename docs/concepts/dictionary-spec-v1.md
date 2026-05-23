@@ -37,6 +37,7 @@ Unknown schema versions must not be silently accepted. The governance API report
       "canonical_value": "kubernetes",
       "slot": "technology",
       "description": "Container orchestration platform",
+      "tags": ["infra", "orchestration"],
       "aliases": [
         "k8s",
         {
@@ -72,6 +73,9 @@ terms:
   - canonical_value: kubernetes
     slot: technology
     description: Container orchestration platform
+    tags:
+      - infra
+      - orchestration
     aliases:
       - k8s
       - value: kube
@@ -90,6 +94,8 @@ global_stop_list: []
 - `mode` is currently `upsert` or `strict`.
 - `terms[].canonical_value` is the normalized target term used at runtime.
 - `terms[].slot` is the extraction/search role for the canonical term.
+- `terms[].tags` is an optional list of normalized facets such as `infra`,
+  `backend`, or `storage`. Tags do not replace the primary slot.
 - `terms[].aliases` may be strings or objects with `value`, `confidence`,
   `status`, and `notes`.
 - `profile_stop_list` applies to one profile.
@@ -120,7 +126,7 @@ validation and apply implementation.
 - `skeinrank.dictionary.v1` is the stable baseline for the current headless
   consolidation phase.
 - New optional fields may be added to v1 only when old clients can safely ignore
-  them.
+  them. `terms[].tags` is the first additive v1 field for the coverage framework.
 - Breaking field changes require a new `schema_version`.
 - Exported dictionaries include `schema_version` so CI, bots, and agents can
   detect the expected contract.

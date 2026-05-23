@@ -192,3 +192,10 @@ This patch intentionally does not add Celery/RabbitMQ yet. The API executes the
 MVP job inline and records a durable job row so a future worker implementation
 can reuse the same contract.
 
+
+
+### Patch 38A: term tags
+
+Dictionary terms and governance term APIs now accept optional `tags` on canonical
+terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
+that complement the primary `slot` without changing runtime snapshot behavior.

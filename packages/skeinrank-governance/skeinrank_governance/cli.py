@@ -28,6 +28,7 @@ from .models import (
     CanonicalTerm,
     TermAlias,
     TerminologyProfile,
+    TermTag,
     normalize_profile_name,
     normalize_value,
     utc_now,
@@ -101,6 +102,7 @@ def add_term(
     slot: str,
     description: str | None = None,
     status: str = ACTIVE_STATUS,
+    tags: Sequence[str] | None = None,
     actor: str = "cli",
 ) -> CanonicalTerm:
     """Add a canonical term to a profile."""
@@ -128,6 +130,8 @@ def add_term(
     )
     session.add(term)
     session.flush()
+    if tags is not None:
+        set_term_tags(session, term, tags)
     _add_audit_event(
         session,
         profile=profile,
@@ -140,9 +144,40 @@ def add_term(
             "slot": slot,
             "description": description,
             "status": status,
+            "tags": normalize_tag_values(tags or []),
         },
     )
     return term
+
+
+def normalize_tag_values(values: Sequence[str] | None) -> list[str]:
+    """Normalize, deduplicate and sort term tag values."""
+
+    normalized = {normalize_value(value) for value in values or [] if value.strip()}
+    return sorted(normalized)
+
+
+def set_term_tags(
+    session: Session, term: CanonicalTerm, values: Sequence[str] | None
+) -> list[TermTag]:
+    """Replace a canonical term's tags with a normalized unique set."""
+
+    desired_values = normalize_tag_values(values)
+    existing_by_value = {tag.normalized_value: tag for tag in list(term.tags)}
+    next_tags: list[TermTag] = []
+
+    for value in desired_values:
+        tag = existing_by_value.get(value)
+        if tag is None:
+            tag = TermTag(value=value)
+        else:
+            tag.value = value
+        next_tags.append(tag)
+
+    term.tags = next_tags
+    session.flush()
+    term.tags.sort(key=lambda tag: tag.normalized_value)
+    return list(term.tags)
 
 
 def get_term(
@@ -232,6 +267,7 @@ def list_terms(session: Session, profile_name: str) -> list[CanonicalTerm]:
     for term in terms:
         # Force relationship loading inside the active session for callers/tests.
         term.aliases.sort(key=lambda alias: alias.normalized_alias)
+        term.tags.sort(key=lambda tag: tag.normalized_value)
     return terms
 
 
@@ -399,6 +435,7 @@ def _run_command(session: Session, args: argparse.Namespace) -> str | None:
             slot=args.slot,
             description=args.description,
             status=args.status,
+            tags=args.tag,
             actor=args.actor,
         )
         return f"created_term={term.canonical_value} slot={term.slot}"
@@ -477,6 +514,12 @@ def _build_parser() -> argparse.ArgumentParser:
     term_add.add_argument("--slot", required=True)
     term_add.add_argument("--description", default=None)
     term_add.add_argument("--status", default=ACTIVE_STATUS)
+    term_add.add_argument(
+        "--tag",
+        action="append",
+        default=[],
+        help="Term tag/facet. Can be passed multiple times.",
+    )
 
     term_list = term_subparsers.add_parser("list", help="List profile terms.")
     term_list.add_argument("profile")
@@ -511,9 +554,13 @@ def _format_terms(profile_name: str, terms: Iterable[CanonicalTerm]) -> str:
         active_aliases = [
             alias.alias_value for alias in term.aliases if alias.status == ACTIVE_STATUS
         ]
+        tags = [
+            tag.value
+            for tag in sorted(term.tags, key=lambda item: item.normalized_value)
+        ]
         lines.append(
             f"{term.slot} {term.canonical_value} "
-            f"status={term.status} aliases={active_aliases}"
+            f"status={term.status} tags={tags} aliases={active_aliases}"
         )
     return "\n".join(lines)
 
@@ -524,6 +571,10 @@ def _terms_payload(terms: Iterable[CanonicalTerm]) -> list[dict[str, Any]]:
             "canonical": term.canonical_value,
             "slot": term.slot,
             "status": term.status,
+            "tags": [
+                tag.value
+                for tag in sorted(term.tags, key=lambda item: item.normalized_value)
+            ],
             "aliases": [
                 {
                     "value": alias.alias_value,

@@ -208,3 +208,12 @@ model and does not bypass validation, idempotency, role checks, or batch publish
 logic. Agents can call tools such as `skeinrank_validate_alias` and
 `skeinrank_submit_alias_proposal`, while SkeinRank remains the policy boundary
 that validates, stores, reviews, and snapshots terminology changes.
+
+
+## Coverage framework: term tags
+
+Patch 38A introduces term tags as normalized facets on canonical terms. A term
+still has one primary `slot`, while `tags` provide additional classification
+for later conflict analysis, policies, and retrieval evaluation. Tags are stored
+in governance state and exported through dictionary APIs, but runtime snapshot
+resolution remains unchanged until the dedicated tags-in-runtime step.

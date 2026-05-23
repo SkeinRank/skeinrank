@@ -258,6 +258,7 @@ class TermCreateRequest(BaseModel):
     slot: str = Field(..., min_length=1, max_length=64)
     description: str | None = None
     status: str = "active"
+    tags: list[str] = Field(default_factory=list)
 
 
 class TermUpdateRequest(BaseModel):
@@ -267,6 +268,7 @@ class TermUpdateRequest(BaseModel):
     slot: str | None = Field(default=None, min_length=1, max_length=64)
     description: str | None = None
     status: str | None = None
+    tags: list[str] | None = None
 
 
 class AliasCreateRequest(BaseModel):
@@ -309,6 +311,7 @@ class TermResponse(BaseModel):
     slot: str
     status: str
     description: str | None = None
+    tags: list[str] = Field(default_factory=list)
     aliases: list[AliasResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -1084,6 +1087,7 @@ class ConsoleDictionaryTermInput(BaseModel):
     slot: str = Field(..., min_length=1, max_length=64)
     description: str | None = None
     status: str = "active"
+    tags: list[str] = Field(default_factory=list)
     aliases: list[str | ConsoleDictionaryAliasInput] = Field(default_factory=list)
 
 

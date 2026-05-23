@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from skeinrank_governance import set_term_tags
 from skeinrank_governance.models import (
     ALIAS_STATUSES,
     STOP_LIST_TARGETS,
@@ -63,6 +64,7 @@ class NormalizedTermInput:
     slot: str
     description: str | None
     status: str
+    tags: list[str]
     aliases: list[NormalizedAliasInput]
     path: str
 
@@ -182,6 +184,10 @@ def export_console_dictionary(
                 slot=term.slot,
                 description=term.description,
                 status=term.status,
+                tags=[
+                    tag.value
+                    for tag in sorted(term.tags, key=lambda item: item.normalized_value)
+                ],
                 aliases=[
                     ConsoleDictionaryAliasInput(
                         value=alias.alias_value,
@@ -371,6 +377,8 @@ def _apply_console_dictionary(
             term.status = term_input.status
             summary.updated_terms += 1
 
+        set_term_tags(session, term, term_input.tags)
+
         for alias_input in term_input.aliases:
             alias = session.scalar(
                 select(TermAlias).where(
@@ -480,6 +488,10 @@ def _apply_console_dictionary(
     )
 
 
+def _normalize_tag_values(values: list[str]) -> list[str]:
+    return sorted({normalize_value(value) for value in values if value.strip()})
+
+
 def _normalize_terms(
     items: list[ConsoleDictionaryTermInput],
 ) -> list[NormalizedTermInput]:
@@ -501,6 +513,7 @@ def _normalize_terms(
                 slot=item.slot.strip().upper(),
                 description=item.description,
                 status=item.status.strip().lower(),
+                tags=_normalize_tag_values(item.tags),
                 aliases=aliases,
                 path=f"terms[{index}]",
             )
