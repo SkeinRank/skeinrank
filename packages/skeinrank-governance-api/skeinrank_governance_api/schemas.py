@@ -681,6 +681,96 @@ class SuggestionResponse(BaseModel):
     updated_at: datetime
 
 
+class AgentToolBindingContextResponse(BaseModel):
+    """Binding context exposed to agents and automation tools."""
+
+    id: int
+    name: str
+    profile_name: str
+    normalized_profile_name: str
+    provider: str
+    index_name: str
+    text_fields: list[str]
+    target_field: str
+    filter_field: str | None = None
+    filter_value: str | None = None
+    timestamp_field: str | None = None
+    time_window_days: int | None = None
+    is_enabled: bool
+    snapshot_version: str | None = None
+    snapshot_status: str = "uninitialized"
+
+
+class AgentToolValidateAliasRequest(BaseModel):
+    """Agent/tool request for validating an alias proposal without saving it."""
+
+    profile_name: str | None = Field(default=None, min_length=1, max_length=128)
+    binding_id: int | None = Field(default=None, ge=1)
+    canonical_value: str = Field(..., min_length=1, max_length=256)
+    alias_value: str = Field(..., min_length=1, max_length=256)
+    slot: str = Field(..., min_length=1, max_length=64)
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    proposal_source_type: str = Field(default="agent", max_length=32)
+    proposal_source_name: str | None = Field(default=None, max_length=128)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+    source_payload: dict[str, Any] | None = None
+
+
+class AgentToolValidateAliasResponse(BaseModel):
+    """Validation result for an agent/tool alias proposal."""
+
+    profile_name: str
+    normalized_profile_name: str
+    binding_id: int | None = None
+    canonical_value: str
+    alias_value: str
+    slot: str
+    confidence: float
+    proposal_source_type: str
+    proposal_source_name: str | None = None
+    idempotency_key: str | None = None
+    validation_summary: dict[str, Any]
+
+
+class AgentToolSuggestAliasRequest(BaseModel):
+    """Agent/tool request for creating an alias proposal for review."""
+
+    profile_name: str | None = Field(default=None, min_length=1, max_length=128)
+    binding_id: int | None = Field(default=None, ge=1)
+    canonical_value: str = Field(..., min_length=1, max_length=256)
+    alias_value: str = Field(..., min_length=1, max_length=256)
+    slot: str = Field(..., min_length=1, max_length=64)
+    description: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    context: str | None = None
+    proposal_source_type: str = Field(default="agent", max_length=32)
+    proposal_source_name: str | None = Field(default=None, max_length=128)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+    source_payload: dict[str, Any] | None = None
+
+
+class AgentToolSuggestAliasResponse(BaseModel):
+    """Created alias proposal response for tools."""
+
+    created: bool = True
+    suggestion: SuggestionResponse
+    validation_summary: dict[str, Any]
+
+
+class AgentToolExplainQueryRequest(BaseModel):
+    """Agent/tool request for explaining runtime query canonicalization."""
+
+    profile_name: str | None = Field(default=None, min_length=1, max_length=128)
+    binding_id: int | None = Field(default=None, ge=1)
+    query: str = Field(..., min_length=1, max_length=2000)
+    text_fields: list[str] | None = Field(default=None, min_length=1)
+    target_field: str | None = Field(default=None, min_length=1, max_length=256)
+    size: int = Field(default=10, ge=1, le=100)
+    canonical_boost: float = Field(default=3.0, ge=0.0, le=100.0)
+    include_evidence: bool = True
+    max_matches: int = Field(default=100, ge=1, le=1000)
+
+
 class SnapshotExportRequest(BaseModel):
     """Request body for building a runtime snapshot from a profile."""
 

@@ -155,6 +155,20 @@ collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints,
 and agent audit payloads. These records remain pending until a moderator/admin
 reviews them, so LLMs and agents do not mutate runtime terminology directly.
 
+Patch 37C adds a small REST tool facade for agents and service integrations that
+need stable, task-shaped calls without learning the full console API surface:
+
+```text
+GET  /v1/tools/bindings
+POST /v1/tools/validate-alias
+POST /v1/tools/suggest-alias
+POST /v1/tools/explain-query
+```
+
+The tools reuse the same proposal validation registry and runtime query planner.
+They create pending suggestions only through `suggest-alias`; validation and
+query explanation are read-only.
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.

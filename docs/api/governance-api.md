@@ -144,6 +144,24 @@ The request references an Elasticsearch binding for the same profile. If `query`
 
 Suggestions also support proposal metadata for headless/agent workflows. Existing manual requests remain valid, and automation can optionally provide `binding_id`, `proposal_source_type`, `proposal_source_name`, `idempotency_key`, `source_payload`, and `validation_summary`. The binding must belong to the same profile as the suggestion. If `validation_summary` is omitted, the API runs the proposal checker registry and stores structured results covering canonical availability, alias collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints, and agent audit payloads.
 
+### Agent-friendly proposal tools
+
+Patch 37C adds task-shaped routes for agents, CLI jobs, and service
+integrations. They are a facade over existing governance/runtime logic, not a
+second proposal model:
+
+```text
+GET  /v1/tools/bindings
+POST /v1/tools/validate-alias
+POST /v1/tools/suggest-alias
+POST /v1/tools/explain-query
+```
+
+`validate-alias` runs the proposal checker registry without creating a
+suggestion. `suggest-alias` creates a pending suggestion with
+`proposal_source_type=agent` by default. `explain-query` reuses the runtime query
+planner so agents can inspect canonicalization before proposing changes.
+
 Saved evidence includes binding metadata, query metadata, warnings, and highlighted snippets.
 
 ## Elasticsearch discovery and bindings
