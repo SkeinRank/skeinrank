@@ -951,4 +951,4 @@ review state. Admins and moderators can update review state through
 
 ### Ambiguous alias candidates
 
-The API exposes profile-scoped ambiguous alias candidate endpoints for coverage review. They let reviewers record surfaces like `pg` with multiple candidate canonicals while keeping runtime snapshots unchanged until binding policy resolution is added.
+The API exposes profile-scoped ambiguous alias candidate endpoints for coverage review. They let reviewers record surfaces like `pg` with multiple candidate canonicals while keeping runtime snapshots unchanged until binding policy resolution is added. Patch 38F also links conflicting proposals to this model: when a new alias proposal disagrees with an active alias or another pending proposal, SkeinRank upserts ambiguous alias candidates automatically and leaves the proposal pending for review.

@@ -345,3 +345,5 @@ Phase C adds reviewer-facing ambiguous alias endpoints:
 - `PATCH /v1/governance/profiles/{profile_name}/ambiguous-aliases/{surface_value}`
 
 Ambiguous aliases record possible canonical interpretations for one surface form without changing active runtime behavior. BindingPolicy resolution is intentionally left for a later phase.
+
+Patch 38F connects this coverage layer to the proposal pipeline: when an alias proposal conflicts with an active alias or with another pending proposal for the same surface, SkeinRank creates or updates the corresponding ambiguous alias candidates. This keeps the proposal accepted for review, records the competing interpretations, and still avoids direct runtime mutation.

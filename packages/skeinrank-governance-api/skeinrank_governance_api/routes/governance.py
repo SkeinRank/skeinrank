@@ -59,6 +59,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..ambiguous_proposals import sync_ambiguous_alias_candidates_for_suggestion
 from ..auth import AuthContext, require_roles
 from ..conflict_detection import (
     build_conflict_report,
@@ -2074,8 +2075,12 @@ def create_profile_suggestion(
         status="pending",
         created_by=current_user.username,
     )
-    session.add(suggestion)
     try:
+        session.add(suggestion)
+        session.flush()
+        sync_ambiguous_alias_candidates_for_suggestion(
+            session, suggestion, actor=current_user.username
+        )
         session.commit()
         session.refresh(suggestion)
         record_proposal_submission(

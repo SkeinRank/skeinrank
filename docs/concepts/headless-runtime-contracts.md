@@ -235,3 +235,5 @@ before later ambiguous-alias and binding-policy layers.
 ### Ambiguous aliases
 
 An ambiguous alias is a governance record for a surface form that can safely mean different canonical terms in different runtime contexts. It stores candidates and review state, but it does not change production canonicalization until a later binding policy resolver uses it.
+
+Patch 38F connects ambiguous aliases to proposals. A conflicting alias proposal is still stored as a pending proposal, but SkeinRank now also records candidate interpretations on the matching ambiguous alias surface. Active aliases become `active_alias` candidates, while proposal interpretations become `suggestion` candidates. This turns agent ambiguity into an auditable review object instead of silently rejecting or applying the proposal.
