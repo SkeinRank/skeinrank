@@ -344,13 +344,13 @@ Phase C adds reviewer-facing ambiguous alias endpoints:
 - `GET /v1/governance/profiles/{profile_name}/ambiguous-aliases/{surface_value}`
 - `PATCH /v1/governance/profiles/{profile_name}/ambiguous-aliases/{surface_value}`
 
-Ambiguous aliases record possible canonical interpretations for one surface form without changing active runtime behavior. BindingPolicy resolution is intentionally left for a later phase.
+Ambiguous aliases record possible canonical interpretations for one surface form without changing active runtime behavior. Patch 38H adds runtime BindingPolicy resolution for binding-scoped canonicalization and query planning.
 
 Patch 38F connects this coverage layer to the proposal pipeline: when an alias proposal conflicts with an active alias or with another pending proposal for the same surface, SkeinRank creates or updates the corresponding ambiguous alias candidates. This keeps the proposal accepted for review, records the competing interpretations, and still avoids direct runtime mutation.
 
 ### Binding policy API
 
-Patch 38G adds binding-scoped policy metadata for future ambiguous alias resolution.
+Patch 38G adds binding-scoped policy metadata and Patch 38H uses it during runtime resolution.
 
 ```http
 GET /v1/governance/elasticsearch/bindings/{binding_id}/policy
@@ -358,4 +358,9 @@ PUT /v1/governance/elasticsearch/bindings/{binding_id}/policy
 DELETE /v1/governance/elasticsearch/bindings/{binding_id}/policy
 ```
 
-A policy can define `preferred_slots`, `allowed_tags`, `deny_slots`, and `context_rules`. These fields are normalized on write. The API stores policy metadata only; it does not mutate terms, aliases, ambiguous candidates, or runtime snapshots.
+A policy can define `preferred_slots`, `allowed_tags`, `deny_slots`, and `context_rules`. These fields are normalized on write. The API stores policy metadata separately. Runtime endpoints can use the active policy to select safe candidates, but the policy still does not mutate terms, aliases, ambiguous candidates, or snapshots.
+
+
+### Runtime policy decision output
+
+When `/v1/text/canonicalize`, `/v1/query/plan`, `/v1/search`, or `/v1/search/multi` runs with a `binding_id`, SkeinRank applies the active binding policy if one exists. The response may include `policy_decisions`, each containing the matched surface, selected canonical, selected slot, reason, and candidate summaries.

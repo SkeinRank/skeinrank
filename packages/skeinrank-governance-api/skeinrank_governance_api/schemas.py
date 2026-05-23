@@ -1086,6 +1086,7 @@ class TextCanonicalizeResponse(BaseModel):
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -1122,6 +1123,7 @@ class QueryPlanResponse(BaseModel):
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
     elasticsearch: dict[str, Any]
     warnings: list[str] = Field(default_factory=list)
 
@@ -1171,6 +1173,7 @@ class SearchResponse(BaseModel):
     matched_aliases: list[str] = Field(default_factory=list)
     replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
     evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
     elasticsearch: dict[str, Any]
     total: dict[str, Any] | int | None = None
     hits: list[SearchHitResponse] = Field(default_factory=list)
@@ -1216,6 +1219,7 @@ class MultiSearchBindingResponse(BaseModel):
     slots: dict[str, list[str]] = Field(default_factory=dict)
     tags: dict[str, list[str]] = Field(default_factory=dict)
     matched_aliases: list[str] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
     total: dict[str, Any] | int | None = None
     hits_count: int = 0
     warnings: list[str] = Field(default_factory=list)

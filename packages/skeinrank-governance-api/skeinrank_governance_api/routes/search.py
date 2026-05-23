@@ -33,6 +33,7 @@ from ..schemas import (
 from .text import (
     _find_alias_matches,
     _match_response,
+    _policy_decisions_for_matches,
     _replace_matches,
     _resolve_runtime_alias_context,
     _select_non_overlapping_matches,
@@ -185,6 +186,7 @@ def search_documents(
                 matched_aliases=plan["matched_aliases"],
                 replacements=plan["replacements"],
                 evidence=plan["evidence"],
+                policy_decisions=plan["policy_decisions"],
                 elasticsearch=search_body,
                 total=total,
                 hits=hits,
@@ -282,6 +284,7 @@ def search_multiple_bindings(
                     slots=plan["slots"],
                     tags=plan["tags"],
                     matched_aliases=plan["matched_aliases"],
+                    policy_decisions=plan["policy_decisions"],
                     total=total,
                     hits_count=len(hits),
                     warnings=plan["warnings"],
@@ -383,7 +386,7 @@ def _build_runtime_plan(
     evidence = (
         [
             TextCanonicalizeEvidence(
-                reason="Alias matched active canonical term",
+                reason=match.reason,
                 alias_value=match.alias_value,
                 canonical_value=match.canonical_value,
                 slot=match.slot,
@@ -392,7 +395,7 @@ def _build_runtime_plan(
                 start=match.start,
                 end=match.end,
                 confidence=match.confidence,
-                source="alias",
+                source=match.source,
             )
             for match in matches
         ]
@@ -433,6 +436,9 @@ def _build_runtime_plan(
         "matched_aliases": matched_aliases,
         "replacements": replacements,
         "evidence": evidence,
+        "policy_decisions": _policy_decisions_for_matches(
+            context.policy_decisions, matches
+        ),
         "elasticsearch": _build_elasticsearch_query(
             query_text=query_text,
             canonical_values=canonical_values,

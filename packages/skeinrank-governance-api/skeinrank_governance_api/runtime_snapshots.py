@@ -206,17 +206,25 @@ def runtime_snapshot_artifact_summary(
         "text_fields": loaded.binding.get("text_fields") or [],
         "target_field": loaded.binding.get("target_field"),
         "index_name": loaded.binding.get("index_name"),
+        "binding_policy_status": (loaded.artifact.get("binding_policy") or {}).get(
+            "status"
+        )
+        if isinstance(loaded.artifact.get("binding_policy"), dict)
+        else None,
     }
 
 
 def _runtime_snapshot_artifact_core(payload: dict[str, Any]) -> dict[str, Any]:
-    return {
+    core = {
         "schema_version": payload.get("schema_version"),
         "artifact_type": payload.get("artifact_type"),
         "binding": payload.get("binding"),
         "profile": payload.get("profile"),
         "runtime_snapshot": payload.get("runtime_snapshot"),
     }
+    if "binding_policy" in payload:
+        core["binding_policy"] = payload.get("binding_policy")
+    return core
 
 
 def build_runtime_snapshot_artifact(
@@ -263,6 +271,7 @@ def build_runtime_snapshot_artifact(
         "artifact_type": "runtime_snapshot",
         "binding": _binding_artifact_payload(binding),
         "profile": _profile_artifact_payload(binding.profile),
+        "binding_policy": _binding_policy_artifact_payload(binding),
         "runtime_snapshot": runtime_snapshot,
     }
     checksum = _snapshot_checksum(artifact_core)
@@ -297,6 +306,22 @@ def _binding_artifact_payload(binding: ElasticsearchBinding) -> dict[str, Any]:
         "is_enabled": binding.is_enabled,
         "last_successful_snapshot_version": binding.last_successful_snapshot_version,
         "pending_snapshot_version": binding.pending_snapshot_version,
+    }
+
+
+def _binding_policy_artifact_payload(
+    binding: ElasticsearchBinding,
+) -> dict[str, Any] | None:
+    policy = getattr(binding, "policy", None)
+    if policy is None:
+        return None
+    return {
+        "id": policy.id,
+        "status": policy.status,
+        "preferred_slots": list(policy.preferred_slots or []),
+        "allowed_tags": list(policy.allowed_tags or []),
+        "deny_slots": list(policy.deny_slots or []),
+        "context_rules": list(policy.context_rules or []),
     }
 
 

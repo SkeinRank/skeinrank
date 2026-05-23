@@ -955,4 +955,9 @@ The API exposes profile-scoped ambiguous alias candidate endpoints for coverage 
 
 ### Binding policies
 
-The governance API exposes binding-scoped policy metadata under `/v1/governance/elasticsearch/bindings/{binding_id}/policy`. Policies are optional and are used to describe how a binding should later resolve ambiguous candidates. They currently store `preferred_slots`, `allowed_tags`, `deny_slots`, and `context_rules` without changing runtime snapshots.
+The governance API exposes binding-scoped policy metadata under `/v1/governance/elasticsearch/bindings/{binding_id}/policy`. Policies are optional and are used to describe how a binding should later resolve ambiguous candidates. They store `preferred_slots`, `allowed_tags`, `deny_slots`, and `context_rules`. Runtime canonicalization/query planning now applies an active policy when `binding_id` is provided, exposing `policy_decisions` in debug output.
+
+
+### Runtime binding policy resolver
+
+Patch 38H connects binding policies to runtime endpoints. When a request uses `binding_id`, the runtime resolver can deny noisy slots, require allowed tags, and select ambiguous candidates by context rule or preferred slot. Responses include `policy_decisions` for audit/debug and keep the write model unchanged.
