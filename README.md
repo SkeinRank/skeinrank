@@ -344,3 +344,21 @@ can explain both the primary slot and richer term facets.
 ### Binding policies
 
 Phase C adds binding policies as the bridge between ambiguous alias candidates and future runtime resolution. A policy belongs to a binding and can record preferred slots, allowed tags, denied slots, and context-specific rules such as `pg -> postgresql` for an infra binding.
+
+### Patch 38I: snapshot before/after evaluation
+
+Runtime snapshot artifacts can be compared before publishing a new terminology
+release. The evaluator reports alias additions/removals/changes, tag drift, and
+optional sample-query canonicalization diffs:
+
+```bash
+skeinrank-migrate snapshot-eval \
+  --before snapshots/platform_ops.before.json \
+  --after snapshots/platform_ops.after.json \
+  --queries examples/evaluation/queries.jsonl \
+  --output snapshot-evaluation.json
+```
+
+This is an offline guardrail for the coverage framework: teams can see whether a
+new snapshot expands recall safely or changes query plans in risky ways before
+promoting it to runtime.

@@ -361,7 +361,92 @@ def test_migration_tool_snapshot_inspect_command_summarizes_local_artifact(
         "runtime_checksum": "runtime-checksum",
         "snapshot_source": "latest_profile",
         "alias_entries_total": 1,
+        "tags_total": 0,
+        "tags": [],
         "text_fields": ["title", "body"],
         "target_field": "skeinrank",
         "index_name": "platform_kb",
+        "binding_policy_status": None,
     }
+
+
+def test_migration_tool_snapshot_eval_command_writes_report(tmp_path):
+    before = {
+        "schema_version": "skeinrank.runtime_snapshot_artifact.v1",
+        "artifact_type": "runtime_snapshot",
+        "binding": {"id": 7, "name": "platform", "index_name": "docs"},
+        "profile": {"id": 3, "name": "platform_ops"},
+        "runtime_snapshot": {
+            "version": "before",
+            "checksum": "runtime-before",
+            "alias_entries": [
+                {
+                    "alias_value": "pg",
+                    "normalized_alias": "pg",
+                    "canonical_value": "page",
+                    "normalized_canonical": "page",
+                    "slot": "DOCUMENT_COMPONENT",
+                    "confidence": 1.0,
+                }
+            ],
+        },
+    }
+    before["manifest"] = {
+        "checksum": runtime_snapshot_artifact_checksum(before),
+        "runtime_checksum": "runtime-before",
+        "snapshot_source": "latest_profile",
+        "snapshot_version": "before",
+        "alias_entries_total": 1,
+    }
+    after = {
+        "schema_version": "skeinrank.runtime_snapshot_artifact.v1",
+        "artifact_type": "runtime_snapshot",
+        "binding": {"id": 7, "name": "platform", "index_name": "docs"},
+        "profile": {"id": 3, "name": "platform_ops"},
+        "runtime_snapshot": {
+            "version": "after",
+            "checksum": "runtime-after",
+            "alias_entries": [
+                {
+                    "alias_value": "pg",
+                    "normalized_alias": "pg",
+                    "canonical_value": "postgresql",
+                    "normalized_canonical": "postgresql",
+                    "slot": "DATABASE",
+                    "confidence": 1.0,
+                    "tags": ["backend"],
+                }
+            ],
+        },
+    }
+    after["manifest"] = {
+        "checksum": runtime_snapshot_artifact_checksum(after),
+        "runtime_checksum": "runtime-after",
+        "snapshot_source": "latest_profile",
+        "snapshot_version": "after",
+        "alias_entries_total": 1,
+    }
+    before_path = tmp_path / "before.json"
+    after_path = tmp_path / "after.json"
+    output_path = tmp_path / "eval.json"
+    before_path.write_text(json.dumps(before), encoding="utf-8")
+    after_path.write_text(json.dumps(after), encoding="utf-8")
+
+    exit_code = main(
+        [
+            "snapshot-eval",
+            "--before",
+            str(before_path),
+            "--after",
+            str(after_path),
+            "--output",
+            str(output_path),
+            "--compact",
+        ]
+    )
+
+    assert exit_code == 0
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert report["schema_version"] == "skeinrank.snapshot_evaluation.v1"
+    assert report["aliases"]["changed_total"] == 1
+    assert report["queries"]["total"] == 0

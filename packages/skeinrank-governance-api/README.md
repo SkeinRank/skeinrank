@@ -961,3 +961,20 @@ The governance API exposes binding-scoped policy metadata under `/v1/governance/
 ### Runtime binding policy resolver
 
 Patch 38H connects binding policies to runtime endpoints. When a request uses `binding_id`, the runtime resolver can deny noisy slots, require allowed tags, and select ambiguous candidates by context rule or preferred slot. Responses include `policy_decisions` for audit/debug and keep the write model unchanged.
+
+## Snapshot before/after evaluation
+
+Use `snapshot-eval` to compare two local runtime snapshot artifacts before a
+release:
+
+```bash
+poetry run skeinrank-migrate snapshot-eval \
+  --before before.json \
+  --after after.json \
+  --queries queries.jsonl \
+  --output eval-report.json
+```
+
+The command is offline and read-only. It validates both artifacts, compares their
+alias/tag coverage, and can show which sample queries would produce a different
+canonicalization plan.

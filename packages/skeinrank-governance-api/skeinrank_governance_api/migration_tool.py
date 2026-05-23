@@ -18,6 +18,7 @@ from .runtime_snapshots import (
     RuntimeSnapshotArtifactCache,
     runtime_snapshot_artifact_summary,
 )
+from .snapshot_evaluation import evaluate_runtime_snapshot_artifacts
 
 DEFAULT_API_URL = "http://127.0.0.1:8010"
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -201,6 +202,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = runtime_snapshot_artifact_summary(loaded)
             _write_json(result, args.output, pretty=not args.compact)
             return 0
+        if args.command == "snapshot-eval":
+            result = evaluate_runtime_snapshot_artifacts(
+                before_path=args.before,
+                after_path=args.after,
+                queries_path=args.queries,
+            )
+            _write_json(result, args.output, pretty=not args.compact)
+            return 0
     except (OSError, ValueError, MigrationToolError) as exc:
         print(f"skeinrank-migrate: {exc}", file=sys.stderr)
         return 1
@@ -325,6 +334,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     snapshot_inspect_parser.add_argument(
         "-o", "--output", help="Write summary JSON to a file."
+    )
+
+    snapshot_eval_parser = subparsers.add_parser(
+        "snapshot-eval",
+        help="Compare two runtime snapshot artifacts and optional query plans.",
+    )
+    _add_subcommand_compact_option(snapshot_eval_parser)
+    snapshot_eval_parser.add_argument(
+        "--before", required=True, help="Baseline runtime snapshot artifact JSON."
+    )
+    snapshot_eval_parser.add_argument(
+        "--after", required=True, help="Candidate runtime snapshot artifact JSON."
+    )
+    snapshot_eval_parser.add_argument(
+        "--queries",
+        default=None,
+        help="Optional JSON/JSONL query set for canonicalization diffing.",
+    )
+    snapshot_eval_parser.add_argument(
+        "-o", "--output", help="Write evaluation report JSON to a file."
     )
     return parser
 

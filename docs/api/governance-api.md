@@ -364,3 +364,24 @@ A policy can define `preferred_slots`, `allowed_tags`, `deny_slots`, and `contex
 ### Runtime policy decision output
 
 When `/v1/text/canonicalize`, `/v1/query/plan`, `/v1/search`, or `/v1/search/multi` runs with a `binding_id`, SkeinRank applies the active binding policy if one exists. The response may include `policy_decisions`, each containing the matched surface, selected canonical, selected slot, reason, and candidate summaries.
+
+## Snapshot before/after evaluation
+
+Patch 38I adds an offline CLI evaluator for runtime snapshot artifacts. It does
+not mutate PostgreSQL, active terminology, bindings, or runtime snapshots.
+
+```bash
+skeinrank-migrate snapshot-eval \
+  --before snapshots/platform_ops.binding-7.v1.json \
+  --after snapshots/platform_ops.binding-7.v2.json \
+  --queries queries.jsonl \
+  --output eval-report.json
+```
+
+Supported query files are JSON arrays of strings/objects or JSONL with one
+string/object per line. Object items may include `query` and optional `id` or
+`query_id`.
+
+The report uses `schema_version: skeinrank.snapshot_evaluation.v1` and includes
+alias diff totals, tag diff totals, optional query-plan changes, and a compact
+risk summary.

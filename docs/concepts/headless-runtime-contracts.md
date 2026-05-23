@@ -253,3 +253,25 @@ This keeps the governance model explicit: ambiguous candidates are reviewed sepa
 ### Runtime policy resolver
 
 Patch 38H applies active binding policies during binding-scoped runtime canonicalization and query planning. The resolver keeps active aliases as the default source, adds reviewed ambiguous candidates for the same surface, applies hard constraints (`deny_slots`, `allowed_tags`), and then selects a candidate through `context_rules`, preferred candidate status, or `preferred_slots`. Responses expose `policy_decisions` so reviewers can see why a surface such as `pg` resolved to `postgresql` in one binding and can remain unresolved or different in another.
+
+## Snapshot evaluation contract
+
+Patch 38I introduces an offline before/after evaluation report for runtime
+snapshot artifacts. It compares two immutable artifacts and optionally applies a
+sample query set to both alias maps.
+
+```text
+snapshot artifact v1 -> evaluator -> snapshot evaluation v1
+```
+
+The evaluator is intentionally read-only. It is suitable for CI/CD and GitOps
+release gates where a team wants to inspect terminology drift before promoting a
+new artifact. It highlights:
+
+- added, removed, and changed aliases;
+- added or removed runtime tags;
+- sample queries whose canonicalized form changed;
+- risk notes for removed aliases, changed mappings, and query-plan changes.
+
+Agents and humans can use this report to decide whether a proposal batch should
+be published, rolled back, or sent for additional review.
