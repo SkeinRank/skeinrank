@@ -107,3 +107,19 @@ The current project already exposes core pieces of this contract:
 | Metrics | `/metrics` |
 
 Future headless facade endpoints should reuse the same concepts instead of creating a second terminology model.
+
+
+## Dictionary API facade
+
+Headless integrations should use the automation-first dictionary facade:
+
+```text
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=...
+```
+
+This facade intentionally reuses the same dictionary spec v1 contract as the
+console migration endpoints. The route names describe the product contract rather
+than the current UI implementation: dictionaries can be validated, applied, and
+exported without opening the governance console.

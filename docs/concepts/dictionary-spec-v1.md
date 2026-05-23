@@ -95,6 +95,26 @@ global_stop_list: []
 - `profile_stop_list` applies to one profile.
 - `global_stop_list` applies across profiles.
 
+
+## API surfaces
+
+The dictionary spec is served through two API surfaces:
+
+```text
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=...
+
+POST /v1/console/dictionary/validate
+POST /v1/console/dictionary/import
+GET  /v1/console/dictionary/export?profile_name=...
+```
+
+Use `/v1/headless/dictionaries/*` for CI/CD, service integrations, and agent
+workflows. The `/v1/console/dictionary/*` routes remain as a compatibility layer
+for the governance console and older scripts. Both surfaces use the same
+validation and apply implementation.
+
 ## Compatibility policy
 
 - `skeinrank.dictionary.v1` is the stable baseline for the current headless

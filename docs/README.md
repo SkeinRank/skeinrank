@@ -22,3 +22,17 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/security.md`](deployment/security.md) — production-oriented security baseline.
 - [`deployment/observability.md`](deployment/observability.md) — logs, metrics, tracing, Prometheus, and Grafana.
 - [`deployment/dev-stack-troubleshooting.md`](deployment/dev-stack-troubleshooting.md) — common local stack issues.
+
+
+## Headless dictionary facade
+
+Automation-first integrations should prefer the headless dictionary routes:
+
+```text
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=...
+```
+
+They share the same dictionary spec v1 payload as the console migration routes,
+but are named for CI/CD, agents, and service-to-service workflows.

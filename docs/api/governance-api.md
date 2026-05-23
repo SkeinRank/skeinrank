@@ -34,9 +34,32 @@ GET /metrics
 
 `/readyz` reports database and configured Elasticsearch readiness. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration.
 
+## Headless dictionary workflows
+
+These endpoints are the automation-first facade for CI jobs, agents, and service
+integrations. They use the same stable dictionary spec v1 payload as the console
+migration flow, but avoid naming the API after a UI surface.
+
+```text
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=...
+```
+
+Recommended use:
+
+```text
+validate -> apply -> export -> create/publish runtime snapshot
+```
+
+`validate` never writes to the database. `apply` validates first and then writes
+profile, term, alias, and stop-list changes in one transaction. `export` returns
+the current profile dictionary with `schema_version`.
+
 ## Console dictionary workflows
 
-These endpoints support migration-friendly dictionary workflows for users, notebooks, scripts, CI jobs, and bot integrations.
+The console endpoints remain available for the existing governance UI and legacy
+scripts. New headless integrations should prefer `/v1/headless/dictionaries/*`.
 
 ```text
 POST /v1/console/dictionary/validate
@@ -44,7 +67,13 @@ POST /v1/console/dictionary/import
 GET  /v1/console/dictionary/export?profile_name=...
 ```
 
-The expected dictionary shape is `skeinrank.dictionary.v1` and is compatible with the lightweight SDK/CLI examples in `examples/migration/console_dictionary.example.json`. New payloads should include `schema_version`; legacy payloads without it are accepted as v1 for backward compatibility. HTTP requests and responses remain JSON; CLI validate/apply accepts YAML files as a human-editable convenience when PyYAML is available.
+Both surfaces share the same implementation and response shapes. The expected
+dictionary shape is `skeinrank.dictionary.v1` and is compatible with the
+lightweight SDK/CLI examples in `examples/migration/console_dictionary.example.json`.
+New payloads should include `schema_version`; legacy payloads without it are
+accepted as v1 for backward compatibility. HTTP requests and responses remain JSON;
+CLI validate/apply accepts YAML files as a human-editable convenience when PyYAML
+is available.
 
 ## Profiles, terms, aliases, and guardrails
 

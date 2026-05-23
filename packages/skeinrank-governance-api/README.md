@@ -786,3 +786,17 @@ The rollback endpoint is conservative: it only works for succeeded
 candidate, and a current alias state that still matches the expected
 post-rollout indices. Successful rollback writes `result_json.rollout.rollback`
 and marks the rollout status as `rolled_back`.
+
+
+### Headless dictionary facade
+
+Use the headless facade for CI/CD, agents, and service integrations:
+
+```text
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=...
+```
+
+The legacy console migration routes remain available and use the same
+implementation. New automation should prefer `/v1/headless/dictionaries/*`.

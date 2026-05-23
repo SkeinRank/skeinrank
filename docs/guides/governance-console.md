@@ -88,17 +88,32 @@ The UI currently covers:
 
 ## Dictionary migration API
 
-The console API supports migration-friendly dictionary workflows for notebooks, scripts, CI jobs, and bot integrations.
+The automation-first dictionary facade supports notebooks, scripts, CI jobs, and
+bot integrations without naming the route after the governance console.
 
-Important endpoints:
+Recommended endpoints for new integrations:
+
+```text
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=...
+```
+
+Console-compatible endpoints remain available for the UI and older scripts:
 
 ```text
 POST /v1/console/dictionary/validate
 POST /v1/console/dictionary/import
-GET  /v1/console/dictionary/export/{profile_name}
+GET  /v1/console/dictionary/export?profile_name=...
 ```
 
-The migration CLI `skeinrank-migrate` can validate, apply, and export dictionary JSON files without direct database access. New files should declare `schema_version: skeinrank.dictionary.v1`; legacy files without a schema version are treated as v1 for now. CLI validate/apply also accepts YAML input for human-edited GitOps dictionaries when PyYAML is available. See [`../concepts/dictionary-spec-v1.md`](../concepts/dictionary-spec-v1.md).
+Both surfaces share the same validation and apply implementation. The migration
+CLI `skeinrank-migrate` can validate, apply, and export dictionary JSON files
+without direct database access. New files should declare
+`schema_version: skeinrank.dictionary.v1`; legacy files without a schema version
+are treated as v1 for now. CLI validate/apply also accepts YAML input for
+human-edited GitOps dictionaries when PyYAML is available. See
+[`../concepts/dictionary-spec-v1.md`](../concepts/dictionary-spec-v1.md).
 
 ## API tokens and service accounts
 

@@ -110,6 +110,21 @@ Default local URLs:
 
 Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md).
 
+## Headless dictionary API
+
+Use the headless dictionary facade when CI jobs, agents, or service integrations
+need to validate, apply, or export dictionary spec v1 payloads without relying on
+console-specific route names.
+
+```text
+POST /v1/headless/dictionaries/validate
+POST /v1/headless/dictionaries/apply
+GET  /v1/headless/dictionaries/export?profile_name=...
+```
+
+The legacy `/v1/console/dictionary/*` routes remain available for the governance
+console and older scripts. Both surfaces share the same validation/apply logic.
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.
