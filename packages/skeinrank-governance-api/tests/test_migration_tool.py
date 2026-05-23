@@ -190,3 +190,39 @@ def test_migration_tool_export_command_writes_dictionary(tmp_path, monkeypatch):
         "profile_name": "infra",
         "terms": [],
     }
+
+
+def test_migration_tool_validate_command_reads_yaml(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("yaml")
+    input_path = tmp_path / "dictionary.yaml"
+    input_path.write_text(
+        "schema_version: skeinrank.dictionary.v1\n"
+        "profile_name: infra\n"
+        "terms:\n"
+        "  - canonical_value: kubernetes\n"
+        "    slot: TOOL\n"
+        "    aliases:\n"
+        "      - k8s\n",
+        encoding="utf-8",
+    )
+
+    def fake_validate(self, payload):
+        assert payload == {
+            "schema_version": "skeinrank.dictionary.v1",
+            "profile_name": "infra",
+            "terms": [
+                {
+                    "canonical_value": "kubernetes",
+                    "slot": "TOOL",
+                    "aliases": ["k8s"],
+                }
+            ],
+        }
+        return {"status": "valid"}
+
+    monkeypatch.setattr(DictionaryMigrationClient, "validate_dictionary", fake_validate)
+
+    exit_code = main(["validate", str(input_path), "--compact"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == '{"status":"valid"}\n'

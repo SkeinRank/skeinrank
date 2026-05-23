@@ -115,6 +115,7 @@ def test_console_dictionary_import_and_export_round_trip(tmp_path):
 
     assert export_response.status_code == 200
     exported = export_response.json()
+    assert exported["schema_version"] == "skeinrank.dictionary.v1"
     assert exported["profile_name"] == "infra_incidents"
     assert exported["profile_description"] == "Infra incident dictionary"
     exported_terms = {term["canonical_value"]: term for term in exported["terms"]}
@@ -266,3 +267,35 @@ def test_contributor_can_validate_and_export_but_not_import(tmp_path):
         headers=_auth(contributor_token),
     )
     assert import_response.status_code == 403
+
+
+def test_console_dictionary_schema_version_is_reported(tmp_path):
+    client = _client(tmp_path)
+    payload = _dictionary_payload()
+    payload["schema_version"] = "skeinrank.dictionary.v1"
+
+    response = client.post("/v1/console/dictionary/validate", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "valid"
+    assert body["schema_version"] == "skeinrank.dictionary.v1"
+
+
+def test_console_dictionary_rejects_unsupported_schema_version(tmp_path):
+    client = _client(tmp_path)
+    payload = _dictionary_payload()
+    payload["schema_version"] = "skeinrank.dictionary.v999"
+
+    validate_response = client.post("/v1/console/dictionary/validate", json=payload)
+
+    assert validate_response.status_code == 200
+    body = validate_response.json()
+    assert body["status"] == "invalid"
+    assert body["errors"][0]["code"] == "unsupported_schema_version"
+    assert body["errors"][0]["path"] == "schema_version"
+
+    import_response = client.post("/v1/console/dictionary/import", json=payload)
+    assert import_response.status_code == 422
+    detail = import_response.json()["detail"]
+    assert detail["report"]["errors"][0]["code"] == "unsupported_schema_version"

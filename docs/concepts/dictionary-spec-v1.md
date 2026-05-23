@@ -1,0 +1,106 @@
+# Dictionary spec v1
+
+SkeinRank dictionary files describe a terminology profile that can be validated,
+imported, exported, and used by the local SDK/CLI.
+
+The canonical interchange format is JSON. YAML is accepted by the CLI as a
+human-editable convenience for GitOps-style repositories when PyYAML is available, but HTTP APIs continue
+to receive and return JSON.
+
+## Schema version
+
+Every new dictionary file should include:
+
+```json
+{
+  "schema_version": "skeinrank.dictionary.v1"
+}
+```
+
+Legacy dictionary files without `schema_version` are still accepted and treated
+as `skeinrank.dictionary.v1` for backward compatibility.
+
+Unknown schema versions must not be silently accepted. The governance API reports
+`unsupported_schema_version`, and the local SDK raises a validation error.
+
+## Minimal JSON shape
+
+```json
+{
+  "schema_version": "skeinrank.dictionary.v1",
+  "profile_name": "platform_ops",
+  "profile_description": "Platform operations terminology",
+  "create_profile": true,
+  "mode": "upsert",
+  "terms": [
+    {
+      "canonical_value": "kubernetes",
+      "slot": "technology",
+      "description": "Container orchestration platform",
+      "aliases": [
+        "k8s",
+        {
+          "value": "kube",
+          "confidence": 0.95,
+          "notes": "Common engineering shorthand"
+        }
+      ]
+    }
+  ],
+  "profile_stop_list": [
+    {
+      "value": "tmp",
+      "target": "alias",
+      "reason": "Too generic for this profile"
+    }
+  ],
+  "global_stop_list": []
+}
+```
+
+## YAML input
+
+The same shape can be written as YAML for CLI input:
+
+```yaml
+schema_version: skeinrank.dictionary.v1
+profile_name: platform_ops
+profile_description: Platform operations terminology
+create_profile: true
+mode: upsert
+terms:
+  - canonical_value: kubernetes
+    slot: technology
+    description: Container orchestration platform
+    aliases:
+      - k8s
+      - value: kube
+        confidence: 0.95
+        notes: Common engineering shorthand
+profile_stop_list:
+  - value: tmp
+    target: alias
+    reason: Too generic for this profile
+global_stop_list: []
+```
+
+## Field notes
+
+- `profile_name` identifies the terminology profile.
+- `mode` is currently `upsert` or `strict`.
+- `terms[].canonical_value` is the normalized target term used at runtime.
+- `terms[].slot` is the extraction/search role for the canonical term.
+- `terms[].aliases` may be strings or objects with `value`, `confidence`,
+  `status`, and `notes`.
+- `profile_stop_list` applies to one profile.
+- `global_stop_list` applies across profiles.
+
+## Compatibility policy
+
+- `skeinrank.dictionary.v1` is the stable baseline for the current headless
+  consolidation phase.
+- New optional fields may be added to v1 only when old clients can safely ignore
+  them.
+- Breaking field changes require a new `schema_version`.
+- Exported dictionaries include `schema_version` so CI, bots, and agents can
+  detect the expected contract.

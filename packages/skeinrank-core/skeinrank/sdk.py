@@ -2,13 +2,12 @@
 
 This module is intentionally lightweight: it does not import FastAPI,
 SQLAlchemy, Celery, Elasticsearch clients, or optional ML dependencies.
-It accepts the same dictionary JSON shape exported by the governance Console API
+It accepts the same dictionary JSON/YAML shape exported by the governance Console API
 and used by ``skeinrank-migrate``.
 """
 
 from __future__ import annotations
 
-import json
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -16,6 +15,13 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from .dictionary_spec import (
+    DICTIONARY_SCHEMA_VERSION,
+    is_supported_dictionary_schema_version,
+    load_mapping_document,
+    resolve_dictionary_schema_version,
+)
 
 _RUNTIME_ALIAS_STATUSES = frozenset({"active", "deprecated"})
 _RUNTIME_TERM_STATUSES = frozenset({"active", "deprecated"})
@@ -123,10 +129,11 @@ class DictionaryValidationReport(BaseModel):
 
 
 class Dictionary(BaseModel):
-    """Runtime dictionary loaded from a governance migration/export JSON file."""
+    """Runtime dictionary loaded from a governance migration/export JSON/YAML file."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    schema_version: str = Field(default=DICTIONARY_SCHEMA_VERSION)
     profile_name: str
     profile_description: str | None = None
     terms: list[DictionaryTerm] = Field(default_factory=list)
@@ -210,8 +217,8 @@ class _RuntimePattern(BaseModel):
 def load_dictionary(source: str | Path | Mapping[str, Any] | Dictionary) -> Dictionary:
     """Load a :class:`Dictionary` from a file path, mapping, or existing object.
 
-    The accepted JSON shape matches the governance Console API export and the
-    ``examples/migration/console_dictionary.example.json`` file.
+    The accepted JSON/YAML shape matches the governance Console API export and
+    the ``examples/migration/console_dictionary.example.json`` file.
     """
 
     if isinstance(source, Dictionary):
@@ -219,9 +226,7 @@ def load_dictionary(source: str | Path | Mapping[str, Any] | Dictionary) -> Dict
     if isinstance(source, Mapping):
         return _dictionary_from_payload(source)
     path = Path(source)
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, Mapping):
-        raise ValueError("Dictionary JSON root must be an object")
+    payload = load_mapping_document(str(path))
     return _dictionary_from_payload(payload)
 
 
@@ -423,6 +428,12 @@ def canonicalize_text(
 
 
 def _dictionary_from_payload(payload: Mapping[str, Any]) -> Dictionary:
+    schema_version = resolve_dictionary_schema_version(payload)
+    if not is_supported_dictionary_schema_version(payload):
+        raise ValueError(
+            "Unsupported dictionary schema_version: "
+            f"{schema_version}. Supported version: {DICTIONARY_SCHEMA_VERSION}."
+        )
     terms_payload = payload.get("terms") or payload.get("canonical_terms") or []
     if not isinstance(terms_payload, Sequence) or isinstance(
         terms_payload, (str, bytes)
@@ -430,6 +441,7 @@ def _dictionary_from_payload(payload: Mapping[str, Any]) -> Dictionary:
         raise ValueError("terms must be a list")
     terms = [_term_from_payload(item) for item in terms_payload]
     return Dictionary(
+        schema_version=schema_version,
         profile_name=str(
             payload.get("profile_name") or payload.get("profile_id") or ""
         ),

@@ -41,10 +41,10 @@ These endpoints support migration-friendly dictionary workflows for users, noteb
 ```text
 POST /v1/console/dictionary/validate
 POST /v1/console/dictionary/import
-GET  /v1/console/dictionary/export/{profile_name}
+GET  /v1/console/dictionary/export?profile_name=...
 ```
 
-The expected dictionary shape is compatible with the lightweight SDK/CLI examples in `examples/migration/console_dictionary.example.json`.
+The expected dictionary shape is `skeinrank.dictionary.v1` and is compatible with the lightweight SDK/CLI examples in `examples/migration/console_dictionary.example.json`. New payloads should include `schema_version`; legacy payloads without it are accepted as v1 for backward compatibility. HTTP requests and responses remain JSON; CLI validate/apply accepts YAML files as a human-editable convenience when PyYAML is available.
 
 ## Profiles, terms, aliases, and guardrails
 

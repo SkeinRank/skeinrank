@@ -98,7 +98,7 @@ POST /v1/console/dictionary/import
 GET  /v1/console/dictionary/export/{profile_name}
 ```
 
-The migration CLI `skeinrank-migrate` can validate, apply, and export dictionary JSON files without direct database access.
+The migration CLI `skeinrank-migrate` can validate, apply, and export dictionary JSON files without direct database access. New files should declare `schema_version: skeinrank.dictionary.v1`; legacy files without a schema version are treated as v1 for now. CLI validate/apply also accepts YAML input for human-edited GitOps dictionaries when PyYAML is available. See [`../concepts/dictionary-spec-v1.md`](../concepts/dictionary-spec-v1.md).
 
 ## API tokens and service accounts
 

@@ -18,7 +18,7 @@ Optional extras are available, but they are not required for the current MVP.
 
 ## Public Python SDK API
 
-Patch 41 adds a lightweight dictionary-first SDK API that can be used without running the governance API, Elasticsearch, Celery, or the UI. It accepts the same dictionary JSON shape exported by the User Console API and used by `skeinrank-migrate`.
+Patch 41 adds a lightweight dictionary-first SDK API that can be used without running the governance API, Elasticsearch, Celery, or the UI. It accepts the same dictionary JSON/YAML shape exported by the User Console API and used by `skeinrank-migrate`. New files should declare `schema_version: skeinrank.dictionary.v1`; legacy files without a schema version are treated as v1 for now.
 
 ```python
 from skeinrank import load_dictionary, extract_terms, canonicalize_text
@@ -94,6 +94,7 @@ Validate a dictionary exported from the Console API or used by `skeinrank-migrat
 
 ```bash
 poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.json
+poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.yaml
 poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.json --json
 ```
 

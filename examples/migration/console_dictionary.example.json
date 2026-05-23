@@ -1,4 +1,5 @@
 {
+  "schema_version": "skeinrank.dictionary.v1",
   "profile_name": "infra_incidents",
   "profile_description": "Infra incident dictionary",
   "create_profile": true,

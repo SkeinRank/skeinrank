@@ -169,3 +169,41 @@ def test_validate_dictionary_reports_parse_errors():
     assert report.ok is False
     assert report.error_count == 1
     assert report.issues[0].code == "invalid_dictionary"
+
+
+def test_load_dictionary_keeps_schema_version():
+    payload = _dictionary_payload()
+    payload["schema_version"] = "skeinrank.dictionary.v1"
+
+    dictionary = load_dictionary(payload)
+
+    assert dictionary.schema_version == "skeinrank.dictionary.v1"
+
+
+def test_load_dictionary_rejects_unsupported_schema_version():
+    payload = _dictionary_payload()
+    payload["schema_version"] = "skeinrank.dictionary.v999"
+
+    with pytest.raises(ValueError, match="Unsupported dictionary schema_version"):
+        load_dictionary(payload)
+
+
+def test_load_dictionary_from_yaml_file(tmp_path: Path):
+    pytest.importorskip("yaml")
+    path = tmp_path / "dictionary.yaml"
+    path.write_text(
+        "schema_version: skeinrank.dictionary.v1\n"
+        "profile_name: infra_incidents\n"
+        "terms:\n"
+        "  - canonical_value: kubernetes\n"
+        "    slot: TOOL\n"
+        "    aliases:\n"
+        "      - k8s\n",
+        encoding="utf-8",
+    )
+
+    dictionary = load_dictionary(path)
+
+    assert dictionary.schema_version == "skeinrank.dictionary.v1"
+    assert dictionary.profile_name == "infra_incidents"
+    assert dictionary.terms[0].aliases[0].value == "k8s"

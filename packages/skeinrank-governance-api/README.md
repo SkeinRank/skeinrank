@@ -142,7 +142,7 @@ curl -X POST http://127.0.0.1:8010/v1/auth/users \
 
 ## User Console API
 
-Patch 27 adds a migration-friendly API surface for users who work from JupyterHub, scripts, bots, or future CLI tools. It reuses the same governance database and role checks as the UI, but accepts a bulk dictionary JSON so companies do not need to enter existing dictionaries by hand.
+Patch 27 adds a migration-friendly API surface for users who work from JupyterHub, scripts, bots, or future CLI tools. It reuses the same governance database and role checks as the UI, but accepts a bulk dictionary JSON so companies do not need to enter existing dictionaries by hand. New payloads should include `schema_version: skeinrank.dictionary.v1`; legacy payloads without a schema version are treated as v1 for backward compatibility.
 
 Endpoints:
 
@@ -162,6 +162,7 @@ Minimal import payload:
 
 ```json
 {
+  "schema_version": "skeinrank.dictionary.v1",
   "profile_name": "infra_incidents",
   "profile_description": "Infra incident dictionary",
   "mode": "upsert",
@@ -202,7 +203,7 @@ curl -X POST http://127.0.0.1:8010/v1/console/dictionary/import \
   -d @company_dictionary.json
 ```
 
-Export a profile back to the same stable shape:
+Export a profile back to the same stable shape. Exports include `schema_version`:
 
 ```bash
 curl "http://127.0.0.1:8010/v1/console/dictionary/export?profile_name=infra_incidents" \
@@ -214,7 +215,7 @@ Import modes:
 - `upsert` — create missing values and update existing values.
 - `strict` — report conflicts when the payload already exists.
 
-The validation/import report includes planned create/update counts, duplicate warnings, alias/canonical conflicts, and stop-list blocks.
+The validation/import report includes the resolved schema version, planned create/update counts, duplicate warnings, alias/canonical conflicts, unsupported schema-version errors, and stop-list blocks.
 
 
 ## Dictionary Migration Tool
@@ -229,10 +230,11 @@ poetry run skeinrank-migrate --help
 
 The API URL defaults to `http://127.0.0.1:8010` and can be overridden with `--api-url` or `SKEINRANK_CONSOLE_API_URL`. When API auth is enabled, pass a bearer token with `--token` or `SKEINRANK_API_TOKEN`.
 
-Validate a dictionary JSON without writing changes:
+Validate a dictionary JSON/YAML file without writing changes:
 
 ```bash
 poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.json
+poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.yaml
 ```
 
 Apply the dictionary after validation:
@@ -241,7 +243,7 @@ Apply the dictionary after validation:
 poetry run skeinrank-migrate apply ../../examples/migration/console_dictionary.example.json
 ```
 
-Export a profile back to the same stable migration JSON shape:
+Export a profile back to the same stable migration JSON shape. Exports include `schema_version`:
 
 ```bash
 poetry run skeinrank-migrate export --profile-name infra_incidents \

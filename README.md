@@ -112,13 +112,14 @@ Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/
 
 ## Quickstart: local SDK / CLI
 
-Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services.
+Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.
 
 ```bash
 cd packages/skeinrank-core
 poetry install
 
 poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.json
+poetry run skeinrank validate-dictionary ../../examples/migration/console_dictionary.example.yaml
 poetry run skeinrank extract "k8s rollout uses pg database" \
   --text \
   --dictionary ../../examples/migration/console_dictionary.example.json
@@ -145,6 +146,7 @@ Start here:
 - [`docs/concepts/terminology-control-plane.md`](docs/concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.
 - [`docs/concepts/profiles-bindings-snapshots.md`](docs/concepts/profiles-bindings-snapshots.md) — why production runtime should be binding-first.
 - [`docs/concepts/headless-runtime-contracts.md`](docs/concepts/headless-runtime-contracts.md) — headless-first runtime contracts, proposal-safe agents, and UI scope.
+- [`docs/concepts/dictionary-spec-v1.md`](docs/concepts/dictionary-spec-v1.md) — stable dictionary import/export contract with `schema_version`.
 - [`docs/adr/0001-headless-runtime-contracts.md`](docs/adr/0001-headless-runtime-contracts.md) — architecture decision for headless runtime boundaries.
 - [`docs/guides/core-sdk-and-cli.md`](docs/guides/core-sdk-and-cli.md) — local SDK/CLI workflows.
 - [`docs/guides/governance-console.md`](docs/guides/governance-console.md) — governance API and UI workflows.

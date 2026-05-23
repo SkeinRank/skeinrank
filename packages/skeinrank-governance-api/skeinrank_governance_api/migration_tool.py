@@ -13,6 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from .dictionary_spec import load_mapping_document
+
 DEFAULT_API_URL = "http://127.0.0.1:8010"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
@@ -142,14 +144,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     try:
         if args.command == "validate":
-            payload = _load_json_object(args.file)
+            payload = _load_dictionary_object(args.file)
             result = client.validate_dictionary(payload)
             _write_json(result, args.output, pretty=not args.compact)
             if result.get("status") != "valid" and not args.allow_invalid:
                 return 2
             return 0
         if args.command == "apply":
-            payload = _load_json_object(args.file)
+            payload = _load_dictionary_object(args.file)
             result = client.import_dictionary(payload)
             _write_json(result, args.output, pretty=not args.compact)
             return 0
@@ -203,10 +205,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     validate_parser = subparsers.add_parser(
         "validate",
-        help="Validate a dictionary migration JSON file without writing changes.",
+        help="Validate a dictionary migration JSON/YAML file without writing changes.",
     )
     _add_subcommand_compact_option(validate_parser)
-    validate_parser.add_argument("file", help="Input JSON file path, or '-' for stdin.")
+    validate_parser.add_argument(
+        "file", help="Input JSON/YAML file path, or '-' for stdin."
+    )
     validate_parser.add_argument(
         "-o", "--output", help="Write response JSON to a file."
     )
@@ -218,10 +222,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     apply_parser = subparsers.add_parser(
         "apply",
-        help="Apply a dictionary migration JSON file through the import API.",
+        help="Apply a dictionary migration JSON/YAML file through the import API.",
     )
     _add_subcommand_compact_option(apply_parser)
-    apply_parser.add_argument("file", help="Input JSON file path, or '-' for stdin.")
+    apply_parser.add_argument(
+        "file", help="Input JSON/YAML file path, or '-' for stdin."
+    )
     apply_parser.add_argument("-o", "--output", help="Write response JSON to a file.")
 
     export_parser = subparsers.add_parser(
@@ -252,15 +258,23 @@ def _add_subcommand_compact_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _load_dictionary_object(path: str) -> dict[str, Any]:
+    if path == "-":
+        raw = sys.stdin.read()
+        try:
+            loaded = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON in stdin: {exc}") from exc
+        if not isinstance(loaded, dict):
+            raise ValueError("Dictionary document root must be an object")
+        return loaded
+    return load_mapping_document(path)
+
+
 def _load_json_object(path: str) -> dict[str, Any]:
-    raw = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
-    try:
-        loaded = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
-    if not isinstance(loaded, dict):
-        raise ValueError("Migration JSON root must be an object")
-    return loaded
+    """Backward-compatible test helper for legacy JSON migration inputs."""
+
+    return _load_dictionary_object(path)
 
 
 def _write_json(
