@@ -551,6 +551,50 @@ class ElasticsearchEvidenceResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class ConflictEntityResponse(BaseModel):
+    """One entity participating in a terminology conflict report item."""
+
+    entity_type: str
+    id: int | None = None
+    profile_id: int | None = None
+    profile_name: str | None = None
+    term_id: int | None = None
+    alias_id: int | None = None
+    suggestion_id: int | None = None
+    stop_list_id: int | None = None
+    canonical_value: str | None = None
+    alias_value: str | None = None
+    normalized_value: str | None = None
+    slot: str | None = None
+    status: str | None = None
+    target: str | None = None
+    source: str | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConflictReportItemResponse(BaseModel):
+    """One read-only conflict found by the coverage scanner."""
+
+    conflict_type: str
+    scope: str
+    profile_name: str | None = None
+    normalized_value: str
+    title: str
+    message: str
+    suggested_action: str
+    entities: list[ConflictEntityResponse] = Field(default_factory=list)
+
+
+class ConflictReportResponse(BaseModel):
+    """Read-only terminology conflict report."""
+
+    profile_name: str | None = None
+    normalized_profile_name: str | None = None
+    include_suggestions: bool = True
+    total: int
+    conflicts: list[ConflictReportItemResponse] = Field(default_factory=list)
+
+
 class SuggestionEvidenceSnapshot(BaseModel):
     """Saved evidence snapshot attached to a governance suggestion."""
 

@@ -222,3 +222,12 @@ artifacts, binding-pinned snapshots, `/v1/text/canonicalize`, and
 `/v1/query/plan` can now expose matched term tags as runtime debug metadata.
 This keeps existing alias tuple compatibility for enrichment while making tags
 available to future conflict detection, policy resolution, and evaluation.
+
+
+## Conflict detection report
+
+Patch 38C adds a read-only conflict report as the first coverage-framework layer.
+It scans governed terminology for alias drift, stop-list collisions, canonical slot
+drift, and pending proposal conflicts. The report does not publish snapshots or
+change active terms; it gives reviewers and agents a safe diagnostic surface
+before later ambiguous-alias and binding-policy layers.

@@ -335,3 +335,6 @@ terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
 that complement the primary `slot`. Runtime snapshot alias entries now carry
 those tags too, so exported artifacts and query/canonicalization debug output
 can explain both the primary slot and richer term facets.
+
+
+- Read-only conflict detection report for alias drift, stop-list collisions, and pending proposal conflicts.

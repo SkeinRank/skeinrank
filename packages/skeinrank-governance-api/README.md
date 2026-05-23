@@ -932,3 +932,16 @@ terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
 that complement the primary `slot`. Runtime snapshot alias entries now carry
 those tags too, so exported artifacts and query/canonicalization debug output
 can explain both the primary slot and richer term facets.
+
+
+### Conflict detection report
+
+The API exposes a read-only conflict report for coverage-framework workflows:
+
+```text
+GET /v1/governance/conflicts
+GET /v1/governance/conflicts?profile_name=infra_incidents
+```
+
+The report surfaces cross-profile alias reuse, active alias/canonical stop-list
+collisions, and pending proposal conflicts without mutating terminology.

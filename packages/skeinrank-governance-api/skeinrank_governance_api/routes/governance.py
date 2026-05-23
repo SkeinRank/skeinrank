@@ -53,6 +53,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
+from ..conflict_detection import build_conflict_report
 from ..dependencies import get_session
 from ..elasticsearch import (
     ElasticsearchDiscoveryClient,
@@ -87,6 +88,7 @@ from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
     AliasUpdateRequest,
+    ConflictReportResponse,
     ElasticsearchBindingCreateRequest,
     ElasticsearchBindingDryRunDocument,
     ElasticsearchBindingDryRunRequest,
@@ -1608,6 +1610,30 @@ def list_proposal_source_quality(
         )
         for row in rows
     ]
+
+
+@router.get(
+    "/conflicts",
+    response_model=ConflictReportResponse,
+)
+def list_terminology_conflicts(
+    profile_name: str | None = Query(default=None, min_length=1, max_length=128),
+    include_suggestions: bool = Query(default=True),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> ConflictReportResponse:
+    """Return a read-only report of terminology conflicts and drift risks."""
+
+    if profile_name is not None:
+        _get_profile_or_404(session, profile_name)
+    report = build_conflict_report(
+        session,
+        profile_name=profile_name,
+        include_suggestions=include_suggestions,
+    )
+    return ConflictReportResponse(**report)
 
 
 @router.get(

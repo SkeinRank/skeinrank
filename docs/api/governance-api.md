@@ -132,6 +132,30 @@ The governance API exposes CRUD-style endpoints for:
 
 Snapshots are exported from governed terminology and served to runtime paths as immutable dictionary versions.
 
+
+## Conflict detection report
+
+Coverage framework Phase C starts with a read-only conflict report. It does not
+change active terminology or runtime snapshots; it only surfaces drift risks for
+reviewers and future ambiguous-alias policy work.
+
+```text
+GET /v1/governance/conflicts
+GET /v1/governance/conflicts?profile_name=infra_incidents
+GET /v1/governance/conflicts?profile_name=infra_incidents&include_suggestions=false
+```
+
+The report currently detects:
+
+- active alias surfaces reused across profiles;
+- active aliases that map to multiple canonical terms;
+- canonical surfaces used with different primary slots;
+- active aliases/canonical terms that now collide with profile or global stop lists;
+- pending alias proposals that conflict with active aliases or other pending proposals.
+
+This is intentionally a report-only API. Severity, review state, and explicit
+ambiguous-alias candidates are added in later coverage-framework patches.
+
 ## Suggestions and evidence
 
 Reviewer workflows can refresh evidence for pending suggestions:
