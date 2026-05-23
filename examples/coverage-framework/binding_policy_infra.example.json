@@ -1,0 +1,14 @@
+{
+  "status": "active",
+  "preferred_slots": ["database", "technology", "service"],
+  "allowed_tags": ["infra", "backend", "storage", "orchestration"],
+  "deny_slots": ["document_component"],
+  "context_rules": [
+    {
+      "surface": "pg",
+      "prefer": "postgresql",
+      "slot": "database",
+      "reason": "Infra incidents use pg as PostgreSQL."
+    }
+  ]
+}

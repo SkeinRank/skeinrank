@@ -238,9 +238,11 @@ Start here:
 - [`docs/concepts/profiles-bindings-snapshots.md`](docs/concepts/profiles-bindings-snapshots.md) — why production runtime should be binding-first.
 - [`docs/concepts/headless-runtime-contracts.md`](docs/concepts/headless-runtime-contracts.md) — headless-first runtime contracts, proposal-safe agents, and UI scope.
 - [`docs/concepts/dictionary-spec-v1.md`](docs/concepts/dictionary-spec-v1.md) — stable dictionary import/export contract with `schema_version`.
+- [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md) — coverage framework for tags, ambiguous aliases, binding policies, and safe evaluation.
 - [`docs/adr/0001-headless-runtime-contracts.md`](docs/adr/0001-headless-runtime-contracts.md) — architecture decision for headless runtime boundaries.
 - [`docs/guides/core-sdk-and-cli.md`](docs/guides/core-sdk-and-cli.md) — local SDK/CLI workflows.
 - [`docs/guides/governance-console.md`](docs/guides/governance-console.md) — governance API and UI workflows.
+- [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — API examples for coverage review, policy, and before/after evaluation.
 - [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md) — enrichment, dry-runs, jobs, evidence, and cancellation.
 - [`docs/guides/development.md`](docs/guides/development.md) — development checks and package layout.
 - [`docs/api/governance-api.md`](docs/api/governance-api.md) — important governance/runtime API surfaces.
@@ -264,6 +266,7 @@ packages/skeinrank-ui                      React/TypeScript governance console
 examples/platform_ops_demo                 Local preview seed data and automation
 examples/demo                              Demo corpus, queries, enriched documents, eval output
 examples/migration                         Example dictionary import/export payloads
+examples/coverage-framework                Phase C tags, ambiguous alias, binding policy, and evaluation examples
 deploy/                                    Dockerfiles, Prometheus, Grafana, OpenTelemetry config
 docs/                                      Product, concept, guide, API, and deployment docs
 ```
@@ -362,3 +365,7 @@ skeinrank-migrate snapshot-eval \
 This is an offline guardrail for the coverage framework: teams can see whether a
 new snapshot expands recall safely or changes query plans in risky ways before
 promoting it to runtime.
+
+### Patch 38J: coverage docs and examples
+
+Phase C documentation is collected in [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md) and [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md). Example payloads live in [`examples/coverage-framework`](examples/coverage-framework) and show a complete controlled-coverage flow: tagged dictionary, ambiguous `pg` candidates, infra/docs binding policies, and snapshot-evaluation queries.

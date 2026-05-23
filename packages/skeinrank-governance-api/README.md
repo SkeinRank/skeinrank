@@ -978,3 +978,8 @@ poetry run skeinrank-migrate snapshot-eval \
 The command is offline and read-only. It validates both artifacts, compares their
 alias/tag coverage, and can show which sample queries would produce a different
 canonicalization plan.
+
+
+## Coverage framework examples
+
+See `docs/concepts/coverage-framework.md`, `docs/guides/coverage-framework.md`, and `examples/coverage-framework/` for the Phase C controlled-coverage workflow: term tags, conflict reports, ambiguous alias candidates, binding policies, runtime policy decisions, and snapshot before/after evaluation.

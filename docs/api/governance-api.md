@@ -385,3 +385,14 @@ string/object per line. Object items may include `query` and optional `id` or
 The report uses `schema_version: skeinrank.snapshot_evaluation.v1` and includes
 alias diff totals, tag diff totals, optional query-plan changes, and a compact
 risk summary.
+
+
+## Coverage framework docs and examples
+
+Patch 38J collects the Phase C coverage model in documentation and example payloads:
+
+- `docs/concepts/coverage-framework.md` explains slots vs tags, ambiguous candidates, binding policies, runtime policy decisions, and before/after evaluation.
+- `docs/guides/coverage-framework.md` provides a headless API walkthrough.
+- `examples/coverage-framework/` contains JSON/JSONL payloads for a tagged dictionary, ambiguous `pg` candidates, binding policies, and evaluation queries.
+
+The examples are documentation fixtures only; they do not introduce new API routes or mutate runtime state by themselves.

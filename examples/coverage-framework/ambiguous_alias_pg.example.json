@@ -1,0 +1,28 @@
+{
+  "surface_value": "pg",
+  "review_note": "pg is domain-dependent: infra uses PostgreSQL, docs can use page.",
+  "candidates": [
+    {
+      "canonical_value": "postgresql",
+      "slot": "database",
+      "source": "manual",
+      "confidence": 0.94,
+      "status": "candidate",
+      "evidence": {
+        "example_query": "pg timeout after k8s rollout",
+        "domain": "infra"
+      }
+    },
+    {
+      "canonical_value": "page",
+      "slot": "document_component",
+      "source": "manual",
+      "confidence": 0.72,
+      "status": "candidate",
+      "evidence": {
+        "example_query": "pg navigation broken",
+        "domain": "docs"
+      }
+    }
+  ]
+}

@@ -212,3 +212,8 @@ The governance model includes `GovernanceAmbiguousAlias` and `GovernanceAmbiguou
 ### Binding policy model
 
 `GovernanceBindingPolicy` stores optional policy metadata for one `ElasticsearchBinding`. It keeps runtime-context constraints such as preferred slots, allowed tags, denied slots, and context-specific surface rules close to the binding without changing the terminology profile itself.
+
+
+## Coverage framework documentation
+
+The governance package models the state used by the Phase C coverage framework. For end-to-end examples, see `docs/concepts/coverage-framework.md`, `docs/guides/coverage-framework.md`, and `examples/coverage-framework/`.

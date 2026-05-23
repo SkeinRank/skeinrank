@@ -275,3 +275,14 @@ new artifact. It highlights:
 
 Agents and humans can use this report to decide whether a proposal batch should
 be published, rolled back, or sent for additional review.
+
+
+## Coverage framework examples
+
+Patch 38J adds dedicated coverage docs and examples:
+
+- `docs/concepts/coverage-framework.md` for the conceptual model;
+- `docs/guides/coverage-framework.md` for API walkthroughs;
+- `examples/coverage-framework/` for tagged dictionary, ambiguous alias, binding policy, and evaluation query payloads.
+
+These files document the existing Phase C APIs. They do not add new runtime behavior; the resolver, policy model, ambiguous alias model, and evaluator are implemented by the preceding 38A-38I patches.
