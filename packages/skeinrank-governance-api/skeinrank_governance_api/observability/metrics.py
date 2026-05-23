@@ -302,6 +302,27 @@ def register_default_metrics() -> None:
         "Total Elasticsearch documents failed by enrichment jobs.",
         labels=("write_strategy",),
     )
+
+    registry.counter(
+        "skeinrank_proposals_submitted_total",
+        "Proposal submissions by source, suggestion type, validation status, and outcome.",
+        labels=("source_type", "suggestion_type", "validation_status", "outcome"),
+    )
+    registry.counter(
+        "skeinrank_proposal_reviews_total",
+        "Proposal review decisions by source type and decision.",
+        labels=("source_type", "decision"),
+    )
+    registry.counter(
+        "skeinrank_proposal_batch_apply_total",
+        "Proposal batch apply operations by status and snapshot publish flag.",
+        labels=("status", "publish_snapshot"),
+    )
+    registry.counter(
+        "skeinrank_proposal_batch_suggestions_total",
+        "Suggestions processed by proposal batch apply operations.",
+        labels=("status", "publish_snapshot"),
+    )
     registry.gauge(
         "skeinrank_build_info",
         "Build and service metadata for the governance API.",
@@ -379,6 +400,50 @@ def record_enrichment_job(
             "skeinrank_enrichment_documents_failed_total",
             amount=documents_failed,
             labels=strategy_labels,
+        )
+
+
+def record_proposal_submission(
+    *,
+    source_type: str,
+    suggestion_type: str,
+    validation_status: str,
+    outcome: str,
+) -> None:
+    """Record proposal submission, retry, or conflict outcome."""
+
+    registry.inc(
+        "skeinrank_proposals_submitted_total",
+        labels={
+            "source_type": source_type,
+            "suggestion_type": suggestion_type,
+            "validation_status": validation_status,
+            "outcome": outcome,
+        },
+    )
+
+
+def record_proposal_review(*, source_type: str, decision: str) -> None:
+    """Record an individual proposal review decision."""
+
+    registry.inc(
+        "skeinrank_proposal_reviews_total",
+        labels={"source_type": source_type, "decision": decision},
+    )
+
+
+def record_proposal_batch_apply(
+    *, status: str, publish_snapshot: bool, suggestions_count: int
+) -> None:
+    """Record a proposal batch apply operation and processed suggestion count."""
+
+    labels = {"status": status, "publish_snapshot": str(bool(publish_snapshot)).lower()}
+    registry.inc("skeinrank_proposal_batch_apply_total", labels=labels)
+    if suggestions_count:
+        registry.inc(
+            "skeinrank_proposal_batch_suggestions_total",
+            amount=suggestions_count,
+            labels=labels,
         )
 
 

@@ -60,12 +60,18 @@ from ..elasticsearch import (
     get_source_values,
     source_preview,
 )
+from ..observability.metrics import (
+    record_proposal_batch_apply,
+    record_proposal_review,
+    record_proposal_submission,
+)
 from ..proposal_idempotency import (
     ProposalIdempotencyConflict,
     normalize_idempotency_key,
     resolve_idempotent_suggestion,
     resolve_idempotent_suggestion_from_validation_summary,
 )
+from ..proposal_quality import build_proposal_source_quality, validation_status
 from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import (
     alias_tuples_from_snapshot,
@@ -107,6 +113,7 @@ from ..schemas import (
     ProposalBatchApplyRequest,
     ProposalBatchApplyResponse,
     ProposalBatchSnapshotResponse,
+    ProposalSourceQualityResponse,
     RuntimeSnapshotResponse,
     SnapshotExportRequest,
     StopListCreateRequest,
@@ -1544,6 +1551,57 @@ def delete_term_alias(
 
 
 @router.get(
+    "/proposals/source-quality",
+    response_model=list[ProposalSourceQualityResponse],
+)
+def list_proposal_source_quality(
+    profile_name: str | None = Query(default=None, min_length=1, max_length=128),
+    proposal_source_type: str | None = Query(default=None, max_length=32),
+    proposal_source_name: str | None = Query(default=None, max_length=128),
+    _current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> list[ProposalSourceQualityResponse]:
+    """Return aggregate quality signals for proposal sources.
+
+    This endpoint is intentionally computed from persisted proposal state rather
+    than Prometheus counters, so reviewers can inspect source quality after
+    restarts and across manual/agent proposal flows.
+    """
+
+    if proposal_source_type is not None:
+        _validate_status(
+            proposal_source_type,
+            PROPOSAL_SOURCE_TYPES,
+            "proposal source type",
+        )
+    rows = build_proposal_source_quality(
+        session,
+        profile_name=profile_name,
+        proposal_source_type=proposal_source_type,
+        proposal_source_name=proposal_source_name,
+    )
+    return [
+        ProposalSourceQualityResponse(
+            proposal_source_type=row.proposal_source_type,
+            proposal_source_name=row.proposal_source_name,
+            proposals_total=row.proposals_total,
+            pending=row.pending,
+            approved=row.approved,
+            rejected=row.rejected,
+            validation_passed=row.validation_passed,
+            validation_warning=row.validation_warning,
+            validation_blocked=row.validation_blocked,
+            validation_unknown=row.validation_unknown,
+            approval_rate=row.approval_rate,
+            rejection_rate=row.rejection_rate,
+            blocked_rate=row.blocked_rate,
+            average_confidence=row.average_confidence,
+        )
+        for row in rows
+    ]
+
+
+@router.get(
     "/profiles/{profile_name}/suggestions",
     response_model=list[SuggestionResponse],
 )
@@ -1632,6 +1690,14 @@ def create_profile_suggestion(
         ) from exc
     if existing_suggestion is not None:
         response.status_code = status.HTTP_200_OK
+        record_proposal_submission(
+            source_type=existing_suggestion.proposal_source_type,
+            suggestion_type=existing_suggestion.suggestion_type,
+            validation_status=validation_status(
+                existing_suggestion.validation_summary_json
+            ),
+            outcome="idempotent_retry",
+        )
         return _suggestion_response(existing_suggestion)
 
     if request.suggestion_type == "alias":
@@ -1709,6 +1775,14 @@ def create_profile_suggestion(
             ) from exc
         if existing_suggestion is not None:
             response.status_code = status.HTTP_200_OK
+            record_proposal_submission(
+                source_type=existing_suggestion.proposal_source_type,
+                suggestion_type=existing_suggestion.suggestion_type,
+                validation_status=validation_status(
+                    existing_suggestion.validation_summary_json
+                ),
+                outcome="idempotent_retry",
+            )
             return _suggestion_response(existing_suggestion)
 
     suggestion = GovernanceSuggestion(
@@ -1734,6 +1808,12 @@ def create_profile_suggestion(
     try:
         session.commit()
         session.refresh(suggestion)
+        record_proposal_submission(
+            source_type=suggestion.proposal_source_type,
+            suggestion_type=suggestion.suggestion_type,
+            validation_status=validation_status(suggestion.validation_summary_json),
+            outcome="created",
+        )
         return _suggestion_response(suggestion)
     except IntegrityError as exc:
         session.rollback()
@@ -1756,6 +1836,14 @@ def create_profile_suggestion(
             ) from conflict_exc
         if existing_suggestion is not None:
             response.status_code = status.HTTP_200_OK
+            record_proposal_submission(
+                source_type=existing_suggestion.proposal_source_type,
+                suggestion_type=existing_suggestion.suggestion_type,
+                validation_status=validation_status(
+                    existing_suggestion.validation_summary_json
+                ),
+                outcome="idempotent_retry",
+            )
             return _suggestion_response(existing_suggestion)
         raise _integrity_conflict(exc) from exc
 
@@ -1848,6 +1936,10 @@ def approve_profile_suggestion(
     try:
         session.commit()
         session.refresh(suggestion)
+        record_proposal_review(
+            source_type=suggestion.proposal_source_type,
+            decision="approved",
+        )
         return _suggestion_response(suggestion)
     except IntegrityError as exc:
         session.rollback()
@@ -1879,6 +1971,10 @@ def reject_profile_suggestion(
 
     session.commit()
     session.refresh(suggestion)
+    record_proposal_review(
+        source_type=suggestion.proposal_source_type,
+        decision="rejected",
+    )
     return _suggestion_response(suggestion)
 
 
@@ -1971,6 +2067,17 @@ def apply_profile_suggestion_batch(
     except IntegrityError as exc:
         session.rollback()
         raise _integrity_conflict(exc) from exc
+
+    record_proposal_batch_apply(
+        status="applied",
+        publish_snapshot=request.publish_snapshot,
+        suggestions_count=len(suggestions),
+    )
+    for suggestion in suggestions:
+        record_proposal_review(
+            source_type=suggestion.proposal_source_type,
+            decision="batch_approved",
+        )
 
     for suggestion in suggestions:
         session.refresh(suggestion)

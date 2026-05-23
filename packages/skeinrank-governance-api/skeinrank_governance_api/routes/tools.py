@@ -16,12 +16,14 @@ from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
+from ..observability.metrics import record_proposal_submission
 from ..proposal_idempotency import (
     ProposalIdempotencyConflict,
     normalize_idempotency_key,
     resolve_idempotent_suggestion,
     resolve_idempotent_suggestion_from_validation_summary,
 )
+from ..proposal_quality import validation_status
 from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import binding_snapshot_status
 from ..schemas import (
@@ -156,6 +158,14 @@ def suggest_alias_tool(
         ) from exc
     if existing_suggestion is not None:
         response.status_code = status.HTTP_200_OK
+        record_proposal_submission(
+            source_type=existing_suggestion.proposal_source_type,
+            suggestion_type=existing_suggestion.suggestion_type,
+            validation_status=validation_status(
+                existing_suggestion.validation_summary_json
+            ),
+            outcome="idempotent_retry",
+        )
         return AgentToolSuggestAliasResponse(
             created=False,
             suggestion=_suggestion_response(existing_suggestion),
@@ -193,6 +203,14 @@ def suggest_alias_tool(
         ) from exc
     if existing_suggestion is not None:
         response.status_code = status.HTTP_200_OK
+        record_proposal_submission(
+            source_type=existing_suggestion.proposal_source_type,
+            suggestion_type=existing_suggestion.suggestion_type,
+            validation_status=validation_status(
+                existing_suggestion.validation_summary_json
+            ),
+            outcome="idempotent_retry",
+        )
         return AgentToolSuggestAliasResponse(
             created=False,
             suggestion=_suggestion_response(existing_suggestion),
@@ -243,6 +261,14 @@ def suggest_alias_tool(
             ) from conflict_exc
         if existing_suggestion is not None:
             response.status_code = status.HTTP_200_OK
+            record_proposal_submission(
+                source_type=existing_suggestion.proposal_source_type,
+                suggestion_type=existing_suggestion.suggestion_type,
+                validation_status=validation_status(
+                    existing_suggestion.validation_summary_json
+                ),
+                outcome="idempotent_retry",
+            )
             return AgentToolSuggestAliasResponse(
                 created=False,
                 suggestion=_suggestion_response(existing_suggestion),
@@ -253,6 +279,12 @@ def suggest_alias_tool(
             detail="Could not create alias proposal.",
         ) from exc
 
+    record_proposal_submission(
+        source_type=suggestion.proposal_source_type,
+        suggestion_type=suggestion.suggestion_type,
+        validation_status=validation_status(suggestion.validation_summary_json),
+        outcome="created",
+    )
     suggestion_response = _suggestion_response(suggestion)
     return AgentToolSuggestAliasResponse(
         created=True,

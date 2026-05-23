@@ -520,7 +520,14 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions
   -d '{"suggestion_type":"alias","canonical_value":"kubernetes","alias_value":"kube","slot":"TOOL","source":"discovery","proposal_source_type":"agent","proposal_source_name":"search-log-scout","idempotency_key":"search-log-scout:default_it:kube","source_payload":{"query_count":42}}'
 ```
 
-Supported `proposal_source_type` values are `human`, `agent`, `cli`, `api`, `job`, and `import`. If `binding_id` is provided, it must reference a binding for the same profile. If `validation_summary` is omitted, SkeinRank stores an automatic proposal validation summary with checks for canonical availability, alias collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints, and agent audit payloads. Callers may still provide their own `validation_summary` when they already ran an external checker. Full idempotency enforcement is planned for Patch 37E.
+Supported `proposal_source_type` values are `human`, `agent`, `cli`, `api`, `job`, and `import`. If `binding_id` is provided, it must reference a binding for the same profile. If `validation_summary` is omitted, SkeinRank stores an automatic proposal validation summary with checks for canonical availability, alias collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints, and agent audit payloads. Callers may still provide their own `validation_summary` when they already ran an external checker. Patch 37E enforces idempotency keys for safe retries. Patch 37G adds proposal metrics and source quality reporting:
+
+```bash
+curl http://127.0.0.1:8010/v1/governance/proposals/source-quality \
+  -H "X-SkeinRank-Role: admin"
+```
+
+Prometheus counters include proposal submissions, review decisions, and batch apply operations.
 
 Agent-friendly REST tools expose the same flow without requiring callers to know
 the full profile suggestions route shape:

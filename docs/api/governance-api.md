@@ -162,6 +162,24 @@ suggestion. `suggest-alias` creates a pending suggestion with
 `proposal_source_type=agent` by default. `explain-query` reuses the runtime query
 planner so agents can inspect canonicalization before proposing changes.
 
+### Proposal source quality
+
+Patch 37G adds a reviewer-oriented source quality endpoint:
+
+```text
+GET /v1/governance/proposals/source-quality
+```
+
+Optional filters: `profile_name`, `proposal_source_type`, and `proposal_source_name`.
+The response aggregates persisted proposal state by source and includes totals,
+pending/approved/rejected counts, validation status counts, approval rate,
+rejection rate, blocked rate, and average confidence. This is intentionally
+computed from PostgreSQL state rather than from Prometheus counters so it
+remains useful after restarts.
+
+Prometheus also exposes proposal flow counters for submission outcomes, review
+decisions, and batch apply operations.
+
 ### Proposal batch apply
 
 Patch 37D adds an atomic release endpoint for reviewed proposal batches:

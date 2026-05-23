@@ -193,6 +193,14 @@ The MCP server exposes `skeinrank_list_bindings`, `skeinrank_explain_query`,
 `skeinrank_get_proposal_status`. It does not own business logic; it only adapts
 MCP tool calls to the existing `/v1/tools/*` and proposal review APIs.
 
+Patch 37G adds proposal metrics and source quality reporting so reviewers can
+identify useful agents and noisy sources:
+
+```text
+GET /v1/governance/proposals/source-quality
+GET /metrics
+```
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.

@@ -681,6 +681,25 @@ class SuggestionResponse(BaseModel):
     updated_at: datetime
 
 
+class ProposalSourceQualityResponse(BaseModel):
+    """Aggregated source-quality signal for proposal submitters."""
+
+    proposal_source_type: str
+    proposal_source_name: str
+    proposals_total: int
+    pending: int
+    approved: int
+    rejected: int
+    validation_passed: int
+    validation_warning: int
+    validation_blocked: int
+    validation_unknown: int
+    approval_rate: float
+    rejection_rate: float
+    blocked_rate: float
+    average_confidence: float
+
+
 class ProposalBatchApplyRequest(BaseModel):
     """Apply pending proposals as one audited batch.
 
