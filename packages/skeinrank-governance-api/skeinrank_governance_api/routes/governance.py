@@ -27,6 +27,8 @@ from skeinrank_governance.cli import (
 )
 from skeinrank_governance.models import (
     ALIAS_STATUSES,
+    CONFLICT_REVIEW_STATUSES,
+    CONFLICT_SEVERITIES,
     ELASTICSEARCH_BINDING_MODES,
     ELASTICSEARCH_BINDING_PROVIDERS,
     ELASTICSEARCH_BINDING_WRITE_STRATEGIES,
@@ -53,7 +55,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..auth import AuthContext, require_roles
-from ..conflict_detection import build_conflict_report
+from ..conflict_detection import (
+    build_conflict_report,
+    find_current_conflict,
+    merge_conflict_with_review_state,
+    upsert_conflict_review_state,
+)
 from ..dependencies import get_session
 from ..elasticsearch import (
     ElasticsearchDiscoveryClient,
@@ -88,7 +95,9 @@ from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
     AliasUpdateRequest,
+    ConflictReportItemResponse,
     ConflictReportResponse,
+    ConflictReviewUpdateRequest,
     ElasticsearchBindingCreateRequest,
     ElasticsearchBindingDryRunDocument,
     ElasticsearchBindingDryRunRequest,
@@ -1634,6 +1643,64 @@ def list_terminology_conflicts(
         include_suggestions=include_suggestions,
     )
     return ConflictReportResponse(**report)
+
+
+@router.patch(
+    "/conflicts/{fingerprint}/review",
+    response_model=ConflictReportItemResponse,
+)
+def update_conflict_review_state(
+    fingerprint: str,
+    request: ConflictReviewUpdateRequest,
+    profile_name: str | None = Query(default=None, min_length=1, max_length=128),
+    admin_or_moderator: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ConflictReportItemResponse:
+    """Persist reviewer state for a current terminology conflict."""
+
+    if request.severity is not None and request.severity not in CONFLICT_SEVERITIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported conflict severity: {request.severity}",
+        )
+    if (
+        request.review_status is not None
+        and request.review_status not in CONFLICT_REVIEW_STATUSES
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported conflict review status: {request.review_status}",
+        )
+    if profile_name is not None:
+        _get_profile_or_404(session, profile_name)
+
+    conflict = find_current_conflict(
+        session,
+        fingerprint=fingerprint,
+        profile_name=profile_name,
+        include_suggestions=True,
+    )
+    if conflict is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Current conflict not found: {fingerprint}",
+        )
+
+    review = upsert_conflict_review_state(
+        session,
+        conflict=conflict,
+        severity=request.severity,
+        review_status=request.review_status,
+        review_note=request.review_note
+        if "review_note" in request.model_fields_set
+        else None,
+        reviewed_by=admin_or_moderator.username,
+    )
+    session.commit()
+    session.refresh(review)
+    return ConflictReportItemResponse(
+        **merge_conflict_with_review_state(conflict, review)
+    )
 
 
 @router.get(

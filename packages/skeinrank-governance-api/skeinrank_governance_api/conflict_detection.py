@@ -6,24 +6,38 @@ reviewers without mutating profiles, proposals, bindings, or runtime snapshots.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import defaultdict
 from typing import Any
 
 from skeinrank_governance.models import (
     ACTIVE_STATUS,
     CanonicalTerm,
+    GovernanceConflictReview,
     GovernanceGlobalStopListEntry,
     GovernanceStopListEntry,
     GovernanceSuggestion,
     TermAlias,
     TerminologyProfile,
     normalize_profile_name,
+    utc_now,
 )
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 ConflictEntity = dict[str, Any]
 ConflictItem = dict[str, Any]
+
+DEFAULT_CONFLICT_SEVERITY_BY_TYPE = {
+    "alias_maps_to_multiple_canonicals": "high",
+    "pending_alias_conflicts_with_active_alias": "high",
+    "alias_stop_list_collision": "high",
+    "canonical_stop_list_collision": "high",
+    "pending_alias_proposals_conflict": "medium",
+    "canonical_surface_multiple_slots": "medium",
+    "alias_surface_shared_across_profiles": "low",
+}
 
 
 def build_conflict_report(
@@ -52,9 +66,13 @@ def build_conflict_report(
             _detect_pending_proposal_conflicts(session, profile_id=profile_id)
         )
 
+    conflicts = [_attach_conflict_fingerprint(item) for item in conflicts]
+    conflicts = _merge_conflict_review_state(session, conflicts)
     conflicts = sorted(
         conflicts,
         key=lambda item: (
+            item["review_status"],
+            item["severity"],
             item["conflict_type"],
             item["normalized_value"],
             item.get("profile_name") or "",
@@ -69,6 +87,92 @@ def build_conflict_report(
         "total": len(conflicts),
         "conflicts": conflicts,
     }
+
+
+def find_current_conflict(
+    session: Session,
+    *,
+    fingerprint: str,
+    profile_name: str | None = None,
+    include_suggestions: bool = True,
+) -> ConflictItem | None:
+    """Find one current conflict by deterministic fingerprint."""
+
+    report = build_conflict_report(
+        session,
+        profile_name=profile_name,
+        include_suggestions=include_suggestions,
+    )
+    for conflict in report["conflicts"]:
+        if conflict["fingerprint"] == fingerprint:
+            return conflict
+    return None
+
+
+def upsert_conflict_review_state(
+    session: Session,
+    *,
+    conflict: ConflictItem,
+    severity: str | None = None,
+    review_status: str | None = None,
+    review_note: str | None = None,
+    reviewed_by: str,
+) -> GovernanceConflictReview:
+    """Create or update review metadata for a current conflict."""
+
+    review = session.scalar(
+        select(GovernanceConflictReview).where(
+            GovernanceConflictReview.fingerprint == conflict["fingerprint"]
+        )
+    )
+    if review is None:
+        review = GovernanceConflictReview(
+            profile_id=_profile_id_from_conflict(conflict),
+            fingerprint=conflict["fingerprint"],
+            conflict_type=conflict["conflict_type"],
+            normalized_value=conflict["normalized_value"],
+            severity=conflict["severity"],
+            review_status=conflict["review_status"],
+            details_json=_review_details(conflict),
+        )
+        session.add(review)
+
+    review.conflict_type = conflict["conflict_type"]
+    review.normalized_value = conflict["normalized_value"]
+    review.profile_id = _profile_id_from_conflict(conflict)
+    review.details_json = _review_details(conflict)
+    if severity is not None:
+        review.severity = severity
+    if review_status is not None:
+        review.review_status = review_status
+    if review_note is not None:
+        review.review_note = review_note
+    review.reviewed_by = reviewed_by
+    review.reviewed_at = utc_now()
+    return review
+
+
+def merge_conflict_with_review_state(
+    conflict: ConflictItem, review: GovernanceConflictReview | None
+) -> ConflictItem:
+    """Return conflict item decorated with persisted or default review state."""
+
+    item = dict(conflict)
+    item.setdefault(
+        "severity",
+        DEFAULT_CONFLICT_SEVERITY_BY_TYPE.get(item["conflict_type"], "medium"),
+    )
+    item.setdefault("review_status", "open")
+    item.setdefault("review_note", None)
+    item.setdefault("reviewed_by", None)
+    item.setdefault("reviewed_at", None)
+    if review is not None:
+        item["severity"] = review.severity
+        item["review_status"] = review.review_status
+        item["review_note"] = review.review_note
+        item["reviewed_by"] = review.reviewed_by
+        item["reviewed_at"] = review.reviewed_at
+    return item
 
 
 def _get_profile(
@@ -87,6 +191,86 @@ def _get_profile(
 def _profiles_by_id(session: Session) -> dict[int, TerminologyProfile]:
     return {
         profile.id: profile for profile in session.scalars(select(TerminologyProfile))
+    }
+
+
+def _attach_conflict_fingerprint(conflict: ConflictItem) -> ConflictItem:
+    item = dict(conflict)
+    item["fingerprint"] = _conflict_fingerprint(item)
+    item["severity"] = DEFAULT_CONFLICT_SEVERITY_BY_TYPE.get(
+        item["conflict_type"], "medium"
+    )
+    item["review_status"] = "open"
+    item["review_note"] = None
+    item["reviewed_by"] = None
+    item["reviewed_at"] = None
+    return item
+
+
+def _merge_conflict_review_state(
+    session: Session, conflicts: list[ConflictItem]
+) -> list[ConflictItem]:
+    if not conflicts:
+        return []
+    fingerprints = [conflict["fingerprint"] for conflict in conflicts]
+    reviews = {
+        review.fingerprint: review
+        for review in session.scalars(
+            select(GovernanceConflictReview).where(
+                GovernanceConflictReview.fingerprint.in_(fingerprints)
+            )
+        )
+    }
+    return [
+        merge_conflict_with_review_state(conflict, reviews.get(conflict["fingerprint"]))
+        for conflict in conflicts
+    ]
+
+
+def _conflict_fingerprint(conflict: ConflictItem) -> str:
+    payload = {
+        "conflict_type": conflict["conflict_type"],
+        "scope": conflict["scope"],
+        "profile_name": conflict.get("profile_name"),
+        "normalized_value": conflict["normalized_value"],
+        "entities": sorted(
+            (
+                {
+                    "entity_type": entity.get("entity_type"),
+                    "profile_name": entity.get("profile_name"),
+                    "canonical_value": entity.get("canonical_value"),
+                    "alias_value": entity.get("alias_value"),
+                    "normalized_value": entity.get("normalized_value"),
+                    "slot": entity.get("slot"),
+                    "target": entity.get("target"),
+                    "source": entity.get("source"),
+                }
+                for entity in conflict.get("entities", [])
+            ),
+            key=lambda entity: json.dumps(entity, sort_keys=True),
+        ),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _profile_id_from_conflict(conflict: ConflictItem) -> int | None:
+    profile_ids = {
+        entity.get("profile_id")
+        for entity in conflict.get("entities", [])
+        if entity.get("profile_id") is not None
+    }
+    return next(iter(profile_ids)) if len(profile_ids) == 1 else None
+
+
+def _review_details(conflict: ConflictItem) -> dict[str, Any]:
+    return {
+        "scope": conflict.get("scope"),
+        "profile_name": conflict.get("profile_name"),
+        "title": conflict.get("title"),
+        "message": conflict.get("message"),
+        "suggested_action": conflict.get("suggested_action"),
+        "entity_count": len(conflict.get("entities", [])),
     }
 
 

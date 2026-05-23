@@ -23,6 +23,10 @@ def test_public_api_exports_governance_models_and_helpers():
     )
     assert governance.GovernanceSuggestion.__tablename__ == "governance_suggestions"
     assert (
+        governance.GovernanceConflictReview.__tablename__
+        == "governance_conflict_reviews"
+    )
+    assert (
         governance.GovernanceStopListEntry.__tablename__
         == "governance_stop_list_entries"
     )
@@ -42,6 +46,8 @@ def test_public_api_exports_governance_models_and_helpers():
         "job",
         "import",
     )
+    assert governance.CONFLICT_SEVERITIES == ("low", "medium", "high")
+    assert governance.CONFLICT_REVIEW_STATUSES == ("open", "ignored", "resolved")
     assert governance.STOP_LIST_TARGETS == ("alias", "canonical", "both")
     assert governance.ELASTICSEARCH_BINDING_MODES == ("dry_run", "write")
     assert governance.ELASTICSEARCH_BINDING_WRITE_STRATEGIES == (

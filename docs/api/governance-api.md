@@ -143,7 +143,10 @@ reviewers and future ambiguous-alias policy work.
 GET /v1/governance/conflicts
 GET /v1/governance/conflicts?profile_name=infra_incidents
 GET /v1/governance/conflicts?profile_name=infra_incidents&include_suggestions=false
+PATCH /v1/governance/conflicts/{fingerprint}/review
 ```
+
+Each conflict item includes a deterministic `fingerprint`, default `severity`, and persisted review state (`open`, `ignored`, or `resolved`). Admins and moderators can update review state without changing terms, aliases, proposals, or runtime snapshots.
 
 The report currently detects:
 

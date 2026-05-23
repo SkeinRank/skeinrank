@@ -44,6 +44,8 @@ SUGGESTION_STATUSES = ("pending", "approved", "rejected")
 SUGGESTION_TYPES = ("alias", "canonical_term")
 SUGGESTION_SOURCES = ("manual", "discovery", "import")
 PROPOSAL_SOURCE_TYPES = ("human", "agent", "cli", "api", "job", "import")
+CONFLICT_SEVERITIES = ("low", "medium", "high")
+CONFLICT_REVIEW_STATUSES = ("open", "ignored", "resolved")
 STOP_LIST_TARGETS = ("alias", "canonical", "both")
 ELASTICSEARCH_BINDING_MODES = ("dry_run", "write")
 ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
@@ -126,6 +128,11 @@ class TerminologyProfile(TimestampMixin, Base):
         passive_deletes=True,
     )
     suggestions: Mapped[list[GovernanceSuggestion]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    conflict_reviews: Mapped[list[GovernanceConflictReview]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -564,6 +571,72 @@ class GovernanceSuggestion(TimestampMixin, Base):
             "GovernanceSuggestion("
             f"type={self.suggestion_type!r}, canonical={self.canonical_value!r}, "
             f"alias={self.alias_value!r}, status={self.status!r})"
+        )
+
+
+class GovernanceConflictReview(TimestampMixin, Base):
+    """Reviewer state attached to a deterministic conflict fingerprint.
+
+    Conflict reports are computed from current terminology state. This table keeps
+    human review metadata separate from the scanner output so conflicts can be
+    ignored, resolved, or severity-adjusted without mutating terms, aliases, or
+    proposals.
+    """
+
+    __tablename__ = "governance_conflict_reviews"
+    __table_args__ = (
+        CheckConstraint(
+            f"severity IN {CONFLICT_SEVERITIES!r}",
+            name="governance_conflict_review_severity",
+        ),
+        CheckConstraint(
+            f"review_status IN {CONFLICT_REVIEW_STATUSES!r}",
+            name="governance_conflict_review_status",
+        ),
+        UniqueConstraint(
+            "fingerprint",
+            name="uq_governance_conflict_reviews_fingerprint",
+        ),
+        Index(
+            "ix_governance_conflict_reviews_profile_status",
+            "profile_id",
+            "review_status",
+        ),
+        Index(
+            "ix_governance_conflict_reviews_type_severity",
+            "conflict_type",
+            "severity",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    conflict_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    normalized_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), default="medium", nullable=False)
+    review_status: Mapped[str] = mapped_column(
+        String(16), default="open", nullable=False
+    )
+    reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    details_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="conflict_reviews"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "GovernanceConflictReview("
+            f"fingerprint={self.fingerprint!r}, status={self.review_status!r})"
         )
 
 

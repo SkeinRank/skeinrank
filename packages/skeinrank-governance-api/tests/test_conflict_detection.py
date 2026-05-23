@@ -162,3 +162,86 @@ def test_conflict_report_missing_profile_returns_404(tmp_path):
 
     assert response.status_code == 404
     assert "Profile not found" in response.json()["detail"]
+
+
+def test_conflict_report_includes_default_severity_and_review_state(tmp_path):
+    client = _client(tmp_path)
+    assert (
+        client.post("/v1/governance/profiles", json={"name": "infra"}).status_code
+        == 201
+    )
+    assert (
+        client.post("/v1/governance/profiles", json={"name": "docs"}).status_code == 201
+    )
+    _create_term(client, "infra", "postgresql", "database")
+    _create_term(client, "docs", "page", "document_component")
+    _create_alias(client, "infra", "postgresql", "pg")
+    _create_alias(client, "docs", "page", "pg")
+
+    response = client.get("/v1/governance/conflicts")
+
+    assert response.status_code == 200
+    conflict = response.json()["conflicts"][0]
+    assert len(conflict["fingerprint"]) == 64
+    assert conflict["severity"] == "high"
+    assert conflict["review_status"] == "open"
+    assert conflict["review_note"] is None
+    assert conflict["reviewed_by"] is None
+    assert conflict["reviewed_at"] is None
+
+
+def test_conflict_review_state_can_be_updated_and_read_back(tmp_path):
+    client = _client(tmp_path)
+    assert (
+        client.post("/v1/governance/profiles", json={"name": "default_it"}).status_code
+        == 201
+    )
+    _create_term(client, "default_it", "kubernetes", "tool")
+    _create_alias(client, "default_it", "kubernetes", "k8s")
+    stop = client.post(
+        "/v1/governance/profiles/default_it/stop-list",
+        json={"value": "k8s", "target": "alias", "reason": "too noisy"},
+    )
+    assert stop.status_code == 201
+    conflict = client.get("/v1/governance/conflicts?profile_name=default_it").json()[
+        "conflicts"
+    ][0]
+
+    reviewed = client.patch(
+        f"/v1/governance/conflicts/{conflict['fingerprint']}/review?profile_name=default_it",
+        json={
+            "severity": "medium",
+            "review_status": "ignored",
+            "review_note": "Known legacy alias kept for compatibility.",
+        },
+    )
+
+    assert reviewed.status_code == 200, reviewed.text
+    reviewed_payload = reviewed.json()
+    assert reviewed_payload["fingerprint"] == conflict["fingerprint"]
+    assert reviewed_payload["severity"] == "medium"
+    assert reviewed_payload["review_status"] == "ignored"
+    assert (
+        reviewed_payload["review_note"] == "Known legacy alias kept for compatibility."
+    )
+    assert reviewed_payload["reviewed_by"] == "local_dev"
+    assert reviewed_payload["reviewed_at"] is not None
+
+    response = client.get("/v1/governance/conflicts?profile_name=default_it")
+    assert response.status_code == 200
+    persisted = response.json()["conflicts"][0]
+    assert persisted["severity"] == "medium"
+    assert persisted["review_status"] == "ignored"
+    assert persisted["review_note"] == "Known legacy alias kept for compatibility."
+
+
+def test_conflict_review_rejects_unknown_fingerprint(tmp_path):
+    client = _client(tmp_path)
+
+    response = client.patch(
+        "/v1/governance/conflicts/missing/review",
+        json={"review_status": "ignored"},
+    )
+
+    assert response.status_code == 404
+    assert "Current conflict not found" in response.json()["detail"]

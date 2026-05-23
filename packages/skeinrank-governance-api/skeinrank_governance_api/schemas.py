@@ -575,6 +575,7 @@ class ConflictEntityResponse(BaseModel):
 class ConflictReportItemResponse(BaseModel):
     """One read-only conflict found by the coverage scanner."""
 
+    fingerprint: str
     conflict_type: str
     scope: str
     profile_name: str | None = None
@@ -582,7 +583,20 @@ class ConflictReportItemResponse(BaseModel):
     title: str
     message: str
     suggested_action: str
+    severity: str = "medium"
+    review_status: str = "open"
+    review_note: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
     entities: list[ConflictEntityResponse] = Field(default_factory=list)
+
+
+class ConflictReviewUpdateRequest(BaseModel):
+    """Update human review state for a current terminology conflict."""
+
+    severity: str | None = None
+    review_status: str | None = None
+    review_note: str | None = Field(default=None, max_length=2000)
 
 
 class ConflictReportResponse(BaseModel):

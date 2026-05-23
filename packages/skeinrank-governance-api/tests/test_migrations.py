@@ -120,6 +120,30 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         )
         is True
     )
+
+    conflict_review_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_conflict_reviews")
+    }
+    assert {
+        "profile_id",
+        "fingerprint",
+        "conflict_type",
+        "normalized_value",
+        "severity",
+        "review_status",
+        "reviewed_by",
+        "reviewed_at",
+        "review_note",
+        "details_json",
+    }.issubset(conflict_review_columns)
+    conflict_review_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_conflict_reviews")
+    }
+    assert "ix_governance_conflict_reviews_profile_status" in conflict_review_indexes
+    assert "ix_governance_conflict_reviews_type_severity" in conflict_review_indexes
+
     stop_list_columns = {
         column["name"]
         for column in inspector.get_columns("governance_stop_list_entries")
@@ -187,7 +211,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260523_0018"
+    assert revision == "20260523_0019"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

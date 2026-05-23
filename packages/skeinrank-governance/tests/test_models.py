@@ -9,6 +9,7 @@ from skeinrank_governance import (
     ElasticsearchEnrichmentJob,
     GovernanceApiToken,
     GovernanceAuthToken,
+    GovernanceConflictReview,
     GovernanceGlobalStopListEntry,
     GovernanceServiceAccount,
     GovernanceStopListEntry,
@@ -50,6 +51,7 @@ def test_metadata_contains_expected_tables():
         "governance_service_accounts",
         "governance_api_tokens",
         "governance_suggestions",
+        "governance_conflict_reviews",
         "governance_stop_list_entries",
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
@@ -101,6 +103,17 @@ def test_create_governance_rows_and_normalized_values(session):
             "warnings": [],
         },
         evidence_checked_by="tester",
+    )
+    conflict_review = GovernanceConflictReview(
+        profile=profile,
+        fingerprint="abc123",
+        conflict_type="alias_maps_to_multiple_canonicals",
+        normalized_value="pg",
+        severity="high",
+        review_status="ignored",
+        reviewed_by="tester",
+        review_note="Accepted cross-domain term",
+        details_json={"scope": "cross_profile"},
     )
     stop_list_entry = GovernanceStopListEntry(
         profile=profile,
@@ -180,6 +193,7 @@ def test_create_governance_rows_and_normalized_values(session):
             tag,
             snapshot,
             suggestion,
+            conflict_review,
             stop_list_entry,
             global_stop_list_entry,
             user,
@@ -207,6 +221,9 @@ def test_create_governance_rows_and_normalized_values(session):
     assert suggestion.status == "pending"
     assert suggestion.evidence_snapshot["query"] == "kube"
     assert suggestion.evidence_checked_by == "tester"
+    assert conflict_review.severity == "high"
+    assert conflict_review.review_status == "ignored"
+    assert conflict_review.review_note == "Accepted cross-domain term"
     assert stop_list_entry.normalized_value == "service"
     assert stop_list_entry.target == "alias"
     assert stop_list_entry.is_active is True

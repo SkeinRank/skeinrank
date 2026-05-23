@@ -199,3 +199,8 @@ can reuse the same contract.
 Dictionary terms and governance term APIs now accept optional `tags` on canonical
 terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
 that complement the primary `slot` without changing runtime snapshot behavior.
+
+
+## Conflict review state
+
+`GovernanceConflictReview` stores persisted review metadata for computed terminology conflicts. Conflict scanners remain read-only; review rows track fingerprint, severity, review status, reviewer, note, and compact conflict details.

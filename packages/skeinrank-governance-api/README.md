@@ -944,4 +944,7 @@ GET /v1/governance/conflicts?profile_name=infra_incidents
 ```
 
 The report surfaces cross-profile alias reuse, active alias/canonical stop-list
-collisions, and pending proposal conflicts without mutating terminology.
+collisions, and pending proposal conflicts without mutating terminology. Each
+conflict includes a deterministic `fingerprint`, default severity, and persisted
+review state. Admins and moderators can update review state through
+`PATCH /v1/governance/conflicts/{fingerprint}/review`.

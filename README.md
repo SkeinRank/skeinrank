@@ -337,4 +337,4 @@ those tags too, so exported artifacts and query/canonicalization debug output
 can explain both the primary slot and richer term facets.
 
 
-- Read-only conflict detection report for alias drift, stop-list collisions, and pending proposal conflicts.
+- Conflict detection report with severity and persisted review state for alias drift, stop-list collisions, and pending proposal conflicts.
