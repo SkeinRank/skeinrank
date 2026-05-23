@@ -31,6 +31,9 @@ Governance API / UI
 Elasticsearch workflows
   -> connection discovery, binding dry-runs, enrichment jobs, evidence snapshots
 
+Headless runtime contracts
+  -> binding-first runtime, snapshot artifacts, proposal-safe agent workflows
+
 Runtime context
   -> pinned snapshots, canonical query context, binding-aware search/RAG side-car usage
 ```
@@ -80,7 +83,8 @@ Common examples:
 - support ticket search;
 - domain-specific Elasticsearch/OpenSearch indexes;
 - RAG pipelines that need canonical entity/context hints;
-- governance workflows where contributors suggest aliases but reviewers approve changes.
+- headless services that need stable runtime snapshot artifacts;
+- governance workflows where contributors, CI jobs, or agents suggest aliases but reviewers and policies approve changes.
 
 ## Current status
 
