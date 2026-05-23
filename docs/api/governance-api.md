@@ -247,3 +247,36 @@ SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND
 ```
 
 Do not use default credentials or permissive CORS settings in production. See `docs/deployment/security.md`.
+
+## MCP server MVP
+
+Patch 37F exposes the same agent-safe proposal tools through a small stdio MCP
+adapter. The MCP server delegates to the REST API instead of duplicating business
+logic.
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+Environment variables:
+
+```text
+SKEINRANK_MCP_GOVERNANCE_API_URL=http://127.0.0.1:8010
+SKEINRANK_MCP_ROLE=admin
+SKEINRANK_MCP_API_TOKEN=optional-bearer-token
+```
+
+MCP tools:
+
+```text
+skeinrank_list_bindings
+skeinrank_explain_query
+skeinrank_validate_alias
+skeinrank_submit_alias_proposal
+skeinrank_get_proposal_status
+```
+
+The MCP adapter keeps the same production rule as the REST tools: an agent can
+submit a proposal, validate a candidate alias, or explain a query, but it does
+not mutate active runtime terminology directly.

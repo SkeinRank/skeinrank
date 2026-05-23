@@ -189,3 +189,22 @@ dictionary spec v1 -> /v1/headless/dictionaries/apply -> binding -> /v1/headless
 ```
 
 The walkthrough lives in `docs/deployment/headless-quickstart.md`, and the helper script is `deploy/docker/scripts/headless-golden-path.sh`.
+
+## MCP adapter boundary
+
+Patch 37F adds a minimal MCP stdio server as an adapter over the existing
+headless and agent-tool REST contracts. This keeps the architecture simple:
+
+```text
+MCP client / agent
+  -> skeinrank-mcp stdio adapter
+  -> /v1/tools/* and proposal review APIs
+  -> PostgreSQL proposal/audit state
+  -> reviewed snapshot publish
+```
+
+The MCP server is deliberately thin. It does not maintain a separate proposal
+model and does not bypass validation, idempotency, role checks, or batch publish
+logic. Agents can call tools such as `skeinrank_validate_alias` and
+`skeinrank_submit_alias_proposal`, while SkeinRank remains the policy boundary
+that validates, stores, reviews, and snapshots terminology changes.

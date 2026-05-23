@@ -181,6 +181,18 @@ when a `binding_id` is provided, pin a fresh runtime snapshot on that binding.
 This keeps agent proposals separate from production terminology until a reviewed
 batch is intentionally released.
 
+Patch 37F adds a dependency-light MCP stdio adapter on top of the REST tools:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+The MCP server exposes `skeinrank_list_bindings`, `skeinrank_explain_query`,
+`skeinrank_validate_alias`, `skeinrank_submit_alias_proposal`, and
+`skeinrank_get_proposal_status`. It does not own business logic; it only adapts
+MCP tool calls to the existing `/v1/tools/*` and proposal review APIs.
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.

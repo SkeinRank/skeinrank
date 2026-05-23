@@ -884,3 +884,35 @@ GET  /v1/headless/dictionaries/export?profile_name=...
 
 The legacy console migration routes remain available and use the same
 implementation. New automation should prefer `/v1/headless/dictionaries/*`.
+
+## MCP server MVP
+
+Patch 37F adds a small Model Context Protocol (MCP) stdio server that adapts
+agent tool calls to the existing REST API. It has no mandatory third-party MCP
+runtime dependency; business logic stays in the governance API routes.
+
+Start the governance API first, then run:
+
+```bash
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+Environment variables:
+
+```bash
+export SKEINRANK_MCP_GOVERNANCE_API_URL=http://127.0.0.1:8010
+export SKEINRANK_MCP_ROLE=admin
+# optional when auth is enabled
+export SKEINRANK_MCP_API_TOKEN=...
+```
+
+MCP tools exposed in this MVP:
+
+- `skeinrank_list_bindings`
+- `skeinrank_explain_query`
+- `skeinrank_validate_alias`
+- `skeinrank_submit_alias_proposal`
+- `skeinrank_get_proposal_status`
+
+Agents submit proposals for review; they do not mutate active runtime
+terminology directly.
