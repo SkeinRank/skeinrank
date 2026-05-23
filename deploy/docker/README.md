@@ -48,6 +48,26 @@ RabbitMQ:
 
 The `governance-migrate` service runs Alembic migrations before the API and worker start.
 
+
+## Headless-only profile
+
+Use the API/PostgreSQL-only profile when you want to test headless dictionary and snapshot artifact contracts without UI, Elasticsearch, RabbitMQ, or Celery workers:
+
+```bash
+docker compose \
+  --env-file deploy/docker/headless.env.example \
+  -f docker-compose.headless.yml \
+  up --build -d
+
+deploy/docker/scripts/headless-golden-path.sh
+```
+
+Full walkthrough:
+
+```text
+docs/deployment/headless-quickstart.md
+```
+
 ## Production-oriented profile
 
 Start from:

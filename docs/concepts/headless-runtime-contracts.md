@@ -176,3 +176,14 @@ CLI inspection is available through:
 ```bash
 skeinrank-migrate snapshot-inspect snapshots/platform_ops.binding-7.v1.json
 ```
+
+
+## Headless Compose golden path
+
+Patch 36F adds `docker-compose.headless.yml` for the API/PostgreSQL-only runtime contract smoke path. The profile intentionally excludes the UI, Elasticsearch, RabbitMQ, and Celery workers so a developer can validate the headless flow quickly:
+
+```text
+dictionary spec v1 -> /v1/headless/dictionaries/apply -> binding -> /v1/headless/snapshots/export -> runtime artifact file
+```
+
+The walkthrough lives in `docs/deployment/headless-quickstart.md`, and the helper script is `deploy/docker/scripts/headless-golden-path.sh`.

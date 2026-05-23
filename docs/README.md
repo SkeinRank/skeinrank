@@ -19,6 +19,7 @@ This directory keeps repository-level documentation for developers, operators, a
 ## Deployment
 
 - [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.
+- [`deployment/headless-quickstart.md`](deployment/headless-quickstart.md) — API/PostgreSQL-only golden path for headless integrations.
 - [`deployment/security.md`](deployment/security.md) — production-oriented security baseline.
 - [`deployment/observability.md`](deployment/observability.md) — logs, metrics, tracing, Prometheus, and Grafana.
 - [`deployment/dev-stack-troubleshooting.md`](deployment/dev-stack-troubleshooting.md) — common local stack issues.
@@ -40,3 +41,7 @@ but are named for CI/CD, agents, and service-to-service workflows.
 - Snapshot artifact export: `GET /v1/headless/snapshots/export?binding_id=...` and `skeinrank-migrate snapshot-export`.
 
 - Runtime artifact file loader/cache: see `docs/concepts/headless-runtime-contracts.md`.
+
+## Headless quickstart
+
+Use `docker-compose.headless.yml` for the API/PostgreSQL-only Phase A path. See `deployment/headless-quickstart.md` for the dictionary apply -> binding -> snapshot artifact workflow.

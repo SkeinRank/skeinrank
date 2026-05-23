@@ -140,6 +140,22 @@ curl -X POST http://127.0.0.1:8010/v1/auth/users \
 ```
 
 
+
+## Headless Compose quickstart
+
+From the repository root, start the API/PostgreSQL-only profile and run the golden path helper:
+
+```bash
+docker compose \
+  --env-file deploy/docker/headless.env.example \
+  -f docker-compose.headless.yml \
+  up --build -d
+
+deploy/docker/scripts/headless-golden-path.sh
+```
+
+The helper applies the example dictionary, creates a local binding, exports a `skeinrank.runtime_snapshot_artifact.v1` file, and prints a summary. See `docs/deployment/headless-quickstart.md` for the manual curl flow.
+
 ## Headless dictionary and snapshot APIs
 
 Patch 36C/36D add automation-first routes for CI/CD, agents, and headless

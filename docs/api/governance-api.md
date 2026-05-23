@@ -23,6 +23,8 @@ Default local URL:
 http://127.0.0.1:8010
 ```
 
+For the API/PostgreSQL-only smoke path, start `docker-compose.headless.yml` and follow `docs/deployment/headless-quickstart.md`.
+
 ## Health and readiness
 
 ```text

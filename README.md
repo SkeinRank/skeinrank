@@ -110,6 +110,24 @@ Default local URLs:
 
 Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md).
 
+
+## Quickstart: headless runtime
+
+Use the headless Compose profile when you want the automation-first path without the React UI, Elasticsearch, RabbitMQ, or Celery workers. It starts PostgreSQL, runs migrations, and exposes the Governance API for dictionary apply/export and runtime snapshot artifact smoke tests.
+
+```bash
+docker compose \
+  --env-file deploy/docker/headless.env.example \
+  -f docker-compose.headless.yml \
+  up --build -d
+
+deploy/docker/scripts/headless-golden-path.sh
+```
+
+The golden path applies `examples/migration/console_dictionary.example.json`, creates a local binding, exports `skeinrank.runtime_snapshot_artifact.v1`, and writes a portable artifact under `snapshots/`.
+
+Full instructions live in [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md).
+
 ## Headless dictionary API
 
 Use the headless dictionary facade when CI jobs, agents, or service integrations
@@ -220,8 +238,10 @@ SkeinRank includes Docker Compose profiles for local development and production-
 Main files:
 
 - [`docker-compose.dev.yml`](docker-compose.dev.yml) — local development stack.
+- [`docker-compose.headless.yml`](docker-compose.headless.yml) — API/PostgreSQL-only headless stack.
 - [`docker-compose.prod.yml`](docker-compose.prod.yml) — production-oriented stack.
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) — Docker Compose setup guide.
+- [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) — API-only golden path for dictionary apply and snapshot artifact export.
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md) — local stack troubleshooting.
 - [`docs/deployment/security.md`](docs/deployment/security.md) — deployment and security notes.
 
