@@ -948,3 +948,7 @@ collisions, and pending proposal conflicts without mutating terminology. Each
 conflict includes a deterministic `fingerprint`, default severity, and persisted
 review state. Admins and moderators can update review state through
 `PATCH /v1/governance/conflicts/{fingerprint}/review`.
+
+### Ambiguous alias candidates
+
+The API exposes profile-scoped ambiguous alias candidate endpoints for coverage review. They let reviewers record surfaces like `pg` with multiple candidate canonicals while keeping runtime snapshots unchanged until binding policy resolution is added.

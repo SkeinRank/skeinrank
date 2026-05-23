@@ -7,6 +7,8 @@ from skeinrank_governance import (
     CanonicalTerm,
     ElasticsearchBinding,
     ElasticsearchEnrichmentJob,
+    GovernanceAmbiguousAlias,
+    GovernanceAmbiguousAliasCandidate,
     GovernanceApiToken,
     GovernanceAuthToken,
     GovernanceConflictReview,
@@ -52,6 +54,8 @@ def test_metadata_contains_expected_tables():
         "governance_api_tokens",
         "governance_suggestions",
         "governance_conflict_reviews",
+        "governance_ambiguous_aliases",
+        "governance_ambiguous_alias_candidates",
         "governance_stop_list_entries",
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
@@ -114,6 +118,23 @@ def test_create_governance_rows_and_normalized_values(session):
         reviewed_by="tester",
         review_note="Accepted cross-domain term",
         details_json={"scope": "cross_profile"},
+    )
+    ambiguous_alias = GovernanceAmbiguousAlias(
+        profile=profile,
+        surface_value="PG",
+        status="open",
+        created_by="tester",
+        review_note="Needs binding policy",
+    )
+    ambiguous_candidate = GovernanceAmbiguousAliasCandidate(
+        ambiguous_alias=ambiguous_alias,
+        term=term,
+        canonical_value="Kubernetes",
+        slot="TOOL",
+        source="manual",
+        confidence=0.88,
+        status="candidate",
+        evidence_json={"query_count": 42},
     )
     stop_list_entry = GovernanceStopListEntry(
         profile=profile,
@@ -194,6 +215,8 @@ def test_create_governance_rows_and_normalized_values(session):
             snapshot,
             suggestion,
             conflict_review,
+            ambiguous_alias,
+            ambiguous_candidate,
             stop_list_entry,
             global_stop_list_entry,
             user,
@@ -224,6 +247,11 @@ def test_create_governance_rows_and_normalized_values(session):
     assert conflict_review.severity == "high"
     assert conflict_review.review_status == "ignored"
     assert conflict_review.review_note == "Accepted cross-domain term"
+    assert ambiguous_alias.normalized_surface == "pg"
+    assert ambiguous_alias.status == "open"
+    assert ambiguous_candidate.normalized_canonical == "kubernetes"
+    assert ambiguous_candidate.slot == "TOOL"
+    assert ambiguous_candidate.evidence_json == {"query_count": 42}
     assert stop_list_entry.normalized_value == "service"
     assert stop_list_entry.target == "alias"
     assert stop_list_entry.is_active is True

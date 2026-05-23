@@ -204,3 +204,7 @@ that complement the primary `slot` without changing runtime snapshot behavior.
 ## Conflict review state
 
 `GovernanceConflictReview` stores persisted review metadata for computed terminology conflicts. Conflict scanners remain read-only; review rows track fingerprint, severity, review status, reviewer, note, and compact conflict details.
+
+### Ambiguous alias candidates
+
+The governance model includes `GovernanceAmbiguousAlias` and `GovernanceAmbiguousAliasCandidate` for recording multi-interpretation alias surfaces such as `pg`. These rows are review metadata and do not mutate active aliases directly.

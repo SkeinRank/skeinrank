@@ -231,3 +231,7 @@ It scans governed terminology for alias drift, stop-list collisions, canonical s
 drift, and pending proposal conflicts. The report does not publish snapshots or
 change active terms; it gives reviewers and agents a safe diagnostic surface
 before later ambiguous-alias and binding-policy layers.
+
+### Ambiguous aliases
+
+An ambiguous alias is a governance record for a surface form that can safely mean different canonical terms in different runtime contexts. It stores candidates and review state, but it does not change production canonicalization until a later binding policy resolver uses it.

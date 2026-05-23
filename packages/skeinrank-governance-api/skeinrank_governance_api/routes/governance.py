@@ -27,6 +27,9 @@ from skeinrank_governance.cli import (
 )
 from skeinrank_governance.models import (
     ALIAS_STATUSES,
+    AMBIGUOUS_ALIAS_CANDIDATE_SOURCES,
+    AMBIGUOUS_ALIAS_CANDIDATE_STATUSES,
+    AMBIGUOUS_ALIAS_STATUSES,
     CONFLICT_REVIEW_STATUSES,
     CONFLICT_SEVERITIES,
     ELASTICSEARCH_BINDING_MODES,
@@ -41,6 +44,8 @@ from skeinrank_governance.models import (
     CanonicalTerm,
     ElasticsearchBinding,
     ElasticsearchEnrichmentJob,
+    GovernanceAmbiguousAlias,
+    GovernanceAmbiguousAliasCandidate,
     GovernanceGlobalStopListEntry,
     GovernanceStopListEntry,
     GovernanceSuggestion,
@@ -95,6 +100,10 @@ from ..schemas import (
     AliasCreateRequest,
     AliasResponse,
     AliasUpdateRequest,
+    AmbiguousAliasCandidateResponse,
+    AmbiguousAliasResponse,
+    AmbiguousAliasUpdateRequest,
+    AmbiguousAliasUpsertRequest,
     ConflictReportItemResponse,
     ConflictReportResponse,
     ConflictReviewUpdateRequest,
@@ -1619,6 +1628,165 @@ def list_proposal_source_quality(
         )
         for row in rows
     ]
+
+
+@router.get(
+    "/profiles/{profile_name}/ambiguous-aliases",
+    response_model=list[AmbiguousAliasResponse],
+)
+def list_profile_ambiguous_aliases(
+    profile_name: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[AmbiguousAliasResponse]:
+    """List ambiguous alias surfaces for one terminology profile."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    aliases = list(
+        session.scalars(
+            select(GovernanceAmbiguousAlias)
+            .where(GovernanceAmbiguousAlias.profile_id == profile.id)
+            .order_by(
+                GovernanceAmbiguousAlias.normalized_surface,
+                GovernanceAmbiguousAlias.id,
+            )
+        )
+    )
+    return [_ambiguous_alias_response(alias) for alias in aliases]
+
+
+@router.post(
+    "/profiles/{profile_name}/ambiguous-aliases",
+    response_model=AmbiguousAliasResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def upsert_profile_ambiguous_alias(
+    profile_name: str,
+    request: AmbiguousAliasUpsertRequest,
+    response: Response,
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> AmbiguousAliasResponse:
+    """Create or update an ambiguous alias surface and candidate interpretations."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    _validate_ambiguous_alias_status(request.status)
+    normalized_surface = normalize_value(request.surface_value)
+    ambiguous_alias = session.scalar(
+        select(GovernanceAmbiguousAlias).where(
+            GovernanceAmbiguousAlias.profile_id == profile.id,
+            GovernanceAmbiguousAlias.normalized_surface == normalized_surface,
+        )
+    )
+    response_status = status.HTTP_200_OK
+    if ambiguous_alias is None:
+        response_status = status.HTTP_201_CREATED
+        ambiguous_alias = GovernanceAmbiguousAlias(
+            profile=profile,
+            surface_value=request.surface_value,
+            normalized_surface=normalized_surface,
+            status=request.status,
+            created_by=current_user.username,
+        )
+        session.add(ambiguous_alias)
+        session.flush()
+    else:
+        ambiguous_alias.surface_value = request.surface_value
+        ambiguous_alias.status = request.status
+
+    if "review_note" in request.model_fields_set:
+        ambiguous_alias.review_note = request.review_note
+        ambiguous_alias.reviewed_by = current_user.username
+        ambiguous_alias.reviewed_at = utc_now()
+
+    _upsert_ambiguous_alias_candidates(
+        session,
+        profile=profile,
+        ambiguous_alias=ambiguous_alias,
+        candidates=request.candidates,
+    )
+    try:
+        session.commit()
+        session.refresh(ambiguous_alias)
+        response.status_code = response_status
+        return _ambiguous_alias_response(ambiguous_alias)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.get(
+    "/profiles/{profile_name}/ambiguous-aliases/{surface_value}",
+    response_model=AmbiguousAliasResponse,
+)
+def get_profile_ambiguous_alias(
+    profile_name: str,
+    surface_value: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> AmbiguousAliasResponse:
+    """Return one ambiguous alias surface by normalized value."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    ambiguous_alias = _get_ambiguous_alias_or_404(session, profile, surface_value)
+    return _ambiguous_alias_response(ambiguous_alias)
+
+
+@router.patch(
+    "/profiles/{profile_name}/ambiguous-aliases/{surface_value}",
+    response_model=AmbiguousAliasResponse,
+)
+def update_profile_ambiguous_alias(
+    profile_name: str,
+    surface_value: str,
+    request: AmbiguousAliasUpdateRequest,
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> AmbiguousAliasResponse:
+    """Update ambiguous alias reviewer state without changing candidates."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    ambiguous_alias = _get_ambiguous_alias_or_404(session, profile, surface_value)
+    if request.surface_value is not None:
+        next_normalized = normalize_value(request.surface_value)
+        if next_normalized != ambiguous_alias.normalized_surface:
+            existing = session.scalar(
+                select(GovernanceAmbiguousAlias).where(
+                    GovernanceAmbiguousAlias.profile_id == profile.id,
+                    GovernanceAmbiguousAlias.normalized_surface == next_normalized,
+                    GovernanceAmbiguousAlias.id != ambiguous_alias.id,
+                )
+            )
+            if existing is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Ambiguous alias already exists in profile {profile.name!r}: "
+                        f"{request.surface_value}"
+                    ),
+                )
+            ambiguous_alias.normalized_surface = next_normalized
+        ambiguous_alias.surface_value = request.surface_value
+    if request.status is not None:
+        _validate_ambiguous_alias_status(request.status)
+        ambiguous_alias.status = request.status
+        ambiguous_alias.reviewed_by = current_user.username
+        ambiguous_alias.reviewed_at = utc_now()
+    if "review_note" in request.model_fields_set:
+        ambiguous_alias.review_note = request.review_note
+        ambiguous_alias.reviewed_by = current_user.username
+        ambiguous_alias.reviewed_at = utc_now()
+    try:
+        session.commit()
+        session.refresh(ambiguous_alias)
+        return _ambiguous_alias_response(ambiguous_alias)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
 
 
 @router.get(
@@ -3374,6 +3542,151 @@ def _ensure_pending_suggestion(suggestion: GovernanceSuggestion) -> None:
         )
 
 
+def _get_ambiguous_alias_or_404(
+    session: Session,
+    profile: TerminologyProfile,
+    surface_value: str,
+) -> GovernanceAmbiguousAlias:
+    ambiguous_alias = session.scalar(
+        select(GovernanceAmbiguousAlias).where(
+            GovernanceAmbiguousAlias.profile_id == profile.id,
+            GovernanceAmbiguousAlias.normalized_surface
+            == normalize_value(surface_value),
+        )
+    )
+    if ambiguous_alias is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Ambiguous alias not found for profile {profile.name!r}: "
+                f"{surface_value}"
+            ),
+        )
+    return ambiguous_alias
+
+
+def _upsert_ambiguous_alias_candidates(
+    session: Session,
+    *,
+    profile: TerminologyProfile,
+    ambiguous_alias: GovernanceAmbiguousAlias,
+    candidates: list,
+) -> None:
+    existing_by_key = {
+        (candidate.normalized_canonical, candidate.slot): candidate
+        for candidate in list(ambiguous_alias.candidates)
+    }
+    next_candidates: list[GovernanceAmbiguousAliasCandidate] = []
+    for candidate_input in candidates:
+        _validate_ambiguous_alias_candidate_status(candidate_input.status)
+        _validate_ambiguous_alias_candidate_source(candidate_input.source)
+        normalized_canonical = normalize_value(candidate_input.canonical_value)
+        slot = candidate_input.slot.strip().upper()
+        term = _resolve_candidate_term(
+            session,
+            profile=profile,
+            term_id=candidate_input.term_id,
+            normalized_canonical=normalized_canonical,
+            slot=slot,
+        )
+        key = (normalized_canonical, slot)
+        candidate = existing_by_key.get(key)
+        if candidate is None:
+            candidate = GovernanceAmbiguousAliasCandidate(
+                ambiguous_alias=ambiguous_alias,
+                canonical_value=candidate_input.canonical_value,
+                normalized_canonical=normalized_canonical,
+                slot=slot,
+            )
+            session.add(candidate)
+        candidate.term = term
+        candidate.canonical_value = candidate_input.canonical_value
+        candidate.source = candidate_input.source
+        candidate.confidence = candidate_input.confidence
+        candidate.status = candidate_input.status
+        candidate.evidence_json = candidate_input.evidence
+        next_candidates.append(candidate)
+
+    if candidates:
+        ambiguous_alias.candidates = next_candidates
+        session.flush()
+
+
+def _resolve_candidate_term(
+    session: Session,
+    *,
+    profile: TerminologyProfile,
+    term_id: int | None,
+    normalized_canonical: str,
+    slot: str,
+) -> CanonicalTerm | None:
+    if term_id is not None:
+        term = session.scalar(
+            select(CanonicalTerm).where(
+                CanonicalTerm.id == term_id,
+                CanonicalTerm.profile_id == profile.id,
+            )
+        )
+        if term is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Canonical term not found for profile {profile.name!r}: {term_id}",
+            )
+        if term.normalized_value != normalized_canonical or term.slot != slot:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Candidate term_id does not match canonical_value/slot: "
+                    f"{term_id}"
+                ),
+            )
+        return term
+
+    return session.scalar(
+        select(CanonicalTerm).where(
+            CanonicalTerm.profile_id == profile.id,
+            CanonicalTerm.normalized_value == normalized_canonical,
+            CanonicalTerm.slot == slot,
+        )
+    )
+
+
+def _validate_ambiguous_alias_status(value: str) -> None:
+    if value not in AMBIGUOUS_ALIAS_STATUSES:
+        allowed_values = ", ".join(AMBIGUOUS_ALIAS_STATUSES)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Invalid ambiguous alias status: {value}. "
+                f"Allowed values: {allowed_values}"
+            ),
+        )
+
+
+def _validate_ambiguous_alias_candidate_status(value: str) -> None:
+    if value not in AMBIGUOUS_ALIAS_CANDIDATE_STATUSES:
+        allowed_values = ", ".join(AMBIGUOUS_ALIAS_CANDIDATE_STATUSES)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Invalid ambiguous alias candidate status: {value}. "
+                f"Allowed values: {allowed_values}"
+            ),
+        )
+
+
+def _validate_ambiguous_alias_candidate_source(value: str) -> None:
+    if value not in AMBIGUOUS_ALIAS_CANDIDATE_SOURCES:
+        allowed_values = ", ".join(AMBIGUOUS_ALIAS_CANDIDATE_SOURCES)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Invalid ambiguous alias candidate source: {value}. "
+                f"Allowed values: {allowed_values}"
+            ),
+        )
+
+
 def _validate_status(value: str, allowed: tuple[str, ...], entity_name: str) -> None:
     if value not in allowed:
         allowed_values = ", ".join(allowed)
@@ -3416,6 +3729,56 @@ def _term_response(term: CanonicalTerm) -> TermResponse:
         aliases=[_alias_response(alias) for alias in term.aliases],
         created_at=term.created_at,
         updated_at=term.updated_at,
+    )
+
+
+def _ambiguous_alias_response(
+    ambiguous_alias: GovernanceAmbiguousAlias,
+) -> AmbiguousAliasResponse:
+    return AmbiguousAliasResponse(
+        id=ambiguous_alias.id,
+        profile_id=ambiguous_alias.profile_id,
+        profile_name=ambiguous_alias.profile.name,
+        surface_value=ambiguous_alias.surface_value,
+        normalized_surface=ambiguous_alias.normalized_surface,
+        status=ambiguous_alias.status,
+        created_by=ambiguous_alias.created_by,
+        reviewed_by=ambiguous_alias.reviewed_by,
+        reviewed_at=ambiguous_alias.reviewed_at,
+        review_note=ambiguous_alias.review_note,
+        candidates=[
+            _ambiguous_alias_candidate_response(candidate)
+            for candidate in sorted(
+                ambiguous_alias.candidates,
+                key=lambda item: (
+                    item.status != "preferred",
+                    item.normalized_canonical,
+                    item.slot,
+                    item.id,
+                ),
+            )
+        ],
+        created_at=ambiguous_alias.created_at,
+        updated_at=ambiguous_alias.updated_at,
+    )
+
+
+def _ambiguous_alias_candidate_response(
+    candidate: GovernanceAmbiguousAliasCandidate,
+) -> AmbiguousAliasCandidateResponse:
+    return AmbiguousAliasCandidateResponse(
+        id=candidate.id,
+        ambiguous_alias_id=candidate.ambiguous_alias_id,
+        term_id=candidate.term_id,
+        canonical_value=candidate.canonical_value,
+        normalized_canonical=candidate.normalized_canonical,
+        slot=candidate.slot,
+        source=candidate.source,
+        confidence=candidate.confidence,
+        status=candidate.status,
+        evidence=candidate.evidence_json,
+        created_at=candidate.created_at,
+        updated_at=candidate.updated_at,
     )
 
 

@@ -46,6 +46,16 @@ SUGGESTION_SOURCES = ("manual", "discovery", "import")
 PROPOSAL_SOURCE_TYPES = ("human", "agent", "cli", "api", "job", "import")
 CONFLICT_SEVERITIES = ("low", "medium", "high")
 CONFLICT_REVIEW_STATUSES = ("open", "ignored", "resolved")
+AMBIGUOUS_ALIAS_STATUSES = ("open", "resolved", "ignored")
+AMBIGUOUS_ALIAS_CANDIDATE_STATUSES = ("candidate", "preferred", "rejected")
+AMBIGUOUS_ALIAS_CANDIDATE_SOURCES = (
+    "manual",
+    "active_alias",
+    "suggestion",
+    "conflict",
+    "agent",
+    "import",
+)
 STOP_LIST_TARGETS = ("alias", "canonical", "both")
 ELASTICSEARCH_BINDING_MODES = ("dry_run", "write")
 ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
@@ -133,6 +143,11 @@ class TerminologyProfile(TimestampMixin, Base):
         passive_deletes=True,
     )
     conflict_reviews: Mapped[list[GovernanceConflictReview]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    ambiguous_aliases: Mapped[list[GovernanceAmbiguousAlias]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -640,6 +655,129 @@ class GovernanceConflictReview(TimestampMixin, Base):
         )
 
 
+class GovernanceAmbiguousAlias(TimestampMixin, Base):
+    """An ambiguous alias surface with candidate canonical interpretations.
+
+    This model does not change active runtime canonicalization on its own. It is a
+    reviewer-facing coverage layer used to record that a surface form such as
+    ``pg`` can mean different canonical terms depending on context. Binding
+    policies in later phases decide which candidate is safe for runtime.
+    """
+
+    __tablename__ = "governance_ambiguous_aliases"
+    __table_args__ = (
+        CheckConstraint(
+            f"status IN {AMBIGUOUS_ALIAS_STATUSES!r}",
+            name="governance_ambiguous_alias_status",
+        ),
+        UniqueConstraint(
+            "profile_id",
+            "normalized_surface",
+            name="uq_governance_ambiguous_aliases_profile_surface",
+        ),
+        Index(
+            "ix_governance_ambiguous_aliases_profile_status",
+            "profile_id",
+            "status",
+        ),
+        Index(
+            "ix_governance_ambiguous_aliases_surface",
+            "normalized_surface",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    surface_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_surface: Mapped[str] = mapped_column(String(256), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="open", nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    profile: Mapped[TerminologyProfile] = relationship(
+        back_populates="ambiguous_aliases"
+    )
+    candidates: Mapped[list[GovernanceAmbiguousAliasCandidate]] = relationship(
+        back_populates="ambiguous_alias",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "GovernanceAmbiguousAlias("
+            f"surface={self.surface_value!r}, status={self.status!r})"
+        )
+
+
+class GovernanceAmbiguousAliasCandidate(TimestampMixin, Base):
+    """One possible canonical interpretation for an ambiguous alias surface."""
+
+    __tablename__ = "governance_ambiguous_alias_candidates"
+    __table_args__ = (
+        CheckConstraint(
+            f"status IN {AMBIGUOUS_ALIAS_CANDIDATE_STATUSES!r}",
+            name="governance_ambiguous_alias_candidate_status",
+        ),
+        CheckConstraint(
+            f"source IN {AMBIGUOUS_ALIAS_CANDIDATE_SOURCES!r}",
+            name="governance_ambiguous_alias_candidate_source",
+        ),
+        CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0",
+            name="governance_ambiguous_alias_candidate_confidence_range",
+        ),
+        UniqueConstraint(
+            "ambiguous_alias_id",
+            "normalized_canonical",
+            "slot",
+            name="uq_governance_ambiguous_alias_candidates_canonical_slot",
+        ),
+        Index(
+            "ix_governance_ambiguous_alias_candidates_term",
+            "term_id",
+        ),
+        Index(
+            "ix_governance_ambiguous_alias_candidates_status",
+            "status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ambiguous_alias_id: Mapped[int] = mapped_column(
+        ForeignKey("governance_ambiguous_aliases.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    term_id: Mapped[int | None] = mapped_column(
+        ForeignKey("canonical_terms.id", ondelete="SET NULL"), nullable=True
+    )
+    canonical_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_canonical: Mapped[str] = mapped_column(String(256), nullable=False)
+    slot: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="candidate", nullable=False)
+    evidence_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+    ambiguous_alias: Mapped[GovernanceAmbiguousAlias] = relationship(
+        back_populates="candidates"
+    )
+    term: Mapped[CanonicalTerm | None] = relationship()
+
+    def __repr__(self) -> str:
+        return (
+            "GovernanceAmbiguousAliasCandidate("
+            f"canonical={self.canonical_value!r}, slot={self.slot!r}, "
+            f"status={self.status!r})"
+        )
+
+
 class GovernanceStopListEntry(TimestampMixin, Base):
     """A profile-level guardrail that blocks noisy or unsafe terminology values.
 
@@ -1021,6 +1159,24 @@ def _fill_normalized_suggestion(
     target.slot = target.slot.strip().upper()
 
 
+def _fill_normalized_ambiguous_alias(
+    mapper: Any, connection: Any, target: GovernanceAmbiguousAlias
+) -> None:
+    del mapper, connection
+    target.normalized_surface = normalize_value(target.surface_value)
+    target.status = (target.status or "open").strip().lower()
+
+
+def _fill_normalized_ambiguous_alias_candidate(
+    mapper: Any, connection: Any, target: GovernanceAmbiguousAliasCandidate
+) -> None:
+    del mapper, connection
+    target.normalized_canonical = normalize_value(target.canonical_value)
+    target.slot = target.slot.strip().upper()
+    target.source = (target.source or "manual").strip().lower()
+    target.status = (target.status or "candidate").strip().lower()
+
+
 def _fill_normalized_stop_list_entry(
     mapper: Any, connection: Any, target: GovernanceStopListEntry
 ) -> None:
@@ -1077,6 +1233,22 @@ event.listen(GovernanceApiToken, "before_insert", _fill_normalized_api_token)
 event.listen(GovernanceApiToken, "before_update", _fill_normalized_api_token)
 event.listen(GovernanceSuggestion, "before_insert", _fill_normalized_suggestion)
 event.listen(GovernanceSuggestion, "before_update", _fill_normalized_suggestion)
+event.listen(
+    GovernanceAmbiguousAlias, "before_insert", _fill_normalized_ambiguous_alias
+)
+event.listen(
+    GovernanceAmbiguousAlias, "before_update", _fill_normalized_ambiguous_alias
+)
+event.listen(
+    GovernanceAmbiguousAliasCandidate,
+    "before_insert",
+    _fill_normalized_ambiguous_alias_candidate,
+)
+event.listen(
+    GovernanceAmbiguousAliasCandidate,
+    "before_update",
+    _fill_normalized_ambiguous_alias_candidate,
+)
 event.listen(GovernanceStopListEntry, "before_insert", _fill_normalized_stop_list_entry)
 event.listen(GovernanceStopListEntry, "before_update", _fill_normalized_stop_list_entry)
 event.listen(

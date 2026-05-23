@@ -144,6 +144,53 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
     assert "ix_governance_conflict_reviews_profile_status" in conflict_review_indexes
     assert "ix_governance_conflict_reviews_type_severity" in conflict_review_indexes
 
+    ambiguous_alias_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_ambiguous_aliases")
+    }
+    assert {
+        "profile_id",
+        "surface_value",
+        "normalized_surface",
+        "status",
+        "created_by",
+        "reviewed_by",
+        "reviewed_at",
+        "review_note",
+    }.issubset(ambiguous_alias_columns)
+    ambiguous_alias_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_ambiguous_aliases")
+    }
+    assert "ix_governance_ambiguous_aliases_profile_status" in ambiguous_alias_indexes
+    assert "ix_governance_ambiguous_aliases_surface" in ambiguous_alias_indexes
+
+    ambiguous_candidate_columns = {
+        column["name"]
+        for column in inspector.get_columns("governance_ambiguous_alias_candidates")
+    }
+    assert {
+        "ambiguous_alias_id",
+        "term_id",
+        "canonical_value",
+        "normalized_canonical",
+        "slot",
+        "source",
+        "confidence",
+        "status",
+        "evidence_json",
+    }.issubset(ambiguous_candidate_columns)
+    ambiguous_candidate_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("governance_ambiguous_alias_candidates")
+    }
+    assert (
+        "ix_governance_ambiguous_alias_candidates_term" in ambiguous_candidate_indexes
+    )
+    assert (
+        "ix_governance_ambiguous_alias_candidates_status" in ambiguous_candidate_indexes
+    )
+
     stop_list_columns = {
         column["name"]
         for column in inspector.get_columns("governance_stop_list_entries")
@@ -211,7 +258,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260523_0019"
+    assert revision == "20260523_0020"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

@@ -334,3 +334,14 @@ terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
 that complement the primary `slot`. Runtime snapshot alias entries now carry
 those tags too, so exported artifacts and query/canonicalization debug output
 can explain both the primary slot and richer term facets.
+
+### Ambiguous alias candidates
+
+Phase C adds reviewer-facing ambiguous alias endpoints:
+
+- `GET /v1/governance/profiles/{profile_name}/ambiguous-aliases`
+- `POST /v1/governance/profiles/{profile_name}/ambiguous-aliases`
+- `GET /v1/governance/profiles/{profile_name}/ambiguous-aliases/{surface_value}`
+- `PATCH /v1/governance/profiles/{profile_name}/ambiguous-aliases/{surface_value}`
+
+Ambiguous aliases record possible canonical interpretations for one surface form without changing active runtime behavior. BindingPolicy resolution is intentionally left for a later phase.

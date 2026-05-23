@@ -338,3 +338,5 @@ can explain both the primary slot and richer term facets.
 
 
 - Conflict detection report with severity and persisted review state for alias drift, stop-list collisions, and pending proposal conflicts.
+
+- Coverage framework now includes term tags, conflict review state, and ambiguous alias candidates for controlled multi-interpretation review.

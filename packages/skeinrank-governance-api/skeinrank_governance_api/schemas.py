@@ -609,6 +609,70 @@ class ConflictReportResponse(BaseModel):
     conflicts: list[ConflictReportItemResponse] = Field(default_factory=list)
 
 
+class AmbiguousAliasCandidateInput(BaseModel):
+    """One candidate interpretation for an ambiguous alias surface."""
+
+    canonical_value: str = Field(..., min_length=1, max_length=256)
+    slot: str = Field(..., min_length=1, max_length=64)
+    term_id: int | None = None
+    source: str = "manual"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: str = "candidate"
+    evidence: dict[str, Any] | None = None
+
+
+class AmbiguousAliasUpsertRequest(BaseModel):
+    """Create or update an ambiguous alias surface and its candidates."""
+
+    surface_value: str = Field(..., min_length=1, max_length=256)
+    status: str = "open"
+    review_note: str | None = Field(default=None, max_length=2000)
+    candidates: list[AmbiguousAliasCandidateInput] = Field(default_factory=list)
+
+
+class AmbiguousAliasUpdateRequest(BaseModel):
+    """Update ambiguous alias reviewer state."""
+
+    surface_value: str | None = Field(default=None, min_length=1, max_length=256)
+    status: str | None = None
+    review_note: str | None = Field(default=None, max_length=2000)
+
+
+class AmbiguousAliasCandidateResponse(BaseModel):
+    """One persisted ambiguous alias candidate."""
+
+    id: int
+    ambiguous_alias_id: int
+    term_id: int | None = None
+    canonical_value: str
+    normalized_canonical: str
+    slot: str
+    source: str
+    confidence: float
+    status: str
+    evidence: dict[str, Any] | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AmbiguousAliasResponse(BaseModel):
+    """Ambiguous alias surface with candidate interpretations."""
+
+    id: int
+    profile_id: int
+    profile_name: str
+    surface_value: str
+    normalized_surface: str
+    status: str
+    created_by: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    review_note: str | None = None
+    candidates: list[AmbiguousAliasCandidateResponse] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
 class SuggestionEvidenceSnapshot(BaseModel):
     """Saved evidence snapshot attached to a governance suggestion."""
 
