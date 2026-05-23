@@ -143,6 +143,15 @@ GET  /v1/headless/dictionaries/export?profile_name=...
 The legacy `/v1/console/dictionary/*` routes remain available for the governance
 console and older scripts. Both surfaces share the same validation/apply logic.
 
+## Agent-ready proposal metadata
+
+Phase B starts by extending the existing suggestions review queue with proposal
+metadata. Manual suggestions still work as before, while agents, CLI jobs, and
+service integrations can attach optional `binding_id`, `proposal_source_type`,
+`proposal_source_name`, `idempotency_key`, `source_payload`, and
+`validation_summary` fields. These records remain pending until a moderator/admin
+reviews them, so LLMs and agents do not mutate runtime terminology directly.
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.

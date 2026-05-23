@@ -632,6 +632,12 @@ class SuggestionCreateRequest(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     source: str = "manual"
     context: str | None = None
+    binding_id: int | None = Field(default=None, ge=1)
+    proposal_source_type: str = Field(default="human", max_length=32)
+    proposal_source_name: str | None = Field(default=None, max_length=128)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+    source_payload: dict[str, Any] | None = None
+    validation_summary: dict[str, Any] | None = None
 
 
 class SuggestionReviewRequest(BaseModel):
@@ -647,6 +653,7 @@ class SuggestionResponse(BaseModel):
     profile_id: int
     term_id: int | None = None
     alias_id: int | None = None
+    binding_id: int | None = None
     suggestion_type: str
     canonical_value: str
     normalized_canonical: str
@@ -657,6 +664,11 @@ class SuggestionResponse(BaseModel):
     confidence: float
     source: str
     context: str | None = None
+    proposal_source_type: str
+    proposal_source_name: str | None = None
+    idempotency_key: str | None = None
+    source_payload: dict[str, Any] | None = None
+    validation_summary: dict[str, Any] | None = None
     status: str
     created_by: str | None = None
     reviewed_by: str | None = None

@@ -95,6 +95,12 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "evidence_snapshot",
         "evidence_checked_by",
         "evidence_checked_at",
+        "binding_id",
+        "proposal_source_type",
+        "proposal_source_name",
+        "idempotency_key",
+        "source_payload_json",
+        "validation_summary_json",
     }.issubset(suggestion_columns)
     stop_list_columns = {
         column["name"]
@@ -163,7 +169,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260509_0015"
+    assert revision == "20260523_0016"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

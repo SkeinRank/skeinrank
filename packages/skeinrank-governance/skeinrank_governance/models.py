@@ -43,6 +43,7 @@ SNAPSHOT_STATUSES = ("draft", "published", "archived")
 SUGGESTION_STATUSES = ("pending", "approved", "rejected")
 SUGGESTION_TYPES = ("alias", "canonical_term")
 SUGGESTION_SOURCES = ("manual", "discovery", "import")
+PROPOSAL_SOURCE_TYPES = ("human", "agent", "cli", "api", "job", "import")
 STOP_LIST_TARGETS = ("alias", "canonical", "both")
 ELASTICSEARCH_BINDING_MODES = ("dry_run", "write")
 ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
@@ -435,10 +436,30 @@ class GovernanceSuggestion(TimestampMixin, Base):
             name="governance_suggestion_source",
         ),
         CheckConstraint(
+            f"proposal_source_type IN {PROPOSAL_SOURCE_TYPES!r}",
+            name="governance_suggestion_proposal_source_type",
+        ),
+        CheckConstraint(
             "confidence >= 0.0 AND confidence <= 1.0",
             name="governance_suggestion_confidence_range",
         ),
         Index("ix_governance_suggestions_profile_status", "profile_id", "status"),
+        Index(
+            "ix_governance_suggestions_profile_source_type",
+            "profile_id",
+            "proposal_source_type",
+        ),
+        Index(
+            "ix_governance_suggestions_profile_binding_status",
+            "profile_id",
+            "binding_id",
+            "status",
+        ),
+        Index(
+            "ix_governance_suggestions_profile_idempotency",
+            "profile_id",
+            "idempotency_key",
+        ),
         Index(
             "ix_governance_suggestions_profile_alias",
             "profile_id",
@@ -456,6 +477,9 @@ class GovernanceSuggestion(TimestampMixin, Base):
     alias_id: Mapped[int | None] = mapped_column(
         ForeignKey("term_aliases.id", ondelete="SET NULL"), nullable=True
     )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
     suggestion_type: Mapped[str] = mapped_column(
         String(32), default="alias", nullable=False
     )
@@ -467,6 +491,17 @@ class GovernanceSuggestion(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
+    proposal_source_type: Mapped[str] = mapped_column(
+        String(32), default="human", nullable=False
+    )
+    proposal_source_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_payload_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )
+    validation_summary_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )
     context: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
     created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -486,6 +521,7 @@ class GovernanceSuggestion(TimestampMixin, Base):
     profile: Mapped[TerminologyProfile] = relationship(back_populates="suggestions")
     term: Mapped[CanonicalTerm | None] = relationship()
     alias: Mapped[TermAlias | None] = relationship()
+    binding: Mapped[Any | None] = relationship("ElasticsearchBinding")
 
     def __repr__(self) -> str:
         return (

@@ -500,6 +500,16 @@ curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions
   -d '{"review_comment":"Not used by this corpus."}'
 ```
 
+Agent-ready proposal metadata can be attached to the same suggestion workflow:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/governance/profiles/default_it/suggestions \
+  -H "Content-Type: application/json" \
+  -d '{"suggestion_type":"alias","canonical_value":"kubernetes","alias_value":"kube","slot":"TOOL","source":"discovery","proposal_source_type":"agent","proposal_source_name":"search-log-scout","idempotency_key":"search-log-scout:default_it:kube","source_payload":{"query_count":42},"validation_summary":{"duplicate_alias":"passed"}}'
+```
+
+Supported `proposal_source_type` values are `human`, `agent`, `cli`, `api`, `job`, and `import`. If `binding_id` is provided, it must reference a binding for the same profile. Idempotency enforcement and richer validation are planned for later Phase B patches; this patch stores the metadata safely on the existing review queue.
+
 Approved alias suggestions create active aliases. Approved canonical term suggestions create active canonical terms.
 
 Snapshot export:

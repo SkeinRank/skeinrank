@@ -31,6 +31,8 @@ Read side: canonicalize, query-plan, search, enrich
 
 PostgreSQL is the source of truth for changing state: profiles, terms, aliases, stop lists, bindings, suggestions/proposals, reviewer decisions, and snapshot metadata.
 
+Patch 37A keeps the existing `governance_suggestions` workflow backward compatible while extending each suggestion with proposal metadata: optional `binding_id`, `proposal_source_type`, `proposal_source_name`, `idempotency_key`, `source_payload`, and `validation_summary`. This makes the existing review queue ready for agents and CLI/API automation without letting those callers mutate active runtime terminology directly.
+
 A runtime artifact is the immutable read model. It can be exported as JSON and loaded by services that only need fast canonicalization or query planning.
 
 ## Binding-first runtime

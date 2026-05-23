@@ -302,6 +302,19 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "elasticsearch_bindings" in table_names
     assert "elasticsearch_enrichment_jobs" in table_names
 
+    suggestion_columns = {
+        column["name"]
+        for column in inspect(engine).get_columns("governance_suggestions")
+    }
+    assert {
+        "binding_id",
+        "proposal_source_type",
+        "proposal_source_name",
+        "idempotency_key",
+        "source_payload_json",
+        "validation_summary_json",
+    }.issubset(suggestion_columns)
+
 
 def test_normalize_value_collapses_case_and_whitespace():
     assert normalize_value("  Kube   API  Server ") == "kube api server"

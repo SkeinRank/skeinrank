@@ -29,6 +29,7 @@ from skeinrank_governance.models import (
     ELASTICSEARCH_BINDING_MODES,
     ELASTICSEARCH_BINDING_PROVIDERS,
     ELASTICSEARCH_BINDING_WRITE_STRATEGIES,
+    PROPOSAL_SOURCE_TYPES,
     STOP_LIST_TARGETS,
     SUGGESTION_SOURCES,
     SUGGESTION_STATUSES,
@@ -1583,6 +1584,19 @@ def create_profile_suggestion(
     profile = _get_profile_or_404(session, profile_name)
     _validate_status(request.source, SUGGESTION_SOURCES, "suggestion source")
     _validate_status(request.suggestion_type, SUGGESTION_TYPES, "suggestion type")
+    _validate_status(
+        request.proposal_source_type,
+        PROPOSAL_SOURCE_TYPES,
+        "proposal source type",
+    )
+
+    if request.binding_id is not None:
+        binding = _get_elasticsearch_binding_or_404(session, request.binding_id)
+        if binding.profile_id != profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Proposal binding must belong to the suggestion profile.",
+            )
 
     if request.suggestion_type == "alias":
         if request.alias_value is None or not request.alias_value.strip():
@@ -1636,6 +1650,12 @@ def create_profile_suggestion(
         confidence=request.confidence,
         source=request.source,
         context=request.context,
+        binding_id=request.binding_id,
+        proposal_source_type=request.proposal_source_type,
+        proposal_source_name=request.proposal_source_name,
+        idempotency_key=request.idempotency_key,
+        source_payload_json=request.source_payload,
+        validation_summary_json=request.validation_summary,
         status="pending",
         created_by=current_user.username,
     )
@@ -2902,6 +2922,7 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         profile_id=suggestion.profile_id,
         term_id=suggestion.term_id,
         alias_id=suggestion.alias_id,
+        binding_id=suggestion.binding_id,
         suggestion_type=suggestion.suggestion_type,
         canonical_value=suggestion.canonical_value,
         normalized_canonical=suggestion.normalized_canonical,
@@ -2912,6 +2933,11 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         confidence=suggestion.confidence,
         source=suggestion.source,
         context=suggestion.context,
+        proposal_source_type=suggestion.proposal_source_type,
+        proposal_source_name=suggestion.proposal_source_name,
+        idempotency_key=suggestion.idempotency_key,
+        source_payload=suggestion.source_payload_json,
+        validation_summary=suggestion.validation_summary_json,
         status=suggestion.status,
         created_by=suggestion.created_by,
         reviewed_by=suggestion.reviewed_by,
