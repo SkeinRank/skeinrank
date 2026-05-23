@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import copy
+import json
+
+import pytest
 from fastapi.testclient import TestClient
 from skeinrank_governance.models import ElasticsearchBinding
 from skeinrank_governance_api import GovernanceApiConfig, create_app
-from skeinrank_governance_api.runtime_snapshots import build_runtime_snapshot_payload
+from skeinrank_governance_api.runtime_snapshots import (
+    RuntimeSnapshotArtifactCache,
+    build_runtime_snapshot_payload,
+    load_runtime_snapshot_artifact,
+    runtime_snapshot_artifact_summary,
+)
 from sqlalchemy import select
 
 
@@ -135,3 +144,81 @@ def test_headless_snapshot_artifact_runtime_source_requires_pinned_snapshot(tmp_
 
     assert response.status_code == 409
     assert "no pinned runtime snapshot" in response.json()["detail"]
+
+
+def test_runtime_snapshot_artifact_loader_reads_file_and_summarizes(tmp_path):
+    client = _client(tmp_path)
+    binding_id = _seed_binding(client)
+    response = client.get(
+        "/v1/headless/snapshots/export",
+        params={"binding_id": binding_id, "snapshot_version": "platform_ops@v1"},
+    )
+    assert response.status_code == 200, response.text
+    artifact_path = tmp_path / "runtime-snapshot.json"
+    artifact_path.write_text(json.dumps(response.json()), encoding="utf-8")
+
+    loaded = load_runtime_snapshot_artifact(artifact_path)
+    summary = runtime_snapshot_artifact_summary(loaded)
+
+    assert loaded.path == artifact_path.resolve()
+    assert loaded.snapshot_version == "platform_ops@v1"
+    assert len(loaded.alias_entries) == 4
+    assert {entry.normalized_alias for entry in loaded.alias_entries} == {
+        "k8s",
+        "kube",
+        "pg",
+        "postgres",
+    }
+    assert summary["schema_version"] == "skeinrank.runtime_snapshot_artifact.v1"
+    assert summary["binding_id"] == binding_id
+    assert summary["profile_name"] == "platform_ops"
+    assert summary["alias_entries_total"] == 4
+    assert summary["index_name"] == "platform_kb"
+    assert summary["text_fields"] == ["title", "body"]
+
+
+def test_runtime_snapshot_artifact_loader_rejects_checksum_mismatch(tmp_path):
+    client = _client(tmp_path)
+    binding_id = _seed_binding(client)
+    response = client.get(
+        "/v1/headless/snapshots/export",
+        params={"binding_id": binding_id, "snapshot_version": "platform_ops@v1"},
+    )
+    assert response.status_code == 200, response.text
+    artifact = copy.deepcopy(response.json())
+    artifact["runtime_snapshot"]["alias_entries"] = []
+    artifact_path = tmp_path / "runtime-snapshot.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        load_runtime_snapshot_artifact(artifact_path)
+
+
+def test_runtime_snapshot_artifact_cache_reloads_when_file_changes(tmp_path):
+    client = _client(tmp_path)
+    binding_id = _seed_binding(client)
+    first_response = client.get(
+        "/v1/headless/snapshots/export",
+        params={"binding_id": binding_id, "snapshot_version": "platform_ops@v1"},
+    )
+    second_response = client.get(
+        "/v1/headless/snapshots/export",
+        params={
+            "binding_id": binding_id,
+            "snapshot_version": "platform_ops@version-two",
+        },
+    )
+    assert first_response.status_code == 200, first_response.text
+    assert second_response.status_code == 200, second_response.text
+    artifact_path = tmp_path / "runtime-snapshot.json"
+    artifact_path.write_text(json.dumps(first_response.json()), encoding="utf-8")
+    cache = RuntimeSnapshotArtifactCache()
+
+    first_loaded = cache.get(artifact_path)
+    second_cached = cache.get(artifact_path)
+    assert second_cached is first_loaded
+
+    artifact_path.write_text(json.dumps(second_response.json()), encoding="utf-8")
+    reloaded = cache.get(artifact_path)
+    assert reloaded is not first_loaded
+    assert reloaded.snapshot_version == "platform_ops@version-two"

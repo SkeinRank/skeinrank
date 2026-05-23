@@ -159,11 +159,15 @@ poetry run skeinrank-migrate snapshot-export \
   --binding-id 1 \
   --snapshot-version infra_incidents@v1 \
   --output runtime-snapshot.json
+
+poetry run skeinrank-migrate snapshot-inspect runtime-snapshot.json
 ```
 
 The snapshot artifact includes the binding context and compiled runtime aliases,
-so it can be committed to GitOps repositories or loaded by future lightweight
-runtime workers without querying PostgreSQL on every request.
+so it can be committed to GitOps repositories or loaded by lightweight runtime
+workers without querying PostgreSQL on every request. Patch 36E adds a local
+artifact loader/cache that validates the artifact checksum and reloads the file
+when it changes.
 
 ## User Console API
 

@@ -10,6 +10,9 @@ from skeinrank_governance_api.migration_tool import (
     MigrationToolError,
     main,
 )
+from skeinrank_governance_api.runtime_snapshots import (
+    runtime_snapshot_artifact_checksum,
+)
 
 
 class _FakeResponse:
@@ -301,4 +304,64 @@ def test_migration_tool_snapshot_export_command_writes_artifact(tmp_path, monkey
     assert json.loads(output_path.read_text(encoding="utf-8")) == {
         "schema_version": "skeinrank.runtime_snapshot_artifact.v1",
         "binding": {"id": 7},
+    }
+
+
+def test_migration_tool_snapshot_inspect_command_summarizes_local_artifact(
+    tmp_path, capsys
+):
+    artifact = {
+        "schema_version": "skeinrank.runtime_snapshot_artifact.v1",
+        "artifact_type": "runtime_snapshot",
+        "binding": {
+            "id": 7,
+            "name": "platform knowledge base",
+            "index_name": "platform_kb",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+        },
+        "profile": {"id": 3, "name": "platform_ops"},
+        "runtime_snapshot": {
+            "version": "platform_ops@v1",
+            "checksum": "runtime-checksum",
+            "alias_entries": [
+                {
+                    "alias_value": "k8s",
+                    "normalized_alias": "k8s",
+                    "canonical_value": "kubernetes",
+                    "normalized_canonical": "kubernetes",
+                    "slot": "TOOL",
+                    "confidence": 1.0,
+                }
+            ],
+        },
+    }
+    artifact["manifest"] = {
+        "checksum": runtime_snapshot_artifact_checksum(artifact),
+        "runtime_checksum": "runtime-checksum",
+        "snapshot_source": "latest_profile",
+        "snapshot_version": "platform_ops@v1",
+        "alias_entries_total": 1,
+    }
+    artifact_path = tmp_path / "runtime-snapshot.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+    exit_code = main(["snapshot-inspect", str(artifact_path), "--compact"])
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "schema_version": "skeinrank.runtime_snapshot_artifact.v1",
+        "artifact_type": "runtime_snapshot",
+        "path": str(artifact_path.resolve()),
+        "binding_id": 7,
+        "binding_name": "platform knowledge base",
+        "profile_name": "platform_ops",
+        "snapshot_version": "platform_ops@v1",
+        "checksum": artifact["manifest"]["checksum"],
+        "runtime_checksum": "runtime-checksum",
+        "snapshot_source": "latest_profile",
+        "alias_entries_total": 1,
+        "text_fields": ["title", "body"],
+        "target_field": "skeinrank",
+        "index_name": "platform_kb",
     }

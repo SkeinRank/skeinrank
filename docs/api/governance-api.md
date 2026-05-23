@@ -87,6 +87,16 @@ skeinrank-migrate snapshot-export \
   --output snapshots/platform_ops.binding-7.v1.json
 ```
 
+Validate and summarize a local artifact without contacting the API:
+
+```bash
+skeinrank-migrate snapshot-inspect snapshots/platform_ops.binding-7.v1.json
+```
+
+Headless workers can also load artifacts directly through
+`RuntimeSnapshotArtifactCache`, which validates the manifest checksum and reloads
+the file when it changes.
+
 ## Console dictionary workflows
 
 The console endpoints remain available for the existing governance UI and legacy

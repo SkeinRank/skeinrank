@@ -236,3 +236,15 @@ Apache-2.0. See [`LICENSE`](LICENSE).
 ### Headless snapshot artifacts
 
 Phase A adds a binding-first snapshot artifact export for GitOps/headless runtime flows: `GET /v1/headless/snapshots/export?binding_id=...` or `skeinrank-migrate snapshot-export --binding-id ... --output runtime-snapshot.json`.
+
+
+### Runtime snapshot artifact loading
+
+Headless workers can export a binding-scoped runtime artifact and inspect it locally:
+
+```bash
+skeinrank-migrate snapshot-export --binding-id 1 --output runtime-snapshot.json
+skeinrank-migrate snapshot-inspect runtime-snapshot.json
+```
+
+The artifact loader/cache validates `skeinrank.runtime_snapshot_artifact.v1` and keeps the immutable runtime read model available without querying PostgreSQL on every request.

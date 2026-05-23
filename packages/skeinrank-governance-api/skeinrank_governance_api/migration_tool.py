@@ -14,6 +14,10 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .dictionary_spec import load_mapping_document
+from .runtime_snapshots import (
+    RuntimeSnapshotArtifactCache,
+    runtime_snapshot_artifact_summary,
+)
 
 DEFAULT_API_URL = "http://127.0.0.1:8010"
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -192,6 +196,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _write_json(result, args.output, pretty=not args.compact)
             return 0
+        if args.command == "snapshot-inspect":
+            loaded = RuntimeSnapshotArtifactCache().get(args.file)
+            result = runtime_snapshot_artifact_summary(loaded)
+            _write_json(result, args.output, pretty=not args.compact)
+            return 0
     except (OSError, ValueError, MigrationToolError) as exc:
         print(f"skeinrank-migrate: {exc}", file=sys.stderr)
         return 1
@@ -304,6 +313,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     snapshot_export_parser.add_argument(
         "-o", "--output", help="Write artifact JSON to a file."
+    )
+
+    snapshot_inspect_parser = subparsers.add_parser(
+        "snapshot-inspect",
+        help="Validate and summarize a local runtime snapshot artifact file.",
+    )
+    _add_subcommand_compact_option(snapshot_inspect_parser)
+    snapshot_inspect_parser.add_argument(
+        "file", help="Runtime snapshot artifact JSON file path."
+    )
+    snapshot_inspect_parser.add_argument(
+        "-o", "--output", help="Write summary JSON to a file."
     )
     return parser
 

@@ -142,3 +142,37 @@ load it into a lightweight runtime worker.
 Use `source=latest` to build from current profile state. Use `source=runtime` to
 export the currently pinned binding runtime snapshot.
 
+
+
+## Runtime artifact file loader/cache
+
+Patch 36E adds a local file loader for exported runtime artifacts. Lightweight
+workers can now load the JSON artifact without talking to PostgreSQL at request
+time:
+
+```python
+from skeinrank_governance_api.runtime_snapshots import RuntimeSnapshotArtifactCache
+
+cache = RuntimeSnapshotArtifactCache()
+loaded = cache.get("snapshots/platform_ops.binding-7.v1.json")
+
+print(loaded.snapshot_version)
+print(len(loaded.alias_entries))
+```
+
+The loader validates:
+
+- `schema_version: skeinrank.runtime_snapshot_artifact.v1`;
+- `artifact_type: runtime_snapshot`;
+- binding/profile/runtime snapshot sections;
+- manifest checksum.
+
+The cache reloads a file when its modification time or size changes. This keeps
+headless runtime workers simple: deployment can swap the artifact file, and the
+worker can refresh the in-memory read model on the next lookup.
+
+CLI inspection is available through:
+
+```bash
+skeinrank-migrate snapshot-inspect snapshots/platform_ops.binding-7.v1.json
+```
