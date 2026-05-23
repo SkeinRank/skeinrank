@@ -201,6 +201,23 @@ GET /v1/governance/proposals/source-quality
 GET /metrics
 ```
 
+## OpenRouter alias scout foundation
+
+Patch 40F adds a dependency-light reference runner for agent integrations:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
+```
+
+The runner does not call OpenRouter yet. It establishes the local agent-side
+foundation: config, environment placeholders, failed-query input, deterministic
+idempotency keys, and a SkeinRank REST client for `/v1/tools/bindings`,
+`/v1/tools/explain-query`, `/v1/tools/validate-alias`, and
+`/v1/tools/suggest-alias`. This keeps the same safety contract: agents can
+validate and submit proposals, but runtime terminology changes only through
+reviewed batches and snapshots. See
+[`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout).
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.

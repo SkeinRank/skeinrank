@@ -1,0 +1,13 @@
+{
+  "skeinrank_api_url": "http://127.0.0.1:8010",
+  "skeinrank_role": "contributor",
+  "api_token_env": "SKEINRANK_AGENT_API_TOKEN",
+  "openrouter_api_key_env": "OPENROUTER_API_KEY",
+  "openrouter_model": "openai/gpt-4o-mini",
+  "default_profile_name": "infra_incidents",
+  "default_binding_id": null,
+  "proposal_source_name": "openrouter-alias-scout",
+  "failed_queries_path": "failed_queries.example.jsonl",
+  "max_queries_per_run": 25,
+  "dry_run": true
+}

@@ -1,0 +1,4 @@
+{"id":"fq-001","query":"k8s rollout stuck after pg failover","source":"failed_search","count":12}
+{"id":"fq-002","query":"postgres pool exhausted in kube worker","source":"failed_search","count":7}
+{"id":"fq-003","query":"pg timeout during pod restart","source":"failed_search","count":5}
+{"id":"fq-004","query":"kube dns incident runbook","source":"failed_search","count":3}

@@ -14,6 +14,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/core-sdk-and-cli.md`](guides/core-sdk-and-cli.md) — local dictionary validation, extraction, canonicalization, and document extraction.
 - [`guides/governance-console.md`](guides/governance-console.md) — governance API/UI workflow.
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
+- [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.
 - [`guides/development.md`](guides/development.md) — local development checks and package workflow.
 - [`api/governance-api.md`](api/governance-api.md) — important HTTP surfaces and runtime endpoints.
@@ -61,3 +62,12 @@ It exposes binding discovery, query explanation, alias validation, alias proposa
 submission, and proposal status lookup. The adapter delegates to `/v1/tools/*`,
 so agents still go through proposal validation and review rather than mutating
 runtime terminology directly.
+
+## OpenRouter alias scout foundation
+
+Patch 40F adds a local reference runner under
+`examples/agents/openrouter_alias_scout`. It is intentionally LLM-free for this
+step: it validates config, loads failed-query samples, builds deterministic
+idempotency keys, and wraps the existing `/v1/tools/*` REST facade. OpenRouter
+tool schemas, prompts, candidate pruning, and evidence sampling are follow-up
+patches.

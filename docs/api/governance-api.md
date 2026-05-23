@@ -396,3 +396,25 @@ Patch 38J collects the Phase C coverage model in documentation and example paylo
 - `examples/coverage-framework/` contains JSON/JSONL payloads for a tagged dictionary, ambiguous `pg` candidates, binding policies, and evaluation queries.
 
 The examples are documentation fixtures only; they do not introduce new API routes or mutate runtime state by themselves.
+
+## Reference agent runner foundation
+
+Patch 40F adds `examples/agents/openrouter_alias_scout` as the first reference
+agent integration. The example is not a new API surface and it does not call
+OpenRouter yet. It provides a small SkeinRank REST client for the existing tools:
+
+```text
+GET  /v1/tools/bindings
+POST /v1/tools/explain-query
+POST /v1/tools/validate-alias
+POST /v1/tools/suggest-alias
+```
+
+Run the local dry-run plan with:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
+```
+
+Future patches can add OpenRouter tool schemas, prompts, candidate pruning, and
+evidence sampling without changing the backend safety model.

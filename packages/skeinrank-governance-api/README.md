@@ -924,6 +924,21 @@ MCP tools exposed in this MVP:
 Agents submit proposals for review; they do not mutate active runtime
 terminology directly.
 
+## OpenRouter alias scout foundation
+
+The repository includes a small reference runner for future OpenRouter-powered
+agents:
+
+```bash
+python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
+```
+
+Patch 40F keeps the runner dependency-light and LLM-free. It provides config,
+failed-query input, deterministic idempotency keys, and a REST client for
+`/v1/tools/*`. Later agent patches can add OpenRouter tool calling, candidate
+pruning, evidence windows, and LangGraph orchestration on top of the same safe
+proposal workflow.
+
 
 ### Patch 38A/38B: term tags in governance and runtime
 
