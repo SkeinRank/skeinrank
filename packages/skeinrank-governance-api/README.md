@@ -1239,3 +1239,9 @@ OpenRouter, Elasticsearch, or the Governance API.
 ### Patch 42B — real Elasticsearch agent validation
 
 The OpenRouter alias scout now includes a real Elasticsearch/OpenSearch validation scenario. It is exposed through the example runner and remains outside the governance API surface; no new backend route is required.
+
+### Patch 42C — Agent artifact standard
+
+Agent runs now support a normalized artifact layout with `manifest.json`,
+`run_summary.json`, and per-stage reports. This is used by scheduled/worker-mode
+runs and is safe for CI/Airflow collection.

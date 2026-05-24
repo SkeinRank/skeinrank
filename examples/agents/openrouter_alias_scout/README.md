@@ -609,3 +609,44 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-real-elas
 ```
 
 The indexing command is explicit because it writes sample documents to the configured validation index. The validation command is read-only and does not call OpenRouter, SkeinRank API, proposal submission, runtime mutation, or snapshot publishing.
+
+## Patch 42C — Reports/artifacts standard
+
+Patch 42C standardizes agent run artifacts so cron, Airflow, GitHub Actions,
+Docker Compose, and Kubernetes CronJobs can collect the same output shape.
+
+Default layout:
+
+```text
+reports/<run_id>/
+  manifest.json
+  run_summary.json
+  reports/
+    demo_report.json
+    tracking_report.json
+    llm_review_report.json
+    proposal_submission_report.json
+    proposal_inbox_report.json
+    approved_apply_plan.json
+    snapshot_evaluation_report.json
+    evaluation_report.json
+    cycle_report.json
+```
+
+Preview the standard without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-artifacts-standard-plan
+```
+
+Run a safe cycle and produce a normalized manifest:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-agent-cycle-report /tmp/sr-cycle.json \
+  --agent-cycle-artifacts-dir /tmp/sr-artifacts
+```
+
+The cycle report includes `artifact_manifest.path`, and the manifest lists every
+artifact with `relative_path`, `schema_version`, size, and checksum.

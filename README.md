@@ -632,3 +632,16 @@ This is intended as a CI/preflight check before live validation.
 ### Patch 42B — Real Elasticsearch validation scenario
 
 The OpenRouter alias scout includes a reproducible real Elasticsearch validation scenario. It can generate a tiny fixture corpus, explicitly index it into an isolated validation index, and run read-only evidence validation without OpenRouter or SkeinRank API calls.
+
+### Patch 42C — Agent reports/artifacts standard
+
+The OpenRouter alias scout now has a stable artifact layout for headless runs:
+
+```text
+reports/<run_id>/manifest.json
+reports/<run_id>/run_summary.json
+reports/<run_id>/reports/<stage>.json
+```
+
+This makes scheduled runs easier to archive from Airflow, cron, GitHub Actions,
+or Kubernetes CronJobs without changing the Governance API.

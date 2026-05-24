@@ -12,7 +12,6 @@ checks remain covered by the explicit 41B/41I commands.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -25,6 +24,11 @@ try:  # pragma: no cover - import style depends on execution mode.
         ApprovedApplyConfig,
         build_approved_proposals_apply_plan,
         build_snapshot_evaluation_report,
+    )
+    from .artifact_standard import (
+        ArtifactStandardConfig,
+        write_artifact_manifest,
+        write_standard_artifact,
     )
     from .candidate_discovery import CandidateDiscoveryConfig
     from .canonical_hints import CanonicalHintsConfig
@@ -39,6 +43,11 @@ except ImportError:  # pragma: no cover
         ApprovedApplyConfig,
         build_approved_proposals_apply_plan,
         build_snapshot_evaluation_report,
+    )
+    from artifact_standard import (
+        ArtifactStandardConfig,
+        write_artifact_manifest,
+        write_standard_artifact,
     )
     from candidate_discovery import CandidateDiscoveryConfig
     from canonical_hints import CanonicalHintsConfig
@@ -268,6 +277,14 @@ def build_full_integration_smoke_report(
     _write_artifact_if_enabled(
         smoke_config, run_id, "cycle_report", cycle_report, artifacts
     )
+    artifact_manifest: JsonDict | None = None
+    if smoke_config.write_artifacts:
+        artifact_manifest = write_artifact_manifest(
+            config=ArtifactStandardConfig(root_dir=smoke_config.artifacts_dir),
+            run_id=run_id,
+            artifacts=artifacts,
+            cycle_report=cycle_report,
+        )
 
     quality_gate = _quality_gate(
         llm_report=llm_report,
@@ -284,6 +301,15 @@ def build_full_integration_smoke_report(
         "quality_gate": quality_gate,
         "artifacts_dir": str(smoke_config.artifacts_dir),
         "artifacts": artifacts,
+        "artifact_manifest": (
+            {
+                "schema_version": artifact_manifest.get("schema_version"),
+                "artifact_count": artifact_manifest.get("artifact_count"),
+                "run_dir": artifact_manifest.get("run_dir"),
+            }
+            if artifact_manifest is not None
+            else None
+        ),
         "summary": {
             "candidates_discovered": demo_report.get("candidate_summary", {}).get(
                 "candidates_discovered", 0
@@ -688,17 +714,13 @@ def _write_artifact_if_enabled(
 ) -> None:
     if not config.write_artifacts:
         return
-    config.artifacts_dir.mkdir(parents=True, exist_ok=True)
-    path = config.artifacts_dir / f"{run_id}.{name}.json"
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
     artifacts.append(
-        {
-            "name": name,
-            "path": str(path),
-            "schema_version": payload.get("schema_version"),
-        }
+        write_standard_artifact(
+            config=ArtifactStandardConfig(root_dir=config.artifacts_dir),
+            run_id=run_id,
+            name=name,
+            payload=payload,
+        )
     )
 
 

@@ -120,3 +120,9 @@ agent-real-es-validation-index:
 agent-real-es-validation-report:
 	mkdir -p examples/agents/openrouter_alias_scout/reports/real_es_validation
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-real-elasticsearch-validation-report examples/agents/openrouter_alias_scout/reports/real_es_validation/real-es-validation-report.json
+
+agent-artifacts-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-artifacts-standard-plan
+
+agent-artifacts-manifest:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-artifacts-manifest examples/agents/openrouter_alias_scout/reports/scheduled/manifest.json --artifacts-run-id openrouter-alias-scout-cycle

@@ -659,3 +659,8 @@ agent-side report chain before live use of `/v1/tools/validate-alias` or
 ### Agent Elasticsearch validation note
 
 Patch 42B does not add governance API routes. It adds a client-side validation scenario that writes optional sample documents to a configured Elasticsearch/OpenSearch index and then reads evidence through the existing agent connector.
+
+### Patch 42C agent artifact reports
+
+Patch 42C does not change Governance API endpoints. It standardizes local agent
+artifacts for scheduled/headless runs using `skeinrank.agent_artifact_manifest.v1`.

@@ -419,3 +419,31 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-real-elas
 ```
 
 The sample indexing step mutates only the configured validation index. The validation step is read-only and does not call OpenRouter or SkeinRank proposal APIs.
+
+## Patch 42C — Standard report artifacts
+
+Patch 42C gives the alias scout a stable artifact layout for scheduled jobs and
+external orchestrators.
+
+```text
+reports/<run_id>/
+  manifest.json
+  run_summary.json
+  reports/<artifact>.json
+```
+
+Use it to make agent runs easy to archive from Airflow, cron, GitHub Actions, or
+Kubernetes CronJobs:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-artifacts-standard-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-agent-cycle-report /tmp/sr-cycle.json \
+  --agent-cycle-artifacts-dir /tmp/sr-artifacts
+```
+
+The generated `manifest.json` is network-free metadata. It does not imply
+OpenRouter, Elasticsearch, SkeinRank API calls, runtime mutation, or snapshot
+publication.

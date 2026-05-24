@@ -40,6 +40,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
     from .approved_apply import (
         load_json_report as load_apply_json_report,
     )
+    from .artifact_standard import (
+        ArtifactStandardConfig,
+        discover_artifact_files,
+        write_artifact_manifest,
+    )
     from .budget_cache import (
         AgentBudgetCacheConfig,
         build_budget_cache_plan,
@@ -116,6 +121,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_scheduled_cycle_report,
         make_scheduled_run_id,
         write_cycle_artifact,
+        write_cycle_manifest,
     )
     from .security_profile import (
         SecurityProfileConfig,
@@ -147,6 +153,11 @@ except ImportError:  # pragma: no cover
     )
     from approved_apply import (
         load_json_report as load_apply_json_report,
+    )
+    from artifact_standard import (
+        ArtifactStandardConfig,
+        discover_artifact_files,
+        write_artifact_manifest,
     )
     from budget_cache import (
         AgentBudgetCacheConfig,
@@ -224,6 +235,7 @@ except ImportError:  # pragma: no cover
         build_scheduled_cycle_report,
         make_scheduled_run_id,
         write_cycle_artifact,
+        write_cycle_manifest,
     )
     from security_profile import (
         SecurityProfileConfig,
@@ -267,6 +279,7 @@ class AgentRunnerConfig:
     approved_apply: ApprovedApplyConfig
     new_alias_smoke: NewAliasSmokeConfig
     scheduled_runner: ScheduledRunnerConfig
+    artifact_standard: ArtifactStandardConfig
     integration_smoke: FullIntegrationSmokeConfig
     real_elasticsearch_validation: RealElasticsearchValidationConfig
     openrouter_base_url: str
@@ -368,6 +381,9 @@ class AgentRunnerConfig:
             ),
             scheduled_runner=ScheduledRunnerConfig.from_mapping(
                 raw.get("scheduled_runner"), base_dir=base_dir
+            ),
+            artifact_standard=ArtifactStandardConfig.from_mapping(
+                raw.get("artifact_standard"), base_dir=base_dir
             ),
             integration_smoke=FullIntegrationSmokeConfig.from_mapping(
                 raw.get("integration_smoke"), base_dir=base_dir
@@ -476,6 +492,7 @@ def build_run_plan(
             "Patch 41I adds scheduled/worker-mode agent cycle orchestration.",
             "Patch 42A adds a one-command full agent integration smoke test.",
             "Patch 42B adds a reproducible real Elasticsearch validation scenario.",
+            "Patch 42C standardizes report/artifact manifests.",
         ],
         "sample_queries": [
             {
@@ -974,6 +991,29 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--print-artifacts-standard-plan",
+        action="store_true",
+        help="Print the 42C reports/artifacts standard plan.",
+    )
+    parser.add_argument(
+        "--write-artifacts-manifest",
+        type=Path,
+        help=(
+            "Write or repair a 42C manifest for an existing run folder. The path "
+            "is the output manifest path; use --artifacts-run-id to select the run."
+        ),
+    )
+    parser.add_argument(
+        "--artifacts-root-dir",
+        type=Path,
+        help="Override artifact_standard.root_dir for 42C artifact commands.",
+    )
+    parser.add_argument(
+        "--artifacts-run-id",
+        help="Run id used by 42C manifest repair/backfill commands.",
+    )
+
+    parser.add_argument(
         "--print-new-alias-smoke-plan",
         action="store_true",
         help="Preview the 41D controlled new-alias smoke test without API calls.",
@@ -1232,6 +1272,50 @@ def run_new_alias_smoke_for_config(
     )
 
 
+def _artifact_standard_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> ArtifactStandardConfig:
+    """Apply CLI overrides to the 42C report/artifact standard config."""
+
+    return config.artifact_standard.with_overrides(root_dir=args.artifacts_root_dir)
+
+
+def build_artifacts_standard_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the network-free 42C artifact standard plan."""
+
+    return _artifact_standard_config_from_args(config, args).to_plan()
+
+
+def write_artifacts_manifest_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Write or repair a manifest for an existing standardized run folder."""
+
+    artifact_config = _artifact_standard_config_from_args(config, args)
+    run_id = args.artifacts_run_id
+    if not run_id:
+        if args.write_artifacts_manifest is None:
+            raise ValueError("--artifacts-run-id is required for manifest repair")
+        run_id = args.write_artifacts_manifest.parent.name
+    artifacts = discover_artifact_files(artifact_config, run_id)
+    manifest = write_artifact_manifest(
+        config=artifact_config,
+        run_id=run_id,
+        artifacts=artifacts,
+        cycle_report=None,
+        status="manifest_repaired",
+    )
+    if args.write_artifacts_manifest is not None:
+        args.write_artifacts_manifest.parent.mkdir(parents=True, exist_ok=True)
+        args.write_artifacts_manifest.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    return manifest
+
+
 def _scheduled_runner_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> ScheduledRunnerConfig:
@@ -1283,11 +1367,18 @@ def run_scheduled_agent_cycle_for_config(
                 name=name,
                 payload=report,
             )
+            run_dir = scheduled_config.artifacts_dir / run_id
+            try:
+                relative_path = str(path.relative_to(run_dir))
+            except ValueError:
+                relative_path = str(path)
             artifacts.append(
                 {
                     "name": name,
                     "path": str(path),
+                    "relative_path": relative_path,
                     "schema_version": report.get("schema_version"),
+                    "size_bytes": path.stat().st_size if path.exists() else None,
                 }
             )
 
@@ -1532,6 +1623,17 @@ def run_scheduled_agent_cycle_for_config(
         reports=reports,
     )
     store("cycle_report", final_report)
+    manifest = write_cycle_manifest(
+        artifacts_dir=scheduled_config.artifacts_dir,
+        run_id=run_id,
+        artifacts=artifacts,
+        cycle_report=final_report,
+    )
+    final_report["artifact_manifest"] = {
+        "path": str(scheduled_config.artifacts_dir / run_id / "manifest.json"),
+        "schema_version": manifest.get("schema_version"),
+        "artifact_count": manifest.get("artifact_count"),
+    }
     return final_report, int(final_report.get("recommended_exit_code", 0))
 
 
@@ -1952,6 +2054,17 @@ def main(argv: list[str] | None = None) -> int:
                 encoding="utf-8",
             )
         else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.print_artifacts_standard_plan:
+        report = build_artifacts_standard_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.write_artifacts_manifest:
+        report = write_artifacts_manifest_for_args(config, args)
+        if not args.write_artifacts_manifest:
             print(json.dumps(report, indent=2, sort_keys=True))
         return 0
 

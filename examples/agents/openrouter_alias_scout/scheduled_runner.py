@@ -8,12 +8,26 @@ network calls stay explicit in the caller.
 
 from __future__ import annotations
 
-import json
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
+
+try:  # pragma: no cover - import style depends on execution mode.
+    from .artifact_standard import (
+        ArtifactStandardConfig,
+        write_artifact_manifest,
+        write_standard_artifact,
+    )
+except ImportError:  # pragma: no cover
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from artifact_standard import (
+        ArtifactStandardConfig,
+        write_artifact_manifest,
+        write_standard_artifact,
+    )
 
 JsonDict = dict[str, Any]
 
@@ -23,6 +37,7 @@ class ScheduledRunnerConfig:
     """Config for a production-friendly single-run agent cycle."""
 
     artifacts_dir: Path
+    artifact_standard: ArtifactStandardConfig | None = None
     cycle_name: str = "openrouter-alias-scout-cycle"
     default_mode: str = "offline"
     write_artifacts: bool = True
@@ -47,8 +62,12 @@ class ScheduledRunnerConfig:
         raw_artifacts_dir = Path(str(data.get("artifacts_dir", "reports/scheduled")))
         if not raw_artifacts_dir.is_absolute() and base_dir is not None:
             raw_artifacts_dir = base_dir / raw_artifacts_dir
+        artifact_standard = ArtifactStandardConfig.from_mapping(
+            data.get("artifact_standard"), base_dir=base_dir
+        ).with_overrides(root_dir=raw_artifacts_dir)
         return cls(
             artifacts_dir=raw_artifacts_dir,
+            artifact_standard=artifact_standard,
             cycle_name=str(data.get("cycle_name", "openrouter-alias-scout-cycle")),
             default_mode=str(data.get("default_mode", "offline")),
             write_artifacts=bool(data.get("write_artifacts", True)),
@@ -80,8 +99,15 @@ class ScheduledRunnerConfig:
         append_tracking_ledger: bool | None = None,
         fail_on_needs_review: bool | None = None,
     ) -> "ScheduledRunnerConfig":
+        next_artifacts_dir = artifacts_dir or self.artifacts_dir
+        next_standard = (
+            self.artifact_standard.with_overrides(root_dir=next_artifacts_dir)
+            if self.artifact_standard is not None
+            else ArtifactStandardConfig(root_dir=next_artifacts_dir)
+        )
         return ScheduledRunnerConfig(
-            artifacts_dir=artifacts_dir or self.artifacts_dir,
+            artifacts_dir=next_artifacts_dir,
+            artifact_standard=next_standard,
             cycle_name=self.cycle_name,
             default_mode=self.default_mode,
             write_artifacts=self.write_artifacts,
@@ -142,6 +168,10 @@ class ScheduledRunnerConfig:
                 "needs_review": self.needs_review_exit_code,
                 "error": self.error_exit_code,
             },
+            "artifact_standard": (
+                self.artifact_standard
+                or ArtifactStandardConfig(root_dir=self.artifacts_dir)
+            ).to_plan(),
             "safe_defaults": {
                 "openrouter_calls_by_default": False,
                 "proposal_submission_by_default": False,
@@ -172,15 +202,32 @@ def make_scheduled_run_id(*, cycle_name: str, seed: str | None = None) -> str:
 def write_cycle_artifact(
     *, artifacts_dir: Path, run_id: str, name: str, payload: Mapping[str, Any]
 ) -> Path:
-    """Write one JSON artifact and return its path."""
+    """Write one JSON artifact using the 42C standard layout and return its path."""
 
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = name.replace("/", "-").replace(" ", "-")
-    path = artifacts_dir / f"{run_id}.{safe_name}.json"
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    metadata = write_standard_artifact(
+        config=ArtifactStandardConfig(root_dir=artifacts_dir),
+        run_id=run_id,
+        name=name,
+        payload=payload,
     )
-    return path
+    return Path(str(metadata["path"]))
+
+
+def write_cycle_manifest(
+    *,
+    artifacts_dir: Path,
+    run_id: str,
+    artifacts: list[Mapping[str, Any]],
+    cycle_report: Mapping[str, Any] | None = None,
+) -> JsonDict:
+    """Write the 42C manifest for one scheduled cycle."""
+
+    return write_artifact_manifest(
+        config=ArtifactStandardConfig(root_dir=artifacts_dir),
+        run_id=run_id,
+        artifacts=artifacts,
+        cycle_report=cycle_report,
+    )
 
 
 def summarize_report(report: Mapping[str, Any] | None) -> JsonDict:

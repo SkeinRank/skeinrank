@@ -294,3 +294,9 @@ creates the complete report chain without external API calls or runtime mutation
 ### OpenRouter agent real Elasticsearch validation
 
 Patch 42B adds a reproducible real Elasticsearch validation scenario for the OpenRouter alias scout. See `docs/guides/openrouter-agent.md` and `examples/agents/openrouter_alias_scout/real_es_validation/`.
+
+### Patch 42C — Reports/artifacts standard
+
+The OpenRouter alias scout now writes normalized run artifacts under
+`reports/<run_id>/` with `manifest.json`, `run_summary.json`, and per-stage JSON
+reports in `reports/<run_id>/reports/`. See `docs/guides/openrouter-agent.md`.

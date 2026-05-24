@@ -319,7 +319,14 @@
     "fail_on_errors": true,
     "success_exit_code": 0,
     "needs_review_exit_code": 10,
-    "error_exit_code": 2
+    "error_exit_code": 2,
+    "artifact_standard": {
+      "reports_subdir": "reports",
+      "manifest_filename": "manifest.json",
+      "summary_filename": "run_summary.json",
+      "write_manifest": true,
+      "include_checksums": true
+    }
   },
   "integration_smoke": {
     "artifacts_dir": "reports/integration",
@@ -342,5 +349,14 @@
     "refresh_after_index": true,
     "id_field": "id",
     "run_id_prefix": "real-es-validation"
+  },
+  "artifact_standard": {
+    "root_dir": "reports",
+    "reports_subdir": "reports",
+    "manifest_filename": "manifest.json",
+    "summary_filename": "run_summary.json",
+    "layout_version": "skeinrank.agent_artifacts_layout.v1",
+    "write_manifest": true,
+    "include_checksums": true
   }
 }
