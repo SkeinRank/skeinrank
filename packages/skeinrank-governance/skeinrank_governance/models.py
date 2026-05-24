@@ -86,6 +86,14 @@ AGENT_DOCUMENT_VISIT_STATUSES = (
     "skipped",
     "error",
 )
+AGENT_CANDIDATE_OBSERVATION_STATUSES = (
+    "discovered",
+    "queued_for_review",
+    "reviewed",
+    "rejected",
+    "needs_evidence",
+    "error",
+)
 USER_ROLES = ("admin", "moderator", "contributor")
 USER_STATUSES = ("active", "suspended", "deactivated")
 API_TOKEN_OWNER_TYPES = ("personal", "service_account")
@@ -193,6 +201,18 @@ class TerminologyProfile(TimestampMixin, Base):
         passive_deletes=True,
     )
     agent_document_visits: Mapped[list[AgentDocumentVisit]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_candidate_observations: Mapped[list[AgentCandidateObservation]] = (
+        relationship(
+            back_populates="profile",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
+    )
+    agent_evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -989,6 +1009,16 @@ class ElasticsearchBinding(TimestampMixin, Base):
         back_populates="binding",
         passive_deletes=True,
     )
+    agent_candidate_observations: Mapped[list[AgentCandidateObservation]] = (
+        relationship(
+            back_populates="binding",
+            passive_deletes=True,
+        )
+    )
+    agent_evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="binding",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -1201,6 +1231,16 @@ class AgentRun(TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    candidate_observations: Mapped[list[AgentCandidateObservation]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -1286,12 +1326,205 @@ class AgentDocumentVisit(TimestampMixin, Base):
     binding: Mapped[ElasticsearchBinding | None] = relationship(
         back_populates="agent_document_visits"
     )
+    candidate_observations: Mapped[list[AgentCandidateObservation]] = relationship(
+        back_populates="document_visit",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="document_visit",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
             "AgentDocumentVisit("
             f"run_id={self.run_id!r}, source_id={self.source_id!r}, "
             f"status={self.visit_status!r}, should_scan={self.should_scan!r})"
+        )
+
+
+class AgentCandidateObservation(TimestampMixin, Base):
+    """One persisted candidate alias observation produced by an agent run.
+
+    Observations are run-scoped and deduplicated by normalized alias. Evidence
+    windows are stored separately so a candidate can point at multiple source
+    documents or snippets without duplicating candidate-level metadata.
+    """
+
+    __tablename__ = "agent_candidate_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_run_id",
+            "normalized_alias",
+            name="uq_agent_candidate_observations_run_alias",
+        ),
+        CheckConstraint(
+            f"observation_status IN {AGENT_CANDIDATE_OBSERVATION_STATUSES!r}",
+            name="agent_candidate_observation_status",
+        ),
+        Index(
+            "ix_agent_candidate_observations_run_status",
+            "agent_run_id",
+            "observation_status",
+        ),
+        Index(
+            "ix_agent_candidate_observations_alias",
+            "normalized_alias",
+        ),
+        Index(
+            "ix_agent_candidate_observations_profile_alias",
+            "profile_id",
+            "normalized_alias",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    document_visit_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_document_visits.id", ondelete="SET NULL"), nullable=True
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    candidate_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    possible_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    slot: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    observation_status: Mapped[str] = mapped_column(
+        String(32), default="discovered", nullable=False
+    )
+    discovery_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    weighted_count: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    document_frequency: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    evidence_windows_found: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    discovery_reasons_json: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    canonical_hint_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    candidate_pack_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="candidate_observations")
+    document_visit: Mapped[AgentDocumentVisit | None] = relationship(
+        back_populates="candidate_observations"
+    )
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_candidate_observations"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_candidate_observations"
+    )
+    evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="candidate_observation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentCandidateObservation("
+            f"run_id={self.run_id!r}, alias={self.candidate_alias!r}, "
+            f"status={self.observation_status!r})"
+        )
+
+
+class AgentEvidenceWindow(TimestampMixin, Base):
+    """One persisted evidence window supporting an agent candidate observation."""
+
+    __tablename__ = "agent_evidence_windows"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_observation_id",
+            "evidence_hash",
+            name="uq_agent_evidence_windows_candidate_hash",
+        ),
+        Index(
+            "ix_agent_evidence_windows_run",
+            "agent_run_id",
+            "created_at",
+        ),
+        Index(
+            "ix_agent_evidence_windows_candidate",
+            "candidate_observation_id",
+            "created_at",
+        ),
+        Index(
+            "ix_agent_evidence_windows_source",
+            "source_id",
+            "field",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    candidate_observation_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_candidate_observations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    document_visit_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_document_visits.id", ondelete="SET NULL"), nullable=True
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    candidate_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    source_type: Mapped[str] = mapped_column(
+        String(64), default="evidence", nullable=False
+    )
+    field: Mapped[str] = mapped_column(String(128), default="text", nullable=False)
+    start_char: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_char: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="evidence_windows")
+    candidate_observation: Mapped[AgentCandidateObservation] = relationship(
+        back_populates="evidence_windows"
+    )
+    document_visit: Mapped[AgentDocumentVisit | None] = relationship(
+        back_populates="evidence_windows"
+    )
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_evidence_windows"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_evidence_windows"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentEvidenceWindow("
+            f"run_id={self.run_id!r}, alias={self.candidate_alias!r}, "
+            f"source_id={self.source_id!r})"
         )
 
 

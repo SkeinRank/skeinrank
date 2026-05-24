@@ -1610,6 +1610,88 @@ class AgentDocumentVisitResponse(BaseModel):
     updated_at: datetime
 
 
+class AgentEvidenceWindowCreateRequest(BaseModel):
+    """Request body for persisting one evidence window."""
+
+    source_id: str | None = Field(default=None, max_length=512)
+    source_type: str = Field(default="evidence", max_length=64)
+    field: str = Field(default="text", max_length=128)
+    start_char: int | None = Field(default=None, ge=0)
+    end_char: int | None = Field(default=None, ge=0)
+    text: str = Field(min_length=1)
+    evidence_hash: str | None = Field(default=None, min_length=12, max_length=64)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentCandidateObservationCreateRequest(BaseModel):
+    """Request body for persisting one candidate observation."""
+
+    candidate_alias: str = Field(min_length=1, max_length=256)
+    document_visit_id: int | None = None
+    possible_canonical: str | None = Field(default=None, max_length=256)
+    slot: str | None = Field(default=None, max_length=64)
+    observation_status: str = Field(default="discovered", max_length=32)
+    discovery_score: float = Field(default=0.0, ge=0)
+    weighted_count: float = Field(default=0.0, ge=0)
+    document_frequency: int = Field(default=0, ge=0)
+    discovery_reasons: list[str] = Field(default_factory=list)
+    canonical_hint: dict[str, Any] = Field(default_factory=dict)
+    candidate_pack: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    evidence_windows: list[AgentEvidenceWindowCreateRequest] = Field(
+        default_factory=list
+    )
+    error_message: str | None = None
+
+
+class AgentEvidenceWindowResponse(BaseModel):
+    """Persisted agent evidence window response."""
+
+    id: int
+    agent_run_id: int
+    candidate_observation_id: int
+    document_visit_id: int | None = None
+    run_id: str
+    candidate_alias: str
+    source_id: str
+    source_type: str
+    field: str
+    start_char: int | None = None
+    end_char: int | None = None
+    text: str
+    evidence_hash: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentCandidateObservationResponse(BaseModel):
+    """Persisted agent candidate observation response."""
+
+    id: int
+    agent_run_id: int
+    run_id: str
+    document_visit_id: int | None = None
+    candidate_alias: str
+    normalized_alias: str
+    possible_canonical: str | None = None
+    normalized_canonical: str | None = None
+    slot: str | None = None
+    observation_status: str
+    discovery_score: float
+    weighted_count: float
+    document_frequency: int
+    evidence_windows_found: int
+    discovery_reasons: list[str] = Field(default_factory=list)
+    canonical_hint: dict[str, Any] = Field(default_factory=dict)
+    candidate_pack: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    evidence_windows: list[AgentEvidenceWindowResponse] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
 class AgentRunResponse(BaseModel):
     """Persisted agent run registry response."""
 

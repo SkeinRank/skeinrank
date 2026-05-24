@@ -55,6 +55,9 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "elasticsearch_bindings",
         "elasticsearch_enrichment_jobs",
         "agent_runs",
+        "agent_document_visits",
+        "agent_candidate_observations",
+        "agent_evidence_windows",
     }.issubset(set(inspector.get_table_names()))
     user_columns = {
         column["name"] for column in inspector.get_columns("governance_users")
@@ -317,11 +320,103 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
     }
     assert "uq_agent_runs_run_id" in agent_run_uniques
 
+    visit_columns = {
+        column["name"] for column in inspector.get_columns("agent_document_visits")
+    }
+    assert {
+        "agent_run_id",
+        "run_id",
+        "profile_id",
+        "binding_id",
+        "source_id",
+        "external_document_id",
+        "source_type",
+        "index_name",
+        "content_hash",
+        "processing_context_hash",
+        "visit_status",
+        "should_scan",
+        "metadata_json",
+    }.issubset(visit_columns)
+    visit_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_document_visits")
+    }
+    assert "ix_agent_document_visits_run_status" in visit_indexes
+    assert "ix_agent_document_visits_hashes" in visit_indexes
+
+    observation_columns = {
+        column["name"]
+        for column in inspector.get_columns("agent_candidate_observations")
+    }
+    assert {
+        "agent_run_id",
+        "run_id",
+        "document_visit_id",
+        "profile_id",
+        "binding_id",
+        "candidate_alias",
+        "normalized_alias",
+        "possible_canonical",
+        "normalized_canonical",
+        "slot",
+        "observation_status",
+        "discovery_score",
+        "weighted_count",
+        "document_frequency",
+        "evidence_windows_found",
+        "discovery_reasons_json",
+        "canonical_hint_json",
+        "candidate_pack_json",
+        "metadata_json",
+    }.issubset(observation_columns)
+    observation_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_candidate_observations")
+    }
+    assert "ix_agent_candidate_observations_run_status" in observation_indexes
+    assert "ix_agent_candidate_observations_alias" in observation_indexes
+    observation_uniques = {
+        item["name"]
+        for item in inspector.get_unique_constraints("agent_candidate_observations")
+    }
+    assert "uq_agent_candidate_observations_run_alias" in observation_uniques
+
+    evidence_window_columns = {
+        column["name"] for column in inspector.get_columns("agent_evidence_windows")
+    }
+    assert {
+        "agent_run_id",
+        "candidate_observation_id",
+        "document_visit_id",
+        "run_id",
+        "profile_id",
+        "binding_id",
+        "candidate_alias",
+        "normalized_alias",
+        "source_id",
+        "source_type",
+        "field",
+        "start_char",
+        "end_char",
+        "text",
+        "evidence_hash",
+        "metadata_json",
+    }.issubset(evidence_window_columns)
+    evidence_window_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_evidence_windows")
+    }
+    assert "ix_agent_evidence_windows_run" in evidence_window_indexes
+    assert "ix_agent_evidence_windows_candidate" in evidence_window_indexes
+    evidence_window_uniques = {
+        item["name"]
+        for item in inspector.get_unique_constraints("agent_evidence_windows")
+    }
+    assert "uq_agent_evidence_windows_candidate_hash" in evidence_window_uniques
+
     with engine.connect() as connection:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260524_0023"
+    assert revision == "20260524_0024"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

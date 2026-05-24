@@ -15,6 +15,11 @@ def test_public_api_exports_governance_models_and_helpers():
     assert governance.ProfileSnapshot.__tablename__ == "profile_snapshots"
     assert governance.AgentRun.__tablename__ == "agent_runs"
     assert governance.AgentDocumentVisit.__tablename__ == "agent_document_visits"
+    assert (
+        governance.AgentCandidateObservation.__tablename__
+        == "agent_candidate_observations"
+    )
+    assert governance.AgentEvidenceWindow.__tablename__ == "agent_evidence_windows"
     assert governance.AuditEvent.__tablename__ == "audit_events"
     assert governance.GovernanceUser.__tablename__ == "governance_users"
     assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"
@@ -106,6 +111,14 @@ def test_public_api_exports_governance_models_and_helpers():
         "api",
         "worker",
         "test",
+    )
+    assert governance.AGENT_CANDIDATE_OBSERVATION_STATUSES == (
+        "discovered",
+        "queued_for_review",
+        "reviewed",
+        "rejected",
+        "needs_evidence",
+        "error",
     )
     assert governance.normalize_value(" K8S ") == "k8s"
     assert governance.normalize_profile_name("Default IT") == "default_it"

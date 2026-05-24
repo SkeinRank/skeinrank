@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from skeinrank_governance.models import AgentDocumentVisit, AgentRun
+from skeinrank_governance.models import (
+    AgentCandidateObservation,
+    AgentDocumentVisit,
+    AgentEvidenceWindow,
+    AgentRun,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..agent_candidate_observations import (
+    AgentCandidateObservationError,
+    list_candidate_observations,
+    list_evidence_windows,
+    record_candidate_observation,
+)
 from ..agent_document_visits import (
     AgentDocumentVisitError,
     list_document_visits,
@@ -22,8 +33,11 @@ from ..agent_run_registry import (
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
 from ..schemas import (
+    AgentCandidateObservationCreateRequest,
+    AgentCandidateObservationResponse,
     AgentDocumentVisitCreateRequest,
     AgentDocumentVisitResponse,
+    AgentEvidenceWindowResponse,
     AgentRunCreateRequest,
     AgentRunResponse,
     AgentRunUpdateRequest,
@@ -238,6 +252,117 @@ def list_agent_document_visits_endpoint(
     return [_agent_document_visit_response(visit) for visit in visits]
 
 
+@router.post(
+    "/runs/{run_id}/candidate-observations",
+    response_model=AgentCandidateObservationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_agent_candidate_observation_endpoint(
+    run_id: str,
+    request: AgentCandidateObservationCreateRequest,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> AgentCandidateObservationResponse:
+    """Record one candidate alias observation and its evidence windows."""
+
+    try:
+        observation = record_candidate_observation(
+            session,
+            run_id=run_id,
+            candidate_alias=request.candidate_alias,
+            document_visit_id=request.document_visit_id,
+            possible_canonical=request.possible_canonical,
+            slot=request.slot,
+            observation_status=request.observation_status,
+            discovery_score=request.discovery_score,
+            weighted_count=request.weighted_count,
+            document_frequency=request.document_frequency,
+            discovery_reasons=request.discovery_reasons,
+            canonical_hint=request.canonical_hint,
+            candidate_pack=request.candidate_pack,
+            metadata_json=request.metadata,
+            evidence_windows=[
+                window.model_dump() for window in request.evidence_windows
+            ],
+            error_message=request.error_message,
+        )
+        session.commit()
+        session.refresh(observation)
+        return _agent_candidate_observation_response(observation)
+    except AgentCandidateObservationError as exc:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Candidate observation already exists for this run and alias.",
+        ) from exc
+
+
+@router.get(
+    "/runs/{run_id}/candidate-observations",
+    response_model=list[AgentCandidateObservationResponse],
+)
+def list_agent_candidate_observations_endpoint(
+    run_id: str,
+    observation_status: str | None = Query(default=None, alias="status"),
+    candidate_alias: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[AgentCandidateObservationResponse]:
+    """List candidate observations recorded for one agent run."""
+
+    try:
+        observations = list_candidate_observations(
+            session,
+            run_id=run_id,
+            observation_status=observation_status,
+            candidate_alias=candidate_alias,
+            limit=limit,
+        )
+    except AgentCandidateObservationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return [
+        _agent_candidate_observation_response(observation)
+        for observation in observations
+    ]
+
+
+@router.get(
+    "/runs/{run_id}/evidence-windows",
+    response_model=list[AgentEvidenceWindowResponse],
+)
+def list_agent_evidence_windows_endpoint(
+    run_id: str,
+    candidate_observation_id: int | None = None,
+    source_id: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[AgentEvidenceWindowResponse]:
+    """List persisted evidence windows for one agent run."""
+
+    try:
+        windows = list_evidence_windows(
+            session,
+            run_id=run_id,
+            candidate_observation_id=candidate_observation_id,
+            source_id=source_id,
+            limit=limit,
+        )
+    except AgentCandidateObservationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return [_agent_evidence_window_response(window) for window in windows]
+
+
 def _agent_run_response(agent_run: AgentRun) -> AgentRunResponse:
     return AgentRunResponse(
         id=agent_run.id,
@@ -291,4 +416,59 @@ def _agent_document_visit_response(
         error_message=visit.error_message,
         created_at=visit.created_at,
         updated_at=visit.updated_at,
+    )
+
+
+def _agent_candidate_observation_response(
+    observation: AgentCandidateObservation,
+) -> AgentCandidateObservationResponse:
+    return AgentCandidateObservationResponse(
+        id=observation.id,
+        agent_run_id=observation.agent_run_id,
+        run_id=observation.run_id,
+        document_visit_id=observation.document_visit_id,
+        candidate_alias=observation.candidate_alias,
+        normalized_alias=observation.normalized_alias,
+        possible_canonical=observation.possible_canonical,
+        normalized_canonical=observation.normalized_canonical,
+        slot=observation.slot,
+        observation_status=observation.observation_status,
+        discovery_score=observation.discovery_score,
+        weighted_count=observation.weighted_count,
+        document_frequency=observation.document_frequency,
+        evidence_windows_found=observation.evidence_windows_found,
+        discovery_reasons=observation.discovery_reasons_json or [],
+        canonical_hint=observation.canonical_hint_json or {},
+        candidate_pack=observation.candidate_pack_json or {},
+        metadata=observation.metadata_json or {},
+        error_message=observation.error_message,
+        evidence_windows=[
+            _agent_evidence_window_response(window)
+            for window in observation.evidence_windows
+        ],
+        created_at=observation.created_at,
+        updated_at=observation.updated_at,
+    )
+
+
+def _agent_evidence_window_response(
+    window: AgentEvidenceWindow,
+) -> AgentEvidenceWindowResponse:
+    return AgentEvidenceWindowResponse(
+        id=window.id,
+        agent_run_id=window.agent_run_id,
+        candidate_observation_id=window.candidate_observation_id,
+        document_visit_id=window.document_visit_id,
+        run_id=window.run_id,
+        candidate_alias=window.candidate_alias,
+        source_id=window.source_id,
+        source_type=window.source_type,
+        field=window.field,
+        start_char=window.start_char,
+        end_char=window.end_char,
+        text=window.text,
+        evidence_hash=window.evidence_hash,
+        metadata=window.metadata_json or {},
+        created_at=window.created_at,
+        updated_at=window.updated_at,
     )

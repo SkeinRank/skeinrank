@@ -713,3 +713,18 @@ This patch only tracks run-level metadata. Document visits, candidate observatio
 ### Patch 44B — Agent document visits
 
 Patch 44B adds DB-backed `agent_document_visits` tracking for agent runs. Each visit records a source document identity, content hash, processing-context hash, visit status, and `should_scan` decision. This is the foundation for skipping unchanged documents and rerunning only when content or agent context changes.
+
+### Patch 44C — Candidate observations and evidence windows
+
+Patch 44C adds DB-backed persistence for agent candidate observations and evidence windows. Agent runs can now persist discovered aliases, canonical hints, discovery scores, candidate packs, and the evidence snippets that support later LLM review or proposal attempts.
+
+New API endpoints:
+
+```text
+POST /v1/agents/runs/{run_id}/candidate-observations
+GET  /v1/agents/runs/{run_id}/candidate-observations
+GET  /v1/agents/runs/{run_id}/evidence-windows
+```
+
+This remains a tracking/audit layer: it stores observations and evidence for review, but does not directly mutate dictionaries, publish snapshots, or submit proposals.
+

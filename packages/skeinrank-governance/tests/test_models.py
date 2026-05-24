@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 from skeinrank_governance import (
+    AgentCandidateObservation,
     AgentDocumentVisit,
+    AgentEvidenceWindow,
     AgentRun,
     AuditEvent,
     Base,
@@ -65,6 +67,9 @@ def test_metadata_contains_expected_tables():
         "elasticsearch_bindings",
         "elasticsearch_enrichment_jobs",
         "agent_runs",
+        "agent_document_visits",
+        "agent_candidate_observations",
+        "agent_evidence_windows",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -255,6 +260,44 @@ def test_create_governance_rows_and_normalized_values(session):
         should_scan=True,
         metadata_json={"title": "Kubernetes rollout"},
     )
+    observation = AgentCandidateObservation(
+        agent_run=agent_run,
+        document_visit=visit,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        candidate_alias="k8s",
+        normalized_alias="k8s",
+        possible_canonical="kubernetes",
+        normalized_canonical="kubernetes",
+        slot="TOOL",
+        observation_status="queued_for_review",
+        discovery_score=9.5,
+        weighted_count=3.0,
+        document_frequency=1,
+        discovery_reasons_json=["mixed_alpha_digit"],
+        canonical_hint_json={"reason": "single_configured_alias_match"},
+        candidate_pack_json={"possible_canonical": "kubernetes"},
+        metadata_json={"source": "unit-test"},
+    )
+    evidence_window = AgentEvidenceWindow(
+        agent_run=agent_run,
+        candidate_observation=observation,
+        document_visit=visit,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        candidate_alias="k8s",
+        normalized_alias="k8s",
+        source_id="doc-001",
+        source_type="elasticsearch_hit",
+        field="body",
+        start_char=0,
+        end_char=17,
+        text="k8s rollout notes",
+        evidence_hash="evidence123456",
+        metadata_json={"title": "Kubernetes rollout"},
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -284,6 +327,8 @@ def test_create_governance_rows_and_normalized_values(session):
             job,
             agent_run,
             visit,
+            observation,
+            evidence_window,
             audit,
         ]
     )
@@ -349,6 +394,9 @@ def test_create_governance_rows_and_normalized_values(session):
     assert agent_run.summary_json == {"candidates": 3}
     assert agent_run.document_visits[0].source_id == "doc-001"
     assert agent_run.document_visits[0].should_scan is True
+    assert agent_run.candidate_observations[0].candidate_alias == "k8s"
+    assert agent_run.candidate_observations[0].evidence_windows_found == 0
+    assert agent_run.evidence_windows[0].text == "k8s rollout notes"
     assert audit.payload_json == {"alias": "K8S"}
 
 
@@ -426,6 +474,10 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "governance_global_stop_list_entries" in table_names
     assert "elasticsearch_bindings" in table_names
     assert "elasticsearch_enrichment_jobs" in table_names
+    assert "agent_runs" in table_names
+    assert "agent_document_visits" in table_names
+    assert "agent_candidate_observations" in table_names
+    assert "agent_evidence_windows" in table_names
 
     suggestion_columns = {
         column["name"]
