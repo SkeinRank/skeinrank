@@ -20,6 +20,8 @@ def test_public_api_exports_governance_models_and_helpers():
         == "agent_candidate_observations"
     )
     assert governance.AgentEvidenceWindow.__tablename__ == "agent_evidence_windows"
+    assert governance.AgentLlmReview.__tablename__ == "agent_llm_reviews"
+    assert governance.AgentProposalAttempt.__tablename__ == "agent_proposal_attempts"
     assert governance.AuditEvent.__tablename__ == "audit_events"
     assert governance.GovernanceUser.__tablename__ == "governance_users"
     assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"
@@ -118,6 +120,22 @@ def test_public_api_exports_governance_models_and_helpers():
         "reviewed",
         "rejected",
         "needs_evidence",
+        "error",
+    )
+    assert governance.AGENT_LLM_REVIEW_STATUSES == (
+        "proposed",
+        "rejected",
+        "needs_evidence",
+        "error",
+    )
+    assert governance.AGENT_PROPOSAL_ATTEMPT_STATUSES == (
+        "validation_passed",
+        "validation_warning",
+        "validation_blocked",
+        "submitted",
+        "created",
+        "idempotent_existing_alias",
+        "manual_review_required",
         "error",
     )
     assert governance.normalize_value(" K8S ") == "k8s"

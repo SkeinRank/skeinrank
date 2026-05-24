@@ -1288,3 +1288,8 @@ Run registry writes do not change dictionaries, proposals, snapshots, or runtime
 ### Agent document visit API
 
 The API exposes DB-backed document visit tracking at `/v1/agents/runs/{run_id}/document-visits`. This is the first persistent layer for determining whether an agent should scan or skip source documents in future runs.
+
+
+### Agent LLM reviews and proposal attempts
+
+The API exposes DB-backed LLM review and proposal-attempt tracking at `/v1/agents/runs/{run_id}/llm-reviews` and `/v1/agents/runs/{run_id}/proposal-attempts`. These endpoints persist audit metadata only; they do not submit proposals or mutate snapshots.

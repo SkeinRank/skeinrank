@@ -1692,6 +1692,108 @@ class AgentCandidateObservationResponse(BaseModel):
     updated_at: datetime
 
 
+class AgentLlmReviewCreateRequest(BaseModel):
+    """Request body for persisting one agent LLM review."""
+
+    candidate_alias: str = Field(min_length=1, max_length=256)
+    candidate_observation_id: int | None = None
+    possible_canonical: str | None = Field(default=None, max_length=256)
+    slot: str | None = Field(default=None, max_length=64)
+    review_status: str = Field(default="needs_evidence", max_length=32)
+    action: str | None = Field(default=None, max_length=64)
+    confidence: float = Field(default=0.0, ge=0)
+    model: str | None = Field(default=None, max_length=128)
+    prompt_version: str | None = Field(default=None, max_length=128)
+    response_id: str | None = Field(default=None, max_length=256)
+    prompt_hash: str | None = Field(default=None, min_length=12, max_length=64)
+    review_hash: str | None = Field(default=None, min_length=12, max_length=64)
+    usage: dict[str, Any] = Field(default_factory=dict)
+    judgment: dict[str, Any] = Field(default_factory=dict)
+    raw_response: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+
+
+class AgentLlmReviewResponse(BaseModel):
+    """Persisted agent LLM review response."""
+
+    id: int
+    agent_run_id: int
+    run_id: str
+    candidate_observation_id: int | None = None
+    candidate_alias: str
+    normalized_alias: str
+    possible_canonical: str | None = None
+    normalized_canonical: str | None = None
+    slot: str | None = None
+    review_status: str
+    action: str | None = None
+    confidence: float
+    model: str | None = None
+    prompt_version: str | None = None
+    response_id: str | None = None
+    prompt_hash: str | None = None
+    review_hash: str
+    usage: dict[str, Any] = Field(default_factory=dict)
+    judgment: dict[str, Any] = Field(default_factory=dict)
+    raw_response: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentProposalAttemptCreateRequest(BaseModel):
+    """Request body for persisting one agent proposal attempt."""
+
+    alias_value: str = Field(min_length=1, max_length=256)
+    candidate_observation_id: int | None = None
+    llm_review_id: int | None = None
+    governance_suggestion_id: int | None = None
+    canonical_value: str | None = Field(default=None, max_length=256)
+    slot: str | None = Field(default=None, max_length=64)
+    attempt_status: str = Field(default="validation_passed", max_length=64)
+    validation_status: str | None = Field(default=None, max_length=64)
+    validation_category: str | None = Field(default=None, max_length=64)
+    confidence: float = Field(default=0.0, ge=0)
+    idempotency_key: str | None = Field(default=None, max_length=256)
+    submitted: bool = False
+    proposal_source_type: str = Field(default="agent", max_length=32)
+    proposal_source_name: str | None = Field(default=None, max_length=128)
+    validation_response: dict[str, Any] = Field(default_factory=dict)
+    submission_response: dict[str, Any] = Field(default_factory=dict)
+    source_payload: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+
+
+class AgentProposalAttemptResponse(BaseModel):
+    """Persisted agent proposal attempt response."""
+
+    id: int
+    agent_run_id: int
+    run_id: str
+    candidate_observation_id: int | None = None
+    llm_review_id: int | None = None
+    governance_suggestion_id: int | None = None
+    alias_value: str
+    normalized_alias: str
+    canonical_value: str | None = None
+    normalized_canonical: str | None = None
+    slot: str | None = None
+    attempt_status: str
+    validation_status: str | None = None
+    validation_category: str | None = None
+    confidence: float
+    idempotency_key: str | None = None
+    submitted: bool
+    proposal_source_type: str
+    proposal_source_name: str | None = None
+    validation_response: dict[str, Any] = Field(default_factory=dict)
+    submission_response: dict[str, Any] = Field(default_factory=dict)
+    source_payload: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class AgentRunResponse(BaseModel):
     """Persisted agent run registry response."""
 

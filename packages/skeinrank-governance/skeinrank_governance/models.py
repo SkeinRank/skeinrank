@@ -94,6 +94,22 @@ AGENT_CANDIDATE_OBSERVATION_STATUSES = (
     "needs_evidence",
     "error",
 )
+AGENT_LLM_REVIEW_STATUSES = (
+    "proposed",
+    "rejected",
+    "needs_evidence",
+    "error",
+)
+AGENT_PROPOSAL_ATTEMPT_STATUSES = (
+    "validation_passed",
+    "validation_warning",
+    "validation_blocked",
+    "submitted",
+    "created",
+    "idempotent_existing_alias",
+    "manual_review_required",
+    "error",
+)
 USER_ROLES = ("admin", "moderator", "contributor")
 USER_STATUSES = ("active", "suspended", "deactivated")
 API_TOKEN_OWNER_TYPES = ("personal", "service_account")
@@ -213,6 +229,16 @@ class TerminologyProfile(TimestampMixin, Base):
         )
     )
     agent_evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_llm_reviews: Mapped[list[AgentLlmReview]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -1019,6 +1045,14 @@ class ElasticsearchBinding(TimestampMixin, Base):
         back_populates="binding",
         passive_deletes=True,
     )
+    agent_llm_reviews: Mapped[list[AgentLlmReview]] = relationship(
+        back_populates="binding",
+        passive_deletes=True,
+    )
+    agent_proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="binding",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -1241,6 +1275,16 @@ class AgentRun(TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    llm_reviews: Mapped[list[AgentLlmReview]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -1437,6 +1481,16 @@ class AgentCandidateObservation(TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    llm_reviews: Mapped[list[AgentLlmReview]] = relationship(
+        back_populates="candidate_observation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="candidate_observation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -1525,6 +1579,190 @@ class AgentEvidenceWindow(TimestampMixin, Base):
             "AgentEvidenceWindow("
             f"run_id={self.run_id!r}, alias={self.candidate_alias!r}, "
             f"source_id={self.source_id!r})"
+        )
+
+
+class AgentLlmReview(TimestampMixin, Base):
+    """One persisted LLM review for a candidate observation.
+
+    LLM reviews store the model judgment, usage metadata, and raw response needed
+    for auditability without making the LLM output the source of truth.
+    """
+
+    __tablename__ = "agent_llm_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_run_id",
+            "normalized_alias",
+            "review_hash",
+            name="uq_agent_llm_reviews_run_alias_hash",
+        ),
+        CheckConstraint(
+            f"review_status IN {AGENT_LLM_REVIEW_STATUSES!r}",
+            name="agent_llm_review_status",
+        ),
+        Index("ix_agent_llm_reviews_run_status", "agent_run_id", "review_status"),
+        Index("ix_agent_llm_reviews_alias", "normalized_alias"),
+        Index("ix_agent_llm_reviews_model_created", "model", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    candidate_observation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_candidate_observations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    candidate_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    possible_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    slot: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    review_status: Mapped[str] = mapped_column(
+        String(32), default="needs_evidence", nullable=False
+    )
+    action: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    response_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    prompt_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    review_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    usage_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    judgment_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    raw_response_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="llm_reviews")
+    candidate_observation: Mapped[AgentCandidateObservation | None] = relationship(
+        back_populates="llm_reviews"
+    )
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_llm_reviews"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_llm_reviews"
+    )
+    proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="llm_review",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentLlmReview("
+            f"run_id={self.run_id!r}, alias={self.candidate_alias!r}, "
+            f"status={self.review_status!r})"
+        )
+
+
+class AgentProposalAttempt(TimestampMixin, Base):
+    """One validation/submission attempt created from an agent proposal payload."""
+
+    __tablename__ = "agent_proposal_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_run_id",
+            "idempotency_key",
+            name="uq_agent_proposal_attempts_run_idempotency",
+        ),
+        CheckConstraint(
+            f"attempt_status IN {AGENT_PROPOSAL_ATTEMPT_STATUSES!r}",
+            name="agent_proposal_attempt_status",
+        ),
+        Index(
+            "ix_agent_proposal_attempts_run_status",
+            "agent_run_id",
+            "attempt_status",
+        ),
+        Index("ix_agent_proposal_attempts_idempotency", "idempotency_key"),
+        Index("ix_agent_proposal_attempts_suggestion", "governance_suggestion_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    candidate_observation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_candidate_observations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    llm_review_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_llm_reviews.id", ondelete="SET NULL"), nullable=True
+    )
+    governance_suggestion_id: Mapped[int | None] = mapped_column(
+        ForeignKey("governance_suggestions.id", ondelete="SET NULL"), nullable=True
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    alias_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    canonical_value: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    slot: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    attempt_status: Mapped[str] = mapped_column(
+        String(64), default="validation_passed", nullable=False
+    )
+    validation_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    validation_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    submitted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    proposal_source_type: Mapped[str] = mapped_column(
+        String(32), default="agent", nullable=False
+    )
+    proposal_source_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    validation_response_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    submission_response_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    source_payload_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="proposal_attempts")
+    candidate_observation: Mapped[AgentCandidateObservation | None] = relationship(
+        back_populates="proposal_attempts"
+    )
+    llm_review: Mapped[AgentLlmReview | None] = relationship(
+        back_populates="proposal_attempts"
+    )
+    governance_suggestion: Mapped[GovernanceSuggestion | None] = relationship()
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_proposal_attempts"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_proposal_attempts"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentProposalAttempt("
+            f"run_id={self.run_id!r}, alias={self.alias_value!r}, "
+            f"status={self.attempt_status!r})"
         )
 
 

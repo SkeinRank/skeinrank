@@ -58,6 +58,8 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "agent_document_visits",
         "agent_candidate_observations",
         "agent_evidence_windows",
+        "agent_llm_reviews",
+        "agent_proposal_attempts",
     }.issubset(set(inspector.get_table_names()))
     user_columns = {
         column["name"] for column in inspector.get_columns("governance_users")
@@ -412,11 +414,86 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
     }
     assert "uq_agent_evidence_windows_candidate_hash" in evidence_window_uniques
 
+    llm_review_columns = {
+        column["name"] for column in inspector.get_columns("agent_llm_reviews")
+    }
+    assert {
+        "agent_run_id",
+        "run_id",
+        "candidate_observation_id",
+        "profile_id",
+        "binding_id",
+        "candidate_alias",
+        "normalized_alias",
+        "possible_canonical",
+        "normalized_canonical",
+        "slot",
+        "review_status",
+        "action",
+        "confidence",
+        "model",
+        "prompt_version",
+        "response_id",
+        "prompt_hash",
+        "review_hash",
+        "usage_json",
+        "judgment_json",
+        "raw_response_json",
+    }.issubset(llm_review_columns)
+    llm_review_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_llm_reviews")
+    }
+    assert "ix_agent_llm_reviews_run_status" in llm_review_indexes
+    assert "ix_agent_llm_reviews_model_created" in llm_review_indexes
+    llm_review_uniques = {
+        item["name"] for item in inspector.get_unique_constraints("agent_llm_reviews")
+    }
+    assert "uq_agent_llm_reviews_run_alias_hash" in llm_review_uniques
+
+    proposal_attempt_columns = {
+        column["name"] for column in inspector.get_columns("agent_proposal_attempts")
+    }
+    assert {
+        "agent_run_id",
+        "run_id",
+        "candidate_observation_id",
+        "llm_review_id",
+        "governance_suggestion_id",
+        "profile_id",
+        "binding_id",
+        "alias_value",
+        "normalized_alias",
+        "canonical_value",
+        "normalized_canonical",
+        "slot",
+        "attempt_status",
+        "validation_status",
+        "validation_category",
+        "confidence",
+        "idempotency_key",
+        "submitted",
+        "proposal_source_type",
+        "proposal_source_name",
+        "validation_response_json",
+        "submission_response_json",
+        "source_payload_json",
+    }.issubset(proposal_attempt_columns)
+    proposal_attempt_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_proposal_attempts")
+    }
+    assert "ix_agent_proposal_attempts_run_status" in proposal_attempt_indexes
+    assert "ix_agent_proposal_attempts_idempotency" in proposal_attempt_indexes
+    proposal_attempt_uniques = {
+        item["name"]
+        for item in inspector.get_unique_constraints("agent_proposal_attempts")
+    }
+    assert "uq_agent_proposal_attempts_run_idempotency" in proposal_attempt_uniques
+
     with engine.connect() as connection:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260524_0024"
+    assert revision == "20260524_0025"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

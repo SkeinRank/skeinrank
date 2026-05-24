@@ -5,6 +5,8 @@ from skeinrank_governance import (
     AgentCandidateObservation,
     AgentDocumentVisit,
     AgentEvidenceWindow,
+    AgentLlmReview,
+    AgentProposalAttempt,
     AgentRun,
     AuditEvent,
     Base,
@@ -70,6 +72,8 @@ def test_metadata_contains_expected_tables():
         "agent_document_visits",
         "agent_candidate_observations",
         "agent_evidence_windows",
+        "agent_llm_reviews",
+        "agent_proposal_attempts",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -298,6 +302,51 @@ def test_create_governance_rows_and_normalized_values(session):
         evidence_hash="evidence123456",
         metadata_json={"title": "Kubernetes rollout"},
     )
+    llm_review = AgentLlmReview(
+        agent_run=agent_run,
+        candidate_observation=observation,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        candidate_alias="k8s",
+        normalized_alias="k8s",
+        possible_canonical="kubernetes",
+        normalized_canonical="kubernetes",
+        slot="TOOL",
+        review_status="proposed",
+        action="propose",
+        confidence=0.9,
+        model="openai/gpt-4o-mini",
+        prompt_version="prompt-v1",
+        response_id="resp-001",
+        prompt_hash="prompt123456",
+        review_hash="review123456",
+        usage_json={"total_tokens": 123},
+        judgment_json={"reason": "evidence matched"},
+        raw_response_json={"id": "resp-001"},
+    )
+    proposal_attempt = AgentProposalAttempt(
+        agent_run=agent_run,
+        candidate_observation=observation,
+        llm_review=llm_review,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        alias_value="k8s",
+        normalized_alias="k8s",
+        canonical_value="kubernetes",
+        normalized_canonical="kubernetes",
+        slot="TOOL",
+        attempt_status="validation_passed",
+        validation_status="passed",
+        validation_category="validation_passed",
+        confidence=0.9,
+        idempotency_key="run-001:k8s",
+        proposal_source_type="agent",
+        proposal_source_name="openrouter-alias-scout",
+        validation_response_json={"status": "passed"},
+        source_payload_json={"candidate_alias": "k8s"},
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -329,6 +378,8 @@ def test_create_governance_rows_and_normalized_values(session):
             visit,
             observation,
             evidence_window,
+            llm_review,
+            proposal_attempt,
             audit,
         ]
     )
@@ -397,6 +448,10 @@ def test_create_governance_rows_and_normalized_values(session):
     assert agent_run.candidate_observations[0].candidate_alias == "k8s"
     assert agent_run.candidate_observations[0].evidence_windows_found == 0
     assert agent_run.evidence_windows[0].text == "k8s rollout notes"
+    assert agent_run.llm_reviews[0].review_status == "proposed"
+    assert agent_run.llm_reviews[0].review_hash == "review123456"
+    assert agent_run.proposal_attempts[0].attempt_status == "validation_passed"
+    assert agent_run.proposal_attempts[0].idempotency_key == "run-001:k8s"
     assert audit.payload_json == {"alias": "K8S"}
 
 

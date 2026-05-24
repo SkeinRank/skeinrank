@@ -7,6 +7,8 @@ from skeinrank_governance.models import (
     AgentCandidateObservation,
     AgentDocumentVisit,
     AgentEvidenceWindow,
+    AgentLlmReview,
+    AgentProposalAttempt,
     AgentRun,
 )
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +25,13 @@ from ..agent_document_visits import (
     list_document_visits,
     record_document_visit,
 )
+from ..agent_llm_reviews import (
+    AgentLlmReviewError,
+    list_llm_reviews,
+    list_proposal_attempts,
+    record_llm_review,
+    record_proposal_attempt,
+)
 from ..agent_run_registry import (
     AgentRunRegistryError,
     create_agent_run,
@@ -38,6 +47,10 @@ from ..schemas import (
     AgentDocumentVisitCreateRequest,
     AgentDocumentVisitResponse,
     AgentEvidenceWindowResponse,
+    AgentLlmReviewCreateRequest,
+    AgentLlmReviewResponse,
+    AgentProposalAttemptCreateRequest,
+    AgentProposalAttemptResponse,
     AgentRunCreateRequest,
     AgentRunResponse,
     AgentRunUpdateRequest,
@@ -363,6 +376,166 @@ def list_agent_evidence_windows_endpoint(
     return [_agent_evidence_window_response(window) for window in windows]
 
 
+@router.post(
+    "/runs/{run_id}/llm-reviews",
+    response_model=AgentLlmReviewResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_agent_llm_review_endpoint(
+    run_id: str,
+    request: AgentLlmReviewCreateRequest,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> AgentLlmReviewResponse:
+    """Record one LLM review for an agent run."""
+
+    try:
+        review = record_llm_review(
+            session,
+            run_id=run_id,
+            candidate_alias=request.candidate_alias,
+            candidate_observation_id=request.candidate_observation_id,
+            possible_canonical=request.possible_canonical,
+            slot=request.slot,
+            review_status=request.review_status,
+            action=request.action,
+            confidence=request.confidence,
+            model=request.model,
+            prompt_version=request.prompt_version,
+            response_id=request.response_id,
+            prompt_hash=request.prompt_hash,
+            review_hash=request.review_hash,
+            usage=request.usage,
+            judgment=request.judgment,
+            raw_response=request.raw_response,
+            error_message=request.error_message,
+        )
+        session.commit()
+        session.refresh(review)
+        return _agent_llm_review_response(review)
+    except AgentLlmReviewError as exc:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="LLM review already exists for this run, alias, and hash.",
+        ) from exc
+
+
+@router.get(
+    "/runs/{run_id}/llm-reviews",
+    response_model=list[AgentLlmReviewResponse],
+)
+def list_agent_llm_reviews_endpoint(
+    run_id: str,
+    review_status: str | None = Query(default=None, alias="status"),
+    candidate_alias: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[AgentLlmReviewResponse]:
+    """List persisted LLM reviews for one agent run."""
+
+    try:
+        reviews = list_llm_reviews(
+            session,
+            run_id=run_id,
+            review_status=review_status,
+            candidate_alias=candidate_alias,
+            limit=limit,
+        )
+    except AgentLlmReviewError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return [_agent_llm_review_response(review) for review in reviews]
+
+
+@router.post(
+    "/runs/{run_id}/proposal-attempts",
+    response_model=AgentProposalAttemptResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_agent_proposal_attempt_endpoint(
+    run_id: str,
+    request: AgentProposalAttemptCreateRequest,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> AgentProposalAttemptResponse:
+    """Record one proposal validation/submission attempt for an agent run."""
+
+    try:
+        attempt = record_proposal_attempt(
+            session,
+            run_id=run_id,
+            alias_value=request.alias_value,
+            candidate_observation_id=request.candidate_observation_id,
+            llm_review_id=request.llm_review_id,
+            governance_suggestion_id=request.governance_suggestion_id,
+            canonical_value=request.canonical_value,
+            slot=request.slot,
+            attempt_status=request.attempt_status,
+            validation_status=request.validation_status,
+            validation_category=request.validation_category,
+            confidence=request.confidence,
+            idempotency_key=request.idempotency_key,
+            submitted=request.submitted,
+            proposal_source_type=request.proposal_source_type,
+            proposal_source_name=request.proposal_source_name,
+            validation_response=request.validation_response,
+            submission_response=request.submission_response,
+            source_payload=request.source_payload,
+            error_message=request.error_message,
+        )
+        session.commit()
+        session.refresh(attempt)
+        return _agent_proposal_attempt_response(attempt)
+    except AgentLlmReviewError as exc:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Proposal attempt already exists for this run and idempotency key.",
+        ) from exc
+
+
+@router.get(
+    "/runs/{run_id}/proposal-attempts",
+    response_model=list[AgentProposalAttemptResponse],
+)
+def list_agent_proposal_attempts_endpoint(
+    run_id: str,
+    attempt_status: str | None = Query(default=None, alias="status"),
+    alias_value: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[AgentProposalAttemptResponse]:
+    """List persisted proposal attempts for one agent run."""
+
+    try:
+        attempts = list_proposal_attempts(
+            session,
+            run_id=run_id,
+            attempt_status=attempt_status,
+            alias_value=alias_value,
+            limit=limit,
+        )
+    except AgentLlmReviewError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return [_agent_proposal_attempt_response(attempt) for attempt in attempts]
+
+
 def _agent_run_response(agent_run: AgentRun) -> AgentRunResponse:
     return AgentRunResponse(
         id=agent_run.id,
@@ -471,4 +644,64 @@ def _agent_evidence_window_response(
         metadata=window.metadata_json or {},
         created_at=window.created_at,
         updated_at=window.updated_at,
+    )
+
+
+def _agent_llm_review_response(review: AgentLlmReview) -> AgentLlmReviewResponse:
+    return AgentLlmReviewResponse(
+        id=review.id,
+        agent_run_id=review.agent_run_id,
+        run_id=review.run_id,
+        candidate_observation_id=review.candidate_observation_id,
+        candidate_alias=review.candidate_alias,
+        normalized_alias=review.normalized_alias,
+        possible_canonical=review.possible_canonical,
+        normalized_canonical=review.normalized_canonical,
+        slot=review.slot,
+        review_status=review.review_status,
+        action=review.action,
+        confidence=review.confidence,
+        model=review.model,
+        prompt_version=review.prompt_version,
+        response_id=review.response_id,
+        prompt_hash=review.prompt_hash,
+        review_hash=review.review_hash,
+        usage=review.usage_json or {},
+        judgment=review.judgment_json or {},
+        raw_response=review.raw_response_json or {},
+        error_message=review.error_message,
+        created_at=review.created_at,
+        updated_at=review.updated_at,
+    )
+
+
+def _agent_proposal_attempt_response(
+    attempt: AgentProposalAttempt,
+) -> AgentProposalAttemptResponse:
+    return AgentProposalAttemptResponse(
+        id=attempt.id,
+        agent_run_id=attempt.agent_run_id,
+        run_id=attempt.run_id,
+        candidate_observation_id=attempt.candidate_observation_id,
+        llm_review_id=attempt.llm_review_id,
+        governance_suggestion_id=attempt.governance_suggestion_id,
+        alias_value=attempt.alias_value,
+        normalized_alias=attempt.normalized_alias,
+        canonical_value=attempt.canonical_value,
+        normalized_canonical=attempt.normalized_canonical,
+        slot=attempt.slot,
+        attempt_status=attempt.attempt_status,
+        validation_status=attempt.validation_status,
+        validation_category=attempt.validation_category,
+        confidence=attempt.confidence,
+        idempotency_key=attempt.idempotency_key,
+        submitted=attempt.submitted,
+        proposal_source_type=attempt.proposal_source_type,
+        proposal_source_name=attempt.proposal_source_name,
+        validation_response=attempt.validation_response_json or {},
+        submission_response=attempt.submission_response_json or {},
+        source_payload=attempt.source_payload_json or {},
+        error_message=attempt.error_message,
+        created_at=attempt.created_at,
+        updated_at=attempt.updated_at,
     )

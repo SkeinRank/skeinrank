@@ -497,3 +497,8 @@ Patch 44A introduces `agent_runs` as the durable top-level registry for OpenRout
 ### DB-backed document visit tracking
 
 Patch 44B extends the agent registry with document visits. A scheduled agent can record each source document with a content hash and processing-context hash. Future runs can skip unchanged documents and rescan documents when content, prompt, model, version, profile, binding, or config context changes.
+
+
+## Patch 44D — DB-backed LLM reviews and proposal attempts
+
+The agent tracking registry now persists LLM reviews and proposal attempts in the Governance API. This gives the OpenRouter Alias Scout an audit trail from candidate observation to evidence, LLM judgment, validation result, and proposal attempt status without making the model output the source of truth.

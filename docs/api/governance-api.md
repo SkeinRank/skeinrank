@@ -728,3 +728,17 @@ Patch 44B adds document visit endpoints under the agent registry:
 - `GET /v1/agents/runs/{run_id}/document-visits` lists visits for a run and supports `status`, `should_scan`, and `limit` filters.
 
 A visit stores `source_id`, optional external document metadata, `content_hash`, `processing_context_hash`, `visit_status`, and `should_scan`. The API classifies visits as `new_document`, `unchanged_seen`, `content_changed`, `context_changed`, `skipped`, or `error`.
+
+
+## Agent LLM reviews and proposal attempts
+
+Patch 44D extends `/v1/agents` with persisted LLM review and proposal-attempt tracking.
+
+```http
+POST /v1/agents/runs/{run_id}/llm-reviews
+GET /v1/agents/runs/{run_id}/llm-reviews
+POST /v1/agents/runs/{run_id}/proposal-attempts
+GET /v1/agents/runs/{run_id}/proposal-attempts
+```
+
+LLM review rows store model/prompt metadata, response ids, usage, structured judgment, raw response, and a run-scoped review hash. Proposal-attempt rows store validation/submission status, idempotency keys, source payloads, and optional links to candidate observations, LLM reviews, and governance suggestions.

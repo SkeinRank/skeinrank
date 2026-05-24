@@ -338,3 +338,8 @@ The run registry is intentionally separate from runtime snapshots and proposal a
 ### Agent tracking: document visits
 
 The governance API now supports DB-backed document visit tracking under `/v1/agents/runs/{run_id}/document-visits`. Agents can persist content hashes and processing-context hashes to decide whether a source document is new, unchanged, content-changed, or context-changed.
+
+
+### Agent LLM reviews and proposal attempts
+
+Patch 44D adds the final DB-backed tracking tables for the initial agent audit trail: `agent_llm_reviews` and `agent_proposal_attempts`. These tables let operators trace each candidate from observation and evidence through LLM judgment, validation, submission/no-op, and idempotency handling.

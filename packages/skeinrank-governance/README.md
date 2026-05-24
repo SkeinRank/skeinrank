@@ -228,3 +228,8 @@ Later tracking layers attach document visits, candidate observations, LLM review
 ### Agent document visits
 
 The governance model includes `AgentDocumentVisit`, an append-only record that links source documents to `AgentRun` rows and stores `content_hash`, `processing_context_hash`, `visit_status`, and `should_scan`.
+
+
+### Agent LLM review and proposal-attempt models
+
+Patch 44D adds `AgentLlmReview` and `AgentProposalAttempt` models. They complete the first DB-backed agent tracking slice by connecting agent runs, candidate observations, model judgments, validation responses, idempotency keys, and optional governance suggestion links.

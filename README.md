@@ -728,3 +728,19 @@ GET  /v1/agents/runs/{run_id}/evidence-windows
 
 This remains a tracking/audit layer: it stores observations and evidence for review, but does not directly mutate dictionaries, publish snapshots, or submit proposals.
 
+
+
+### Patch 44D — LLM reviews and proposal attempts
+
+Patch 44D completes the first DB-backed agent tracking milestone by adding persisted `agent_llm_reviews` and `agent_proposal_attempts`. Agent runs can now store model judgments, usage metadata, raw OpenRouter responses, validation/submission attempts, idempotency keys, and proposal-source payloads for audit.
+
+New API endpoints:
+
+```text
+POST /v1/agents/runs/{run_id}/llm-reviews
+GET  /v1/agents/runs/{run_id}/llm-reviews
+POST /v1/agents/runs/{run_id}/proposal-attempts
+GET  /v1/agents/runs/{run_id}/proposal-attempts
+```
+
+This is still a tracking/audit layer: it does not directly mutate dictionaries, submit proposals, or publish snapshots.
