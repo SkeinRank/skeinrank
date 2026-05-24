@@ -38,7 +38,7 @@ except ImportError:  # pragma: no cover
     )
 
 JsonDict = dict[str, Any]
-ElasticsearchTransport = Callable[[str, str, Mapping[str, Any] | None], Any]
+ElasticsearchTransport = Callable[[str, str, Any], Any]
 
 DEFAULT_TEXT_FIELDS = ("title", "text", "message", "content", "body", "snippet")
 DEFAULT_SOURCE_ID_FIELDS = ("id", "doc_id", "document_id", "trace_id")
@@ -185,9 +185,7 @@ class ElasticsearchSourceClient:
         )
         return self.request("POST", f"/{quote(self.config.index)}/_search", payload)
 
-    def request(
-        self, method: str, path: str, payload: Mapping[str, Any] | None = None
-    ) -> Any:
+    def request(self, method: str, path: str, payload: Any = None) -> Any:
         """Execute an Elasticsearch request and decode JSON responses."""
 
         if self.transport is not None:
@@ -197,8 +195,17 @@ class ElasticsearchSourceClient:
         headers = {"Accept": "application/json"}
         data: bytes | None = None
         if payload is not None:
-            headers["Content-Type"] = "application/json"
-            data = json.dumps(payload).encode("utf-8")
+            if isinstance(payload, str):
+                headers["Content-Type"] = (
+                    "application/x-ndjson" if path.endswith("/_bulk") else "text/plain"
+                )
+                data = payload.encode("utf-8")
+            elif isinstance(payload, bytes):
+                headers["Content-Type"] = "application/octet-stream"
+                data = payload
+            else:
+                headers["Content-Type"] = "application/json"
+                data = json.dumps(payload).encode("utf-8")
         api_key = self.config.api_key()
         if api_key:
             headers["Authorization"] = f"{self.config.api_key_auth_scheme} {api_key}"

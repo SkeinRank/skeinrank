@@ -406,3 +406,16 @@ It keeps `openrouter_calls=false`, `elasticsearch_calls=false`,
 `skeinrank_api_calls=false`, `proposal_submission_enabled=false`,
 `runtime_mutation_enabled=false`, and `snapshot_publish_enabled=false`. This makes it
 safe to run in CI as a fast preflight before live OpenRouter/API validation.
+
+### Patch 42B — Real Elasticsearch validation scenario
+
+Patch 42B turns the Elasticsearch evidence connector into a reproducible validation scenario. The scenario can generate fixture files, index a tiny sample corpus into an isolated local Elasticsearch/OpenSearch index, and run read-only evidence validation against that index.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-real-elasticsearch-validation-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-real-elasticsearch-validation-fixtures
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --index-real-elasticsearch-validation-docs
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-real-elasticsearch-validation
+```
+
+The sample indexing step mutates only the configured validation index. The validation step is read-only and does not call OpenRouter or SkeinRank proposal APIs.

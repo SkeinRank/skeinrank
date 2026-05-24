@@ -290,3 +290,7 @@ or Kubernetes CronJob. The default mode is report-only and does not mutate runti
 Patch 42A adds a full, network-free OpenRouter alias scout integration smoke test:
 `--print-integration-smoke-plan` and `--write-integration-smoke-report`. The smoke
 creates the complete report chain without external API calls or runtime mutation.
+
+### OpenRouter agent real Elasticsearch validation
+
+Patch 42B adds a reproducible real Elasticsearch validation scenario for the OpenRouter alias scout. See `docs/guides/openrouter-agent.md` and `examples/agents/openrouter_alias_scout/real_es_validation/`.

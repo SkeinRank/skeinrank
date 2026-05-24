@@ -628,3 +628,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ```
 
 This is intended as a CI/preflight check before live validation.
+
+### Patch 42B — Real Elasticsearch validation scenario
+
+The OpenRouter alias scout includes a reproducible real Elasticsearch validation scenario. It can generate a tiny fixture corpus, explicitly index it into an isolated validation index, and run read-only evidence validation without OpenRouter or SkeinRank API calls.

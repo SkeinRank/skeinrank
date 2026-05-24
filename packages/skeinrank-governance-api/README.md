@@ -1235,3 +1235,7 @@ poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.p
 
 It builds deterministic smoke artifacts for the agent report chain without calling
 OpenRouter, Elasticsearch, or the Governance API.
+
+### Patch 42B — real Elasticsearch agent validation
+
+The OpenRouter alias scout now includes a real Elasticsearch/OpenSearch validation scenario. It is exposed through the example runner and remains outside the governance API surface; no new backend route is required.

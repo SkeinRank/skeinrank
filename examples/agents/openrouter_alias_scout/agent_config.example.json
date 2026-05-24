@@ -329,5 +329,18 @@
     "include_snapshot_artifacts": true,
     "confidence": 0.91,
     "run_id_prefix": "openrouter-alias-scout-smoke"
+  },
+  "real_elasticsearch_validation": {
+    "artifacts_dir": "real_es_validation",
+    "docs_filename": "documents.jsonl",
+    "failed_queries_filename": "failed_queries.jsonl",
+    "expected_outcomes_filename": "expected_outcomes.jsonl",
+    "bulk_filename": "documents.bulk.ndjson",
+    "index_mapping_filename": "index_mapping.json",
+    "max_candidates": 3,
+    "reset_index": false,
+    "refresh_after_index": true,
+    "id_field": "id",
+    "run_id_prefix": "real-es-validation"
   }
 }

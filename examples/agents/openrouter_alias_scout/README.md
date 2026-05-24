@@ -594,3 +594,18 @@ synthetic validation, proposal inbox, approved apply planning, snapshot evaluati
 and a cycle summary. It does not call OpenRouter, Elasticsearch, or the SkeinRank API,
 and it does not submit proposals, apply dictionary changes, or publish snapshots.
 Use it as a fast CI/Airflow/Kubernetes preflight before running live 41I cycles.
+
+## Patch 42B — Real Elasticsearch validation scenario
+
+Patch 42B adds a reproducible real Elasticsearch/OpenSearch validation scenario for the alias scout. It uses a tiny fixture corpus, an isolated validation index, and the existing read-only Elasticsearch evidence connector.
+
+Useful commands:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-real-elasticsearch-validation-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-real-elasticsearch-validation-fixtures
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --index-real-elasticsearch-validation-docs
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-real-elasticsearch-validation
+```
+
+The indexing command is explicit because it writes sample documents to the configured validation index. The validation command is read-only and does not call OpenRouter, SkeinRank API, proposal submission, runtime mutation, or snapshot publishing.

@@ -65,3 +65,7 @@ snapshots/*.json
 # Local OpenRouter alias-scout cache artifacts
 examples/agents/openrouter_alias_scout/.cache/
 examples/agents/openrouter_alias_scout/reports/
+
+# Generated real Elasticsearch validation fixture artifacts
+examples/agents/openrouter_alias_scout/real_es_validation/documents.bulk.ndjson
+examples/agents/openrouter_alias_scout/real_es_validation/index_mapping.json

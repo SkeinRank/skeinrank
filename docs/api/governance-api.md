@@ -655,3 +655,7 @@ Patch 42A adds an offline integration smoke test for the OpenRouter alias scout.
 It does not add or require new Governance API endpoints. The smoke validates the
 agent-side report chain before live use of `/v1/tools/validate-alias` or
 `/v1/tools/suggest-alias`.
+
+### Agent Elasticsearch validation note
+
+Patch 42B does not add governance API routes. It adds a client-side validation scenario that writes optional sample documents to a configured Elasticsearch/OpenSearch index and then reads evidence through the existing agent connector.

@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -106,3 +106,17 @@ agent-integration-smoke-plan:
 agent-integration-smoke-report:
 	mkdir -p examples/agents/openrouter_alias_scout/reports/integration
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-integration-smoke-report examples/agents/openrouter_alias_scout/reports/integration/full-integration-smoke-report.json
+
+
+agent-real-es-validation-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-real-elasticsearch-validation-plan
+
+agent-real-es-validation-fixtures:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-real-elasticsearch-validation-fixtures
+
+agent-real-es-validation-index:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --index-real-elasticsearch-validation-docs
+
+agent-real-es-validation-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports/real_es_validation
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-real-elasticsearch-validation-report examples/agents/openrouter_alias_scout/reports/real_es_validation/real-es-validation-report.json

@@ -105,6 +105,12 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_proposal_submission_plan,
         validate_and_optionally_submit_proposals,
     )
+    from .real_es_validation import (
+        RealElasticsearchValidationConfig,
+        index_real_elasticsearch_validation_docs,
+        run_real_elasticsearch_validation_scenario,
+        write_real_elasticsearch_validation_fixtures,
+    )
     from .scheduled_runner import (
         ScheduledRunnerConfig,
         build_scheduled_cycle_report,
@@ -207,6 +213,12 @@ except ImportError:  # pragma: no cover
         build_proposal_submission_plan,
         validate_and_optionally_submit_proposals,
     )
+    from real_es_validation import (
+        RealElasticsearchValidationConfig,
+        index_real_elasticsearch_validation_docs,
+        run_real_elasticsearch_validation_scenario,
+        write_real_elasticsearch_validation_fixtures,
+    )
     from scheduled_runner import (
         ScheduledRunnerConfig,
         build_scheduled_cycle_report,
@@ -256,6 +268,7 @@ class AgentRunnerConfig:
     new_alias_smoke: NewAliasSmokeConfig
     scheduled_runner: ScheduledRunnerConfig
     integration_smoke: FullIntegrationSmokeConfig
+    real_elasticsearch_validation: RealElasticsearchValidationConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -359,6 +372,11 @@ class AgentRunnerConfig:
             integration_smoke=FullIntegrationSmokeConfig.from_mapping(
                 raw.get("integration_smoke"), base_dir=base_dir
             ),
+            real_elasticsearch_validation=(
+                RealElasticsearchValidationConfig.from_mapping(
+                    raw.get("real_elasticsearch_validation"), base_dir=base_dir
+                )
+            ),
             openrouter_base_url=str(
                 os.getenv(
                     "OPENROUTER_BASE_URL",
@@ -457,6 +475,7 @@ def build_run_plan(
             "Patch 41H adds approved-proposal apply planning and snapshot evaluation.",
             "Patch 41I adds scheduled/worker-mode agent cycle orchestration.",
             "Patch 42A adds a one-command full agent integration smoke test.",
+            "Patch 42B adds a reproducible real Elasticsearch validation scenario.",
         ],
         "sample_queries": [
             {
@@ -916,6 +935,42 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--integration-smoke-artifacts-dir",
         type=Path,
         help="Override integration_smoke.artifacts_dir for this run.",
+    )
+
+    parser.add_argument(
+        "--print-real-elasticsearch-validation-plan",
+        action="store_true",
+        help="Print the 42B real Elasticsearch validation scenario plan.",
+    )
+    parser.add_argument(
+        "--write-real-elasticsearch-validation-fixtures",
+        action="store_true",
+        help="Write 42B sample ES docs, failed queries, outcomes, mapping, and bulk NDJSON.",
+    )
+    parser.add_argument(
+        "--index-real-elasticsearch-validation-docs",
+        action="store_true",
+        help="Explicitly index 42B sample docs into the configured Elasticsearch index.",
+    )
+    parser.add_argument(
+        "--run-real-elasticsearch-validation",
+        action="store_true",
+        help="Run the 42B read-only validation scenario against Elasticsearch.",
+    )
+    parser.add_argument(
+        "--write-real-elasticsearch-validation-report",
+        type=Path,
+        help="Run 42B and write the validation scenario report to this JSON path.",
+    )
+    parser.add_argument(
+        "--real-es-validation-artifacts-dir",
+        type=Path,
+        help="Override real_elasticsearch_validation.artifacts_dir for this run.",
+    )
+    parser.add_argument(
+        "--real-es-validation-reset-index",
+        action="store_true",
+        help="Allow the 42B indexing command to delete/recreate the validation index.",
     )
 
     parser.add_argument(
@@ -1529,6 +1584,69 @@ def run_integration_smoke_for_config(
     )
 
 
+def _real_elasticsearch_validation_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> RealElasticsearchValidationConfig:
+    """Apply CLI overrides to the 42B real Elasticsearch validation config."""
+
+    return config.real_elasticsearch_validation.with_overrides(
+        artifacts_dir=args.real_es_validation_artifacts_dir,
+        max_candidates=args.max_candidates,
+        reset_index=True if args.real_es_validation_reset_index else None,
+    )
+
+
+def build_real_elasticsearch_validation_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the network-free 42B real Elasticsearch validation scenario plan."""
+
+    return _real_elasticsearch_validation_config_from_args(config, args).to_plan(
+        source_config=_elasticsearch_source_config_from_args(config, args)
+    )
+
+
+def write_real_elasticsearch_validation_fixtures_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Write 42B real Elasticsearch validation fixture files."""
+
+    return write_real_elasticsearch_validation_fixtures(
+        _real_elasticsearch_validation_config_from_args(config, args),
+        source_config=_elasticsearch_source_config_from_args(config, args),
+    )
+
+
+def index_real_elasticsearch_validation_docs_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Explicitly index 42B validation fixture docs into Elasticsearch."""
+
+    source_config = _elasticsearch_source_config_from_args(config, args)
+    return index_real_elasticsearch_validation_docs(
+        config=_real_elasticsearch_validation_config_from_args(config, args),
+        source_config=source_config,
+        client=ElasticsearchSourceClient(source_config),
+    )
+
+
+def run_real_elasticsearch_validation_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Run the 42B read-only real Elasticsearch validation scenario."""
+
+    source_config = _elasticsearch_source_config_from_args(config, args)
+    return run_real_elasticsearch_validation_scenario(
+        config=_real_elasticsearch_validation_config_from_args(config, args),
+        source_config=source_config,
+        evidence_config=config.evidence_sampler,
+        candidate_config=config.candidate_discovery,
+        client=ElasticsearchSourceClient(source_config),
+        binding_id=config.default_binding_id,
+        profile_name=config.default_profile_name,
+    )
+
+
 def _elasticsearch_source_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> ElasticsearchSourceConfig:
@@ -1803,6 +1921,38 @@ def main(argv: list[str] | None = None) -> int:
     if args.print_integration_smoke_plan:
         report = build_integration_smoke_plan_for_args(config, args)
         print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.print_real_elasticsearch_validation_plan:
+        report = build_real_elasticsearch_validation_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.write_real_elasticsearch_validation_fixtures:
+        report = write_real_elasticsearch_validation_fixtures_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.index_real_elasticsearch_validation_docs:
+        report = index_real_elasticsearch_validation_docs_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if (
+        args.run_real_elasticsearch_validation
+        or args.write_real_elasticsearch_validation_report
+    ):
+        report = run_real_elasticsearch_validation_for_args(config, args)
+        if args.write_real_elasticsearch_validation_report:
+            args.write_real_elasticsearch_validation_report.parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            args.write_real_elasticsearch_validation_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
         return 0
 
     if args.print_security_profile or args.check_security_profile:

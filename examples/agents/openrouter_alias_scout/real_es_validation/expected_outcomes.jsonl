@@ -1,0 +1,4 @@
+{"candidate_alias":"pg","expected_action":"propose","expected_canonical":"postgresql","outcome":"accepted"}
+{"candidate_alias":"k8s","expected_action":"propose","expected_canonical":"kubernetes","outcome":"accepted"}
+{"candidate_alias":"kube","expected_action":"propose","expected_canonical":"kubernetes","outcome":"accepted"}
+{"candidate_alias":"queue","expected_action":"reject","outcome":"noisy"}
