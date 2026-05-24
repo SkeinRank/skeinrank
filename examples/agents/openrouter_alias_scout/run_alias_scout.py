@@ -70,6 +70,12 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         AgentDeploymentConfig,
         build_agent_deployment_recipe,
     )
+    from .dictionary_quickstart import (
+        DictionaryQuickstartConfig,
+        build_dictionary_quickstart_plan,
+        run_dictionary_quickstart,
+        write_dictionary_quickstart_payloads,
+    )
     from .elasticsearch_source import (
         ElasticsearchSourceClient,
         ElasticsearchSourceConfig,
@@ -184,6 +190,12 @@ except ImportError:  # pragma: no cover
         AgentDeploymentConfig,
         build_agent_deployment_recipe,
     )
+    from dictionary_quickstart import (
+        DictionaryQuickstartConfig,
+        build_dictionary_quickstart_plan,
+        run_dictionary_quickstart,
+        write_dictionary_quickstart_payloads,
+    )
     from elasticsearch_source import (
         ElasticsearchSourceClient,
         ElasticsearchSourceConfig,
@@ -274,6 +286,7 @@ class AgentRunnerConfig:
     security_profile: SecurityProfileConfig
     evaluation: AgentEvaluationConfig
     deployment: AgentDeploymentConfig
+    dictionary_quickstart: DictionaryQuickstartConfig
     proposal_submission: ProposalSubmissionConfig
     proposal_inbox: ProposalInboxConfig
     approved_apply: ApprovedApplyConfig
@@ -366,6 +379,9 @@ class AgentRunnerConfig:
             evaluation=AgentEvaluationConfig.from_mapping(raw.get("evaluation")),
             deployment=AgentDeploymentConfig.from_mapping(
                 raw.get("deployment"), repo_root=repo_root
+            ),
+            dictionary_quickstart=DictionaryQuickstartConfig.from_mapping(
+                raw.get("dictionary_quickstart"), base_dir=base_dir
             ),
             proposal_submission=ProposalSubmissionConfig.from_mapping(
                 raw.get("proposal_submission")
@@ -493,6 +509,7 @@ def build_run_plan(
             "Patch 42A adds a one-command full agent integration smoke test.",
             "Patch 42B adds a reproducible real Elasticsearch validation scenario.",
             "Patch 42C standardizes report/artifact manifests.",
+            "Patch 42E adds a dictionary import -> binding -> snapshot quickstart.",
         ],
         "sample_queries": [
             {
@@ -1011,6 +1028,60 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--artifacts-run-id",
         help="Run id used by 42C manifest repair/backfill commands.",
+    )
+
+    parser.add_argument(
+        "--print-dictionary-quickstart-plan",
+        action="store_true",
+        help="Print the 42E dictionary import -> binding -> snapshot quickstart plan.",
+    )
+    parser.add_argument(
+        "--write-dictionary-quickstart-payloads",
+        action="store_true",
+        help="Write 42E sample dictionary and binding payload JSON files.",
+    )
+    parser.add_argument(
+        "--run-dictionary-quickstart",
+        action="store_true",
+        help="Run the 42E validate-first dictionary quickstart through the Governance API.",
+    )
+    parser.add_argument(
+        "--write-dictionary-quickstart-report",
+        type=Path,
+        help="Run 42E and write the quickstart report JSON to this path.",
+    )
+    parser.add_argument(
+        "--dictionary-quickstart-artifacts-dir",
+        type=Path,
+        help="Override dictionary_quickstart.artifacts_dir for this run.",
+    )
+    parser.add_argument(
+        "--dictionary-quickstart-index",
+        help="Override dictionary_quickstart.index_name for binding payloads.",
+    )
+    parser.add_argument(
+        "--dictionary-quickstart-profile",
+        help="Override dictionary_quickstart.profile_name for payloads.",
+    )
+    parser.add_argument(
+        "--dictionary-quickstart-apply-import",
+        action="store_true",
+        help="Explicitly apply the quickstart dictionary via /v1/console/dictionary/import.",
+    )
+    parser.add_argument(
+        "--dictionary-quickstart-create-binding",
+        action="store_true",
+        help="Explicitly create the quickstart Elasticsearch binding.",
+    )
+    parser.add_argument(
+        "--dictionary-quickstart-export-snapshot",
+        action="store_true",
+        help="Explicitly export a source=latest headless snapshot artifact after binding creation.",
+    )
+    parser.add_argument(
+        "--dictionary-quickstart-binding-id",
+        type=int,
+        help="Existing binding id to use when exporting the quickstart snapshot artifact.",
     )
 
     parser.add_argument(
@@ -1897,6 +1968,50 @@ def build_evaluation_report_for_config(
     )
 
 
+def _dictionary_quickstart_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> DictionaryQuickstartConfig:
+    artifacts_dir = args.dictionary_quickstart_artifacts_dir
+    index_name = args.dictionary_quickstart_index
+    profile_name = args.dictionary_quickstart_profile
+    if artifacts_dir is None and index_name is None and profile_name is None:
+        return config.dictionary_quickstart
+    return config.dictionary_quickstart.with_overrides(
+        artifacts_dir=artifacts_dir,
+        index_name=index_name,
+        profile_name=profile_name,
+    )
+
+
+def build_dictionary_quickstart_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    return build_dictionary_quickstart_plan(
+        _dictionary_quickstart_config_from_args(config, args)
+    )
+
+
+def write_dictionary_quickstart_payloads_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    return write_dictionary_quickstart_payloads(
+        _dictionary_quickstart_config_from_args(config, args)
+    )
+
+
+def run_dictionary_quickstart_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    return run_dictionary_quickstart(
+        config=_dictionary_quickstart_config_from_args(config, args),
+        client=build_client(config),
+        apply_import=bool(args.dictionary_quickstart_apply_import),
+        create_binding=bool(args.dictionary_quickstart_create_binding),
+        export_snapshot=bool(args.dictionary_quickstart_export_snapshot),
+        binding_id=args.dictionary_quickstart_binding_id,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
@@ -2065,6 +2180,30 @@ def main(argv: list[str] | None = None) -> int:
     if args.write_artifacts_manifest:
         report = write_artifacts_manifest_for_args(config, args)
         if not args.write_artifacts_manifest:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.print_dictionary_quickstart_plan:
+        report = build_dictionary_quickstart_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.write_dictionary_quickstart_payloads:
+        report = write_dictionary_quickstart_payloads_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.run_dictionary_quickstart or args.write_dictionary_quickstart_report:
+        report = run_dictionary_quickstart_for_args(config, args)
+        if args.write_dictionary_quickstart_report:
+            args.write_dictionary_quickstart_report.parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            args.write_dictionary_quickstart_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
             print(json.dumps(report, indent=2, sort_keys=True))
         return 0
 

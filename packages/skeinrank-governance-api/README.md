@@ -1245,3 +1245,7 @@ The OpenRouter alias scout now includes a real Elasticsearch/OpenSearch validati
 Agent runs now support a normalized artifact layout with `manifest.json`,
 `run_summary.json`, and per-stage reports. This is used by scheduled/worker-mode
 runs and is safe for CI/Airflow collection.
+
+### Patch 42E — Dictionary import → binding → snapshot quickstart
+
+Patch 42E adds a safe quickstart around existing governance endpoints. From the repository root or package Poetry environment, use `--print-dictionary-quickstart-plan`, `--write-dictionary-quickstart-payloads`, and `--run-dictionary-quickstart` to validate a sample dictionary payload. Applying the import, creating the Elasticsearch binding, and exporting the source=latest snapshot artifact require explicit CLI flags.

@@ -136,3 +136,12 @@ agent-docker-demo-config:
 
 agent-docker-demo-run:
 	deploy/docker/scripts/openrouter-agent-full-demo.sh run
+
+agent-dictionary-quickstart-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-dictionary-quickstart-plan
+
+agent-dictionary-quickstart-payloads:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-dictionary-quickstart-payloads
+
+agent-dictionary-quickstart-validate:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionary-quickstart

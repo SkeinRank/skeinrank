@@ -658,3 +658,23 @@ make agent-docker-demo-run
 ```
 
 The demo is safe by default: OpenRouter calls, proposal submission, runtime mutation, and snapshot publishing stay disabled unless explicitly configured. See `docs/deployment/openrouter-agent-full-demo.md`.
+
+### Patch 42E — Dictionary import → binding → snapshot quickstart
+
+Patch 42E adds a headless onboarding quickstart for the first operator journey: write a sample dictionary payload, validate it through `POST /v1/console/dictionary/validate`, optionally import it with `POST /v1/console/dictionary/import`, create an Elasticsearch binding with `POST /v1/governance/elasticsearch/bindings`, and export a source=latest headless snapshot artifact through `GET /v1/headless/snapshots/export`.
+
+```bash
+make agent-dictionary-quickstart-plan
+make agent-dictionary-quickstart-payloads
+make agent-dictionary-quickstart-validate
+```
+
+Direct CLI:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-dictionary-quickstart-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-dictionary-quickstart-payloads
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionary-quickstart
+```
+
+Import, binding creation, and snapshot export remain explicit opt-in flags: `--dictionary-quickstart-apply-import`, `--dictionary-quickstart-create-binding`, and `--dictionary-quickstart-export-snapshot`. The quickstart never publishes runtime snapshots and does not write directly to dictionaries outside the console import endpoint.

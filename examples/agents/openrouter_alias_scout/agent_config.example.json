@@ -1,24 +1,62 @@
 {
-  "skeinrank_api_url": "http://127.0.0.1:8010",
-  "skeinrank_role": "contributor",
+  "agent_tracking": {
+    "agent_name": "openrouter-alias-scout",
+    "agent_version": "41F",
+    "content_fields": [
+      "query",
+      "title",
+      "text",
+      "message",
+      "content",
+      "body",
+      "snippet"
+    ],
+    "enabled": true,
+    "include_record_previews": false,
+    "ledger_path": ".cache/openrouter_alias_scout_run_ledger.jsonl",
+    "max_recent_ledger_entries": 10000,
+    "preview_chars": 160,
+    "prompt_version": "canonical-hints-v1",
+    "skip_unchanged_documents": true,
+    "source_id_fields": [
+      "id",
+      "source_id",
+      "doc_id",
+      "document_id",
+      "trace_id"
+    ]
+  },
   "api_token_env": "SKEINRANK_AGENT_API_TOKEN",
-  "openrouter_api_key_env": "OPENROUTER_API_KEY",
-  "openrouter_base_url": "https://openrouter.ai/api/v1",
-  "openrouter_app_title": "SkeinRank OpenRouter Alias Scout",
-  "openrouter_http_referer": null,
-  "openrouter_model": "openai/gpt-4o-mini",
-  "default_profile_name": "infra_incidents",
-  "default_binding_id": null,
-  "proposal_source_name": "openrouter-alias-scout",
-  "failed_queries_path": "failed_queries.example.jsonl",
-  "max_queries_per_run": 25,
-  "dry_run": true,
+  "approved_apply": {
+    "after_snapshot_path": null,
+    "approved_statuses": [
+      "approved"
+    ],
+    "before_snapshot_path": null,
+    "include_item_details": true,
+    "max_items": 50
+  },
+  "artifact_standard": {
+    "include_checksums": true,
+    "layout_version": "skeinrank.agent_artifacts_layout.v1",
+    "manifest_filename": "manifest.json",
+    "reports_subdir": "reports",
+    "root_dir": "reports",
+    "summary_filename": "run_summary.json",
+    "write_manifest": true
+  },
+  "budget_cache": {
+    "cache_enabled": true,
+    "cache_namespace": "openrouter-alias-scout-v1",
+    "cache_path": ".cache/openrouter_alias_scout_llm_cache.json",
+    "force_refresh": false,
+    "max_cost_usd_per_run": 0.01,
+    "max_llm_calls_per_run": 3,
+    "max_prompt_tokens_per_run": 5000,
+    "max_total_tokens_per_run": 6000,
+    "write_cache": true
+  },
   "candidate_discovery": {
-    "max_candidates": 20,
-    "min_token_length": 2,
-    "min_weighted_count": 1,
-    "min_score": 1.0,
-    "max_examples_per_candidate": 5,
     "known_terms": [
       "kubernetes",
       "postgresql",
@@ -27,6 +65,11 @@
       "production",
       "cluster"
     ],
+    "max_candidates": 20,
+    "max_examples_per_candidate": 5,
+    "min_score": 1.0,
+    "min_token_length": 2,
+    "min_weighted_count": 1,
     "noise_tokens": [
       "dns",
       "exhausted",
@@ -56,14 +99,156 @@
       "or"
     ]
   },
+  "canonical_hints": {
+    "known_conflicts": {
+      "es": [
+        "ecmascript",
+        "spanish_language"
+      ],
+      "pg": [
+        "page",
+        "product_group"
+      ],
+      "rabbit": [
+        "animal_common_word"
+      ]
+    },
+    "max_known_canonicals_in_pack": 20,
+    "terms": [
+      {
+        "aliases": [
+          "k8s",
+          "kube",
+          "kubectl"
+        ],
+        "canonical_value": "kubernetes",
+        "description": "Container orchestration platform used in infra incidents.",
+        "slot": "technology",
+        "tags": [
+          "infra",
+          "orchestration",
+          "cloud-native"
+        ]
+      },
+      {
+        "aliases": [
+          "pg",
+          "postgres",
+          "psql"
+        ],
+        "canonical_value": "postgresql",
+        "description": "PostgreSQL database and related operational runbooks.",
+        "slot": "database",
+        "tags": [
+          "database",
+          "storage",
+          "backend"
+        ]
+      },
+      {
+        "aliases": [
+          "elastic",
+          "es"
+        ],
+        "canonical_value": "elasticsearch",
+        "description": "Elasticsearch search/indexing cluster terminology.",
+        "slot": "search_engine",
+        "tags": [
+          "search",
+          "indexing"
+        ]
+      },
+      {
+        "aliases": [
+          "rabbit",
+          "amqp"
+        ],
+        "canonical_value": "rabbitmq",
+        "description": "RabbitMQ message broker and queue incidents.",
+        "slot": "queue",
+        "tags": [
+          "messaging",
+          "broker"
+        ]
+      }
+    ]
+  },
+  "default_binding_id": null,
+  "default_profile_name": "infra_incidents",
+  "demo_report": {
+    "include_prompt_previews": false,
+    "max_candidates_for_review": 5,
+    "prompt_preview_chars": 800
+  },
+  "deployment": {
+    "cache_dir": "examples/agents/openrouter_alias_scout/.cache",
+    "compose_file_path": "deploy/docker/openrouter-alias-scout.compose.yml",
+    "default_mode": "evaluation_report",
+    "dockerfile_path": "deploy/docker/openrouter-alias-scout.Dockerfile",
+    "env_file_path": "deploy/docker/openrouter-alias-scout.env.example",
+    "image_name": "skeinrank/openrouter-alias-scout:local",
+    "reports_dir": "examples/agents/openrouter_alias_scout/reports",
+    "schedule_cron": "0 2 * * *",
+    "schedule_mode": "manual",
+    "service_name": "openrouter-alias-scout"
+  },
+  "dictionary_quickstart": {
+    "apply_import_by_default": false,
+    "artifacts_dir": "reports/dictionary-quickstart",
+    "binding_description": "Demo Elasticsearch binding for infra incidents.",
+    "binding_name": "infra-incidents-demo",
+    "create_binding_by_default": false,
+    "export_snapshot_by_default": false,
+    "index_name": "skeinrank_agent_demo",
+    "profile_description": "Infrastructure incident terminology demo profile.",
+    "profile_name": "infra_incidents",
+    "snapshot_version": "quickstart-v1",
+    "target_field": "skeinrank.canonical_terms",
+    "text_fields": [
+      "title",
+      "text",
+      "query"
+    ]
+  },
+  "dry_run": true,
+  "elasticsearch_source": {
+    "api_key_auth_scheme": "ApiKey",
+    "api_key_env": "ELASTICSEARCH_API_KEY",
+    "index": "skeinrank-agent-evidence",
+    "max_docs_per_candidate": 5,
+    "request_timeout_seconds": 10,
+    "source_id_fields": [
+      "id",
+      "doc_id",
+      "document_id",
+      "trace_id"
+    ],
+    "text_fields": [
+      "title",
+      "text",
+      "message",
+      "content",
+      "body",
+      "snippet"
+    ],
+    "url": "http://127.0.0.1:9200"
+  },
+  "evaluation": {
+    "include_candidate_packs": false,
+    "include_reviewed_items": true,
+    "max_items": 50,
+    "min_confidence_for_review_ready": 0.75,
+    "qrels_enabled": false,
+    "snapshot_eval_enabled": false
+  },
+  "evaluation_outcomes_path": "evaluation_outcomes.example.jsonl",
   "evidence_records_path": "evidence_records.example.jsonl",
   "evidence_sampler": {
-    "max_records": 50,
     "max_docs": 5,
-    "max_windows": 7,
-    "window_chars": 90,
-    "max_window_chars": 220,
+    "max_records": 50,
     "max_total_chars": 1000,
+    "max_window_chars": 220,
+    "max_windows": 7,
     "text_fields": [
       "query",
       "snippet",
@@ -71,58 +256,107 @@
       "text",
       "message",
       "content"
-    ]
-  },
-  "elasticsearch_source": {
-    "url": "http://127.0.0.1:9200",
-    "index": "skeinrank-agent-evidence",
-    "text_fields": [
-      "title",
-      "text",
-      "message",
-      "content",
-      "body",
-      "snippet"
     ],
-    "source_id_fields": [
-      "id",
-      "doc_id",
-      "document_id",
-      "trace_id"
-    ],
-    "max_docs_per_candidate": 5,
-    "request_timeout_seconds": 10,
-    "api_key_env": "ELASTICSEARCH_API_KEY",
-    "api_key_auth_scheme": "ApiKey"
+    "window_chars": 90
   },
-  "demo_report": {
-    "max_candidates_for_review": 5,
-    "include_prompt_previews": false,
-    "prompt_preview_chars": 800
+  "failed_queries_path": "failed_queries.example.jsonl",
+  "integration_smoke": {
+    "approve_ready_proposals": true,
+    "artifacts_dir": "reports/integration",
+    "confidence": 0.91,
+    "include_snapshot_artifacts": true,
+    "max_candidates": 3,
+    "run_id_prefix": "openrouter-alias-scout-smoke",
+    "write_artifacts": true
   },
   "llm_review": {
-    "max_candidates": 3,
-    "min_confidence_to_prepare_proposal": 0.75,
-    "temperature": 0.0,
-    "max_tokens": 700,
     "include_tools": false,
+    "max_candidates": 3,
+    "max_tokens": 700,
+    "min_confidence_to_prepare_proposal": 0.75,
     "response_format_json": true,
-    "submit_proposals": false
+    "submit_proposals": false,
+    "temperature": 0.0
+  },
+  "max_queries_per_run": 25,
+  "new_alias_smoke": {
+    "alias_value": "pgx",
+    "binding_id": null,
+    "canonical_value": "postgresql",
+    "confidence": 0.91,
+    "context": "Controlled smoke proposal for a new PostgreSQL alias.",
+    "idempotency_key": null,
+    "profile_name": "infra_incidents",
+    "proposal_source_name": "openrouter-alias-scout-smoke",
+    "slot": "database",
+    "source_type": "smoke_test",
+    "verify_idempotency_retry": true
+  },
+  "openrouter_api_key_env": "OPENROUTER_API_KEY",
+  "openrouter_app_title": "SkeinRank OpenRouter Alias Scout",
+  "openrouter_base_url": "https://openrouter.ai/api/v1",
+  "openrouter_http_referer": null,
+  "openrouter_model": "openai/gpt-4o-mini",
+  "proposal_inbox": {
+    "evidence_preview_chars": 240,
+    "include_source_payload": false,
+    "include_validation_response": false,
+    "max_items": 50,
+    "review_decisions_path": null
+  },
+  "proposal_source_name": "openrouter-alias-scout",
+  "proposal_submission": {
+    "manual_review_on_warning": true,
+    "max_proposals_per_run": 5,
+    "min_confidence": 0.85,
+    "require_validation_status": "passed",
+    "stop_on_error": false,
+    "submit_enabled": false,
+    "treat_existing_alias_as_idempotent": true
+  },
+  "real_elasticsearch_validation": {
+    "artifacts_dir": "real_es_validation",
+    "bulk_filename": "documents.bulk.ndjson",
+    "docs_filename": "documents.jsonl",
+    "expected_outcomes_filename": "expected_outcomes.jsonl",
+    "failed_queries_filename": "failed_queries.jsonl",
+    "id_field": "id",
+    "index_mapping_filename": "index_mapping.json",
+    "max_candidates": 3,
+    "refresh_after_index": true,
+    "reset_index": false,
+    "run_id_prefix": "real-es-validation"
+  },
+  "scheduled_runner": {
+    "append_tracking_ledger": false,
+    "artifact_standard": {
+      "include_checksums": true,
+      "manifest_filename": "manifest.json",
+      "reports_subdir": "reports",
+      "summary_filename": "run_summary.json",
+      "write_manifest": true
+    },
+    "artifacts_dir": "reports/scheduled",
+    "build_apply_plan_enabled": true,
+    "build_inbox_enabled": true,
+    "cycle_name": "openrouter-alias-scout-cycle",
+    "default_mode": "offline",
+    "error_exit_code": 2,
+    "fail_on_errors": true,
+    "fail_on_needs_review": false,
+    "live_llm_review_enabled": false,
+    "needs_review_exit_code": 10,
+    "run_snapshot_evaluation_enabled": true,
+    "submit_proposals_enabled": false,
+    "success_exit_code": 0,
+    "validate_proposals_enabled": false,
+    "write_artifacts": true
   },
   "security_profile": {
-    "service_account_name": "openrouter-alias-scout",
-    "required_role": "contributor",
-    "allowed_roles": [
-      "contributor"
-    ],
     "allow_proposal_submission": false,
     "allow_runtime_mutation": false,
-    "require_skeinrank_api_token_for_submission": true,
-    "blocked_actions": [
-      "direct_dictionary_write",
-      "snapshot_publish",
-      "direct_git_push",
-      "runtime_mutation"
+    "allowed_roles": [
+      "contributor"
     ],
     "allowed_skeinrank_tool_paths": [
       "GET /v1/tools/bindings",
@@ -130,233 +364,17 @@
       "POST /v1/tools/validate-alias",
       "POST /v1/tools/suggest-alias"
     ],
-    "redact_env_values": true
-  },
-  "budget_cache": {
-    "max_llm_calls_per_run": 3,
-    "max_total_tokens_per_run": 6000,
-    "max_prompt_tokens_per_run": 5000,
-    "max_cost_usd_per_run": 0.01,
-    "cache_enabled": true,
-    "cache_path": ".cache/openrouter_alias_scout_llm_cache.json",
-    "cache_namespace": "openrouter-alias-scout-v1",
-    "force_refresh": false,
-    "write_cache": true
-  },
-  "evaluation_outcomes_path": "evaluation_outcomes.example.jsonl",
-  "evaluation": {
-    "min_confidence_for_review_ready": 0.75,
-    "include_reviewed_items": true,
-    "include_candidate_packs": false,
-    "max_items": 50,
-    "qrels_enabled": false,
-    "snapshot_eval_enabled": false
-  },
-  "deployment": {
-    "service_name": "openrouter-alias-scout",
-    "image_name": "skeinrank/openrouter-alias-scout:local",
-    "dockerfile_path": "deploy/docker/openrouter-alias-scout.Dockerfile",
-    "compose_file_path": "deploy/docker/openrouter-alias-scout.compose.yml",
-    "env_file_path": "deploy/docker/openrouter-alias-scout.env.example",
-    "reports_dir": "examples/agents/openrouter_alias_scout/reports",
-    "cache_dir": "examples/agents/openrouter_alias_scout/.cache",
-    "default_mode": "evaluation_report",
-    "schedule_mode": "manual",
-    "schedule_cron": "0 2 * * *"
-  },
-  "canonical_hints": {
-    "terms": [
-      {
-        "canonical_value": "kubernetes",
-        "slot": "technology",
-        "aliases": [
-          "k8s",
-          "kube",
-          "kubectl"
-        ],
-        "tags": [
-          "infra",
-          "orchestration",
-          "cloud-native"
-        ],
-        "description": "Container orchestration platform used in infra incidents."
-      },
-      {
-        "canonical_value": "postgresql",
-        "slot": "database",
-        "aliases": [
-          "pg",
-          "postgres",
-          "psql"
-        ],
-        "tags": [
-          "database",
-          "storage",
-          "backend"
-        ],
-        "description": "PostgreSQL database and related operational runbooks."
-      },
-      {
-        "canonical_value": "elasticsearch",
-        "slot": "search_engine",
-        "aliases": [
-          "elastic",
-          "es"
-        ],
-        "tags": [
-          "search",
-          "indexing"
-        ],
-        "description": "Elasticsearch search/indexing cluster terminology."
-      },
-      {
-        "canonical_value": "rabbitmq",
-        "slot": "queue",
-        "aliases": [
-          "rabbit",
-          "amqp"
-        ],
-        "tags": [
-          "messaging",
-          "broker"
-        ],
-        "description": "RabbitMQ message broker and queue incidents."
-      }
+    "blocked_actions": [
+      "direct_dictionary_write",
+      "snapshot_publish",
+      "direct_git_push",
+      "runtime_mutation"
     ],
-    "known_conflicts": {
-      "pg": [
-        "page",
-        "product_group"
-      ],
-      "es": [
-        "ecmascript",
-        "spanish_language"
-      ],
-      "rabbit": [
-        "animal_common_word"
-      ]
-    },
-    "max_known_canonicals_in_pack": 20
+    "redact_env_values": true,
+    "require_skeinrank_api_token_for_submission": true,
+    "required_role": "contributor",
+    "service_account_name": "openrouter-alias-scout"
   },
-  "proposal_submission": {
-    "max_proposals_per_run": 5,
-    "min_confidence": 0.85,
-    "require_validation_status": "passed",
-    "submit_enabled": false,
-    "stop_on_error": false,
-    "treat_existing_alias_as_idempotent": true,
-    "manual_review_on_warning": true
-  },
-  "proposal_inbox": {
-    "max_items": 50,
-    "evidence_preview_chars": 240,
-    "include_source_payload": false,
-    "include_validation_response": false,
-    "review_decisions_path": null
-  },
-  "new_alias_smoke": {
-    "profile_name": "infra_incidents",
-    "binding_id": null,
-    "canonical_value": "postgresql",
-    "alias_value": "pgx",
-    "slot": "database",
-    "confidence": 0.91,
-    "context": "Controlled smoke proposal for a new PostgreSQL alias.",
-    "proposal_source_name": "openrouter-alias-scout-smoke",
-    "idempotency_key": null,
-    "verify_idempotency_retry": true,
-    "source_type": "smoke_test"
-  },
-  "agent_tracking": {
-    "enabled": true,
-    "ledger_path": ".cache/openrouter_alias_scout_run_ledger.jsonl",
-    "agent_name": "openrouter-alias-scout",
-    "agent_version": "41F",
-    "prompt_version": "canonical-hints-v1",
-    "skip_unchanged_documents": true,
-    "content_fields": [
-      "query",
-      "title",
-      "text",
-      "message",
-      "content",
-      "body",
-      "snippet"
-    ],
-    "source_id_fields": [
-      "id",
-      "source_id",
-      "doc_id",
-      "document_id",
-      "trace_id"
-    ],
-    "max_recent_ledger_entries": 10000,
-    "include_record_previews": false,
-    "preview_chars": 160
-  },
-  "approved_apply": {
-    "max_items": 50,
-    "approved_statuses": [
-      "approved"
-    ],
-    "include_item_details": true,
-    "before_snapshot_path": null,
-    "after_snapshot_path": null
-  },
-  "scheduled_runner": {
-    "artifacts_dir": "reports/scheduled",
-    "cycle_name": "openrouter-alias-scout-cycle",
-    "default_mode": "offline",
-    "write_artifacts": true,
-    "append_tracking_ledger": false,
-    "live_llm_review_enabled": false,
-    "validate_proposals_enabled": false,
-    "submit_proposals_enabled": false,
-    "build_inbox_enabled": true,
-    "build_apply_plan_enabled": true,
-    "run_snapshot_evaluation_enabled": true,
-    "fail_on_needs_review": false,
-    "fail_on_errors": true,
-    "success_exit_code": 0,
-    "needs_review_exit_code": 10,
-    "error_exit_code": 2,
-    "artifact_standard": {
-      "reports_subdir": "reports",
-      "manifest_filename": "manifest.json",
-      "summary_filename": "run_summary.json",
-      "write_manifest": true,
-      "include_checksums": true
-    }
-  },
-  "integration_smoke": {
-    "artifacts_dir": "reports/integration",
-    "max_candidates": 3,
-    "approve_ready_proposals": true,
-    "write_artifacts": true,
-    "include_snapshot_artifacts": true,
-    "confidence": 0.91,
-    "run_id_prefix": "openrouter-alias-scout-smoke"
-  },
-  "real_elasticsearch_validation": {
-    "artifacts_dir": "real_es_validation",
-    "docs_filename": "documents.jsonl",
-    "failed_queries_filename": "failed_queries.jsonl",
-    "expected_outcomes_filename": "expected_outcomes.jsonl",
-    "bulk_filename": "documents.bulk.ndjson",
-    "index_mapping_filename": "index_mapping.json",
-    "max_candidates": 3,
-    "reset_index": false,
-    "refresh_after_index": true,
-    "id_field": "id",
-    "run_id_prefix": "real-es-validation"
-  },
-  "artifact_standard": {
-    "root_dir": "reports",
-    "reports_subdir": "reports",
-    "manifest_filename": "manifest.json",
-    "summary_filename": "run_summary.json",
-    "layout_version": "skeinrank.agent_artifacts_layout.v1",
-    "write_manifest": true,
-    "include_checksums": true
-  }
+  "skeinrank_api_url": "http://127.0.0.1:8010",
+  "skeinrank_role": "contributor"
 }

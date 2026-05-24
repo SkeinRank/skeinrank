@@ -650,3 +650,15 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 
 The cycle report includes `artifact_manifest.path`, and the manifest lists every
 artifact with `relative_path`, `schema_version`, size, and checksum.
+
+## Patch 42E — Dictionary quickstart
+
+Patch 42E adds a quickstart for importing a starter dictionary, creating an Elasticsearch binding, and exporting a headless source=latest snapshot artifact.
+
+```bash
+python run_alias_scout.py --print-dictionary-quickstart-plan
+python run_alias_scout.py --write-dictionary-quickstart-payloads
+python run_alias_scout.py --run-dictionary-quickstart
+```
+
+Use `--dictionary-quickstart-apply-import`, `--dictionary-quickstart-create-binding`, and `--dictionary-quickstart-export-snapshot` only after reviewing the validate-first report.

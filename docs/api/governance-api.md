@@ -664,3 +664,14 @@ Patch 42B does not add governance API routes. It adds a client-side validation s
 
 Patch 42C does not change Governance API endpoints. It standardizes local agent
 artifacts for scheduled/headless runs using `skeinrank.agent_artifact_manifest.v1`.
+
+## Patch 42E — Dictionary quickstart endpoints
+
+The 42E quickstart uses existing API endpoints only:
+
+- `POST /v1/console/dictionary/validate` for validation-first dictionary checks.
+- `POST /v1/console/dictionary/import` for explicit dictionary import.
+- `POST /v1/governance/elasticsearch/bindings` for explicit binding creation.
+- `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest` for headless source=latest snapshot artifact export.
+
+The quickstart runner exposes `--print-dictionary-quickstart-plan`, `--write-dictionary-quickstart-payloads`, and `--run-dictionary-quickstart`. Import, binding creation, and snapshot export remain opt-in flags.

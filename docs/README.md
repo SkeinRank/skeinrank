@@ -300,3 +300,7 @@ Patch 42B adds a reproducible real Elasticsearch validation scenario for the Ope
 The OpenRouter alias scout now writes normalized run artifacts under
 `reports/<run_id>/` with `manifest.json`, `run_summary.json`, and per-stage JSON
 reports in `reports/<run_id>/reports/`. See `docs/guides/openrouter-agent.md`.
+
+### Patch 42E — Dictionary quickstart
+
+Patch 42E documents a reproducible dictionary import → binding → source=latest snapshot quickstart for headless onboarding. Use `--print-dictionary-quickstart-plan` to inspect the safe plan, `--write-dictionary-quickstart-payloads` to write JSON payloads, and `--run-dictionary-quickstart` for validate-first API checks. Import, binding creation, and snapshot export require explicit flags.

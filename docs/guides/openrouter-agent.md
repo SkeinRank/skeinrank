@@ -447,3 +447,22 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 The generated `manifest.json` is network-free metadata. It does not imply
 OpenRouter, Elasticsearch, SkeinRank API calls, runtime mutation, or snapshot
 publication.
+
+## Patch 42E — Dictionary import → binding → snapshot quickstart
+
+Patch 42E gives the agent example a first-run operator quickstart that is useful before enabling discovery agents:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-dictionary-quickstart-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-dictionary-quickstart-payloads
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionary-quickstart
+```
+
+The flow uses existing Governance API endpoints only:
+
+1. `POST /v1/console/dictionary/validate`
+2. `POST /v1/console/dictionary/import` with `--dictionary-quickstart-apply-import`
+3. `POST /v1/governance/elasticsearch/bindings` with `--dictionary-quickstart-create-binding`
+4. `GET /v1/headless/snapshots/export?source=latest` with `--dictionary-quickstart-export-snapshot`
+
+Safe defaults are validation-first: no OpenRouter calls, no runtime mutation, and no snapshot publishing.
