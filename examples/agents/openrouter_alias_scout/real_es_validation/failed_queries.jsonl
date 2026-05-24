@@ -1,0 +1,4 @@
+{"count":12,"query":"pg timeout after failover","source":"search_logs"}
+{"count":9,"query":"k8s pod crashloop","source":"search_logs"}
+{"count":7,"query":"kube dns incident","source":"search_logs"}
+{"count":5,"query":"rabbit queue stuck","source":"search_logs"}

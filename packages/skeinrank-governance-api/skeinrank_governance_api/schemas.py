@@ -868,6 +868,8 @@ class ProposalBatchApplyRequest(BaseModel):
 
     If ``suggestion_ids`` is omitted, all pending suggestions for the profile are
     applied. Snapshot publishing is optional and requires ``binding_id``.
+    By default, proposals with validation warnings require manual review and are
+    not applied unless ``allow_warnings`` is explicitly enabled.
     """
 
     suggestion_ids: list[int] | None = Field(default=None, min_length=1)
@@ -875,6 +877,44 @@ class ProposalBatchApplyRequest(BaseModel):
     publish_snapshot: bool = False
     binding_id: int | None = Field(default=None, ge=1)
     snapshot_version: str | None = Field(default=None, min_length=1, max_length=128)
+    allow_warnings: bool = False
+
+
+class ProposalBatchPreviewItemResponse(BaseModel):
+    """Dry-run item summary for a proposal batch apply request."""
+
+    suggestion_id: int
+    suggestion_type: str
+    canonical_value: str
+    alias_value: str | None = None
+    slot: str
+    status: str
+    validation_status: str = "unknown"
+    validation_counts: dict[str, int] = Field(default_factory=dict)
+    applyable: bool = False
+    warning_reasons: list[str] = Field(default_factory=list)
+    blocked_reasons: list[str] = Field(default_factory=list)
+    proposal_source_type: str
+    proposal_source_name: str | None = None
+    idempotency_key: str | None = None
+
+
+class ProposalBatchPreviewResponse(BaseModel):
+    """Dry-run response for a proposal batch apply request."""
+
+    status: str
+    profile_name: str
+    normalized_profile_name: str
+    requested_suggestion_ids: list[int] = Field(default_factory=list)
+    suggestions_total: int = 0
+    applyable_suggestions: int = 0
+    blocked_suggestions: int = 0
+    warning_suggestions: int = 0
+    allow_warnings: bool = False
+    will_publish_snapshot: bool = False
+    binding_id: int | None = None
+    snapshot_version: str | None = None
+    items: list[ProposalBatchPreviewItemResponse] = Field(default_factory=list)
 
 
 class ProposalBatchSnapshotResponse(BaseModel):

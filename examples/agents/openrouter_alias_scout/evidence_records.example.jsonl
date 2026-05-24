@@ -1,0 +1,4 @@
+{"id":"ev-001","source_type":"failed_search","query":"pg timeout after failover in production cluster","snippet":"User searched for pg timeout; incident notes mention postgres failover and connection pool recovery."}
+{"id":"ev-002","source_type":"runbook","title":"Postgres failover runbook","text":"When pg connection pool is exhausted, check postgres primary health, inspect replicas, and restart clients only after approval."}
+{"id":"ev-003","source_type":"incident","title":"Kubernetes rollout incident","text":"The k8s rollout was stuck after a bad image tag. The kube worker recovered after pod eviction and deployment retry."}
+{"id":"ev-004","source_type":"search_log","query":"kube dns incident runbook","snippet":"Operators searched kube dns incident runbook while triaging cluster DNS errors."}

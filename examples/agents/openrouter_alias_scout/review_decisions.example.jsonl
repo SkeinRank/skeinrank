@@ -1,0 +1,2 @@
+{"candidate_alias":"pg","action":"defer","reviewer":"knowledge-manager","comment":"Already exists as an alias; no proposal is needed."}
+{"candidate_alias":"k8s","action":"defer","reviewer":"knowledge-manager","comment":"Slot mismatch should be resolved before apply."}

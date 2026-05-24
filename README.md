@@ -201,6 +201,54 @@ GET /v1/governance/proposals/source-quality
 GET /metrics
 ```
 
+## OpenRouter alias scout foundation
+
+Patch 40F adds a dependency-light reference runner for agent integrations:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
+```
+
+Patch 40G adds the OpenRouter/OpenAI-compatible layer around that runner:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-tool-schemas
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-prompt
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
+```
+
+Patch 40H adds the local candidate discovery/pruning step before any LLM call:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-candidates
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
+```
+
+Patch 40I adds compact evidence sampling around discovered candidates:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-evidence
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
+```
+
+Patch 40K adds the local E2E demo report:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-demo-review-prompt
+make agent-demo
+```
+
+Patch 40J adds the first live OpenRouter execution path: export
+`OPENROUTER_API_KEY`, run `--print-llm-review-plan` for an offline preview, then
+run `--llm-review --model openai/gpt-4o-mini --max-candidates 3` to obtain strict
+`propose`, `reject`, or `needs_evidence` judgments. The workflow emits
+`skeinrank.agent_llm_review_report.v1`, is LangGraph-ready, and still does not
+submit proposals or mutate SkeinRank state by default. The schemas map only to
+existing `/v1/tools/*` routes, so agents can validate and submit proposals later,
+but runtime terminology changes only through reviewed batches and snapshots. See
+[`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout).
+
 ## Quickstart: local SDK / CLI
 
 Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.
@@ -369,3 +417,278 @@ promoting it to runtime.
 ### Patch 38J: coverage docs and examples
 
 Phase C documentation is collected in [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md) and [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md). Example payloads live in [`examples/coverage-framework`](examples/coverage-framework) and show a complete controlled-coverage flow: tagged dictionary, ambiguous `pg` candidates, infra/docs binding policies, and snapshot-evaluation queries.
+
+## Patch 40L — OpenRouter agent security profile
+
+Patch 40L adds a safe service-account profile to the OpenRouter alias scout. The
+runner can now print and validate a redacted security report before live model
+review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-security-profile
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-security-profile
+```
+
+The report schema is `skeinrank.agent_security_profile.v1`. Proposal submission
+remains disabled by default; the agent may prepare proposal payloads, but it
+must not directly write dictionaries, publish snapshots, push to Git, or mutate
+runtime state.
+
+## Patch 40M — OpenRouter agent budget and cache
+
+Patch 40M adds run budgets and JSON response caching to the OpenRouter alias
+scout. It keeps the agent safe by default: no backend routes are changed,
+proposal submission stays disabled, and cached responses never mutate runtime
+state. Use `--print-budget-cache-plan` for an offline `skeinrank.agent_budget_cache_plan.v1`
+preview, `--max-llm-calls` / `--max-run-cost-usd` for live-run limits, and
+`--clear-llm-cache` to remove the configured local cache.
+## Patch 40N — Agent evaluation loop
+
+Patch 40N adds an offline evaluation report for the OpenRouter alias scout. It
+can score the local demo pipeline or a saved `skeinrank.agent_llm_review_report.v1`
+without calling OpenRouter, SkeinRank, Elasticsearch, or publishing snapshots.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-evaluation-report
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-alias-scout-llm-report.json \
+  --run-evaluation-report
+```
+
+The output schema is `skeinrank.agent_evaluation_report.v1`. It reports
+evidence coverage, LLM action mix, proposal-ready counts, optional human/policy
+outcomes (`accepted`, `rejected`, `blocked`, `ambiguous`, `noisy`, `conflict`),
+cost/cache summary, and a quality gate. Snapshot before/after evaluation remains
+disabled until approved proposals are applied through the governed workflow.
+
+### Patch 40O — Agent deployment recipe
+
+Patch 40O adds a Docker Compose deployment recipe for the OpenRouter alias scout.
+Use `--print-deployment-recipe` to inspect the offline `skeinrank.agent_deployment_recipe.v1` report, or `make agent-deploy-plan` / `make agent-compose-config` from the repository root. The reference service defaults to an offline evaluation report; proposal submission and runtime mutation remain disabled.
+
+## Patch 41A — Canonical hints and stronger review pack
+
+Patch 41A improves the OpenRouter alias scout quality loop without changing backend routes or mutating runtime state. The runner now includes configured canonical hints in each candidate pack, so the model can choose from known terms such as `kubernetes`, `postgresql`, `elasticsearch`, and `rabbitmq` instead of guessing from raw evidence only.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-canonical-hints
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
+```
+
+The report schema is `skeinrank.agent_canonical_hints.v1`. Validation-sprint noise such as `queue`, `red`, and `shard` is pruned before LLM review by default, while real alias candidates such as `pg`, `k8s`, and `kube` receive `possible_canonical`, `slot`, `canonical_hint`, `canonical_candidates`, and `known_canonicals` fields in the review pack.
+
+
+## Patch 41B — Validate and submit proposals safely
+
+Patch 41B connects high-confidence agent `proposal_payload` values to the
+existing SkeinRank agent tools without changing backend routes. The runner can
+preview a submission plan, validate ready proposals through
+`POST /v1/tools/validate-alias`, and optionally submit pending proposals through
+`POST /v1/tools/suggest-alias` only when explicitly requested and allowed by
+security/config.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --print-proposal-submission-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --validate-ready-proposals
+```
+
+Submission remains opt-in and governed. It creates pending proposals only; it
+never writes directly to dictionaries, never pushes Git, and never publishes
+runtime snapshots.
+
+## Patch 41C — Agent validation statuses and idempotent proposal handling
+
+Patch 41C keeps proposal submission safe while making validation reports more
+useful for agent workflows. Validation warnings are now classified before any
+optional submission: existing aliases that already map to the requested canonical
+are treated as idempotent no-ops, slot mismatches are routed to manual review,
+and blocked validations are never submitted.
+
+This means an agent run can distinguish:
+
+```text
+passed → eligible for optional submission
+existing alias warning → idempotent_existing_alias
+slot mismatch warning → manual_review_required
+blocked → blocked
+```
+
+The runner still does not mutate runtime dictionaries or publish snapshots.
+
+
+## Patch 41D — New alias proposal smoke test
+
+Patch 41D adds a controlled smoke path for a brand-new alias proposal. It does not call OpenRouter and does not publish snapshots. The runner can generate a proposal-ready LLM report for the configured smoke alias, validate it through `POST /v1/tools/validate-alias`, and, only with an explicit submit flag, create a pending proposal through `POST /v1/tools/suggest-alias`.
+
+Preview the smoke plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-new-alias-smoke-plan
+```
+
+Write a proposal-ready smoke report:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-new-alias-smoke-llm-report /tmp/skeinrank-new-alias-smoke-llm.json
+```
+
+Validate the smoke proposal without saving it:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-new-alias-smoke-test
+```
+
+Create one pending proposal and verify idempotent retry explicitly:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --submit-new-alias-smoke-test \
+  --write-new-alias-smoke-report /tmp/skeinrank-new-alias-smoke-report.json
+```
+
+The default smoke alias is `pgx → postgresql` in the `infra_incidents` profile. Re-running the submit smoke should not create duplicate proposals; the second `suggest-alias` call is expected to return an idempotent retry.
+
+## Patch 41E — Elasticsearch evidence connector
+
+Patch 41E adds an optional, read-only Elasticsearch/OpenSearch evidence connector for the OpenRouter alias scout. It does not change backend routes, does not call OpenRouter, and does not mutate dictionaries, snapshots, or runtime state. The connector searches a configured index for discovered candidates, normalizes hits into local evidence records, and reuses the existing compact evidence sampler.
+
+Preview the connector plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-elasticsearch-evidence-plan
+```
+
+Sample evidence from Elasticsearch for discovered candidates:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --sample-evidence-from-elasticsearch \
+  --elasticsearch-url http://127.0.0.1:9200 \
+  --elasticsearch-index skeinrank-agent-evidence \
+  --elasticsearch-text-field title \
+  --elasticsearch-text-field text
+```
+
+Export normalized Elasticsearch hits to JSONL for offline review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
+```
+
+
+### Patch 41F — Agent run/document tracking
+
+The OpenRouter alias scout can now produce local run/document tracking reports with deterministic content hashes and processing-context hashes. This helps identify unchanged documents before spending LLM budget and provides a migration path toward PostgreSQL-backed `agent_runs` / `agent_document_visits` state.
+
+### Patch 41G — Proposal inbox / review workflow
+
+The OpenRouter alias scout now includes an offline proposal inbox. It converts LLM review + validation reports into review cards with evidence previews, validation status, recommended next action, and optional JSONL review decisions.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-proposal-inbox-plan
+```
+
+The inbox is safe by default: it does not write dictionaries, submit snapshots, or mutate runtime state.
+
+
+### Patch 41H — Apply approved proposals + snapshot evaluation
+
+The OpenRouter alias scout now includes an offline approved-proposal apply plan and snapshot evaluation report. It consumes the 41G proposal inbox, selects locally approved review decisions, and produces a governed apply plan without direct dictionary writes, snapshot publishing, or runtime mutation. Use `--print-approved-apply-plan`, `--build-approved-apply-plan`, `--write-approved-apply-plan`, `--run-snapshot-evaluation`, and `--write-snapshot-evaluation-report`.
+
+### Patch 41I — scheduled agent runner
+
+The OpenRouter alias scout can now run as a one-shot scheduled worker suitable for
+cron, Airflow, Prefect, GitHub Actions, Docker Compose, or Kubernetes CronJob:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-scheduled-runner-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-agent-cycle
+```
+
+The safe default is offline and report-only. Live LLM review, proposal validation, and
+proposal submission require explicit flags and still do not publish snapshots.
+
+### Patch 42A — full agent integration smoke test
+
+Patch 42A adds a one-command, network-free smoke test for the OpenRouter alias scout
+contour. It builds demo, synthetic LLM, synthetic validation, proposal inbox,
+approved-apply, snapshot-evaluation, evaluation, and cycle-summary artifacts without
+calling OpenRouter, Elasticsearch, or the SkeinRank API:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-integration-smoke-report /tmp/skeinrank-agent-smoke.json
+```
+
+This is intended as a CI/preflight check before live validation.
+
+### Patch 42B — Real Elasticsearch validation scenario
+
+The OpenRouter alias scout includes a reproducible real Elasticsearch validation scenario. It can generate a tiny fixture corpus, explicitly index it into an isolated validation index, and run read-only evidence validation without OpenRouter or SkeinRank API calls.
+
+### Patch 42C — Agent reports/artifacts standard
+
+The OpenRouter alias scout now has a stable artifact layout for headless runs:
+
+```text
+reports/<run_id>/manifest.json
+reports/<run_id>/run_summary.json
+reports/<run_id>/reports/<stage>.json
+```
+
+This makes scheduled runs easier to archive from Airflow, cron, GitHub Actions,
+or Kubernetes CronJobs without changing the Governance API.
+
+
+### Patch 42D — Docker Compose full agent demo
+
+Patch 42D adds a reproducible Docker Compose demo for the OpenRouter alias scout. It layers `deploy/docker/openrouter-agent-full-demo.compose.yml` on top of `docker-compose.dev.yml`, indexes the bundled real-ES validation fixtures, runs the safe scheduled agent cycle, and writes 42C-standard artifacts under `examples/agents/openrouter_alias_scout/reports/docker-demo/`.
+
+```bash
+make agent-docker-demo-plan
+make agent-docker-demo-config
+make agent-docker-demo-run
+```
+
+The demo is safe by default: OpenRouter calls, proposal submission, runtime mutation, and snapshot publishing stay disabled unless explicitly configured. See `docs/deployment/openrouter-agent-full-demo.md`.
+
+### Patch 42E — Dictionary import → binding → snapshot quickstart
+
+Patch 42E adds a headless onboarding quickstart for the first operator journey: write a sample dictionary payload, validate it through `POST /v1/console/dictionary/validate`, optionally import it with `POST /v1/console/dictionary/import`, create an Elasticsearch binding with `POST /v1/governance/elasticsearch/bindings`, and export a source=latest headless snapshot artifact through `GET /v1/headless/snapshots/export`.
+
+```bash
+make agent-dictionary-quickstart-plan
+make agent-dictionary-quickstart-payloads
+make agent-dictionary-quickstart-validate
+```
+
+Direct CLI:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-dictionary-quickstart-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-dictionary-quickstart-payloads
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionary-quickstart
+```
+
+Import, binding creation, and snapshot export remain explicit opt-in flags: `--dictionary-quickstart-apply-import`, `--dictionary-quickstart-create-binding`, and `--dictionary-quickstart-export-snapshot`. The quickstart never publishes runtime snapshots and does not write directly to dictionaries outside the console import endpoint.
+
+- Patch 42F adds backend proposal batch hardening: a dry-run apply preview endpoint and warning-gated batch apply semantics for agent/human review flows.
+
+### Patch 42G — Runtime API final smoke
+
+The OpenRouter alias scout now includes a final runtime smoke layer for the installable flow. It validates existing runtime/headless endpoints without mutating dictionaries or publishing snapshots:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-runtime-api-smoke-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-runtime-api-smoke-report /tmp/runtime-api-smoke.json
+```
+
+The smoke calls `POST /v1/text/canonicalize`, `POST /v1/query/plan`, and optionally `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest`.
+

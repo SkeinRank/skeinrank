@@ -1,0 +1,4 @@
+{"id":"es-doc-001","source_type":"runbook","text":"When pg connection pool is exhausted during PostgreSQL failover, check postgres primary health, inspect replicas, and restart the pool only after approval.","title":"PostgreSQL failover runbook"}
+{"id":"es-doc-002","source_type":"incident","text":"The k8s rollout was stuck after a bad image tag. The kube worker recovered after pod eviction and Kubernetes deployment retry.","title":"Kubernetes rollout incident"}
+{"id":"es-doc-003","source_type":"runbook","text":"Kube DNS failures can cause service discovery issues in Kubernetes clusters. Check CoreDNS logs and k8s service endpoints.","title":"Kube DNS troubleshooting"}
+{"id":"es-doc-004","source_type":"incident","text":"RabbitMQ queue depth increased after worker restart. Consumers were stuck and messages accumulated in the queue.","title":"RabbitMQ queue incident"}

@@ -396,3 +396,297 @@ Patch 38J collects the Phase C coverage model in documentation and example paylo
 - `examples/coverage-framework/` contains JSON/JSONL payloads for a tagged dictionary, ambiguous `pg` candidates, binding policies, and evaluation queries.
 
 The examples are documentation fixtures only; they do not introduce new API routes or mutate runtime state by themselves.
+
+## Reference agent runner foundation
+
+Patch 40F adds `examples/agents/openrouter_alias_scout` as the first reference
+agent integration. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas and
+prompts on top of the same existing tools. Patch 40H adds local candidate
+discovery and pruning before any LLM/OpenRouter call. Patch 40I adds compact
+evidence windows around discovered candidates while staying local-only. Patch 40K
+adds a local E2E demo report that prepares a review queue without calling backend
+routes:
+
+```text
+GET  /v1/tools/bindings
+POST /v1/tools/explain-query
+POST /v1/tools/validate-alias
+POST /v1/tools/suggest-alias
+```
+
+Run the local previews with:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-tool-schemas
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-prompt
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-candidates
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-evidence
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-demo-review-prompt
+```
+
+The example is not a new API surface and it does not call OpenRouter yet. Tool
+schemas map only to the existing `/v1/tools/*` facade, and the structured output
+parser keeps model judgments limited to `propose`, `reject`, or `needs_evidence`
+before any later runner validates and submits proposals. The Patch 40H discovery
+report is local-only (`skeinrank.agent_candidate_discovery.v1`) and does not infer
+canonical values or submit proposals. The Patch 40I evidence report is also
+local-only (`skeinrank.agent_evidence_sampling.v1`) and keeps context windows
+short so full documents are not sent to future model review. The Patch 40K demo
+report is also local-only (`skeinrank.agent_demo_report.v1`): it reports
+`proposals_submitted: 0` and exists to preview the future model-review queue, not
+to mutate terminology.
+
+### Patch 40J — OpenRouter execution / LangGraph-ready workflow
+
+Patch 40J adds the first live OpenRouter execution path for the alias scout. Use
+`--print-llm-review-plan` to preview the LangGraph-ready state-machine workflow
+without network calls, then set `OPENROUTER_API_KEY` and run `--llm-review` to
+call OpenRouter `/chat/completions` for strict `propose`, `reject`, or
+`needs_evidence` judgments. The output schema is
+`skeinrank.agent_llm_review_report.v1`. Proposal submission remains disabled by
+default, so the workflow prepares proposal payloads but does not mutate SkeinRank
+state.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-llm-review-plan
+OPENROUTER_API_KEY=... python examples/agents/openrouter_alias_scout/run_alias_scout.py --llm-review --model openai/gpt-4o-mini --max-candidates 3
+```
+
+## Patch 40L — Agent security profile
+
+Patch 40L documents the security envelope for the OpenRouter alias scout. It does
+not add or change Governance API routes. The runner only references the existing
+agent-safe facade:
+
+```text
+GET  /v1/tools/bindings
+POST /v1/tools/explain-query
+POST /v1/tools/validate-alias
+POST /v1/tools/suggest-alias
+```
+
+Use the local security report before live model review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-security-profile
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-security-profile
+```
+
+The `skeinrank.agent_security_profile.v1` report redacts secrets, checks the
+configured contributor role, and keeps proposal submission/runtime mutation
+disabled by default.
+
+## Patch 40M — OpenRouter agent budget and cache
+
+Patch 40M adds run budgets and JSON response caching to the OpenRouter alias
+scout. It keeps the agent safe by default: no backend routes are changed,
+proposal submission stays disabled, and cached responses never mutate runtime
+state. Use `--print-budget-cache-plan` for an offline `skeinrank.agent_budget_cache_plan.v1`
+preview, `--max-llm-calls` / `--max-run-cost-usd` for live-run limits, and
+`--clear-llm-cache` to remove the configured local cache.
+## Patch 40N — Agent evaluation loop
+
+Patch 40N adds an offline evaluation report for the OpenRouter alias scout. It
+can score the local demo pipeline or a saved `skeinrank.agent_llm_review_report.v1`
+without calling OpenRouter, SkeinRank, Elasticsearch, or publishing snapshots.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-evaluation-report
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-alias-scout-llm-report.json \
+  --run-evaluation-report
+```
+
+The output schema is `skeinrank.agent_evaluation_report.v1`. It reports
+evidence coverage, LLM action mix, proposal-ready counts, optional human/policy
+outcomes (`accepted`, `rejected`, `blocked`, `ambiguous`, `noisy`, `conflict`),
+cost/cache summary, and a quality gate. Snapshot before/after evaluation remains
+disabled until approved proposals are applied through the governed workflow.
+
+### Patch 40O — Agent deployment recipe
+
+Patch 40O adds a Docker Compose deployment recipe for the OpenRouter alias scout.
+Use `--print-deployment-recipe` to inspect the offline `skeinrank.agent_deployment_recipe.v1` report, or `make agent-deploy-plan` / `make agent-compose-config` from the repository root. The reference service defaults to an offline evaluation report; proposal submission and runtime mutation remain disabled.
+
+## Patch 41A — Canonical hints and stronger review pack
+
+Patch 41A improves the OpenRouter alias scout quality loop without changing backend routes or mutating runtime state. The runner now includes configured canonical hints in each candidate pack, so the model can choose from known terms such as `kubernetes`, `postgresql`, `elasticsearch`, and `rabbitmq` instead of guessing from raw evidence only.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-canonical-hints
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
+```
+
+The report schema is `skeinrank.agent_canonical_hints.v1`. Validation-sprint noise such as `queue`, `red`, and `shard` is pruned before LLM review by default, while real alias candidates such as `pg`, `k8s`, and `kube` receive `possible_canonical`, `slot`, `canonical_hint`, `canonical_candidates`, and `known_canonicals` fields in the review pack.
+
+
+## Patch 41B — Validate and submit proposals safely
+
+Patch 41B connects high-confidence agent `proposal_payload` values to the
+existing SkeinRank agent tools without changing backend routes. The runner can
+preview a submission plan, validate ready proposals through
+`POST /v1/tools/validate-alias`, and optionally submit pending proposals through
+`POST /v1/tools/suggest-alias` only when explicitly requested and allowed by
+security/config.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --print-proposal-submission-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --validate-ready-proposals
+```
+
+Submission remains opt-in and governed. It creates pending proposals only; it
+never writes directly to dictionaries, never pushes Git, and never publishes
+runtime snapshots.
+
+## Patch 41C — Agent validation statuses and idempotent proposal handling
+
+Patch 41C keeps proposal submission safe while making validation reports more
+useful for agent workflows. Validation warnings are now classified before any
+optional submission: existing aliases that already map to the requested canonical
+are treated as idempotent no-ops, slot mismatches are routed to manual review,
+and blocked validations are never submitted.
+
+This means an agent run can distinguish:
+
+```text
+passed → eligible for optional submission
+existing alias warning → idempotent_existing_alias
+slot mismatch warning → manual_review_required
+blocked → blocked
+```
+
+The runner still does not mutate runtime dictionaries or publish snapshots.
+
+
+## Patch 41D — New alias proposal smoke test
+
+Patch 41D adds a controlled smoke path for a brand-new alias proposal. It does not call OpenRouter and does not publish snapshots. The runner can generate a proposal-ready LLM report for the configured smoke alias, validate it through `POST /v1/tools/validate-alias`, and, only with an explicit submit flag, create a pending proposal through `POST /v1/tools/suggest-alias`.
+
+Preview the smoke plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-new-alias-smoke-plan
+```
+
+Write a proposal-ready smoke report:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-new-alias-smoke-llm-report /tmp/skeinrank-new-alias-smoke-llm.json
+```
+
+Validate the smoke proposal without saving it:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-new-alias-smoke-test
+```
+
+Create one pending proposal and verify idempotent retry explicitly:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --submit-new-alias-smoke-test \
+  --write-new-alias-smoke-report /tmp/skeinrank-new-alias-smoke-report.json
+```
+
+The default smoke alias is `pgx → postgresql` in the `infra_incidents` profile. Re-running the submit smoke should not create duplicate proposals; the second `suggest-alias` call is expected to return an idempotent retry.
+
+## Patch 41E — Elasticsearch evidence connector
+
+Patch 41E adds an optional, read-only Elasticsearch/OpenSearch evidence connector for the OpenRouter alias scout. It does not change backend routes, does not call OpenRouter, and does not mutate dictionaries, snapshots, or runtime state. The connector searches a configured index for discovered candidates, normalizes hits into local evidence records, and reuses the existing compact evidence sampler.
+
+Preview the connector plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-elasticsearch-evidence-plan
+```
+
+Sample evidence from Elasticsearch for discovered candidates:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --sample-evidence-from-elasticsearch \
+  --elasticsearch-url http://127.0.0.1:9200 \
+  --elasticsearch-index skeinrank-agent-evidence \
+  --elasticsearch-text-field title \
+  --elasticsearch-text-field text
+```
+
+Export normalized Elasticsearch hits to JSONL for offline review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
+```
+
+
+### Agent tracking note
+
+Patch 41F keeps agent run/document tracking outside the Governance API for now. The reference runner writes a local JSONL ledger and does not add backend routes or migrations. This preserves the existing API surface while establishing the future PostgreSQL tracking contract.
+
+### Agent proposal inbox note
+
+Patch 41G does not add new governance API routes. The OpenRouter alias scout builds an offline proposal inbox from saved LLM review and `/v1/tools/validate-alias` / `/v1/tools/suggest-alias` reports. Review decisions remain local JSONL records until a later governed apply workflow consumes them.
+
+
+### Agent approved apply and snapshot evaluation note
+
+Patch 41H does not add new governance API routes. The OpenRouter alias scout builds an offline approved-proposal apply plan from the proposal inbox and can evaluate before/after snapshot artifacts. Actual profile mutation and snapshot publishing remain in the governed backend workflow.
+
+## Agent scheduled runner notes
+
+Patch 41I does not add Governance API routes. The OpenRouter alias scout scheduled mode
+is an external worker entrypoint that can optionally call existing tool endpoints in later
+explicit stages. The safe default is offline and does not call SkeinRank APIs.
+
+## Agent integration smoke test
+
+Patch 42A adds an offline integration smoke test for the OpenRouter alias scout.
+It does not add or require new Governance API endpoints. The smoke validates the
+agent-side report chain before live use of `/v1/tools/validate-alias` or
+`/v1/tools/suggest-alias`.
+
+### Agent Elasticsearch validation note
+
+Patch 42B does not add governance API routes. It adds a client-side validation scenario that writes optional sample documents to a configured Elasticsearch/OpenSearch index and then reads evidence through the existing agent connector.
+
+### Patch 42C agent artifact reports
+
+Patch 42C does not change Governance API endpoints. It standardizes local agent
+artifacts for scheduled/headless runs using `skeinrank.agent_artifact_manifest.v1`.
+
+## Patch 42E — Dictionary quickstart endpoints
+
+The 42E quickstart uses existing API endpoints only:
+
+- `POST /v1/console/dictionary/validate` for validation-first dictionary checks.
+- `POST /v1/console/dictionary/import` for explicit dictionary import.
+- `POST /v1/governance/elasticsearch/bindings` for explicit binding creation.
+- `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest` for headless source=latest snapshot artifact export.
+
+The quickstart runner exposes `--print-dictionary-quickstart-plan`, `--write-dictionary-quickstart-payloads`, and `--run-dictionary-quickstart`. Import, binding creation, and snapshot export remain opt-in flags.
+
+### Proposal batch preview and warning gates
+
+Patch 42F adds `POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch/preview` for dry-run proposal review. The existing `apply-batch` endpoint now blocks validation-warning proposals by default; pass `allow_warnings: true` only after explicit review.
+
+## Runtime API smoke endpoints
+
+Patch 42G does not add new backend endpoints. The smoke runner exercises existing runtime/headless APIs:
+
+- `POST /v1/text/canonicalize`
+- `POST /v1/query/plan`
+- `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest` when explicitly requested.
+
+This keeps the runtime smoke safe: no proposal submission, no dictionary mutation, and no snapshot publishing.
+
