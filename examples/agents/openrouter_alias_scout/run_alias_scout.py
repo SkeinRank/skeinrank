@@ -44,6 +44,10 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_alias_scout_demo_report,
         build_demo_review_prompt,
     )
+    from .deployment_recipe import (
+        AgentDeploymentConfig,
+        build_agent_deployment_recipe,
+    )
     from .evidence_sampler import (
         EvidenceSamplerConfig,
         build_candidate_evidence_pack,
@@ -93,6 +97,10 @@ except ImportError:  # pragma: no cover
         build_alias_scout_demo_report,
         build_demo_review_prompt,
     )
+    from deployment_recipe import (
+        AgentDeploymentConfig,
+        build_agent_deployment_recipe,
+    )
     from evidence_sampler import (
         EvidenceSamplerConfig,
         build_candidate_evidence_pack,
@@ -140,6 +148,7 @@ class AgentRunnerConfig:
     budget_cache: AgentBudgetCacheConfig
     security_profile: SecurityProfileConfig
     evaluation: AgentEvaluationConfig
+    deployment: AgentDeploymentConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -149,6 +158,7 @@ class AgentRunnerConfig:
     def from_file(cls, path: Path) -> "AgentRunnerConfig":
         raw = json.loads(path.read_text(encoding="utf-8"))
         base_dir = path.parent
+        repo_root = base_dir.parents[2] if len(base_dir.parents) >= 3 else base_dir
         failed_queries = Path(
             raw.get("failed_queries_path", "failed_queries.example.jsonl")
         )
@@ -212,6 +222,9 @@ class AgentRunnerConfig:
                 raw.get("security_profile")
             ),
             evaluation=AgentEvaluationConfig.from_mapping(raw.get("evaluation")),
+            deployment=AgentDeploymentConfig.from_mapping(
+                raw.get("deployment"), repo_root=repo_root
+            ),
             openrouter_base_url=str(
                 os.getenv(
                     "OPENROUTER_BASE_URL",
@@ -301,6 +314,7 @@ def build_run_plan(
             "Patch 40L adds a service-account security profile.",
             "Patch 40M adds run budgets and JSON response caching.",
             "Patch 40N adds offline agent evaluation reports.",
+            "Patch 40O adds a Docker Compose deployment recipe.",
         ],
         "sample_queries": [
             {
@@ -510,6 +524,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         help="Optional JSONL with human/policy outcomes for accepted/rejected counts.",
     )
+    parser.add_argument(
+        "--print-deployment-recipe",
+        action="store_true",
+        help="Print the 40O Docker Compose deployment recipe without network calls.",
+    )
+    parser.add_argument(
+        "--write-deployment-recipe",
+        type=Path,
+        help="Write the 40O deployment recipe JSON to this path.",
+    )
     return parser.parse_args(argv)
 
 
@@ -567,6 +591,22 @@ def _load_evaluation_outcomes_for_args(
     return load_evaluation_outcomes(path)
 
 
+def build_deployment_recipe_for_config(config: AgentRunnerConfig) -> JsonDict:
+    """Build the offline 40O deployment recipe for the current config."""
+
+    return build_agent_deployment_recipe(
+        config.deployment,
+        skeinrank_api_url=config.skeinrank_api_url,
+        openrouter_model=config.openrouter_model,
+        proposal_submission_enabled=config.llm_review.submit_proposals,
+        runtime_mutation_enabled=config.security_profile.allow_runtime_mutation,
+        required_role=config.security_profile.required_role,
+        cache_enabled=config.budget_cache.cache_enabled,
+        max_llm_calls_per_run=config.budget_cache.max_llm_calls_per_run,
+        max_cost_usd_per_run=config.budget_cache.max_cost_usd_per_run,
+    )
+
+
 def build_evaluation_report_for_config(
     config: AgentRunnerConfig,
     failed_queries: list[JsonDict],
@@ -603,6 +643,18 @@ def build_evaluation_report_for_config(
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
+
+    if args.print_deployment_recipe or args.write_deployment_recipe:
+        report = build_deployment_recipe_for_config(config)
+        if args.write_deployment_recipe:
+            args.write_deployment_recipe.parent.mkdir(parents=True, exist_ok=True)
+            args.write_deployment_recipe.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
 
     if args.print_security_profile or args.check_security_profile:
         report = build_security_report_for_config(config)

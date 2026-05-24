@@ -1073,3 +1073,8 @@ outcomes (`accepted`, `rejected`, `blocked`, `ambiguous`, `noisy`, `conflict`),
 cost/cache summary, and a quality gate. Snapshot before/after evaluation remains
 disabled until approved proposals are applied through the governed workflow.
 
+### Patch 40O — Agent deployment recipe
+
+Patch 40O adds a Docker Compose deployment recipe for the OpenRouter alias scout.
+Use `--print-deployment-recipe` to inspect the offline `skeinrank.agent_deployment_recipe.v1` report, or `make agent-deploy-plan` / `make agent-compose-config` from the repository root. The reference service defaults to an offline evaluation report; proposal submission and runtime mutation remain disabled.
+

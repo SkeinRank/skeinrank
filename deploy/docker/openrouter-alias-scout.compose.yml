@@ -1,0 +1,19 @@
+services:
+  openrouter-alias-scout:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/openrouter-alias-scout.Dockerfile
+    env_file:
+      - ./openrouter-alias-scout.env.example
+    environment:
+      SKEINRANK_AGENT_API_URL: ${SKEINRANK_AGENT_API_URL:-http://governance-api:8010}
+      SKEINRANK_AGENT_ROLE: ${SKEINRANK_AGENT_ROLE:-contributor}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+    command:
+      - python
+      - examples/agents/openrouter_alias_scout/run_alias_scout.py
+      - --write-evaluation-report
+      - examples/agents/openrouter_alias_scout/reports/evaluation-report.json
+    volumes:
+      - ../../examples/agents/openrouter_alias_scout/reports:/app/examples/agents/openrouter_alias_scout/reports
+      - ../../examples/agents/openrouter_alias_scout/.cache:/app/examples/agents/openrouter_alias_scout/.cache

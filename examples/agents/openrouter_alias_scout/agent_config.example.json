@@ -126,5 +126,17 @@
     "max_items": 50,
     "qrels_enabled": false,
     "snapshot_eval_enabled": false
+  },
+  "deployment": {
+    "service_name": "openrouter-alias-scout",
+    "image_name": "skeinrank/openrouter-alias-scout:local",
+    "dockerfile_path": "deploy/docker/openrouter-alias-scout.Dockerfile",
+    "compose_file_path": "deploy/docker/openrouter-alias-scout.compose.yml",
+    "env_file_path": "deploy/docker/openrouter-alias-scout.env.example",
+    "reports_dir": "examples/agents/openrouter_alias_scout/reports",
+    "cache_dir": "examples/agents/openrouter_alias_scout/.cache",
+    "default_mode": "evaluation_report",
+    "schedule_mode": "manual",
+    "schedule_cron": "0 2 * * *"
   }
 }

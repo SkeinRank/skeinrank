@@ -64,3 +64,4 @@ snapshots/*.json
 
 # Local OpenRouter alias-scout cache artifacts
 examples/agents/openrouter_alias_scout/.cache/
+examples/agents/openrouter_alias_scout/reports/

@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -39,3 +39,14 @@ agent-eval:
 agent-eval-report:
 	mkdir -p examples/agents/openrouter_alias_scout/reports
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-evaluation-report examples/agents/openrouter_alias_scout/reports/evaluation-report.json
+
+
+agent-deploy-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-deployment-recipe
+
+agent-deploy-recipe:
+	mkdir -p examples/agents/openrouter_alias_scout/reports
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-deployment-recipe examples/agents/openrouter_alias_scout/reports/deployment-recipe.json
+
+agent-compose-config:
+	docker compose --env-file deploy/docker/openrouter-alias-scout.env.example -f deploy/docker/openrouter-alias-scout.compose.yml config

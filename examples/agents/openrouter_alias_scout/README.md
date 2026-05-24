@@ -1,6 +1,6 @@
 # OpenRouter alias scout foundation
 
-This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default.
+This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default. Patch 40L adds a service-account security profile, Patch 40M adds budget/cache controls, Patch 40N adds offline evaluation, and Patch 40O adds a deployable Docker Compose recipe.
 
 The safety rule stays unchanged:
 
@@ -21,6 +21,7 @@ Agents must not mutate production terminology directly. They can only validate a
 | `candidate_discovery.py` | Dependency-light failed-query candidate mining, pruning, scoring, and fact-pack helpers. |
 | `evidence_sampler.py` | Dependency-light compact window sampler for candidate evidence packs. |
 | `demo_report.py` | Local E2E demo report builder for discovery + evidence + review queue output. |
+| `deployment_recipe.py` | Offline Docker Compose deployment recipe report for the alias scout. |
 | `openrouter_client.py` | Dependency-light OpenRouter `/chat/completions` client with testable transport injection. |
 | `alias_scout_workflow.py` | LangGraph-ready state-machine workflow for LLM review and proposal payload preparation. |
 | `skeinrank_client.py` | Dependency-light client for `/v1/tools/*`. |
@@ -285,4 +286,43 @@ evidence coverage, LLM action mix, proposal-ready counts, optional human/policy
 outcomes (`accepted`, `rejected`, `blocked`, `ambiguous`, `noisy`, `conflict`),
 cost/cache summary, and a quality gate. Snapshot before/after evaluation remains
 disabled until approved proposals are applied through the governed workflow.
+## Patch 40O — Agent deployment recipe
+
+Patch 40O adds a deployment recipe for the OpenRouter alias scout. It is safe by
+default: the Docker Compose service runs an offline evaluation report unless an
+operator explicitly overrides the command and provides `OPENROUTER_API_KEY`.
+Proposal submission remains disabled and runtime mutation is blocked.
+
+Preview the deployment recipe without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-deployment-recipe
+```
+
+Write the recipe report:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-deployment-recipe examples/agents/openrouter_alias_scout/reports/deployment-recipe.json
+```
+
+Validate the Compose service shape:
+
+```bash
+docker compose \
+  --env-file deploy/docker/openrouter-alias-scout.env.example \
+  -f deploy/docker/openrouter-alias-scout.compose.yml \
+  config
+```
+
+Makefile helpers:
+
+```bash
+make agent-deploy-plan
+make agent-deploy-recipe
+make agent-compose-config
+```
+
+The report schema is `skeinrank.agent_deployment_recipe.v1`. Generated reports
+and cache files are ignored by Git.
 
