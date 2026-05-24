@@ -76,6 +76,10 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         run_dictionary_quickstart,
         write_dictionary_quickstart_payloads,
     )
+    from .docker_demo_scenario import (
+        DockerFullDemoConfig,
+        build_docker_full_demo_plan,
+    )
     from .elasticsearch_source import (
         ElasticsearchSourceClient,
         ElasticsearchSourceConfig,
@@ -121,6 +125,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         index_real_elasticsearch_validation_docs,
         run_real_elasticsearch_validation_scenario,
         write_real_elasticsearch_validation_fixtures,
+    )
+    from .runtime_api_smoke import (
+        RuntimeApiSmokeConfig,
+        build_runtime_api_smoke_plan,
+        run_runtime_api_smoke,
     )
     from .scheduled_runner import (
         ScheduledRunnerConfig,
@@ -196,6 +205,10 @@ except ImportError:  # pragma: no cover
         run_dictionary_quickstart,
         write_dictionary_quickstart_payloads,
     )
+    from docker_demo_scenario import (
+        DockerFullDemoConfig,
+        build_docker_full_demo_plan,
+    )
     from elasticsearch_source import (
         ElasticsearchSourceClient,
         ElasticsearchSourceConfig,
@@ -242,6 +255,11 @@ except ImportError:  # pragma: no cover
         run_real_elasticsearch_validation_scenario,
         write_real_elasticsearch_validation_fixtures,
     )
+    from runtime_api_smoke import (
+        RuntimeApiSmokeConfig,
+        build_runtime_api_smoke_plan,
+        run_runtime_api_smoke,
+    )
     from scheduled_runner import (
         ScheduledRunnerConfig,
         build_scheduled_cycle_report,
@@ -287,6 +305,7 @@ class AgentRunnerConfig:
     evaluation: AgentEvaluationConfig
     deployment: AgentDeploymentConfig
     dictionary_quickstart: DictionaryQuickstartConfig
+    docker_full_demo: DockerFullDemoConfig
     proposal_submission: ProposalSubmissionConfig
     proposal_inbox: ProposalInboxConfig
     approved_apply: ApprovedApplyConfig
@@ -295,6 +314,7 @@ class AgentRunnerConfig:
     artifact_standard: ArtifactStandardConfig
     integration_smoke: FullIntegrationSmokeConfig
     real_elasticsearch_validation: RealElasticsearchValidationConfig
+    runtime_api_smoke: RuntimeApiSmokeConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -383,6 +403,9 @@ class AgentRunnerConfig:
             dictionary_quickstart=DictionaryQuickstartConfig.from_mapping(
                 raw.get("dictionary_quickstart"), base_dir=base_dir
             ),
+            docker_full_demo=DockerFullDemoConfig.from_mapping(
+                raw.get("docker_full_demo")
+            ),
             proposal_submission=ProposalSubmissionConfig.from_mapping(
                 raw.get("proposal_submission")
             ),
@@ -408,6 +431,9 @@ class AgentRunnerConfig:
                 RealElasticsearchValidationConfig.from_mapping(
                     raw.get("real_elasticsearch_validation"), base_dir=base_dir
                 )
+            ),
+            runtime_api_smoke=RuntimeApiSmokeConfig.from_mapping(
+                raw.get("runtime_api_smoke"), base_dir=base_dir
             ),
             openrouter_base_url=str(
                 os.getenv(
@@ -1031,6 +1057,17 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--print-docker-demo-plan",
+        action="store_true",
+        help="Print the 42D Docker Compose full demo plan without network calls.",
+    )
+    parser.add_argument(
+        "--write-docker-demo-plan",
+        type=Path,
+        help="Write the 42D Docker Compose full demo plan JSON to this path.",
+    )
+
+    parser.add_argument(
         "--print-dictionary-quickstart-plan",
         action="store_true",
         help="Print the 42E dictionary import -> binding -> snapshot quickstart plan.",
@@ -1082,6 +1119,49 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--dictionary-quickstart-binding-id",
         type=int,
         help="Existing binding id to use when exporting the quickstart snapshot artifact.",
+    )
+
+    parser.add_argument(
+        "--print-runtime-api-smoke-plan",
+        action="store_true",
+        help="Print the 42G runtime API final smoke plan without network calls.",
+    )
+    parser.add_argument(
+        "--run-runtime-api-smoke",
+        action="store_true",
+        help="Run the 42G runtime API smoke through existing runtime endpoints.",
+    )
+    parser.add_argument(
+        "--write-runtime-api-smoke-report",
+        type=Path,
+        help="Run 42G and write the runtime API smoke report to this JSON path.",
+    )
+    parser.add_argument(
+        "--runtime-smoke-artifacts-dir",
+        type=Path,
+        help="Override runtime_api_smoke.artifacts_dir for this run.",
+    )
+    parser.add_argument(
+        "--runtime-smoke-profile",
+        help="Override runtime_api_smoke.profile_name for this run.",
+    )
+    parser.add_argument(
+        "--runtime-smoke-binding-id",
+        type=int,
+        help="Run runtime smoke against an existing binding id instead of profile latest state.",
+    )
+    parser.add_argument(
+        "--runtime-smoke-text",
+        help="Override the text used by /v1/text/canonicalize.",
+    )
+    parser.add_argument(
+        "--runtime-smoke-query",
+        help="Override the query used by /v1/query/plan.",
+    )
+    parser.add_argument(
+        "--runtime-smoke-export-snapshot",
+        action="store_true",
+        help="Also call /v1/headless/snapshots/export for the configured binding id.",
     )
 
     parser.add_argument(
@@ -1968,6 +2048,12 @@ def build_evaluation_report_for_config(
     )
 
 
+def build_docker_demo_plan_for_config(config: AgentRunnerConfig) -> JsonDict:
+    """Build the network-free 42D Docker Compose full-demo plan."""
+
+    return build_docker_full_demo_plan(config.docker_full_demo)
+
+
 def _dictionary_quickstart_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> DictionaryQuickstartConfig:
@@ -2009,6 +2095,43 @@ def run_dictionary_quickstart_for_args(
         create_binding=bool(args.dictionary_quickstart_create_binding),
         export_snapshot=bool(args.dictionary_quickstart_export_snapshot),
         binding_id=args.dictionary_quickstart_binding_id,
+    )
+
+
+def _runtime_api_smoke_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> RuntimeApiSmokeConfig:
+    """Apply CLI overrides to the 42G runtime API smoke config."""
+
+    return config.runtime_api_smoke.with_overrides(
+        artifacts_dir=args.runtime_smoke_artifacts_dir,
+        profile_name=args.runtime_smoke_profile,
+        binding_id=args.runtime_smoke_binding_id,
+        text=args.runtime_smoke_text,
+        query=args.runtime_smoke_query,
+        export_snapshot=True if args.runtime_smoke_export_snapshot else None,
+    )
+
+
+def build_runtime_api_smoke_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the network-free 42G runtime API smoke plan."""
+
+    return build_runtime_api_smoke_plan(
+        _runtime_api_smoke_config_from_args(config, args)
+    )
+
+
+def run_runtime_api_smoke_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Run the 42G runtime API smoke through the configured Governance API."""
+
+    return run_runtime_api_smoke(
+        client=build_client(config),
+        config=_runtime_api_smoke_config_from_args(config, args),
+        export_snapshot=True if args.runtime_smoke_export_snapshot else None,
     )
 
 
@@ -2183,6 +2306,18 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2, sort_keys=True))
         return 0
 
+    if args.print_docker_demo_plan or args.write_docker_demo_plan:
+        report = build_docker_demo_plan_for_config(config)
+        if args.write_docker_demo_plan:
+            args.write_docker_demo_plan.parent.mkdir(parents=True, exist_ok=True)
+            args.write_docker_demo_plan.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
     if args.print_dictionary_quickstart_plan:
         report = build_dictionary_quickstart_plan_for_args(config, args)
         print(json.dumps(report, indent=2, sort_keys=True))
@@ -2206,6 +2341,25 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(json.dumps(report, indent=2, sort_keys=True))
         return 0
+
+    if args.print_runtime_api_smoke_plan:
+        report = build_runtime_api_smoke_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.run_runtime_api_smoke or args.write_runtime_api_smoke_report:
+        report = run_runtime_api_smoke_for_args(config, args)
+        if args.write_runtime_api_smoke_report:
+            args.write_runtime_api_smoke_report.parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            args.write_runtime_api_smoke_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return int(report.get("recommended_exit_code", 0))
 
     if args.print_security_profile or args.check_security_profile:
         report = build_security_report_for_config(config)

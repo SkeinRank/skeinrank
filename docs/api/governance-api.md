@@ -679,3 +679,14 @@ The quickstart runner exposes `--print-dictionary-quickstart-plan`, `--write-dic
 ### Proposal batch preview and warning gates
 
 Patch 42F adds `POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch/preview` for dry-run proposal review. The existing `apply-batch` endpoint now blocks validation-warning proposals by default; pass `allow_warnings: true` only after explicit review.
+
+## Runtime API smoke endpoints
+
+Patch 42G does not add new backend endpoints. The smoke runner exercises existing runtime/headless APIs:
+
+- `POST /v1/text/canonicalize`
+- `POST /v1/query/plan`
+- `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest` when explicitly requested.
+
+This keeps the runtime smoke safe: no proposal submission, no dictionary mutation, and no snapshot publishing.
+

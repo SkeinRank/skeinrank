@@ -664,3 +664,28 @@ python run_alias_scout.py --run-dictionary-quickstart
 Use `--dictionary-quickstart-apply-import`, `--dictionary-quickstart-create-binding`, and `--dictionary-quickstart-export-snapshot` only after reviewing the validate-first report.
 
 - Backend hardening note: after building an approved apply plan, preview the backend proposal batch before applying. Validation warnings require explicit reviewer opt-in via `allow_warnings`.
+
+## Patch 42G — Runtime API final smoke
+
+Use the runtime smoke after dictionary import/binding quickstart to verify that the profile is actually served by runtime APIs:
+
+```bash
+python run_alias_scout.py --print-runtime-api-smoke-plan
+python run_alias_scout.py --write-runtime-api-smoke-report reports/runtime-smoke.json
+```
+
+Optional binding-scoped snapshot export smoke:
+
+```bash
+python run_alias_scout.py \
+  --run-runtime-api-smoke \
+  --runtime-smoke-binding-id 1 \
+  --runtime-smoke-export-snapshot
+```
+
+The smoke is read-only: no OpenRouter calls, no proposals, no dictionary mutation, and no snapshot publishing.
+
+### Patch 42D — Docker Compose full demo scenario
+
+The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
+

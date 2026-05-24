@@ -143,5 +143,12 @@ agent-dictionary-quickstart-plan:
 agent-dictionary-quickstart-payloads:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-dictionary-quickstart-payloads
 
-agent-dictionary-quickstart-validate:
+agent-dictionary-quickstart-validate agent-runtime-smoke-plan agent-runtime-smoke-report:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionary-quickstart
+
+agent-runtime-smoke-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-runtime-api-smoke-plan
+
+agent-runtime-smoke-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports/runtime-smoke
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-runtime-api-smoke-report examples/agents/openrouter_alias_scout/reports/runtime-smoke/runtime-api-smoke-report.json

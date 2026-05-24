@@ -210,6 +210,23 @@
       "query"
     ]
   },
+  "docker_full_demo": {
+    "artifacts_dir": "examples/agents/openrouter_alias_scout/reports/docker-demo",
+    "compose_file": "deploy/docker/openrouter-agent-full-demo.compose.yml",
+    "elasticsearch_index": "skeinrank_agent_demo",
+    "elasticsearch_url": "http://elasticsearch:9200",
+    "env_file": "deploy/docker/openrouter-agent-full-demo.env.example",
+    "governance_api_url": "http://governance-api:8010",
+    "guide_path": "docs/deployment/openrouter-agent-full-demo.md",
+    "live_llm_enabled_by_default": false,
+    "max_llm_calls": 3,
+    "max_run_cost_usd": 0.05,
+    "openrouter_model": "openai/gpt-4o-mini",
+    "proposal_submission_enabled_by_default": false,
+    "runtime_mutation_enabled": false,
+    "script_path": "deploy/docker/scripts/openrouter-agent-full-demo.sh",
+    "snapshot_publish_enabled": false
+  },
   "dry_run": true,
   "elasticsearch_source": {
     "api_key_auth_scheme": "ApiKey",
@@ -326,6 +343,30 @@
     "refresh_after_index": true,
     "reset_index": false,
     "run_id_prefix": "real-es-validation"
+  },
+  "runtime_api_smoke": {
+    "artifacts_dir": "reports/runtime-smoke",
+    "binding_id": null,
+    "canonical_boost": 3.0,
+    "canonicalize_mode": "replace",
+    "expected_canonical_values": [
+      "postgresql",
+      "kubernetes"
+    ],
+    "export_snapshot_by_default": false,
+    "include_evidence": true,
+    "max_matches": 20,
+    "profile_name": "infra_incidents",
+    "query": "pg timeout k8s rollout",
+    "size": 5,
+    "snapshot_source": "latest",
+    "target_field": "skeinrank.canonical_terms",
+    "text": "pg timeout after k8s rollout",
+    "text_fields": [
+      "title",
+      "text",
+      "query"
+    ]
   },
   "scheduled_runner": {
     "append_tracking_ledger": false,

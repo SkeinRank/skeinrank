@@ -680,3 +680,15 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionar
 Import, binding creation, and snapshot export remain explicit opt-in flags: `--dictionary-quickstart-apply-import`, `--dictionary-quickstart-create-binding`, and `--dictionary-quickstart-export-snapshot`. The quickstart never publishes runtime snapshots and does not write directly to dictionaries outside the console import endpoint.
 
 - Patch 42F adds backend proposal batch hardening: a dry-run apply preview endpoint and warning-gated batch apply semantics for agent/human review flows.
+
+### Patch 42G — Runtime API final smoke
+
+The OpenRouter alias scout now includes a final runtime smoke layer for the installable flow. It validates existing runtime/headless endpoints without mutating dictionaries or publishing snapshots:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-runtime-api-smoke-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-runtime-api-smoke-report /tmp/runtime-api-smoke.json
+```
+
+The smoke calls `POST /v1/text/canonicalize`, `POST /v1/query/plan`, and optionally `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest`.
+

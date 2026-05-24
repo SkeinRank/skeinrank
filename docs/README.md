@@ -306,3 +306,23 @@ reports in `reports/<run_id>/reports/`. See `docs/guides/openrouter-agent.md`.
 Patch 42E documents a reproducible dictionary import → binding → source=latest snapshot quickstart for headless onboarding. Use `--print-dictionary-quickstart-plan` to inspect the safe plan, `--write-dictionary-quickstart-payloads` to write JSON payloads, and `--run-dictionary-quickstart` for validate-first API checks. Import, binding creation, and snapshot export require explicit flags.
 
 - Agent/product hardening: proposal batches can now be previewed before apply, and validation warnings require explicit `allow_warnings=true` before backend apply.
+
+### Runtime API smoke
+
+Patch 42G adds a runtime API final smoke for the headless agent journey. After the dictionary quickstart creates a profile/binding, run the smoke to verify that canonicalization and query planning serve the expected terminology.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-runtime-api-smoke
+```
+
+Use `--runtime-smoke-binding-id <id> --runtime-smoke-export-snapshot` to include a binding-scoped headless snapshot export check.
+
+### Patch 42D — Docker Compose full demo scenario
+
+The OpenRouter agent documentation includes a Docker Compose full-demo guide (`openrouter-agent-full-demo`) and a safe plan command:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-docker-demo-plan
+```
+
+The default demo mode is report-only and does not submit proposals or publish snapshots.

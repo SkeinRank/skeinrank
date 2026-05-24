@@ -470,3 +470,20 @@ Safe defaults are validation-first: no OpenRouter calls, no runtime mutation, an
 ### Backend proposal apply hardening
 
 Before applying agent-created proposals, use the governance preview endpoint to inspect blocked and warning items. Warnings are not applied by default; `allow_warnings=true` is an explicit reviewer decision.
+
+## Patch 42G — Runtime API final smoke
+
+The final smoke step verifies that the governed terminology is actually served by runtime APIs. Start the Governance API, run migrations, and then run:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-runtime-api-smoke-report /tmp/sr-runtime-smoke.json
+```
+
+For binding-scoped smoke, add `--runtime-smoke-binding-id <id> --runtime-smoke-export-snapshot`. The smoke is read-only and calls only canonicalization, query planning, and optional headless snapshot export.
+
+### Patch 42D — Docker Compose full demo scenario
+
+The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
+

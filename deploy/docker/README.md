@@ -195,3 +195,8 @@ Services:
 Prometheus scrapes the Governance API `/metrics` endpoint. Grafana is provisioned with the `SkeinRank Overview` dashboard from `deploy/grafana/dashboards/skeinrank-overview.json`.
 
 See `docs/deployment/observability.md` for metric names and dashboard details.
+
+### Patch 42D — Docker Compose full demo scenario
+
+The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
+

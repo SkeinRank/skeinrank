@@ -88,6 +88,7 @@ def test_proposal_batch_apply_publishes_binding_snapshot(tmp_path):
             "publish_snapshot": True,
             "binding_id": binding_id,
             "snapshot_version": "default_it@agent-batch-1",
+            "allow_warnings": True,
         },
     )
 
@@ -145,7 +146,10 @@ def test_proposal_batch_apply_without_ids_applies_all_pending(tmp_path):
     assert first.status_code == 201
     assert second.status_code == 201
 
-    response = client.post("/v1/governance/profiles/default_it/suggestions/apply-batch")
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions/apply-batch",
+        json={"allow_warnings": True},
+    )
 
     assert response.status_code == 200, response.text
     payload = response.json()

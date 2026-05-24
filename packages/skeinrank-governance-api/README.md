@@ -1251,3 +1251,22 @@ runs and is safe for CI/Airflow collection.
 Patch 42E adds a safe quickstart around existing governance endpoints. From the repository root or package Poetry environment, use `--print-dictionary-quickstart-plan`, `--write-dictionary-quickstart-payloads`, and `--run-dictionary-quickstart` to validate a sample dictionary payload. Applying the import, creating the Elasticsearch binding, and exporting the source=latest snapshot artifact require explicit CLI flags.
 
 - Proposal batch hardening: `apply-batch/preview` provides a no-mutation dry run, and `apply-batch` now requires explicit `allow_warnings` for validation-warning proposals.
+
+### Runtime API final smoke
+
+Patch 42G adds a dependency-light smoke runner for the runtime API layer:
+
+```bash
+poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-runtime-api-smoke-plan
+
+poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-runtime-api-smoke-report /tmp/sr-runtime-smoke.json
+```
+
+It validates `/v1/text/canonicalize`, `/v1/query/plan`, and optional `/v1/headless/snapshots/export` without mutating runtime state.
+
+### Patch 42D — Docker Compose full demo scenario
+
+The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
+
