@@ -751,3 +751,27 @@ This is still a tracking/audit layer: it does not directly mutate dictionaries, 
 SkeinRank now exposes proposal lifecycle metadata on governance suggestions: `validation_status`, `lifecycle_status`, `lifecycle_reason`, `can_approve`, and `can_apply`. Single-suggestion approval now blocks proposals with `blocked` validation status and requires `allow_warnings=true` for validation warnings, matching the safer batch-apply behavior.
 
 - Patch 43B hardens proposal batch apply retries: already-approved suggestions and already-existing same-canonical aliases are treated as idempotent no-ops instead of duplicate mutations.
+
+### Patch 43C — RBAC/scoped token enforcement for agent actions
+
+Agent-facing APIs now enforce API-token scopes in addition to role checks. Session
+login tokens and local-dev mode keep the existing role-based behavior, while
+personal/service-account API tokens must include the required scopes.
+
+Recommended service-account scopes:
+
+```text
+agent:runs:read
+agent:runs:write
+agent:tracking:read
+agent:tracking:write
+agent:tools:read
+agent:tools:validate
+agent:tools:suggest
+agent:tools:explain
+```
+
+This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
+runs and tracking records, validation-only jobs can call `validate-alias`, and
+proposal-writing jobs must explicitly carry `agent:tools:suggest`.
+

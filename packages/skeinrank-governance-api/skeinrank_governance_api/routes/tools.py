@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ambiguous_proposals import sync_ambiguous_alias_candidates_for_suggestion
-from ..auth import AuthContext, require_roles
+from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
 from ..observability.metrics import record_proposal_submission
 from ..proposal_idempotency import (
@@ -50,6 +50,7 @@ def list_tool_bindings(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tools:read")),
     session: Session = Depends(get_session),
 ) -> list[AgentToolBindingContextResponse]:
     """List runtime binding contexts available to agents and automation tools."""
@@ -79,6 +80,7 @@ def validate_alias_tool(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tools:validate")),
     session: Session = Depends(get_session),
 ) -> AgentToolValidateAliasResponse:
     """Validate an alias proposal without creating a pending suggestion."""
@@ -129,6 +131,7 @@ def suggest_alias_tool(
     current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tools:suggest")),
     session: Session = Depends(get_session),
 ) -> AgentToolSuggestAliasResponse:
     """Create a pending alias proposal from an agent, CLI, job, or API caller."""
@@ -306,6 +309,7 @@ def explain_query_tool(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tools:explain")),
     session: Session = Depends(get_session),
 ) -> QueryPlanResponse:
     """Explain how a query is canonicalized in a runtime binding/profile context."""

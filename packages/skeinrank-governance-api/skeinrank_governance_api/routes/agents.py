@@ -39,7 +39,7 @@ from ..agent_run_registry import (
     list_agent_runs,
     update_agent_run,
 )
-from ..auth import AuthContext, require_roles
+from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
 from ..schemas import (
     AgentCandidateObservationCreateRequest,
@@ -69,6 +69,7 @@ def create_agent_run_endpoint(
     current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:write")),
     session: Session = Depends(get_session),
 ) -> AgentRunResponse:
     """Register one agent workflow run without executing the agent."""
@@ -117,6 +118,7 @@ def list_agent_runs_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:read")),
     session: Session = Depends(get_session),
 ) -> list[AgentRunResponse]:
     """List registered agent runs."""
@@ -141,6 +143,7 @@ def get_agent_run_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:read")),
     session: Session = Depends(get_session),
 ) -> AgentRunResponse:
     """Return one registered agent run by stable run id."""
@@ -160,6 +163,7 @@ def update_agent_run_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:write")),
     session: Session = Depends(get_session),
 ) -> AgentRunResponse:
     """Update lifecycle metadata for one registered agent run."""
@@ -199,6 +203,7 @@ def create_agent_document_visit_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:write")),
     session: Session = Depends(get_session),
 ) -> AgentDocumentVisitResponse:
     """Record one source document visit for an agent run."""
@@ -248,6 +253,7 @@ def list_agent_document_visits_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:read")),
     session: Session = Depends(get_session),
 ) -> list[AgentDocumentVisitResponse]:
     """List document visits recorded for one agent run."""
@@ -276,6 +282,7 @@ def create_agent_candidate_observation_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:write")),
     session: Session = Depends(get_session),
 ) -> AgentCandidateObservationResponse:
     """Record one candidate alias observation and its evidence windows."""
@@ -327,6 +334,7 @@ def list_agent_candidate_observations_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:read")),
     session: Session = Depends(get_session),
 ) -> list[AgentCandidateObservationResponse]:
     """List candidate observations recorded for one agent run."""
@@ -359,6 +367,7 @@ def list_agent_evidence_windows_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:read")),
     session: Session = Depends(get_session),
 ) -> list[AgentEvidenceWindowResponse]:
     """List persisted evidence windows for one agent run."""
@@ -387,6 +396,7 @@ def create_agent_llm_review_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:write")),
     session: Session = Depends(get_session),
 ) -> AgentLlmReviewResponse:
     """Record one LLM review for an agent run."""
@@ -438,6 +448,7 @@ def list_agent_llm_reviews_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:read")),
     session: Session = Depends(get_session),
 ) -> list[AgentLlmReviewResponse]:
     """List persisted LLM reviews for one agent run."""
@@ -466,6 +477,7 @@ def create_agent_proposal_attempt_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:write")),
     session: Session = Depends(get_session),
 ) -> AgentProposalAttemptResponse:
     """Record one proposal validation/submission attempt for an agent run."""
@@ -519,6 +531,7 @@ def list_agent_proposal_attempts_endpoint(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:read")),
     session: Session = Depends(get_session),
 ) -> list[AgentProposalAttemptResponse]:
     """List persisted proposal attempts for one agent run."""

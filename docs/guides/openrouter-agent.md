@@ -511,3 +511,27 @@ Agent proposals should treat `validation_status=blocked` as non-applyable and `v
 ### Safe proposal apply retries
 
 The governed apply path is idempotent for explicit suggestion ids. Agent/worker retries can safely re-submit a previously applied batch and receive an idempotent response without duplicating aliases.
+
+### Patch 43C — RBAC/scoped token enforcement for agent actions
+
+Agent-facing APIs now enforce API-token scopes in addition to role checks. Session
+login tokens and local-dev mode keep the existing role-based behavior, while
+personal/service-account API tokens must include the required scopes.
+
+Recommended service-account scopes:
+
+```text
+agent:runs:read
+agent:runs:write
+agent:tracking:read
+agent:tracking:write
+agent:tools:read
+agent:tools:validate
+agent:tools:suggest
+agent:tools:explain
+```
+
+This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
+runs and tracking records, validation-only jobs can call `validate-alias`, and
+proposal-writing jobs must explicitly carry `agent:tools:suggest`.
+
