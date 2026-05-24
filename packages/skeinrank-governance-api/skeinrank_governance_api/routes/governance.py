@@ -2440,7 +2440,7 @@ def apply_profile_suggestion_batch(
                 detail="Proposal batch binding must belong to the profile.",
             )
 
-    suggestions = _pending_suggestions_for_batch(
+    suggestions = _suggestions_for_batch_apply(
         session=session,
         profile=profile,
         suggestion_ids=request.suggestion_ids,
@@ -2457,18 +2457,23 @@ def apply_profile_suggestion_batch(
 
     created_terms = 0
     created_aliases = 0
+    idempotent_suggestion_ids: list[int] = []
     now = utc_now()
     for suggestion in _ordered_suggestions_for_apply(suggestions):
-        if suggestion.suggestion_type == "canonical_term":
-            _approve_canonical_term_suggestion(session, profile, suggestion)
+        if suggestion.status == "approved":
+            idempotent_suggestion_ids.append(suggestion.id)
+            continue
+        apply_result = _apply_suggestion_idempotently(session, profile, suggestion)
+        if apply_result == "created_term":
             created_terms += 1
-        elif suggestion.suggestion_type == "alias":
-            _approve_alias_suggestion(session, profile, suggestion)
+        elif apply_result == "created_alias":
             created_aliases += 1
-        else:  # pragma: no cover - guarded by database/API validation
+        elif apply_result == "idempotent_noop":
+            idempotent_suggestion_ids.append(suggestion.id)
+        else:  # pragma: no cover - guarded by helper return values
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Invalid suggestion type: {suggestion.suggestion_type}",
+                detail=f"Invalid proposal apply result: {apply_result}",
             )
         suggestion.status = "approved"
         suggestion.reviewed_by = reviewer.username
@@ -2532,12 +2537,18 @@ def apply_profile_suggestion_batch(
         if request.suggestion_ids is not None
         else [suggestion.id for suggestion in suggestions]
     )
+    response_status = (
+        "idempotent"
+        if len(idempotent_suggestion_ids) == len(suggestions)
+        else "applied"
+    )
     return ProposalBatchApplyResponse(
-        status="applied",
+        status=response_status,
         profile_name=profile.name,
         normalized_profile_name=profile.normalized_name,
         requested_suggestion_ids=requested_ids,
         applied_suggestion_ids=[suggestion.id for suggestion in suggestions],
+        idempotent_suggestion_ids=idempotent_suggestion_ids,
         created_terms=created_terms,
         created_aliases=created_aliases,
         snapshot=snapshot_response,
@@ -3595,6 +3606,51 @@ def _pending_suggestions_for_batch(
     return suggestions
 
 
+def _suggestions_for_batch_apply(
+    *,
+    session: Session,
+    profile: TerminologyProfile,
+    suggestion_ids: list[int] | None,
+) -> list[GovernanceSuggestion]:
+    """Return pending plus already-approved suggestions for idempotent apply."""
+
+    if suggestion_ids is None:
+        return _pending_suggestions_for_batch(
+            session=session, profile=profile, suggestion_ids=None
+        )
+
+    requested_ids = list(dict.fromkeys(suggestion_ids))
+    suggestions = list(
+        session.scalars(
+            select(GovernanceSuggestion)
+            .where(
+                GovernanceSuggestion.profile_id == profile.id,
+                GovernanceSuggestion.id.in_(requested_ids),
+                GovernanceSuggestion.status.in_(("pending", "approved")),
+            )
+            .order_by(
+                GovernanceSuggestion.suggestion_type.desc(),
+                GovernanceSuggestion.id,
+            )
+        )
+    )
+    found_ids = {suggestion.id for suggestion in suggestions}
+    missing_ids = [
+        suggestion_id
+        for suggestion_id in requested_ids
+        if suggestion_id not in found_ids
+    ]
+    if missing_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "Pending or approved suggestions not found for profile "
+                f"{profile.name!r}: {missing_ids}"
+            ),
+        )
+    return suggestions
+
+
 def _ordered_suggestions_for_apply(
     suggestions: list[GovernanceSuggestion],
 ) -> list[GovernanceSuggestion]:
@@ -3658,9 +3714,16 @@ def _proposal_batch_preview_item(
 ) -> ProposalBatchPreviewItemResponse:
     summary = suggestion.validation_summary_json or {}
     validation_status_value = _proposal_validation_status(summary)
-    applyable = validation_status_value != "blocked" and (
-        validation_status_value != "warning" or allow_warnings
-    )
+    apply_action = "apply"
+    idempotent_reason = None
+    if suggestion.status == "approved":
+        applyable = True
+        apply_action = "idempotent_noop"
+        idempotent_reason = "suggestion_already_approved"
+    else:
+        applyable = validation_status_value != "blocked" and (
+            validation_status_value != "warning" or allow_warnings
+        )
     return ProposalBatchPreviewItemResponse(
         suggestion_id=suggestion.id,
         suggestion_type=suggestion.suggestion_type,
@@ -3671,6 +3734,8 @@ def _proposal_batch_preview_item(
         validation_status=validation_status_value,
         validation_counts=_proposal_validation_counts(summary),
         applyable=applyable,
+        apply_action=apply_action,
+        idempotent_reason=idempotent_reason,
         warning_reasons=_proposal_validation_reasons(summary, "warning"),
         blocked_reasons=_proposal_validation_reasons(summary, "blocked"),
         proposal_source_type=suggestion.proposal_source_type,
@@ -3697,6 +3762,8 @@ def _ensure_batch_suggestions_are_applyable(
     blocked_ids: list[int] = []
     warning_ids: list[int] = []
     for suggestion in suggestions:
+        if suggestion.status == "approved":
+            continue
         validation_status_value = _proposal_validation_status(
             suggestion.validation_summary_json or {}
         )
@@ -3760,6 +3827,124 @@ def _get_suggestion_or_404(
             detail=f"Suggestion not found for profile {profile.name!r}: {suggestion_id}",
         )
     return suggestion
+
+
+def _apply_suggestion_idempotently(
+    session: Session, profile: TerminologyProfile, suggestion: GovernanceSuggestion
+) -> str:
+    """Apply a pending suggestion or mark it as an idempotent no-op."""
+
+    if suggestion.suggestion_type == "canonical_term":
+        return _apply_canonical_term_suggestion_idempotently(
+            session, profile, suggestion
+        )
+    if suggestion.suggestion_type == "alias":
+        return _apply_alias_suggestion_idempotently(session, profile, suggestion)
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=f"Invalid suggestion type: {suggestion.suggestion_type}",
+    )
+
+
+def _apply_canonical_term_suggestion_idempotently(
+    session: Session, profile: TerminologyProfile, suggestion: GovernanceSuggestion
+) -> str:
+    _ensure_not_stoplisted(
+        session,
+        profile,
+        value=suggestion.canonical_value,
+        target="canonical",
+        entity_name="Canonical term suggestion",
+    )
+    existing_term = session.scalar(
+        select(CanonicalTerm).where(
+            CanonicalTerm.profile_id == profile.id,
+            CanonicalTerm.normalized_value == suggestion.normalized_canonical,
+        )
+    )
+    if existing_term is not None:
+        if existing_term.slot != suggestion.slot:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Canonical term already exists with a different slot in "
+                    f"profile {profile.name!r}: {suggestion.canonical_value}"
+                ),
+            )
+        suggestion.term_id = existing_term.id
+        return "idempotent_noop"
+
+    term = CanonicalTerm(
+        profile=profile,
+        canonical_value=suggestion.canonical_value,
+        slot=suggestion.slot,
+        description=suggestion.description,
+        status="active",
+    )
+    session.add(term)
+    session.flush()
+    suggestion.term_id = term.id
+    return "created_term"
+
+
+def _apply_alias_suggestion_idempotently(
+    session: Session, profile: TerminologyProfile, suggestion: GovernanceSuggestion
+) -> str:
+    if suggestion.alias_value is None or suggestion.normalized_alias is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Alias suggestion is missing alias_value.",
+        )
+
+    _ensure_not_stoplisted(
+        session,
+        profile,
+        value=suggestion.alias_value,
+        target="alias",
+        entity_name="Alias suggestion",
+    )
+
+    try:
+        term = get_term(session, profile, suggestion.canonical_value)
+    except GovernanceCliError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    existing_alias = session.scalar(
+        select(TermAlias).where(
+            TermAlias.profile_id == profile.id,
+            TermAlias.normalized_alias == suggestion.normalized_alias,
+        )
+    )
+    if existing_alias is not None:
+        existing_term = existing_alias.term
+        existing_normalized = (
+            existing_term.normalized_value if existing_term is not None else None
+        )
+        if existing_normalized != suggestion.normalized_canonical:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Alias already exists in profile {profile.name!r}: "
+                    f"{suggestion.alias_value}"
+                ),
+            )
+        suggestion.term_id = term.id
+        suggestion.alias_id = existing_alias.id
+        return "idempotent_noop"
+
+    alias = TermAlias(
+        profile=profile,
+        term=term,
+        alias_value=suggestion.alias_value,
+        confidence=suggestion.confidence,
+        status="active",
+        notes=suggestion.context,
+    )
+    session.add(alias)
+    session.flush()
+    suggestion.term_id = term.id
+    suggestion.alias_id = alias.id
+    return "created_alias"
 
 
 def _approve_alias_suggestion(

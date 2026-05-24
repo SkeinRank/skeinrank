@@ -694,3 +694,7 @@ The `openrouter-agent-full-demo` Compose overlay provides a report-only full dem
 ### Lifecycle-aware proposal review
 
 When consuming SkeinRank suggestion responses, prefer `lifecycle_status`, `validation_status`, `can_approve`, and `can_apply` over raw validation JSON. Agent-created warning proposals should remain in the inbox unless a human or policy explicitly allows warnings.
+
+### Idempotent apply flow
+
+When proposal batches are applied through the governance API, retries with the same suggestion ids are safe: already-applied suggestions are reported as idempotent no-ops.

@@ -333,3 +333,74 @@ def test_proposal_batch_apply_allows_warnings_when_explicit(tmp_path):
     payload = response.json()
     assert payload["created_aliases"] == 1
     assert payload["suggestions"][0]["status"] == "approved"
+
+
+def test_proposal_batch_apply_is_idempotent_for_same_suggestion_ids(tmp_path):
+    client = _client(tmp_path)
+    _seed_profile(client)
+
+    suggestion = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "tool",
+        },
+    )
+    assert suggestion.status_code == 201, suggestion.text
+    suggestion_id = suggestion.json()["id"]
+
+    first = client.post(
+        "/v1/governance/profiles/default_it/suggestions/apply-batch",
+        json={"suggestion_ids": [suggestion_id], "allow_warnings": True},
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["status"] == "applied"
+    assert first.json()["created_aliases"] == 1
+
+    second = client.post(
+        "/v1/governance/profiles/default_it/suggestions/apply-batch",
+        json={"suggestion_ids": [suggestion_id], "allow_warnings": True},
+    )
+    assert second.status_code == 200, second.text
+    payload = second.json()
+    assert payload["status"] == "idempotent"
+    assert payload["created_terms"] == 0
+    assert payload["created_aliases"] == 0
+    assert payload["applied_suggestion_ids"] == [suggestion_id]
+    assert payload["idempotent_suggestion_ids"] == [suggestion_id]
+    assert payload["suggestions"][0]["status"] == "approved"
+
+
+def test_proposal_batch_apply_marks_existing_alias_same_canonical_as_noop(tmp_path):
+    client = _client(tmp_path)
+    _seed_profile(client)
+
+    suggestion = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "k8s",
+            "slot": "tool",
+            "proposal_source_type": "agent",
+            "proposal_source_name": "openrouter-alias-scout",
+            "idempotency_key": "agent:k8s:kubernetes",
+            "source_payload": {"candidate_alias": "k8s"},
+        },
+    )
+    assert suggestion.status_code == 201, suggestion.text
+    assert suggestion.json()["validation_status"] == "warning"
+    suggestion_id = suggestion.json()["id"]
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions/apply-batch",
+        json={"suggestion_ids": [suggestion_id], "allow_warnings": True},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "idempotent"
+    assert payload["created_aliases"] == 0
+    assert payload["idempotent_suggestion_ids"] == [suggestion_id]
+    assert payload["suggestions"][0]["status"] == "approved"
+    assert payload["suggestions"][0]["alias_id"] is not None

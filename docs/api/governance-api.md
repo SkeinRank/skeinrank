@@ -747,3 +747,7 @@ LLM review rows store model/prompt metadata, response ids, usage, structured jud
 ## Proposal lifecycle metadata
 
 `SuggestionResponse` includes additive lifecycle fields: `validation_status`, `lifecycle_status`, `lifecycle_reason`, `can_approve`, and `can_apply`. Approval of a single suggestion rejects blocked validation summaries and requires `allow_warnings: true` for warning summaries. Batch apply keeps the same explicit `allow_warnings` behavior.
+
+### Idempotent proposal batch apply
+
+`POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch` is retry-safe for explicit `suggestion_ids`. Already approved suggestions are returned as idempotent no-ops. Pending proposals that map to already-existing same-canonical aliases are approved as no-ops when warnings are explicitly allowed.

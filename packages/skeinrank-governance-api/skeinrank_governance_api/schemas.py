@@ -898,6 +898,8 @@ class ProposalBatchPreviewItemResponse(BaseModel):
     validation_status: str = "unknown"
     validation_counts: dict[str, int] = Field(default_factory=dict)
     applyable: bool = False
+    apply_action: str = "apply"
+    idempotent_reason: str | None = None
     warning_reasons: list[str] = Field(default_factory=list)
     blocked_reasons: list[str] = Field(default_factory=list)
     proposal_source_type: str
@@ -942,6 +944,7 @@ class ProposalBatchApplyResponse(BaseModel):
     normalized_profile_name: str
     requested_suggestion_ids: list[int] = Field(default_factory=list)
     applied_suggestion_ids: list[int] = Field(default_factory=list)
+    idempotent_suggestion_ids: list[int] = Field(default_factory=list)
     created_terms: int = 0
     created_aliases: int = 0
     snapshot: ProposalBatchSnapshotResponse

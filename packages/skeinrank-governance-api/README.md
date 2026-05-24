@@ -1298,3 +1298,7 @@ The API exposes DB-backed LLM review and proposal-attempt tracking at `/v1/agent
 ### Proposal lifecycle hardening
 
 The governance API now returns proposal lifecycle metadata on suggestions and enforces the same warning/blocked validation gates for single-suggestion approval as for batch apply. Use `allow_warnings=true` only after a human or policy review.
+
+### Proposal batch idempotency
+
+`apply-batch` now distinguishes created changes from idempotent no-ops via `idempotent_suggestion_ids`, making worker retries safe after network interruptions.

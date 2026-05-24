@@ -507,3 +507,7 @@ The agent tracking registry now persists LLM reviews and proposal attempts in th
 ### Proposal lifecycle behavior
 
 Agent proposals should treat `validation_status=blocked` as non-applyable and `validation_status=warning` as requiring human review or explicit override. `lifecycle_status` is the preferred high-level field for inboxes and automation gates.
+
+### Safe proposal apply retries
+
+The governed apply path is idempotent for explicit suggestion ids. Agent/worker retries can safely re-submit a previously applied batch and receive an idempotent response without duplicating aliases.
