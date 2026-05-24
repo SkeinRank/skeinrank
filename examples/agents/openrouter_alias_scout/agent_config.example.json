@@ -73,6 +73,28 @@
       "content"
     ]
   },
+  "elasticsearch_source": {
+    "url": "http://127.0.0.1:9200",
+    "index": "skeinrank-agent-evidence",
+    "text_fields": [
+      "title",
+      "text",
+      "message",
+      "content",
+      "body",
+      "snippet"
+    ],
+    "source_id_fields": [
+      "id",
+      "doc_id",
+      "document_id",
+      "trace_id"
+    ],
+    "max_docs_per_candidate": 5,
+    "request_timeout_seconds": 10,
+    "api_key_env": "ELASTICSEARCH_API_KEY",
+    "api_key_auth_scheme": "ApiKey"
+  },
   "demo_report": {
     "max_candidates_for_review": 5,
     "include_prompt_previews": false,

@@ -600,3 +600,32 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ```
 
 The default smoke alias is `pgx → postgresql` in the `infra_incidents` profile. Re-running the submit smoke should not create duplicate proposals; the second `suggest-alias` call is expected to return an idempotent retry.
+
+## Patch 41E — Elasticsearch evidence connector
+
+Patch 41E adds an optional, read-only Elasticsearch/OpenSearch evidence connector for the OpenRouter alias scout. It does not change backend routes, does not call OpenRouter, and does not mutate dictionaries, snapshots, or runtime state. The connector searches a configured index for discovered candidates, normalizes hits into local evidence records, and reuses the existing compact evidence sampler.
+
+Preview the connector plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-elasticsearch-evidence-plan
+```
+
+Sample evidence from Elasticsearch for discovered candidates:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --sample-evidence-from-elasticsearch \
+  --elasticsearch-url http://127.0.0.1:9200 \
+  --elasticsearch-index skeinrank-agent-evidence \
+  --elasticsearch-text-field title \
+  --elasticsearch-text-field text
+```
+
+Export normalized Elasticsearch hits to JSONL for offline review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
+```
+

@@ -1,6 +1,6 @@
 # OpenRouter alias scout foundation
 
-This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default. Patch 40L adds a service-account security profile, Patch 40M adds budget/cache controls, Patch 40N adds offline evaluation, Patch 40O adds a deployable Docker Compose recipe, Patch 41A adds canonical hints, Patch 41B validates/submits ready proposal payloads safely, and Patch 41C classifies validation warnings for idempotent/no-op and manual-review handling.
+This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default. Patch 40L adds a service-account security profile, Patch 40M adds budget/cache controls, Patch 40N adds offline evaluation, Patch 40O adds a deployable Docker Compose recipe, Patch 41A adds canonical hints, Patch 41B validates/submits ready proposal payloads safely, Patch 41C classifies validation warnings for idempotent/no-op and manual-review handling, Patch 41D adds a controlled new-alias smoke path, and Patch 41E adds an optional read-only Elasticsearch evidence connector.
 
 The safety rule stays unchanged:
 
@@ -427,3 +427,32 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ```
 
 The default smoke alias is `pgx → postgresql` in the `infra_incidents` profile. Re-running the submit smoke should not create duplicate proposals; the second `suggest-alias` call is expected to return an idempotent retry.
+
+## Patch 41E — Elasticsearch evidence connector
+
+Patch 41E adds an optional, read-only Elasticsearch/OpenSearch evidence connector for the OpenRouter alias scout. It does not change backend routes, does not call OpenRouter, and does not mutate dictionaries, snapshots, or runtime state. The connector searches a configured index for discovered candidates, normalizes hits into local evidence records, and reuses the existing compact evidence sampler.
+
+Preview the connector plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-elasticsearch-evidence-plan
+```
+
+Sample evidence from Elasticsearch for discovered candidates:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --sample-evidence-from-elasticsearch \
+  --elasticsearch-url http://127.0.0.1:9200 \
+  --elasticsearch-index skeinrank-agent-evidence \
+  --elasticsearch-text-field title \
+  --elasticsearch-text-field text
+```
+
+Export normalized Elasticsearch hits to JSONL for offline review:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
+```
+

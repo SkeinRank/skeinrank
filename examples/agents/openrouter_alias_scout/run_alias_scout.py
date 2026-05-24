@@ -53,6 +53,12 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         AgentDeploymentConfig,
         build_agent_deployment_recipe,
     )
+    from .elasticsearch_source import (
+        ElasticsearchSourceClient,
+        ElasticsearchSourceConfig,
+        build_elasticsearch_evidence_report,
+        collect_elasticsearch_evidence_records,
+    )
     from .evidence_sampler import (
         EvidenceSamplerConfig,
         build_candidate_evidence_pack,
@@ -122,6 +128,12 @@ except ImportError:  # pragma: no cover
         AgentDeploymentConfig,
         build_agent_deployment_recipe,
     )
+    from elasticsearch_source import (
+        ElasticsearchSourceClient,
+        ElasticsearchSourceConfig,
+        build_elasticsearch_evidence_report,
+        collect_elasticsearch_evidence_records,
+    )
     from evidence_sampler import (
         EvidenceSamplerConfig,
         build_candidate_evidence_pack,
@@ -176,6 +188,7 @@ class AgentRunnerConfig:
     candidate_discovery: CandidateDiscoveryConfig
     canonical_hints: CanonicalHintsConfig
     evidence_sampler: EvidenceSamplerConfig
+    elasticsearch_source: ElasticsearchSourceConfig
     demo_report: DemoReportConfig
     llm_review: LlmReviewConfig
     budget_cache: AgentBudgetCacheConfig
@@ -250,6 +263,9 @@ class AgentRunnerConfig:
             ),
             evidence_sampler=EvidenceSamplerConfig.from_mapping(
                 raw.get("evidence_sampler")
+            ),
+            elasticsearch_source=ElasticsearchSourceConfig.from_mapping(
+                raw.get("elasticsearch_source")
             ),
             demo_report=DemoReportConfig.from_mapping(raw.get("demo_report")),
             llm_review=LlmReviewConfig.from_mapping(raw.get("llm_review")),
@@ -361,6 +377,7 @@ def build_run_plan(
             "Patch 40O adds a Docker Compose deployment recipe.",
             "Patch 41A adds canonical hints and stronger review packs.",
             "Patch 41B adds safe validation/submission of ready proposal payloads.",
+            "Patch 41E adds an optional Elasticsearch evidence connector.",
         ],
         "sample_queries": [
             {
@@ -469,6 +486,49 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
             "Print the top candidate with sampled evidence windows as an "
             "LLM-ready pack."
         ),
+    )
+    parser.add_argument(
+        "--print-elasticsearch-evidence-plan",
+        action="store_true",
+        help=(
+            "Print the 41E Elasticsearch evidence connector plan without "
+            "network calls."
+        ),
+    )
+    parser.add_argument(
+        "--sample-evidence-from-elasticsearch",
+        action="store_true",
+        help=(
+            "Fetch Elasticsearch hits for discovered candidates and sample "
+            "evidence windows."
+        ),
+    )
+    parser.add_argument(
+        "--write-elasticsearch-evidence-records",
+        type=Path,
+        help="Write normalized Elasticsearch evidence records to this JSONL path.",
+    )
+    parser.add_argument(
+        "--elasticsearch-url",
+        help="Override elasticsearch_source.url for this run.",
+    )
+    parser.add_argument(
+        "--elasticsearch-index",
+        help="Override elasticsearch_source.index for this run.",
+    )
+    parser.add_argument(
+        "--elasticsearch-text-field",
+        action="append",
+        help="Override Elasticsearch text fields. Can be passed multiple times.",
+    )
+    parser.add_argument(
+        "--elasticsearch-max-docs",
+        type=int,
+        help="Override elasticsearch_source.max_docs_per_candidate for this run.",
+    )
+    parser.add_argument(
+        "--elasticsearch-api-key-env",
+        help="Override the environment variable used for the optional ES API key.",
     )
     parser.add_argument(
         "--run-demo-report",
@@ -766,6 +826,87 @@ def run_new_alias_smoke_for_config(
     )
 
 
+def _elasticsearch_source_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> ElasticsearchSourceConfig:
+    """Apply CLI overrides to the optional 41E Elasticsearch connector config."""
+
+    return config.elasticsearch_source.with_overrides(
+        url=args.elasticsearch_url,
+        index=args.elasticsearch_index,
+        text_fields=args.elasticsearch_text_field,
+        max_docs_per_candidate=args.elasticsearch_max_docs,
+        api_key_env=args.elasticsearch_api_key_env,
+    )
+
+
+def build_elasticsearch_evidence_plan_for_config(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build a network-free Elasticsearch evidence connector plan."""
+
+    return _elasticsearch_source_config_from_args(config, args).to_plan()
+
+
+def build_elasticsearch_evidence_report_for_config(
+    config: AgentRunnerConfig,
+    failed_queries: list[JsonDict],
+    args: argparse.Namespace,
+) -> JsonDict:
+    """Fetch Elasticsearch evidence for discovered candidates and sample windows."""
+
+    source_config = _elasticsearch_source_config_from_args(config, args)
+    candidates = discover_alias_candidates(
+        failed_queries, config=config.candidate_discovery
+    )
+    scoped_candidates = candidates[: config.demo_report.max_candidates_for_review]
+    client = ElasticsearchSourceClient(source_config)
+    return build_elasticsearch_evidence_report(
+        scoped_candidates,
+        client=client,
+        source_config=source_config,
+        evidence_config=config.evidence_sampler,
+        binding_id=config.default_binding_id,
+        profile_name=config.default_profile_name,
+    )
+
+
+def write_elasticsearch_evidence_records_for_config(
+    config: AgentRunnerConfig,
+    failed_queries: list[JsonDict],
+    args: argparse.Namespace,
+) -> JsonDict:
+    """Fetch Elasticsearch hits and write normalized records as JSONL."""
+
+    if args.write_elasticsearch_evidence_records is None:
+        raise RuntimeError("--write-elasticsearch-evidence-records path is required")
+    source_config = _elasticsearch_source_config_from_args(config, args)
+    candidates = discover_alias_candidates(
+        failed_queries, config=config.candidate_discovery
+    )
+    scoped_candidates = candidates[: config.demo_report.max_candidates_for_review]
+    records = collect_elasticsearch_evidence_records(
+        scoped_candidates,
+        client=ElasticsearchSourceClient(source_config),
+        source_config=source_config,
+    )
+    args.write_elasticsearch_evidence_records.parent.mkdir(parents=True, exist_ok=True)
+    with args.write_elasticsearch_evidence_records.open("w", encoding="utf-8") as fh:
+        for record in records:
+            fh.write(json.dumps(record, sort_keys=True) + "\n")
+    return {
+        "schema_version": "skeinrank.agent_elasticsearch_evidence_export.v1",
+        "runner": "openrouter_alias_scout",
+        "elasticsearch_calls": True,
+        "openrouter_calls": False,
+        "skeinrank_api_calls": False,
+        "records_written": len(records),
+        "path": str(args.write_elasticsearch_evidence_records),
+        "index": source_config.index,
+        "text_fields": list(source_config.text_fields),
+    }
+
+
 def build_evaluation_report_for_config(
     config: AgentRunnerConfig,
     failed_queries: list[JsonDict],
@@ -803,6 +944,11 @@ def build_evaluation_report_for_config(
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
+
+    if args.print_elasticsearch_evidence_plan:
+        report = build_elasticsearch_evidence_plan_for_config(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
 
     if args.print_new_alias_smoke_plan:
         report = build_new_alias_smoke_plan_for_config(config, args)
@@ -889,6 +1035,20 @@ def main(argv: list[str] | None = None) -> int:
     failed_queries = load_failed_queries(
         config.failed_queries_path, limit=config.max_queries_per_run
     )
+
+    if args.sample_evidence_from_elasticsearch:
+        report = build_elasticsearch_evidence_report_for_config(
+            config, failed_queries, args
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.write_elasticsearch_evidence_records:
+        report = write_elasticsearch_evidence_records_for_config(
+            config, failed_queries, args
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
 
     if args.run_evaluation_report or args.write_evaluation_report:
         report = build_evaluation_report_for_config(config, failed_queries, args)
