@@ -32,6 +32,14 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_llm_review_plan,
         run_openrouter_llm_review_workflow,
     )
+    from .approved_apply import (
+        ApprovedApplyConfig,
+        build_approved_proposals_apply_plan,
+        build_snapshot_evaluation_report,
+    )
+    from .approved_apply import (
+        load_json_report as load_apply_json_report,
+    )
     from .budget_cache import (
         AgentBudgetCacheConfig,
         build_budget_cache_plan,
@@ -115,6 +123,14 @@ except ImportError:  # pragma: no cover
         LlmReviewConfig,
         build_llm_review_plan,
         run_openrouter_llm_review_workflow,
+    )
+    from approved_apply import (
+        ApprovedApplyConfig,
+        build_approved_proposals_apply_plan,
+        build_snapshot_evaluation_report,
+    )
+    from approved_apply import (
+        load_json_report as load_apply_json_report,
     )
     from budget_cache import (
         AgentBudgetCacheConfig,
@@ -216,6 +232,7 @@ class AgentRunnerConfig:
     deployment: AgentDeploymentConfig
     proposal_submission: ProposalSubmissionConfig
     proposal_inbox: ProposalInboxConfig
+    approved_apply: ApprovedApplyConfig
     new_alias_smoke: NewAliasSmokeConfig
     openrouter_base_url: str
     openrouter_app_title: str
@@ -307,6 +324,9 @@ class AgentRunnerConfig:
             ),
             proposal_inbox=ProposalInboxConfig.from_mapping(
                 raw.get("proposal_inbox"), base_dir=base_dir
+            ),
+            approved_apply=ApprovedApplyConfig.from_mapping(
+                raw.get("approved_apply"), base_dir=base_dir
             ),
             new_alias_smoke=NewAliasSmokeConfig.from_mapping(
                 raw.get("new_alias_smoke")
@@ -406,6 +426,7 @@ def build_run_plan(
             "Patch 41E adds an optional Elasticsearch evidence connector.",
             "Patch 41F adds local run/document tracking and content hashes.",
             "Patch 41G adds an offline proposal inbox/review workflow.",
+            "Patch 41H adds approved-proposal apply planning and snapshot evaluation.",
         ],
         "sample_queries": [
             {
@@ -747,6 +768,56 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Override proposal_inbox.max_items for this run.",
     )
     parser.add_argument(
+        "--print-approved-apply-plan",
+        action="store_true",
+        help="Print the 41H offline approved-proposal apply plan config.",
+    )
+    parser.add_argument(
+        "--build-approved-apply-plan",
+        action="store_true",
+        help="Build the 41H approved-proposal apply plan from a proposal inbox report.",
+    )
+    parser.add_argument(
+        "--write-approved-apply-plan",
+        type=Path,
+        help="Write the 41H approved-proposal apply plan JSON to this path.",
+    )
+    parser.add_argument(
+        "--proposal-inbox-report",
+        type=Path,
+        help="Saved skeinrank.agent_proposal_inbox.v1 JSON input for 41H apply planning.",
+    )
+    parser.add_argument(
+        "--run-snapshot-evaluation",
+        action="store_true",
+        help="Build a 41H offline snapshot evaluation report.",
+    )
+    parser.add_argument(
+        "--write-snapshot-evaluation-report",
+        type=Path,
+        help="Write the 41H snapshot evaluation report JSON to this path.",
+    )
+    parser.add_argument(
+        "--approved-apply-plan",
+        type=Path,
+        help="Saved skeinrank.agent_approved_apply_plan.v1 JSON input for snapshot evaluation.",
+    )
+    parser.add_argument(
+        "--before-snapshot",
+        type=Path,
+        help="Optional before snapshot artifact JSON for 41H snapshot evaluation.",
+    )
+    parser.add_argument(
+        "--after-snapshot",
+        type=Path,
+        help="Optional after snapshot artifact JSON for 41H snapshot evaluation.",
+    )
+    parser.add_argument(
+        "--max-apply-items",
+        type=int,
+        help="Override approved_apply.max_items for this run.",
+    )
+    parser.add_argument(
         "--print-new-alias-smoke-plan",
         action="store_true",
         help="Preview the 41D controlled new-alias smoke test without API calls.",
@@ -924,6 +995,62 @@ def build_proposal_inbox_plan_for_config(config: AgentRunnerConfig) -> JsonDict:
     """Build the offline 41G proposal inbox plan for CLI/tests."""
 
     return config.proposal_inbox.to_plan()
+
+
+def _approved_apply_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> ApprovedApplyConfig:
+    """Apply CLI overrides to the 41H approved apply config."""
+
+    return config.approved_apply.with_overrides(
+        before_snapshot_path=args.before_snapshot,
+        after_snapshot_path=args.after_snapshot,
+        max_items=args.max_apply_items,
+    )
+
+
+def build_approved_apply_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the 41H offline approved-proposal apply plan."""
+
+    if args.proposal_inbox_report is None:
+        raise RuntimeError(
+            "--proposal-inbox-report is required for 41H apply planning."
+        )
+    inbox_report = load_apply_json_report(args.proposal_inbox_report)
+    return build_approved_proposals_apply_plan(
+        inbox_report or {}, config=_approved_apply_config_from_args(config, args)
+    )
+
+
+def build_approved_apply_config_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the 41H offline apply/evaluation config plan."""
+
+    return _approved_apply_config_from_args(config, args).to_plan()
+
+
+def build_snapshot_evaluation_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the 41H offline snapshot evaluation report."""
+
+    apply_plan = (
+        load_apply_json_report(args.approved_apply_plan)
+        if args.approved_apply_plan
+        else None
+    )
+    before_path = args.before_snapshot or config.approved_apply.before_snapshot_path
+    after_path = args.after_snapshot or config.approved_apply.after_snapshot_path
+    before_snapshot = load_apply_json_report(before_path) if before_path else None
+    after_snapshot = load_apply_json_report(after_path) if after_path else None
+    return build_snapshot_evaluation_report(
+        apply_plan=apply_plan,
+        before_snapshot=before_snapshot,
+        after_snapshot=after_snapshot,
+    )
 
 
 def build_new_alias_smoke_plan_for_config(
@@ -1165,6 +1292,37 @@ def main(argv: list[str] | None = None) -> int:
         if args.write_proposal_inbox:
             args.write_proposal_inbox.parent.mkdir(parents=True, exist_ok=True)
             args.write_proposal_inbox.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.print_approved_apply_plan:
+        report = build_approved_apply_config_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.build_approved_apply_plan or args.write_approved_apply_plan:
+        report = build_approved_apply_plan_for_args(config, args)
+        if args.write_approved_apply_plan:
+            args.write_approved_apply_plan.parent.mkdir(parents=True, exist_ok=True)
+            args.write_approved_apply_plan.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.run_snapshot_evaluation or args.write_snapshot_evaluation_report:
+        report = build_snapshot_evaluation_for_args(config, args)
+        if args.write_snapshot_evaluation_report:
+            args.write_snapshot_evaluation_report.parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            args.write_snapshot_evaluation_report.write_text(
                 json.dumps(report, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )

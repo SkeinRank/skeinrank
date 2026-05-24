@@ -315,3 +315,24 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --proposal-submission-report /tmp/skeinrank-proposal-submission-report.json \
   --write-proposal-inbox /tmp/skeinrank-proposal-inbox.json
 ```
+
+
+## Patch 41H — Apply approved proposals + snapshot evaluation
+
+Patch 41H adds an offline bridge from reviewed proposal inbox cards to a governed apply plan. It is intentionally read/report-only: it does not directly write dictionaries, approve backend proposals, or publish snapshots.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --proposal-inbox-report /tmp/proposal-inbox.json \
+  --build-approved-apply-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --approved-apply-plan /tmp/approved-apply-plan.json \
+  --before-snapshot /tmp/snapshot-before.json \
+  --after-snapshot /tmp/snapshot-after.json \
+  --run-snapshot-evaluation
+```
+
+The report uses the schema `skeinrank.agent_approved_apply_plan.v1` for apply planning and `skeinrank.agent_snapshot_evaluation_report.v1` for before/after snapshot diffs.
+
+Patch 41H CLI flags: `--print-approved-apply-plan`.

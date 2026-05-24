@@ -1202,3 +1202,8 @@ The OpenRouter alias scout reference runner now supports local run/document trac
 ### Patch 41G — Proposal inbox / review workflow
 
 The OpenRouter alias scout can now build an offline proposal inbox from saved LLM review and validation/submission reports. Use `--print-proposal-inbox-plan`, `--build-proposal-inbox`, and `--write-proposal-inbox` from `examples/agents/openrouter_alias_scout/run_alias_scout.py`. This patch does not add backend routes or migrations.
+
+
+### Patch 41H — Apply approved proposals + snapshot evaluation
+
+The OpenRouter alias scout can now build an offline approved-proposal apply plan from a saved proposal inbox and can evaluate before/after snapshot artifacts. Use `--print-approved-apply-plan`, `--build-approved-apply-plan`, `--write-approved-apply-plan`, `--run-snapshot-evaluation`, and `--write-snapshot-evaluation-report`. This patch does not add backend routes or migrations.

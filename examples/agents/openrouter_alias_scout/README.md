@@ -523,3 +523,22 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ```
 
 Supported decision actions are `approve`, `reject`, `edit`, and `defer`. The inbox is offline-only in this patch: it does not approve proposals in the backend, does not apply dictionary changes, and does not publish snapshots.
+
+
+## Patch 41H — Apply approved proposals + snapshot evaluation
+
+Patch 41H adds an offline apply/evaluation step after the proposal inbox. It consumes locally approved inbox items, creates a governed apply plan, and optionally compares before/after snapshot artifacts. It does not mutate the dictionary, publish snapshots, or call SkeinRank APIs.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-approved-apply-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --proposal-inbox-report /tmp/proposal-inbox.json \
+  --build-approved-apply-plan\n\npython examples/agents/openrouter_alias_scout/run_alias_scout.py \\
+  --proposal-inbox-report /tmp/proposal-inbox.json \\
+  --write-approved-apply-plan /tmp/approved-apply-plan.json
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --approved-apply-plan /tmp/approved-apply-plan.json \
+  --run-snapshot-evaluation
+```

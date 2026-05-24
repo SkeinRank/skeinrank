@@ -637,3 +637,8 @@ Patch 41F keeps agent run/document tracking outside the Governance API for now. 
 ### Agent proposal inbox note
 
 Patch 41G does not add new governance API routes. The OpenRouter alias scout builds an offline proposal inbox from saved LLM review and `/v1/tools/validate-alias` / `/v1/tools/suggest-alias` reports. Review decisions remain local JSONL records until a later governed apply workflow consumes them.
+
+
+### Agent approved apply and snapshot evaluation note
+
+Patch 41H does not add new governance API routes. The OpenRouter alias scout builds an offline approved-proposal apply plan from the proposal inbox and can evaluate before/after snapshot artifacts. Actual profile mutation and snapshot publishing remain in the governed backend workflow.

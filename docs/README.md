@@ -269,3 +269,8 @@ The OpenRouter alias scout now includes a local JSONL tracking ledger for run/do
 ### Agent proposal inbox
 
 Patch 41G adds an offline proposal inbox/review workflow for the OpenRouter alias scout. See `docs/guides/openrouter-agent.md` for `--print-proposal-inbox-plan`, `--build-proposal-inbox`, and `--write-proposal-inbox` examples.
+
+
+### Agent approved apply and snapshot evaluation
+
+Patch 41H adds the offline apply/evaluation bridge after proposal inbox review. It builds an approved-proposal apply plan and can compare before/after snapshot artifacts without calling SkeinRank APIs or publishing runtime snapshots.

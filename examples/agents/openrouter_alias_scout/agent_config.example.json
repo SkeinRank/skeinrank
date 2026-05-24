@@ -293,5 +293,14 @@
     "max_recent_ledger_entries": 10000,
     "include_record_previews": false,
     "preview_chars": 160
+  },
+  "approved_apply": {
+    "max_items": 50,
+    "approved_statuses": [
+      "approved"
+    ],
+    "include_item_details": true,
+    "before_snapshot_path": null,
+    "after_snapshot_path": null
   }
 }

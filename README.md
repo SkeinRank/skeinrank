@@ -596,3 +596,8 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-proposa
 ```
 
 The inbox is safe by default: it does not write dictionaries, submit snapshots, or mutate runtime state.
+
+
+### Patch 41H — Apply approved proposals + snapshot evaluation
+
+The OpenRouter alias scout now includes an offline approved-proposal apply plan and snapshot evaluation report. It consumes the 41G proposal inbox, selects locally approved review decisions, and produces a governed apply plan without direct dictionary writes, snapshot publishing, or runtime mutation. Use `--print-approved-apply-plan`, `--build-approved-apply-plan`, `--write-approved-apply-plan`, `--run-snapshot-evaluation`, and `--write-snapshot-evaluation-report`.
