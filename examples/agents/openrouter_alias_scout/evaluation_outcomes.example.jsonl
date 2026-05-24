@@ -1,3 +1,6 @@
-{"candidate_alias":"pg","outcome":"ambiguous","reason":"pg can mean postgresql, page, or product_group without stronger canonical evidence."}
-{"candidate_alias":"k8s","outcome":"accepted","reason":"sample reviewer would accept k8s as a Kubernetes alias after evidence review."}
-{"candidate_alias":"kube","outcome":"accepted","reason":"sample reviewer would accept kube as a Kubernetes alias after evidence review."}
+{"candidate_alias":"pg","outcome":"accepted","note":"Expected pg to map to postgresql."}
+{"candidate_alias":"k8s","outcome":"accepted","note":"Expected k8s to map to kubernetes."}
+{"candidate_alias":"kube","outcome":"accepted","note":"Expected kube to map to kubernetes."}
+{"candidate_alias":"queue","outcome":"noisy","note":"Queue is a common term, not an alias candidate in this sprint."}
+{"candidate_alias":"red","outcome":"noisy","note":"Red is an Elasticsearch status adjective, not a terminology alias."}
+{"candidate_alias":"shard","outcome":"noisy","note":"Shard is a known search/index term, not an alias candidate here."}

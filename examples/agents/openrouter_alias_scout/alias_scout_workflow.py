@@ -24,6 +24,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         make_cache_entry,
     )
     from .candidate_discovery import CandidateDiscoveryConfig
+    from .canonical_hints import CanonicalHintsConfig
     from .demo_report import DemoReportConfig, build_alias_scout_demo_report
     from .evidence_sampler import EvidenceSamplerConfig
     from .openrouter_client import (
@@ -49,6 +50,7 @@ except ImportError:  # pragma: no cover
         make_cache_entry,
     )
     from candidate_discovery import CandidateDiscoveryConfig
+    from canonical_hints import CanonicalHintsConfig
     from demo_report import DemoReportConfig, build_alias_scout_demo_report
     from evidence_sampler import EvidenceSamplerConfig
     from openrouter_client import OpenRouterClient, extract_first_message_content
@@ -115,6 +117,7 @@ def build_llm_review_plan(
     candidate_config: CandidateDiscoveryConfig | None = None,
     evidence_config: EvidenceSamplerConfig | None = None,
     demo_config: DemoReportConfig | None = None,
+    canonical_hints_config: CanonicalHintsConfig | None = None,
     llm_config: LlmReviewConfig | None = None,
     budget_cache_config: AgentBudgetCacheConfig | None = None,
     binding_id: int | None = None,
@@ -132,6 +135,7 @@ def build_llm_review_plan(
         candidate_config=candidate_config,
         evidence_config=evidence_config,
         demo_config=demo_config,
+        canonical_hints_config=canonical_hints_config,
         binding_id=binding_id,
         profile_name=profile_name,
         proposal_source_name=proposal_source_name,
@@ -172,6 +176,7 @@ def run_openrouter_llm_review_workflow(
     candidate_config: CandidateDiscoveryConfig | None = None,
     evidence_config: EvidenceSamplerConfig | None = None,
     demo_config: DemoReportConfig | None = None,
+    canonical_hints_config: CanonicalHintsConfig | None = None,
     llm_config: LlmReviewConfig | None = None,
     budget_cache_config: AgentBudgetCacheConfig | None = None,
     binding_id: int | None = None,
@@ -197,6 +202,7 @@ def run_openrouter_llm_review_workflow(
         candidate_config=candidate_config,
         evidence_config=evidence_config,
         demo_config=demo_config,
+        canonical_hints_config=canonical_hints_config,
         binding_id=binding_id,
         profile_name=profile_name,
         proposal_source_name=proposal_source_name,

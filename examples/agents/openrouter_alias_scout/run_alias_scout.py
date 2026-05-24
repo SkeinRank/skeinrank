@@ -39,6 +39,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_candidate_fact_pack,
         discover_alias_candidates,
     )
+    from .canonical_hints import (
+        CanonicalHintsConfig,
+        build_canonical_hints_report,
+        enrich_candidate_pack_with_canonical_hints,
+    )
     from .demo_report import (
         DemoReportConfig,
         build_alias_scout_demo_report,
@@ -92,6 +97,11 @@ except ImportError:  # pragma: no cover
         build_candidate_fact_pack,
         discover_alias_candidates,
     )
+    from canonical_hints import (
+        CanonicalHintsConfig,
+        build_canonical_hints_report,
+        enrich_candidate_pack_with_canonical_hints,
+    )
     from demo_report import (
         DemoReportConfig,
         build_alias_scout_demo_report,
@@ -142,6 +152,7 @@ class AgentRunnerConfig:
     evaluation_outcomes_path: Path | None
     max_queries_per_run: int
     candidate_discovery: CandidateDiscoveryConfig
+    canonical_hints: CanonicalHintsConfig
     evidence_sampler: EvidenceSamplerConfig
     demo_report: DemoReportConfig
     llm_review: LlmReviewConfig
@@ -209,6 +220,9 @@ class AgentRunnerConfig:
             max_queries_per_run=int(raw.get("max_queries_per_run", 50)),
             candidate_discovery=CandidateDiscoveryConfig.from_mapping(
                 raw.get("candidate_discovery")
+            ),
+            canonical_hints=CanonicalHintsConfig.from_mapping(
+                raw.get("canonical_hints")
             ),
             evidence_sampler=EvidenceSamplerConfig.from_mapping(
                 raw.get("evidence_sampler")
@@ -315,6 +329,7 @@ def build_run_plan(
             "Patch 40M adds run budgets and JSON response caching.",
             "Patch 40N adds offline agent evaluation reports.",
             "Patch 40O adds a Docker Compose deployment recipe.",
+            "Patch 41A adds canonical hints and stronger review packs.",
         ],
         "sample_queries": [
             {
@@ -392,6 +407,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--print-sample-review-prompt",
         action="store_true",
         help="Print a sample alias-review prompt for local inspection.",
+    )
+    parser.add_argument(
+        "--print-canonical-hints",
+        action="store_true",
+        help="Print configured 41A canonical hints without network calls.",
     )
     parser.add_argument(
         "--discover-candidates",
@@ -623,6 +643,7 @@ def build_evaluation_report_for_config(
         candidate_config=config.candidate_discovery,
         evidence_config=config.evidence_sampler,
         demo_config=config.demo_report,
+        canonical_hints_config=config.canonical_hints,
         binding_id=config.default_binding_id,
         profile_name=config.default_profile_name,
         proposal_source_name=config.proposal_source_name,
@@ -697,6 +718,16 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(get_openrouter_tool_schemas(), indent=2, sort_keys=True))
         return 0
 
+    if args.print_canonical_hints:
+        print(
+            json.dumps(
+                build_canonical_hints_report(config.canonical_hints),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
     if args.print_system_prompt:
         print(SYSTEM_PROMPT)
         return 0
@@ -733,6 +764,7 @@ def main(argv: list[str] | None = None) -> int:
             binding_id=config.default_binding_id,
             profile_name=config.default_profile_name,
         )
+        pack = enrich_candidate_pack_with_canonical_hints(pack, config.canonical_hints)
         print(json.dumps(pack, indent=2, sort_keys=True))
         return 0
 
@@ -773,6 +805,7 @@ def main(argv: list[str] | None = None) -> int:
             binding_id=config.default_binding_id,
             profile_name=config.default_profile_name,
         )
+        pack = enrich_candidate_pack_with_canonical_hints(pack, config.canonical_hints)
         print(json.dumps(pack, indent=2, sort_keys=True))
         return 0
 
@@ -787,6 +820,7 @@ def main(argv: list[str] | None = None) -> int:
             candidate_config=config.candidate_discovery,
             evidence_config=config.evidence_sampler,
             demo_config=config.demo_report,
+            canonical_hints_config=config.canonical_hints,
             binding_id=config.default_binding_id,
             profile_name=config.default_profile_name,
             proposal_source_name=config.proposal_source_name,
@@ -812,6 +846,7 @@ def main(argv: list[str] | None = None) -> int:
                 evidence_records,
                 candidate_config=config.candidate_discovery,
                 evidence_config=config.evidence_sampler,
+                canonical_hints_config=config.canonical_hints,
                 binding_id=config.default_binding_id,
                 profile_name=config.default_profile_name,
             )
@@ -830,6 +865,7 @@ def main(argv: list[str] | None = None) -> int:
             candidate_config=config.candidate_discovery,
             evidence_config=config.evidence_sampler,
             demo_config=config.demo_report,
+            canonical_hints_config=config.canonical_hints,
             llm_config=llm_config,
             budget_cache_config=budget_config,
             binding_id=config.default_binding_id,
@@ -860,6 +896,7 @@ def main(argv: list[str] | None = None) -> int:
             candidate_config=config.candidate_discovery,
             evidence_config=config.evidence_sampler,
             demo_config=config.demo_report,
+            canonical_hints_config=config.canonical_hints,
             llm_config=llm_config,
             budget_cache_config=budget_config,
             binding_id=config.default_binding_id,

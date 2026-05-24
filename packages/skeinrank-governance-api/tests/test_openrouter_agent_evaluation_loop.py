@@ -139,8 +139,8 @@ def test_evaluation_report_cli_is_offline_and_uses_sample_outcomes() -> None:
     assert report["skeinrank_api_calls"] is False
     assert report["candidate_summary"]["top_surfaces"] == ["pg", "k8s", "kube"]
     assert report["evidence_quality"]["evidence_coverage"] == 1.0
-    assert report["outcome_summary"]["counts"]["accepted"] == 2
-    assert report["outcome_summary"]["counts"]["ambiguous"] == 1
+    assert report["outcome_summary"]["counts"]["accepted"] == 3
+    assert report["outcome_summary"]["counts"]["noisy"] == 3
     assert report["before_after_snapshot_evaluation"]["enabled"] is False
 
 

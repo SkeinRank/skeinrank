@@ -326,3 +326,14 @@ make agent-compose-config
 The report schema is `skeinrank.agent_deployment_recipe.v1`. Generated reports
 and cache files are ignored by Git.
 
+## Patch 41A — Canonical hints and stronger review pack
+
+Patch 41A improves the OpenRouter alias scout quality loop without changing backend routes or mutating runtime state. The runner now includes configured canonical hints in each candidate pack, so the model can choose from known terms such as `kubernetes`, `postgresql`, `elasticsearch`, and `rabbitmq` instead of guessing from raw evidence only.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-canonical-hints
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
+```
+
+The report schema is `skeinrank.agent_canonical_hints.v1`. Validation-sprint noise such as `queue`, `red`, and `shard` is pruned before LLM review by default, while real alias candidates such as `pg`, `k8s`, and `kube` receive `possible_canonical`, `slot`, `canonical_hint`, `canonical_candidates`, and `known_canonicals` fields in the review pack.
+

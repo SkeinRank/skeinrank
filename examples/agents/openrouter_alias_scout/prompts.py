@@ -26,8 +26,13 @@ Safety contract:
 - Reject noisy strings, generic words, one-off typos, secrets, IDs, UUIDs,
   credentials, emails, URLs, and user/private data.
 - Reject candidates without enough evidence.
-- If a surface form is ambiguous, use needs_evidence unless the binding context
-  and evidence strongly disambiguate it.
+- Use configured canonical_hint/canonical_candidates/known_canonicals when they
+  are present. Do not invent a canonical value outside the provided pack unless
+  the evidence states it explicitly.
+- If exactly one canonical candidate is configured and evidence mentions that
+  canonical or its domain context, prefer action=propose with that canonical.
+- If a surface form is ambiguous, use needs_evidence unless the binding context,
+  canonical hint, and evidence strongly disambiguate it.
 - Keep source_payload compact: counts, windows, conflicts, and short evidence
   snippets only. Do not send full documents to the LLM or to proposals.
 - Output only JSON that matches one of these actions: propose, reject, or
@@ -61,6 +66,9 @@ def build_candidate_pack(
     evidence: Sequence[str] = (),
     stats: Mapping[str, Any] | None = None,
     known_conflicts: Sequence[str] = (),
+    known_canonicals: Sequence[Mapping[str, Any]] = (),
+    canonical_candidates: Sequence[Mapping[str, Any]] = (),
+    canonical_hint: Mapping[str, Any] | None = None,
 ) -> JsonDict:
     """Build the compact evidence pack reviewed by the LLM.
 
@@ -80,6 +88,12 @@ def build_candidate_pack(
         "stats": dict(stats or {}),
         "known_conflicts": [item.strip() for item in known_conflicts if item.strip()],
     }
+    if known_canonicals:
+        pack["known_canonicals"] = [dict(item) for item in known_canonicals]
+    if canonical_candidates:
+        pack["canonical_candidates"] = [dict(item) for item in canonical_candidates]
+    if canonical_hint:
+        pack["canonical_hint"] = dict(canonical_hint)
     return pack
 
 
@@ -97,6 +111,11 @@ def build_alias_review_prompt(candidate_pack: Mapping[str, Any]) -> str:
             "3. Use action=needs_evidence when ambiguity remains or evidence is weak.",
             "4. Confidence must be between 0 and 1.",
             "5. For action=propose, include alias_value, canonical_value, slot, context.",
+            "6. If canonical_hint has one configured candidate and evidence supports it,",
+            "   use that candidate.",
+            "7. If known_conflicts are present and evidence does not disambiguate,",
+            "   use needs_evidence.",
+            "8. Prefer canonical_value/slot from canonical_candidates over free-form guesses.",
             "",
             "Output JSON schema:",
             json.dumps(ALIAS_REVIEW_OUTPUT_SCHEMA, ensure_ascii=False, indent=2),

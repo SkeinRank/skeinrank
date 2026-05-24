@@ -28,18 +28,21 @@
       "cluster"
     ],
     "noise_tokens": [
-      "timeout",
-      "incident",
-      "runbook",
-      "restart",
-      "worker",
-      "stuck",
-      "rollout",
-      "failover",
-      "pool",
-      "pod",
       "dns",
-      "exhausted"
+      "exhausted",
+      "failover",
+      "incident",
+      "pod",
+      "pool",
+      "queue",
+      "red",
+      "restart",
+      "rollout",
+      "runbook",
+      "shard",
+      "stuck",
+      "timeout",
+      "worker"
     ],
     "stop_words": [
       "after",
@@ -138,5 +141,79 @@
     "default_mode": "evaluation_report",
     "schedule_mode": "manual",
     "schedule_cron": "0 2 * * *"
+  },
+  "canonical_hints": {
+    "terms": [
+      {
+        "canonical_value": "kubernetes",
+        "slot": "technology",
+        "aliases": [
+          "k8s",
+          "kube",
+          "kubectl"
+        ],
+        "tags": [
+          "infra",
+          "orchestration",
+          "cloud-native"
+        ],
+        "description": "Container orchestration platform used in infra incidents."
+      },
+      {
+        "canonical_value": "postgresql",
+        "slot": "database",
+        "aliases": [
+          "pg",
+          "postgres",
+          "psql"
+        ],
+        "tags": [
+          "database",
+          "storage",
+          "backend"
+        ],
+        "description": "PostgreSQL database and related operational runbooks."
+      },
+      {
+        "canonical_value": "elasticsearch",
+        "slot": "search_engine",
+        "aliases": [
+          "elastic",
+          "es"
+        ],
+        "tags": [
+          "search",
+          "indexing"
+        ],
+        "description": "Elasticsearch search/indexing cluster terminology."
+      },
+      {
+        "canonical_value": "rabbitmq",
+        "slot": "queue",
+        "aliases": [
+          "rabbit",
+          "amqp"
+        ],
+        "tags": [
+          "messaging",
+          "broker"
+        ],
+        "description": "RabbitMQ message broker and queue incidents."
+      }
+    ],
+    "known_conflicts": {
+      "pg": [
+        "page",
+        "product_group"
+      ],
+      "es": [
+        "ecmascript",
+        "spanish_language"
+      ],
+      "rabbit": [
+        "animal_common_word"
+      ]
+    },
+    "max_known_canonicals_in_pack": 20
   }
 }

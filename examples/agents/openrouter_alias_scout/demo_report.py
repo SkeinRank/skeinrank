@@ -21,6 +21,10 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_candidate_fact_pack,
         discover_alias_candidates,
     )
+    from .canonical_hints import (
+        CanonicalHintsConfig,
+        enrich_candidate_pack_with_canonical_hints,
+    )
     from .evidence_sampler import (
         EvidenceSamplerConfig,
         EvidenceWindow,
@@ -37,6 +41,10 @@ except ImportError:  # pragma: no cover
         CandidateDiscoveryConfig,
         build_candidate_fact_pack,
         discover_alias_candidates,
+    )
+    from canonical_hints import (
+        CanonicalHintsConfig,
+        enrich_candidate_pack_with_canonical_hints,
     )
     from evidence_sampler import (
         EvidenceSamplerConfig,
@@ -83,6 +91,7 @@ def build_alias_scout_demo_report(
     candidate_config: CandidateDiscoveryConfig | None = None,
     evidence_config: EvidenceSamplerConfig | None = None,
     demo_config: DemoReportConfig | None = None,
+    canonical_hints_config: CanonicalHintsConfig | None = None,
     binding_id: int | None = None,
     profile_name: str | None = None,
     proposal_source_name: str = "openrouter-alias-scout",
@@ -107,6 +116,7 @@ def build_alias_scout_demo_report(
             evidence_records,
             evidence_config=sampler_cfg,
             demo_config=cfg,
+            canonical_hints_config=canonical_hints_config,
             binding_id=binding_id,
             profile_name=profile_name,
             proposal_source_name=proposal_source_name,
@@ -147,6 +157,9 @@ def build_alias_scout_demo_report(
             "total_evidence_windows": total_windows,
             "top_surfaces": [candidate.surface for candidate in scoped_candidates],
         },
+        "canonical_hints": (
+            canonical_hints_config or CanonicalHintsConfig()
+        ).to_report(),
         "source_quality": {
             "ready_for_llm_review": len(ready_items),
             "needs_more_evidence": len(review_queue) - len(ready_items),
@@ -185,6 +198,7 @@ def build_demo_review_prompt(
     *,
     candidate_config: CandidateDiscoveryConfig | None = None,
     evidence_config: EvidenceSamplerConfig | None = None,
+    canonical_hints_config: CanonicalHintsConfig | None = None,
     binding_id: int | None = None,
     profile_name: str | None = None,
 ) -> str:
@@ -213,6 +227,7 @@ def build_demo_review_prompt(
             binding_id=binding_id,
             profile_name=profile_name,
         )
+    pack = enrich_candidate_pack_with_canonical_hints(pack, canonical_hints_config)
     return build_alias_review_prompt(pack)
 
 
@@ -222,6 +237,7 @@ def _build_review_item(
     *,
     evidence_config: EvidenceSamplerConfig,
     demo_config: DemoReportConfig,
+    canonical_hints_config: CanonicalHintsConfig | None,
     binding_id: int | None,
     profile_name: str | None,
     proposal_source_name: str,
@@ -244,6 +260,10 @@ def _build_review_item(
             profile_name=profile_name,
         )
         review_status = "needs_more_evidence"
+
+    candidate_pack = enrich_candidate_pack_with_canonical_hints(
+        candidate_pack, canonical_hints_config
+    )
 
     item: JsonDict = {
         "candidate_alias": candidate.surface,
