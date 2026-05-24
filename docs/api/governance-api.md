@@ -480,3 +480,12 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-securit
 The `skeinrank.agent_security_profile.v1` report redacts secrets, checks the
 configured contributor role, and keeps proposal submission/runtime mutation
 disabled by default.
+
+## Patch 40M — OpenRouter agent budget and cache
+
+Patch 40M adds run budgets and JSON response caching to the OpenRouter alias
+scout. It keeps the agent safe by default: no backend routes are changed,
+proposal submission stays disabled, and cached responses never mutate runtime
+state. Use `--print-budget-cache-plan` for an offline `skeinrank.agent_budget_cache_plan.v1`
+preview, `--max-llm-calls` / `--max-run-cost-usd` for live-run limits, and
+`--clear-llm-cache` to remove the configured local cache.

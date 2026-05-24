@@ -233,3 +233,37 @@ The report schema is `skeinrank.agent_security_profile.v1`. It shows whether
 secret values. The reference profile expects `SKEINRANK_AGENT_ROLE=contributor`,
 blocks direct dictionary writes, snapshot publishing, direct Git pushes, and
 runtime mutation, and only documents the existing safe `/v1/tools/*` facade.
+
+### Patch 40M — Run budget and response cache
+
+Patch 40M adds run budgets and response caching for live OpenRouter review.
+The runner checks budget limits before every live model call and can reuse cached
+responses for identical model/prompt/candidate-pack inputs. Cached responses do
+not call OpenRouter and still do not mutate SkeinRank state.
+
+Preview the budget/cache plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-budget-cache-plan
+```
+
+Useful controls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review \
+  --model openai/gpt-4o-mini \
+  --max-candidates 3 \
+  --max-llm-calls 1 \
+  --max-run-cost-usd 0.01
+```
+
+Clear the local cache when you want fresh model decisions:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --clear-llm-cache
+```
+
+The offline plan schema is `skeinrank.agent_budget_cache_plan.v1`. The live LLM
+report now includes `budget_cache_summary` with live calls, cache hits/misses,
+skipped candidates, token usage, and estimated OpenRouter cost.

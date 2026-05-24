@@ -15,6 +15,14 @@ from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - import style depends on how the example is executed.
+    from .budget_cache import (
+        AgentBudgetCacheConfig,
+        JsonLlmReviewCache,
+        LlmRunBudgetTracker,
+        build_budget_skip_review_item,
+        build_llm_review_cache_key,
+        make_cache_entry,
+    )
     from .candidate_discovery import CandidateDiscoveryConfig
     from .demo_report import DemoReportConfig, build_alias_scout_demo_report
     from .evidence_sampler import EvidenceSamplerConfig
@@ -32,6 +40,14 @@ except ImportError:  # pragma: no cover
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from budget_cache import (
+        AgentBudgetCacheConfig,
+        JsonLlmReviewCache,
+        LlmRunBudgetTracker,
+        build_budget_skip_review_item,
+        build_llm_review_cache_key,
+        make_cache_entry,
+    )
     from candidate_discovery import CandidateDiscoveryConfig
     from demo_report import DemoReportConfig, build_alias_scout_demo_report
     from evidence_sampler import EvidenceSamplerConfig
@@ -100,6 +116,7 @@ def build_llm_review_plan(
     evidence_config: EvidenceSamplerConfig | None = None,
     demo_config: DemoReportConfig | None = None,
     llm_config: LlmReviewConfig | None = None,
+    budget_cache_config: AgentBudgetCacheConfig | None = None,
     binding_id: int | None = None,
     profile_name: str | None = None,
     proposal_source_name: str = "openrouter-alias-scout",
@@ -108,6 +125,7 @@ def build_llm_review_plan(
     """Build a dry-run plan for real OpenRouter review execution."""
 
     cfg = llm_config or LlmReviewConfig()
+    budget_cfg = budget_cache_config or AgentBudgetCacheConfig()
     demo_report = build_alias_scout_demo_report(
         failed_queries,
         evidence_records,
@@ -137,6 +155,7 @@ def build_llm_review_plan(
         "max_candidates": cfg.max_candidates,
         "candidates_ready_for_llm": len(ready_queue),
         "candidate_aliases": [item["candidate_alias"] for item in ready_queue],
+        "budget_cache": budget_cfg.to_report(),
         "safety": {
             "will_call_openrouter_when_llm_review_flag_is_used": True,
             "will_submit_proposals": cfg.submit_proposals,
@@ -154,6 +173,7 @@ def run_openrouter_llm_review_workflow(
     evidence_config: EvidenceSamplerConfig | None = None,
     demo_config: DemoReportConfig | None = None,
     llm_config: LlmReviewConfig | None = None,
+    budget_cache_config: AgentBudgetCacheConfig | None = None,
     binding_id: int | None = None,
     profile_name: str | None = None,
     proposal_source_name: str = "openrouter-alias-scout",
@@ -168,6 +188,9 @@ def run_openrouter_llm_review_workflow(
     """
 
     cfg = llm_config or LlmReviewConfig()
+    budget_cfg = budget_cache_config or AgentBudgetCacheConfig()
+    budget_tracker = LlmRunBudgetTracker(budget_cfg)
+    review_cache = JsonLlmReviewCache(budget_cfg)
     demo_report = build_alias_scout_demo_report(
         failed_queries,
         evidence_records,
@@ -197,9 +220,13 @@ def run_openrouter_llm_review_workflow(
             binding_id=binding_id,
             profile_name=profile_name,
             tools=tools,
+            budget_cfg=budget_cfg,
+            budget_tracker=budget_tracker,
+            review_cache=review_cache,
         )
         reviewed_items.append(reviewed)
         counters[str(reviewed["judgment"].get("action", "error"))] += 1
+    review_cache.save()
 
     prepared = [
         item
@@ -228,7 +255,11 @@ def run_openrouter_llm_review_workflow(
             "min_confidence_to_prepare_proposal": (
                 cfg.min_confidence_to_prepare_proposal
             ),
+            "live_openrouter_calls": budget_tracker.live_calls_started,
+            "cache_hits": budget_tracker.cache_hits,
+            "skipped_due_to_budget": budget_tracker.skipped_due_to_budget,
         },
+        "budget_cache_summary": budget_tracker.to_report(),
         "reviewed_items": reviewed_items,
         "safety": {
             "agent_may_mutate_runtime": False,
@@ -252,20 +283,66 @@ def _review_one_item(
     binding_id: int | None,
     profile_name: str | None,
     tools: Sequence[Mapping[str, Any]] | None,
+    budget_cfg: AgentBudgetCacheConfig,
+    budget_tracker: LlmRunBudgetTracker,
+    review_cache: JsonLlmReviewCache,
 ) -> JsonDict:
     candidate_pack = item["candidate_pack"]
     prompt = build_alias_review_prompt(candidate_pack)
-    response = client.create_chat_completion(
-        model=openrouter_model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=cfg.temperature,
-        max_tokens=cfg.max_tokens,
-        tools=tools if cfg.include_tools else None,
-        response_format={"type": "json_object"} if cfg.response_format_json else None,
+    effective_tools = tools if cfg.include_tools else None
+    cache_key = build_llm_review_cache_key(
+        candidate_pack=candidate_pack,
+        openrouter_model=openrouter_model,
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt=prompt,
+        response_format_json=cfg.response_format_json,
+        tools=effective_tools,
+        cache_namespace=budget_cfg.cache_namespace,
     )
+    cached_entry = review_cache.get(cache_key)
+    cache_hit = cached_entry is not None
+    cache_written = False
+    if cached_entry is not None and isinstance(cached_entry.get("response"), Mapping):
+        budget_tracker.record_cache_hit()
+        response = dict(cached_entry["response"])
+    else:
+        budget_tracker.record_cache_miss()
+        if not budget_tracker.can_start_live_call():
+            budget_tracker.record_budget_skip()
+            skipped = build_budget_skip_review_item(item)
+            skipped["cache"] = {
+                "enabled": review_cache.enabled,
+                "hit": False,
+                "key": cache_key,
+                "skipped_due_to_budget": True,
+            }
+            return skipped
+        budget_tracker.record_live_call_started()
+        response = client.create_chat_completion(
+            model=openrouter_model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=cfg.temperature,
+            max_tokens=cfg.max_tokens,
+            tools=effective_tools,
+            response_format={"type": "json_object"}
+            if cfg.response_format_json
+            else None,
+        )
+        budget_tracker.record_usage(response)
+        if review_cache.enabled and budget_cfg.write_cache:
+            review_cache.set(
+                cache_key,
+                make_cache_entry(
+                    response=response,
+                    candidate_alias=str(item["candidate_alias"]),
+                    openrouter_model=openrouter_model,
+                ),
+            )
+            budget_tracker.record_cache_write()
+            cache_written = True
     content = extract_first_message_content(response)
     try:
         judgment = parse_alias_review_output(content)
@@ -303,6 +380,12 @@ def _review_one_item(
         "proposal_payload": proposal_payload,
         "openrouter_response_id": response.get("id"),
         "openrouter_usage": response.get("usage"),
+        "cache": {
+            "enabled": review_cache.enabled,
+            "hit": cache_hit,
+            "key": cache_key,
+            "written": cache_written,
+        },
     }
     if parse_error:
         reviewed["parse_error"] = parse_error

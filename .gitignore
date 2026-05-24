@@ -61,3 +61,6 @@ node_modules/
 
 # Generated headless runtime snapshot artifacts
 snapshots/*.json
+
+# Local OpenRouter alias-scout cache artifacts
+examples/agents/openrouter_alias_scout/.cache/

@@ -22,6 +22,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_llm_review_plan,
         run_openrouter_llm_review_workflow,
     )
+    from .budget_cache import (
+        AgentBudgetCacheConfig,
+        build_budget_cache_plan,
+        clear_llm_review_cache,
+    )
     from .candidate_discovery import (
         CandidateDiscoveryConfig,
         build_candidate_discovery_report,
@@ -59,6 +64,11 @@ except ImportError:  # pragma: no cover
         LlmReviewConfig,
         build_llm_review_plan,
         run_openrouter_llm_review_workflow,
+    )
+    from budget_cache import (
+        AgentBudgetCacheConfig,
+        build_budget_cache_plan,
+        clear_llm_review_cache,
     )
     from candidate_discovery import (
         CandidateDiscoveryConfig,
@@ -114,6 +124,7 @@ class AgentRunnerConfig:
     evidence_sampler: EvidenceSamplerConfig
     demo_report: DemoReportConfig
     llm_review: LlmReviewConfig
+    budget_cache: AgentBudgetCacheConfig
     security_profile: SecurityProfileConfig
     openrouter_base_url: str
     openrouter_app_title: str
@@ -173,6 +184,9 @@ class AgentRunnerConfig:
             ),
             demo_report=DemoReportConfig.from_mapping(raw.get("demo_report")),
             llm_review=LlmReviewConfig.from_mapping(raw.get("llm_review")),
+            budget_cache=AgentBudgetCacheConfig.from_mapping(
+                raw.get("budget_cache"), base_dir=base_dir
+            ),
             security_profile=SecurityProfileConfig.from_mapping(
                 raw.get("security_profile")
             ),
@@ -254,6 +268,8 @@ def build_run_plan(
         "candidate_discovery_enabled": True,
         "evidence_sampling_enabled": True,
         "evidence_records_path": str(config.evidence_records_path),
+        "budget_cache_enabled": config.budget_cache.cache_enabled,
+        "max_llm_calls_per_run": config.budget_cache.max_llm_calls_per_run,
         "next_steps": [
             "Patch 40G added OpenRouter tool schemas and prompts.",
             "Patch 40H added candidate discovery and pruning.",
@@ -261,6 +277,7 @@ def build_run_plan(
             "Patch 40K adds the local E2E demo report.",
             "Patch 40J adds OpenRouter execution and a LangGraph-ready workflow.",
             "Patch 40L adds a service-account security profile.",
+            "Patch 40M adds run budgets and JSON response caching.",
         ],
         "sample_queries": [
             {
@@ -420,6 +437,36 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Validate the sanitized agent security profile and exit non-zero on errors.",
     )
+    parser.add_argument(
+        "--print-budget-cache-plan",
+        action="store_true",
+        help="Print the 40M run budget/cache plan without network calls.",
+    )
+    parser.add_argument(
+        "--clear-llm-cache",
+        action="store_true",
+        help="Delete the configured local LLM response cache and print a report.",
+    )
+    parser.add_argument(
+        "--max-llm-calls",
+        type=int,
+        help="Override budget_cache.max_llm_calls_per_run for this run.",
+    )
+    parser.add_argument(
+        "--max-run-cost-usd",
+        type=float,
+        help="Override budget_cache.max_cost_usd_per_run for this run.",
+    )
+    parser.add_argument(
+        "--no-llm-cache",
+        action="store_true",
+        help="Disable the local LLM response cache for this run.",
+    )
+    parser.add_argument(
+        "--force-refresh-cache",
+        action="store_true",
+        help="Ignore existing cached LLM responses and refresh them when live calls run.",
+    )
     return parser.parse_args(argv)
 
 
@@ -438,6 +485,18 @@ def _llm_review_config_from_args(
         include_tools=config.llm_review.include_tools,
         response_format_json=config.llm_review.response_format_json,
         submit_proposals=config.llm_review.submit_proposals,
+    )
+
+
+def _budget_cache_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> AgentBudgetCacheConfig:
+    cache_enabled = False if args.no_llm_cache else None
+    return config.budget_cache.with_overrides(
+        max_llm_calls_per_run=args.max_llm_calls,
+        max_cost_usd_per_run=args.max_run_cost_usd,
+        cache_enabled=cache_enabled,
+        force_refresh=True if args.force_refresh_cache else None,
     )
 
 
@@ -465,6 +524,20 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
         if args.check_security_profile and report["status"] != "ok":
             return 2
+        return 0
+
+    if args.print_budget_cache_plan:
+        budget_config = _budget_cache_config_from_args(config, args)
+        print(
+            json.dumps(build_budget_cache_plan(budget_config), indent=2, sort_keys=True)
+        )
+        return 0
+
+    if args.clear_llm_cache:
+        budget_config = _budget_cache_config_from_args(config, args)
+        print(
+            json.dumps(clear_llm_review_cache(budget_config), indent=2, sort_keys=True)
+        )
         return 0
 
     if args.print_tool_schemas:
@@ -601,6 +674,7 @@ def main(argv: list[str] | None = None) -> int:
             config.evidence_records_path, limit=config.evidence_sampler.max_records
         )
         llm_config = _llm_review_config_from_args(config, args)
+        budget_config = _budget_cache_config_from_args(config, args)
         plan = build_llm_review_plan(
             failed_queries,
             evidence_records,
@@ -608,6 +682,7 @@ def main(argv: list[str] | None = None) -> int:
             evidence_config=config.evidence_sampler,
             demo_config=config.demo_report,
             llm_config=llm_config,
+            budget_cache_config=budget_config,
             binding_id=config.default_binding_id,
             profile_name=config.default_profile_name,
             proposal_source_name=config.proposal_source_name,
@@ -621,6 +696,7 @@ def main(argv: list[str] | None = None) -> int:
             config.evidence_records_path, limit=config.evidence_sampler.max_records
         )
         llm_config = _llm_review_config_from_args(config, args)
+        budget_config = _budget_cache_config_from_args(config, args)
         assert_security_allows_llm_review(
             security_config=config.security_profile,
             skeinrank_role=config.skeinrank_role,
@@ -636,6 +712,7 @@ def main(argv: list[str] | None = None) -> int:
             evidence_config=config.evidence_sampler,
             demo_config=config.demo_report,
             llm_config=llm_config,
+            budget_cache_config=budget_config,
             binding_id=config.default_binding_id,
             profile_name=config.default_profile_name,
             proposal_source_name=config.proposal_source_name,
