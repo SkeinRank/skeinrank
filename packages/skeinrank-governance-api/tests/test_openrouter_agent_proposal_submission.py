@@ -56,8 +56,14 @@ def _sample_llm_report() -> dict[str, Any]:
 
 
 class FakeProposalClient:
-    def __init__(self, *, validation_status: str = "passed") -> None:
+    def __init__(
+        self,
+        *,
+        validation_status: str = "passed",
+        validation_summary: dict[str, Any] | None = None,
+    ) -> None:
         self.validation_status = validation_status
+        self.validation_summary = validation_summary
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     def validate_alias(self, **kwargs: Any) -> dict[str, Any]:
@@ -66,7 +72,8 @@ class FakeProposalClient:
             "canonical_value": kwargs["canonical_value"],
             "alias_value": kwargs["alias_value"],
             "slot": kwargs["slot"],
-            "validation_summary": {"status": self.validation_status},
+            "validation_summary": self.validation_summary
+            or {"status": self.validation_status},
         }
 
     def suggest_alias(self, **kwargs: Any) -> dict[str, Any]:
@@ -86,6 +93,7 @@ def test_proposal_submission_files_are_present_and_documented() -> None:
     )
     for content in (readme, docs):
         assert "Patch 41B" in content
+        assert "Patch 41C" in content
         assert "--validate-ready-proposals" in content
         assert "--submit-ready-proposals" in content
 
@@ -155,7 +163,7 @@ def test_submit_calls_validate_then_suggest_when_policy_allows() -> None:
     assert report["results"][0]["status"] == "submitted"
 
 
-def test_validation_status_mismatch_skips_submission() -> None:
+def test_generic_warning_routes_to_manual_review() -> None:
     module = _load_module(
         "agent_proposal_submission_warning", AGENT_DIR / "proposal_submission.py"
     )
@@ -173,7 +181,104 @@ def test_validation_status_mismatch_skips_submission() -> None:
     )
 
     assert [call[0] for call in client.calls] == ["validate"]
-    assert report["summary"]["validation_not_passing"] == 1
+    assert report["summary"]["manual_review_required"] == 1
+    assert report["summary"]["submitted"] == 0
+    assert report["results"][0]["status"] == "manual_review_required"
+
+
+def test_existing_alias_warning_is_classified_as_idempotent_noop() -> None:
+    module = _load_module(
+        "agent_proposal_submission_idempotent", AGENT_DIR / "proposal_submission.py"
+    )
+    client = FakeProposalClient(
+        validation_summary={
+            "status": "warning",
+            "checks": {
+                "alias_state": {
+                    "status": "warning",
+                    "severity": "warning",
+                    "message": "Alias already maps to the requested canonical term.",
+                    "details": {"existing_canonical": "kubernetes"},
+                },
+                "canonical_state": {"status": "passed"},
+            },
+            "counts": {"passed": 1, "warning": 1, "blocked": 0},
+        }
+    )
+
+    report = module.validate_and_optionally_submit_proposals(
+        _sample_llm_report(), client=client
+    )
+
+    assert [call[0] for call in client.calls] == ["validate"]
+    assert report["results"][0]["status"] == "idempotent_existing_alias"
+    assert report["results"][0]["validation_decision"]["counts_as_idempotent"] is True
+    assert report["summary"]["idempotent_existing_aliases"] == 1
+    assert report["summary"]["validation_passed"] == 0
+    assert report["summary"]["submitted"] == 0
+
+
+def test_slot_mismatch_warning_requires_manual_review() -> None:
+    module = _load_module(
+        "agent_proposal_submission_slot_mismatch", AGENT_DIR / "proposal_submission.py"
+    )
+    client = FakeProposalClient(
+        validation_summary={
+            "status": "warning",
+            "checks": {
+                "alias_state": {
+                    "status": "warning",
+                    "message": "Alias already maps to the requested canonical term.",
+                    "details": {"existing_canonical": "kubernetes"},
+                },
+                "canonical_state": {
+                    "status": "warning",
+                    "message": "Proposal slot differs from the existing canonical term slot.",
+                    "details": {
+                        "existing_slot": "TOOL",
+                        "proposal_slot": "TECHNOLOGY",
+                    },
+                },
+            },
+            "counts": {"passed": 0, "warning": 2, "blocked": 0},
+        }
+    )
+
+    report = module.validate_and_optionally_submit_proposals(
+        _sample_llm_report(), client=client
+    )
+
+    assert report["results"][0]["status"] == "manual_review_required"
+    assert report["results"][0]["validation_decision"]["reason"] == (
+        "slot_mismatch_warning"
+    )
+    assert report["summary"]["manual_review_required"] == 1
+
+
+def test_blocked_validation_is_never_submitted() -> None:
+    module = _load_module(
+        "agent_proposal_submission_blocked_status", AGENT_DIR / "proposal_submission.py"
+    )
+    client = FakeProposalClient(
+        validation_summary={
+            "status": "blocked",
+            "checks": {
+                "stop_list": {
+                    "status": "blocked",
+                    "severity": "blocked",
+                    "message": "Proposal value is blocked by a stop list.",
+                }
+            },
+            "counts": {"passed": 0, "warning": 0, "blocked": 1},
+        }
+    )
+
+    report = module.validate_and_optionally_submit_proposals(
+        _sample_llm_report(), client=client
+    )
+
+    assert report["results"][0]["status"] == "blocked"
+    assert report["summary"]["blocked"] == 1
     assert report["summary"]["submitted"] == 0
 
 

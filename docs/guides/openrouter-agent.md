@@ -179,3 +179,23 @@ Submit mode is deliberately gated. `--submit-ready-proposals` first validates vi
 `POST /v1/tools/suggest-alias` only when the security profile and
 `proposal_submission.submit_enabled` allow it. It does not publish snapshots or
 mutate runtime state.
+
+## Patch 41C — Agent validation statuses and idempotent proposal handling
+
+Patch 41C keeps proposal submission safe while making validation reports more
+useful for agent workflows. Validation warnings are now classified before any
+optional submission: existing aliases that already map to the requested canonical
+are treated as idempotent no-ops, slot mismatches are routed to manual review,
+and blocked validations are never submitted.
+
+This means an agent run can distinguish:
+
+```text
+passed → eligible for optional submission
+existing alias warning → idempotent_existing_alias
+slot mismatch warning → manual_review_required
+blocked → blocked
+```
+
+The runner still does not mutate runtime dictionaries or publish snapshots.
+

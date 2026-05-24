@@ -1,6 +1,6 @@
 # OpenRouter alias scout foundation
 
-This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default. Patch 40L adds a service-account security profile, Patch 40M adds budget/cache controls, Patch 40N adds offline evaluation, Patch 40O adds a deployable Docker Compose recipe, Patch 41A adds canonical hints, and Patch 41B validates/submits ready proposal payloads safely.
+This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default. Patch 40L adds a service-account security profile, Patch 40M adds budget/cache controls, Patch 40N adds offline evaluation, Patch 40O adds a deployable Docker Compose recipe, Patch 41A adds canonical hints, Patch 41B validates/submits ready proposal payloads safely, and Patch 41C classifies validation warnings for idempotent/no-op and manual-review handling.
 
 The safety rule stays unchanged:
 
@@ -375,3 +375,22 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 `--submit-ready-proposals` never writes directly to dictionaries and never
 publishes snapshots. The next governed step is human/policy review of pending
 proposals.
+
+### Patch 41C — Agent validation statuses and idempotent proposal handling
+
+Patch 41C refines the safe submission bridge by classifying validation warnings
+before any optional submit call. Existing aliases that already map to the same
+canonical term are reported as `idempotent_existing_alias`, slot mismatches are
+reported as `manual_review_required`, and blocked validations remain blocked.
+
+The summary now includes counters such as:
+
+```text
+idempotent_existing_aliases
+manual_review_required
+blocked
+validation_warnings
+```
+
+This keeps the agent from creating duplicate proposals while still surfacing
+edge cases for human/policy review.

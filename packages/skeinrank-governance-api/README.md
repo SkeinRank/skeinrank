@@ -1112,3 +1112,23 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 Submission remains opt-in and governed. It creates pending proposals only; it
 never writes directly to dictionaries, never pushes Git, and never publishes
 runtime snapshots.
+
+## Patch 41C — Agent validation statuses and idempotent proposal handling
+
+Patch 41C keeps proposal submission safe while making validation reports more
+useful for agent workflows. Validation warnings are now classified before any
+optional submission: existing aliases that already map to the requested canonical
+are treated as idempotent no-ops, slot mismatches are routed to manual review,
+and blocked validations are never submitted.
+
+This means an agent run can distinguish:
+
+```text
+passed → eligible for optional submission
+existing alias warning → idempotent_existing_alias
+slot mismatch warning → manual_review_required
+blocked → blocked
+```
+
+The runner still does not mutate runtime dictionaries or publish snapshots.
+

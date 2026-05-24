@@ -1,10 +1,10 @@
 """Safe validation/submission bridge for OpenRouter alias scout proposals.
 
-Patch 41B keeps the agent governed: model judgments can become proposal
-payloads, but every payload must be validated through the existing SkeinRank
-``/v1/tools/validate-alias`` endpoint before any optional submission through
-``/v1/tools/suggest-alias``. Runtime mutation and snapshot publishing remain
-out of scope for this runner.
+Patch 41B connected model-created ``proposal_payload`` values to the existing
+SkeinRank ``/v1/tools/validate-alias`` and ``/v1/tools/suggest-alias`` tools.
+Patch 41C keeps the same guarded flow, but classifies validation warnings before
+submission so the runner can avoid duplicate proposals and route edge cases to
+manual review.
 """
 
 from __future__ import annotations
@@ -26,6 +26,8 @@ except ImportError:  # pragma: no cover
 
 JsonDict = dict[str, Any]
 VALIDATION_PASSING_STATUSES = ("passed",)
+WARNING_STATUSES = ("warning",)
+BLOCKED_STATUSES = ("blocked",)
 
 
 class ProposalToolClient(Protocol):
@@ -70,6 +72,8 @@ class ProposalSubmissionConfig:
     require_validation_status: str = "passed"
     submit_enabled: bool = False
     stop_on_error: bool = False
+    treat_existing_alias_as_idempotent: bool = True
+    manual_review_on_warning: bool = True
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "ProposalSubmissionConfig":
@@ -87,7 +91,44 @@ class ProposalSubmissionConfig:
             ),
             submit_enabled=bool(raw.get("submit_enabled", cls.submit_enabled)),
             stop_on_error=bool(raw.get("stop_on_error", cls.stop_on_error)),
+            treat_existing_alias_as_idempotent=bool(
+                raw.get(
+                    "treat_existing_alias_as_idempotent",
+                    cls.treat_existing_alias_as_idempotent,
+                )
+            ),
+            manual_review_on_warning=bool(
+                raw.get("manual_review_on_warning", cls.manual_review_on_warning)
+            ),
         )
+
+
+@dataclass(frozen=True)
+class ValidationDecision:
+    """Agent-side interpretation of a SkeinRank validation response."""
+
+    category: str
+    status: str
+    submit_allowed: bool
+    counts_as_validated: bool = True
+    counts_as_passed: bool = False
+    counts_as_idempotent: bool = False
+    requires_manual_review: bool = False
+    reason: str = ""
+
+    def as_dict(self) -> JsonDict:
+        """Return a JSON-serializable representation for reports."""
+
+        return {
+            "category": self.category,
+            "status": self.status,
+            "submit_allowed": self.submit_allowed,
+            "counts_as_validated": self.counts_as_validated,
+            "counts_as_passed": self.counts_as_passed,
+            "counts_as_idempotent": self.counts_as_idempotent,
+            "requires_manual_review": self.requires_manual_review,
+            "reason": self.reason,
+        }
 
 
 def build_proposal_submission_plan(
@@ -109,6 +150,8 @@ def build_proposal_submission_plan(
         "max_proposals_per_run": cfg.max_proposals_per_run,
         "min_confidence": cfg.min_confidence,
         "require_validation_status": cfg.require_validation_status,
+        "treat_existing_alias_as_idempotent": cfg.treat_existing_alias_as_idempotent,
+        "manual_review_on_warning": cfg.manual_review_on_warning,
         "eligible_proposals": len(ready_payloads),
         "candidate_aliases": [payload["alias_value"] for payload in ready_payloads],
         "will_validate_aliases": True,
@@ -118,6 +161,7 @@ def build_proposal_submission_plan(
             "snapshot_publish_enabled": False,
             "runtime_mutation_enabled": False,
             "direct_dictionary_write_enabled": False,
+            "warning_classification_enabled": True,
         },
     }
 
@@ -172,6 +216,7 @@ def validate_and_optionally_submit_proposals(
         "safety": {
             "validate_before_submit": True,
             "agent_may_mutate_runtime": False,
+            "warning_classification_enabled": True,
             "blocked_actions": [
                 "direct_dictionary_write",
                 "snapshot_publish",
@@ -208,6 +253,81 @@ def extract_ready_proposal_payloads(
     return payloads
 
 
+def classify_validation_decision(
+    validation_response: Mapping[str, Any],
+    *,
+    payload: Mapping[str, Any] | None = None,
+    config: ProposalSubmissionConfig | None = None,
+) -> ValidationDecision:
+    """Classify SkeinRank validation output for agent submission decisions.
+
+    A warning can mean very different things. ``alias already maps to the
+    requested canonical`` is an idempotent no-op, while slot mismatch or generic
+    warnings require human review. This function keeps that policy outside the
+    backend so Patch 41C does not change existing API behavior.
+    """
+
+    cfg = config or ProposalSubmissionConfig()
+    summary = _extract_validation_summary(validation_response)
+    status = str(summary.get("status", "unknown"))
+    checks = _extract_validation_checks(summary)
+
+    if status in VALIDATION_PASSING_STATUSES:
+        return ValidationDecision(
+            category="validation_passed",
+            status=status,
+            submit_allowed=True,
+            counts_as_passed=True,
+            reason="validation_status_passed",
+        )
+
+    if status in BLOCKED_STATUSES or _summary_has_blocked_checks(summary):
+        return ValidationDecision(
+            category="blocked",
+            status=status,
+            submit_allowed=False,
+            requires_manual_review=True,
+            reason=_first_blocking_reason(checks) or "validation_blocked",
+        )
+
+    if status in WARNING_STATUSES:
+        if _has_slot_mismatch_warning(checks):
+            return ValidationDecision(
+                category="manual_review_required",
+                status=status,
+                submit_allowed=False,
+                requires_manual_review=True,
+                reason="slot_mismatch_warning",
+            )
+        if cfg.treat_existing_alias_as_idempotent and _is_existing_alias_same_canonical(
+            checks, payload=payload
+        ):
+            return ValidationDecision(
+                category="idempotent_existing_alias",
+                status=status,
+                submit_allowed=False,
+                counts_as_passed=True,
+                counts_as_idempotent=True,
+                reason="alias_already_maps_to_requested_canonical",
+            )
+        if cfg.manual_review_on_warning:
+            return ValidationDecision(
+                category="manual_review_required",
+                status=status,
+                submit_allowed=False,
+                requires_manual_review=True,
+                reason="validation_warning_requires_review",
+            )
+
+    return ValidationDecision(
+        category="validation_not_passing",
+        status=status,
+        submit_allowed=False,
+        requires_manual_review=True,
+        reason=f"validation_status_not_passing:{status}",
+    )
+
+
 def _validate_and_maybe_submit_one(
     payload: Mapping[str, Any],
     *,
@@ -218,6 +338,11 @@ def _validate_and_maybe_submit_one(
     validation_response = client.validate_alias(**_validate_kwargs(payload))
     validation_summary = _extract_validation_summary(validation_response)
     validation_status = str(validation_summary.get("status", "unknown"))
+    decision = classify_validation_decision(
+        validation_response,
+        payload=payload,
+        config=cfg,
+    )
     result: JsonDict = {
         "alias_value": payload.get("alias_value"),
         "canonical_value": payload.get("canonical_value"),
@@ -225,16 +350,26 @@ def _validate_and_maybe_submit_one(
         "confidence": payload.get("confidence"),
         "idempotency_key": payload.get("idempotency_key"),
         "validation_status": validation_status,
+        "validation_decision": decision.as_dict(),
         "validation_response": validation_response,
         "submitted": False,
         "status": "validated",
     }
-    if validation_status != cfg.require_validation_status:
+    if decision.category == "idempotent_existing_alias":
+        result["status"] = "idempotent_existing_alias"
+        result["submission_skipped_reason"] = decision.reason
+        return result
+    if decision.category == "blocked":
+        result["status"] = "blocked"
+        result["submission_skipped_reason"] = decision.reason
+        return result
+    if decision.category == "manual_review_required":
+        result["status"] = "manual_review_required"
+        result["submission_skipped_reason"] = decision.reason
+        return result
+    if not decision.submit_allowed:
         result["status"] = "validation_not_passing"
-        result["submission_skipped_reason"] = (
-            "validation_status_mismatch:"
-            f" expected {cfg.require_validation_status!r}, got {validation_status!r}"
-        )
+        result["submission_skipped_reason"] = decision.reason
         return result
     if not submit:
         result["submission_skipped_reason"] = "submit_flag_not_set"
@@ -292,6 +427,75 @@ def _extract_validation_summary(response: Any) -> JsonDict:
     return {"status": "unknown"}
 
 
+def _extract_validation_checks(summary: Mapping[str, Any]) -> dict[str, JsonDict]:
+    checks = summary.get("checks")
+    if not isinstance(checks, Mapping):
+        return {}
+    extracted: dict[str, JsonDict] = {}
+    for name, value in checks.items():
+        if isinstance(value, Mapping):
+            extracted[str(name)] = dict(value)
+    return extracted
+
+
+def _summary_has_blocked_checks(summary: Mapping[str, Any]) -> bool:
+    counts = summary.get("counts")
+    if isinstance(counts, Mapping) and int(counts.get("blocked") or 0) > 0:
+        return True
+    for check in _extract_validation_checks(summary).values():
+        if str(check.get("status", "")).lower() == "blocked":
+            return True
+        if str(check.get("severity", "")).lower() == "blocked":
+            return True
+    return False
+
+
+def _first_blocking_reason(checks: Mapping[str, Mapping[str, Any]]) -> str | None:
+    for name, check in checks.items():
+        status = str(check.get("status", "")).lower()
+        severity = str(check.get("severity", "")).lower()
+        if status == "blocked" or severity == "blocked":
+            message = check.get("message")
+            if message:
+                return f"{name}:{message}"
+            return name
+    return None
+
+
+def _is_existing_alias_same_canonical(
+    checks: Mapping[str, Mapping[str, Any]], *, payload: Mapping[str, Any] | None
+) -> bool:
+    alias_state = checks.get("alias_state")
+    if not isinstance(alias_state, Mapping):
+        return False
+    status = str(alias_state.get("status", "")).lower()
+    message = str(alias_state.get("message", "")).lower()
+    if status != "warning" or "already maps" not in message:
+        return False
+    details = alias_state.get("details")
+    if not isinstance(details, Mapping) or payload is None:
+        return True
+    existing = _normalize_value(details.get("existing_canonical"))
+    proposed = _normalize_value(payload.get("canonical_value"))
+    return not existing or not proposed or existing == proposed
+
+
+def _has_slot_mismatch_warning(checks: Mapping[str, Mapping[str, Any]]) -> bool:
+    canonical_state = checks.get("canonical_state")
+    if isinstance(canonical_state, Mapping):
+        status = str(canonical_state.get("status", "")).lower()
+        message = str(canonical_state.get("message", "")).lower()
+        if status == "warning" and "slot differs" in message:
+            return True
+        details = canonical_state.get("details")
+        if isinstance(details, Mapping):
+            existing_slot = _normalize_value(details.get("existing_slot"))
+            proposal_slot = _normalize_value(details.get("proposal_slot"))
+            if existing_slot and proposal_slot and existing_slot != proposal_slot:
+                return True
+    return False
+
+
 def _created_from_submission_response(response: Any) -> bool | None:
     if isinstance(response, Mapping) and isinstance(response.get("created"), bool):
         return bool(response["created"])
@@ -305,20 +509,43 @@ def _summarize_results(
         "proposal_payloads_ready_for_validation": ready_payload_count,
         "validated": 0,
         "validation_passed": 0,
+        "validation_warnings": 0,
+        "validation_blocked": 0,
         "validation_not_passing": 0,
         "submitted": 0,
         "created": 0,
         "idempotent_retries": 0,
+        "idempotent_existing_aliases": 0,
+        "manual_review_required": 0,
+        "blocked": 0,
         "errors": 0,
     }
     for result in results:
-        status = result.get("status")
-        if status in {"validated", "submitted", "validation_not_passing"}:
+        status = str(result.get("status") or "")
+        if status in {
+            "validated",
+            "submitted",
+            "validation_not_passing",
+            "idempotent_existing_alias",
+            "manual_review_required",
+            "blocked",
+        }:
             summary["validated"] += 1
-        if result.get("validation_status") == "passed":
+        validation_status = str(result.get("validation_status") or "")
+        if validation_status == "passed":
             summary["validation_passed"] += 1
+        elif validation_status == "warning":
+            summary["validation_warnings"] += 1
+        elif validation_status == "blocked":
+            summary["validation_blocked"] += 1
         if status == "validation_not_passing":
             summary["validation_not_passing"] += 1
+        if status == "idempotent_existing_alias":
+            summary["idempotent_existing_aliases"] += 1
+        if status == "manual_review_required":
+            summary["manual_review_required"] += 1
+        if status == "blocked":
+            summary["blocked"] += 1
         if result.get("submitted"):
             summary["submitted"] += 1
             if result.get("created") is True:
@@ -341,7 +568,8 @@ def _assert_submission_policy(
         )
     if not security.allow_proposal_submission:
         raise RuntimeError(
-            "Proposal submission was requested, but security_profile.allow_proposal_submission=false."
+            "Proposal submission was requested, but "
+            "security_profile.allow_proposal_submission=false."
         )
     if security.allow_runtime_mutation:
         raise RuntimeError(
@@ -368,3 +596,7 @@ def _safe_float(value: Any, *, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _normalize_value(value: Any) -> str:
+    return str(value or "").strip().lower()
