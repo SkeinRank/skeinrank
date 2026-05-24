@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -50,3 +50,10 @@ agent-deploy-recipe:
 
 agent-compose-config:
 	docker compose --env-file deploy/docker/openrouter-alias-scout.env.example -f deploy/docker/openrouter-alias-scout.compose.yml config
+
+agent-new-alias-smoke-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-new-alias-smoke-plan
+
+agent-new-alias-smoke-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-new-alias-smoke-llm-report examples/agents/openrouter_alias_scout/reports/new-alias-smoke-llm-report.json

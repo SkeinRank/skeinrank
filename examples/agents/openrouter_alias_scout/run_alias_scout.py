@@ -60,6 +60,12 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         load_jsonl_records,
         sample_evidence_windows,
     )
+    from .new_alias_smoke import (
+        NewAliasSmokeConfig,
+        build_new_alias_smoke_llm_report,
+        build_new_alias_smoke_plan,
+        run_new_alias_smoke_test,
+    )
     from .openrouter_client import OpenRouterClient
     from .openrouter_tools import get_openrouter_tool_schemas
     from .prompts import (
@@ -123,6 +129,12 @@ except ImportError:  # pragma: no cover
         load_jsonl_records,
         sample_evidence_windows,
     )
+    from new_alias_smoke import (
+        NewAliasSmokeConfig,
+        build_new_alias_smoke_llm_report,
+        build_new_alias_smoke_plan,
+        run_new_alias_smoke_test,
+    )
     from openrouter_client import OpenRouterClient
     from openrouter_tools import get_openrouter_tool_schemas
     from prompts import (
@@ -171,6 +183,7 @@ class AgentRunnerConfig:
     evaluation: AgentEvaluationConfig
     deployment: AgentDeploymentConfig
     proposal_submission: ProposalSubmissionConfig
+    new_alias_smoke: NewAliasSmokeConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -252,6 +265,9 @@ class AgentRunnerConfig:
             ),
             proposal_submission=ProposalSubmissionConfig.from_mapping(
                 raw.get("proposal_submission")
+            ),
+            new_alias_smoke=NewAliasSmokeConfig.from_mapping(
+                raw.get("new_alias_smoke")
             ),
             openrouter_base_url=str(
                 os.getenv(
@@ -592,6 +608,34 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         help="Write the 41B validation/submission report to this JSON path.",
     )
+    parser.add_argument(
+        "--print-new-alias-smoke-plan",
+        action="store_true",
+        help="Preview the 41D controlled new-alias smoke test without API calls.",
+    )
+    parser.add_argument(
+        "--write-new-alias-smoke-llm-report",
+        type=Path,
+        help="Write a proposal-ready smoke LLM report for the configured new alias.",
+    )
+    parser.add_argument(
+        "--run-new-alias-smoke-test",
+        action="store_true",
+        help="Validate the configured new-alias smoke payload through SkeinRank.",
+    )
+    parser.add_argument(
+        "--submit-new-alias-smoke-test",
+        action="store_true",
+        help=(
+            "Explicitly create a pending proposal for the configured new alias "
+            "and verify idempotent retry. Does not publish snapshots or mutate runtime."
+        ),
+    )
+    parser.add_argument(
+        "--write-new-alias-smoke-report",
+        type=Path,
+        help="Write the 41D new-alias smoke test report to this JSON path.",
+    )
     return parser.parse_args(argv)
 
 
@@ -699,6 +743,29 @@ def run_proposal_submission_for_args(
     )
 
 
+def build_new_alias_smoke_plan_for_config(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the offline 41D new-alias smoke plan."""
+
+    return build_new_alias_smoke_plan(
+        config.new_alias_smoke,
+        submit=bool(args.submit_new_alias_smoke_test),
+    )
+
+
+def run_new_alias_smoke_for_config(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Run the 41D controlled new-alias validate/submit smoke test."""
+
+    return run_new_alias_smoke_test(
+        client=build_client(config),
+        config=config.new_alias_smoke,
+        submit=bool(args.submit_new_alias_smoke_test),
+    )
+
+
 def build_evaluation_report_for_config(
     config: AgentRunnerConfig,
     failed_queries: list[JsonDict],
@@ -736,6 +803,36 @@ def build_evaluation_report_for_config(
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
+
+    if args.print_new_alias_smoke_plan:
+        report = build_new_alias_smoke_plan_for_config(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.write_new_alias_smoke_llm_report:
+        report = build_new_alias_smoke_llm_report(config.new_alias_smoke)
+        args.write_new_alias_smoke_llm_report.parent.mkdir(parents=True, exist_ok=True)
+        args.write_new_alias_smoke_llm_report.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return 0
+
+    if (
+        args.run_new_alias_smoke_test
+        or args.submit_new_alias_smoke_test
+        or args.write_new_alias_smoke_report
+    ):
+        report = run_new_alias_smoke_for_config(config, args)
+        if args.write_new_alias_smoke_report:
+            args.write_new_alias_smoke_report.parent.mkdir(parents=True, exist_ok=True)
+            args.write_new_alias_smoke_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
 
     if args.print_proposal_submission_plan:
         report = build_proposal_submission_plan_for_args(config, args)

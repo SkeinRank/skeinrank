@@ -520,3 +520,36 @@ blocked → blocked
 
 The runner still does not mutate runtime dictionaries or publish snapshots.
 
+
+## Patch 41D — New alias proposal smoke test
+
+Patch 41D adds a controlled smoke path for a brand-new alias proposal. It does not call OpenRouter and does not publish snapshots. The runner can generate a proposal-ready LLM report for the configured smoke alias, validate it through `POST /v1/tools/validate-alias`, and, only with an explicit submit flag, create a pending proposal through `POST /v1/tools/suggest-alias`.
+
+Preview the smoke plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-new-alias-smoke-plan
+```
+
+Write a proposal-ready smoke report:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-new-alias-smoke-llm-report /tmp/skeinrank-new-alias-smoke-llm.json
+```
+
+Validate the smoke proposal without saving it:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-new-alias-smoke-test
+```
+
+Create one pending proposal and verify idempotent retry explicitly:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --submit-new-alias-smoke-test \
+  --write-new-alias-smoke-report /tmp/skeinrank-new-alias-smoke-report.json
+```
+
+The default smoke alias is `pgx → postgresql` in the `infra_incidents` profile. Re-running the submit smoke should not create duplicate proposals; the second `suggest-alias` call is expected to return an idempotent retry.

@@ -224,5 +224,18 @@
     "stop_on_error": false,
     "treat_existing_alias_as_idempotent": true,
     "manual_review_on_warning": true
+  },
+  "new_alias_smoke": {
+    "profile_name": "infra_incidents",
+    "binding_id": null,
+    "canonical_value": "postgresql",
+    "alias_value": "pgx",
+    "slot": "database",
+    "confidence": 0.91,
+    "context": "Controlled smoke proposal for a new PostgreSQL alias.",
+    "proposal_source_name": "openrouter-alias-scout-smoke",
+    "idempotency_key": null,
+    "verify_idempotency_retry": true,
+    "source_type": "smoke_test"
   }
 }
