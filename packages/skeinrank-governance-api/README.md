@@ -339,6 +339,18 @@ Show migration history:
 poetry run python -m skeinrank_governance_api.migrations history
 ```
 
+Check that the database is at the current Alembic head and that all SQLAlchemy metadata tables exist:
+
+```bash
+poetry run python -m skeinrank_governance_api.migrations check
+```
+
+The same read-only report is available over HTTP:
+
+```bash
+curl http://127.0.0.1:8010/schema/health | python -m json.tool
+```
+
 Downgrade one revision when developing locally:
 
 ```bash
@@ -366,7 +378,7 @@ This package currently provides:
 - FastAPI app factory
 - environment-based configuration
 - SQLAlchemy session dependency
-- `/healthz` endpoint
+- `/healthz`, `/readyz`, and `/schema/health` endpoints
 - governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
 - user-console dictionary validation, import, and export endpoints for migration workflows
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
@@ -374,7 +386,7 @@ This package currently provides:
 - admin-only user management endpoints
 - role-aware API permissions for Admin, Moderator, and Contributor
 - Uvicorn launcher command
-- Alembic migration wrapper for the API database URL
+- Alembic migration wrapper and read-only schema-health check for the API database URL
 - tests for app creation, health checks, DB dependency wiring, migrations, and governance routes
 
 ## Governance REST endpoints
@@ -1293,3 +1305,36 @@ The API exposes DB-backed document visit tracking at `/v1/agents/runs/{run_id}/d
 ### Agent LLM reviews and proposal attempts
 
 The API exposes DB-backed LLM review and proposal-attempt tracking at `/v1/agents/runs/{run_id}/llm-reviews` and `/v1/agents/runs/{run_id}/proposal-attempts`. These endpoints persist audit metadata only; they do not submit proposals or mutate snapshots.
+
+
+### Proposal lifecycle hardening
+
+The governance API now returns proposal lifecycle metadata on suggestions and enforces the same warning/blocked validation gates for single-suggestion approval as for batch apply. Use `allow_warnings=true` only after a human or policy review.
+
+### Proposal batch idempotency
+
+`apply-batch` now distinguishes created changes from idempotent no-ops via `idempotent_suggestion_ids`, making worker retries safe after network interruptions.
+
+### Patch 43C — RBAC/scoped token enforcement for agent actions
+
+Agent-facing APIs now enforce API-token scopes in addition to role checks. Session
+login tokens and local-dev mode keep the existing role-based behavior, while
+personal/service-account API tokens must include the required scopes.
+
+Recommended service-account scopes:
+
+```text
+agent:runs:read
+agent:runs:write
+agent:tracking:read
+agent:tracking:write
+agent:tools:read
+agent:tools:validate
+agent:tools:suggest
+agent:tools:explain
+```
+
+This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
+runs and tracking records, validation-only jobs can call `validate-alias`, and
+proposal-writing jobs must explicitly carry `agent:tools:suggest`.
+

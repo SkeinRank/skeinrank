@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ambiguous_proposals import sync_ambiguous_alias_candidates_for_suggestion
-from ..auth import AuthContext, require_roles
+from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
 from ..observability.metrics import record_proposal_submission
 from ..proposal_idempotency import (
@@ -24,6 +24,7 @@ from ..proposal_idempotency import (
     resolve_idempotent_suggestion,
     resolve_idempotent_suggestion_from_validation_summary,
 )
+from ..proposal_lifecycle import classify_proposal_lifecycle
 from ..proposal_quality import validation_status
 from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import binding_snapshot_status
@@ -49,6 +50,7 @@ def list_tool_bindings(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tools:read")),
     session: Session = Depends(get_session),
 ) -> list[AgentToolBindingContextResponse]:
     """List runtime binding contexts available to agents and automation tools."""
@@ -78,6 +80,7 @@ def validate_alias_tool(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tools:validate")),
     session: Session = Depends(get_session),
 ) -> AgentToolValidateAliasResponse:
     """Validate an alias proposal without creating a pending suggestion."""
@@ -128,6 +131,7 @@ def suggest_alias_tool(
     current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tools:suggest")),
     session: Session = Depends(get_session),
 ) -> AgentToolSuggestAliasResponse:
     """Create a pending alias proposal from an agent, CLI, job, or API caller."""
@@ -305,6 +309,7 @@ def explain_query_tool(
     _current_user: AuthContext = Depends(
         require_roles("admin", "moderator", "contributor")
     ),
+    _scope: AuthContext = Depends(require_scopes("agent:tools:explain")),
     session: Session = Depends(get_session),
 ) -> QueryPlanResponse:
     """Explain how a query is canonicalized in a runtime binding/profile context."""
@@ -401,6 +406,7 @@ def _tool_binding_response(
 
 
 def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse:
+    lifecycle_decision = classify_proposal_lifecycle(suggestion)
     return SuggestionResponse(
         id=suggestion.id,
         profile_id=suggestion.profile_id,
@@ -423,6 +429,11 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         source_payload=suggestion.source_payload_json,
         validation_summary=suggestion.validation_summary_json,
         status=suggestion.status,
+        lifecycle_status=lifecycle_decision.lifecycle_status,
+        lifecycle_reason=lifecycle_decision.lifecycle_reason,
+        validation_status=lifecycle_decision.validation_status,
+        can_approve=lifecycle_decision.can_approve,
+        can_apply=lifecycle_decision.can_apply,
         created_by=suggestion.created_by,
         reviewed_by=suggestion.reviewed_by,
         review_comment=suggestion.review_comment,

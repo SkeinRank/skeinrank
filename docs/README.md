@@ -27,6 +27,8 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/observability.md`](deployment/observability.md) — logs, metrics, tracing, Prometheus, and Grafana.
 - [`deployment/dev-stack-troubleshooting.md`](deployment/dev-stack-troubleshooting.md) — common local stack issues.
 
+Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables.
+
 
 ## Headless dictionary facade
 
@@ -343,3 +345,36 @@ The governance API now supports DB-backed document visit tracking under `/v1/age
 ### Agent LLM reviews and proposal attempts
 
 Patch 44D adds the final DB-backed tracking tables for the initial agent audit trail: `agent_llm_reviews` and `agent_proposal_attempts`. These tables let operators trace each candidate from observation and evidence through LLM judgment, validation, submission/no-op, and idempotency handling.
+
+
+### Proposal lifecycle hardening
+
+Suggestion responses include lifecycle fields that help headless clients and UI review flows distinguish reviewable, warning, blocked, approved/applied, and rejected proposals without guessing from raw validation summaries.
+
+### Proposal apply idempotency
+
+Batch apply now supports safe retries. If a caller retries the same suggestion ids after a successful apply, the API returns an idempotent result without creating duplicate terms or aliases.
+
+### Patch 43C — RBAC/scoped token enforcement for agent actions
+
+Agent-facing APIs now enforce API-token scopes in addition to role checks. Session
+login tokens and local-dev mode keep the existing role-based behavior, while
+personal/service-account API tokens must include the required scopes.
+
+Recommended service-account scopes:
+
+```text
+agent:runs:read
+agent:runs:write
+agent:tracking:read
+agent:tracking:write
+agent:tools:read
+agent:tools:validate
+agent:tools:suggest
+agent:tools:explain
+```
+
+This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
+runs and tracking records, validation-only jobs can call `validate-alias`, and
+proposal-writing jobs must explicitly carry `agent:tools:suggest`.
+

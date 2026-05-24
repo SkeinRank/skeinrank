@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .dictionary_spec import DICTIONARY_SCHEMA_VERSION
 
@@ -36,12 +36,32 @@ class ExternalDependencyHealth(BaseModel):
     error: str | None = None
 
 
+class SchemaHealth(BaseModel):
+    """Read-only governance schema health status."""
+
+    ok: bool
+    alembic_version_present: bool
+    current_revision: str | None = None
+    current_revisions: list[str] = Field(default_factory=list)
+    head_revision: str | None = None
+    migration_heads: list[str] = Field(default_factory=list)
+    current_matches_head: bool
+    multiple_heads: bool
+    missing_tables: list[str] = Field(default_factory=list)
+    expected_tables_count: int
+    database_tables_count: int
+    error: str | None = None
+
+
 class HealthzResponse(BaseModel):
     """Health check response."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     status: str = Field(..., examples=["ok", "degraded"])
     service: ServiceInfo
     database: DatabaseHealth
+    schema_health: SchemaHealth = Field(..., alias="schema")
 
 
 class LivezResponse(BaseModel):
@@ -54,9 +74,12 @@ class LivezResponse(BaseModel):
 class ReadyzResponse(BaseModel):
     """Readiness check response with external dependency status."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     status: str = Field(..., examples=["ok", "degraded"])
     service: ServiceInfo
     database: DatabaseHealth
+    schema_health: SchemaHealth = Field(..., alias="schema")
     elasticsearch: ExternalDependencyHealth
 
 
@@ -807,6 +830,7 @@ class SuggestionReviewRequest(BaseModel):
     """Request body for approving or rejecting a suggestion."""
 
     review_comment: str | None = None
+    allow_warnings: bool = False
 
 
 class SuggestionResponse(BaseModel):
@@ -833,6 +857,11 @@ class SuggestionResponse(BaseModel):
     source_payload: dict[str, Any] | None = None
     validation_summary: dict[str, Any] | None = None
     status: str
+    lifecycle_status: str
+    lifecycle_reason: str
+    validation_status: str
+    can_approve: bool
+    can_apply: bool
     created_by: str | None = None
     reviewed_by: str | None = None
     review_comment: str | None = None
@@ -892,6 +921,8 @@ class ProposalBatchPreviewItemResponse(BaseModel):
     validation_status: str = "unknown"
     validation_counts: dict[str, int] = Field(default_factory=dict)
     applyable: bool = False
+    apply_action: str = "apply"
+    idempotent_reason: str | None = None
     warning_reasons: list[str] = Field(default_factory=list)
     blocked_reasons: list[str] = Field(default_factory=list)
     proposal_source_type: str
@@ -936,6 +967,7 @@ class ProposalBatchApplyResponse(BaseModel):
     normalized_profile_name: str
     requested_suggestion_ids: list[int] = Field(default_factory=list)
     applied_suggestion_ids: list[int] = Field(default_factory=list)
+    idempotent_suggestion_ids: list[int] = Field(default_factory=list)
     created_terms: int = 0
     created_aliases: int = 0
     snapshot: ProposalBatchSnapshotResponse

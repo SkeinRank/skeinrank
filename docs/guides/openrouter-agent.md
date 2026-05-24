@@ -502,3 +502,49 @@ Patch 44B extends the agent registry with document visits. A scheduled agent can
 ## Patch 44D — DB-backed LLM reviews and proposal attempts
 
 The agent tracking registry now persists LLM reviews and proposal attempts in the Governance API. This gives the OpenRouter Alias Scout an audit trail from candidate observation to evidence, LLM judgment, validation result, and proposal attempt status without making the model output the source of truth.
+
+
+### Proposal lifecycle behavior
+
+Agent proposals should treat `validation_status=blocked` as non-applyable and `validation_status=warning` as requiring human review or explicit override. `lifecycle_status` is the preferred high-level field for inboxes and automation gates.
+
+### Safe proposal apply retries
+
+The governed apply path is idempotent for explicit suggestion ids. Agent/worker retries can safely re-submit a previously applied batch and receive an idempotent response without duplicating aliases.
+
+### Patch 43C — RBAC/scoped token enforcement for agent actions
+
+Agent-facing APIs now enforce API-token scopes in addition to role checks. Session
+login tokens and local-dev mode keep the existing role-based behavior, while
+personal/service-account API tokens must include the required scopes.
+
+Recommended service-account scopes:
+
+```text
+agent:runs:read
+agent:runs:write
+agent:tracking:read
+agent:tracking:write
+agent:tools:read
+agent:tools:validate
+agent:tools:suggest
+agent:tools:explain
+```
+
+This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
+runs and tracking records, validation-only jobs can call `validate-alias`, and
+proposal-writing jobs must explicitly carry `agent:tools:suggest`.
+
+
+
+### Patch 43D — Migration stability and schema health checks
+
+Before scheduled agents or CI jobs run proposal/apply workflows, check that the Governance API database is migrated and structurally healthy:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run python -m skeinrank_governance_api.migrations upgrade head
+poetry run python -m skeinrank_governance_api.migrations check
+```
+
+For running services, use `GET /schema/health`. The report is read-only and includes the current Alembic revision, expected head revision, multiple-head detection, `alembic_version` presence, and missing metadata tables. `/readyz` now incorporates this schema-health result so agents do not start against a stale or partially migrated control-plane schema.

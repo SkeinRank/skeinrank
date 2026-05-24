@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from alembic.script import ScriptDirectory
 from skeinrank_governance_api.config import GovernanceApiConfig
 from skeinrank_governance_api.migrations import (
     MIGRATION_SCRIPT_LOCATION_ENV,
     MigrationConfigurationError,
+    check_database_schema,
     create_alembic_config,
     resolve_migration_script_location,
     upgrade_database,
@@ -493,7 +495,18 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260524_0025"
+    expected_head = ScriptDirectory.from_config(
+        create_alembic_config(GovernanceApiConfig(database_url=database_url))
+    ).get_current_head()
+    assert revision == expected_head
+
+
+def test_api_migrations_check_returns_zero_for_up_to_date_schema(tmp_path):
+    database_url = f"sqlite:///{tmp_path / 'governance.db'}"
+    config = GovernanceApiConfig(database_url=database_url)
+    upgrade_database(config=config)
+
+    assert check_database_schema(config=config) == 0
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

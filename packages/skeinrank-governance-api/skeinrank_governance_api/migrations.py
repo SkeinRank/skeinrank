@@ -19,6 +19,7 @@ from alembic import command
 from alembic.config import Config
 
 from .config import API_DATABASE_URL_ENV, GovernanceApiConfig
+from .dependencies import create_engine_for_config
 
 MIGRATION_SCRIPT_LOCATION_ENV = "SKEINRANK_GOVERNANCE_API_ALEMBIC_SCRIPT_LOCATION"
 
@@ -127,6 +128,21 @@ def show_revision_history(*, config: GovernanceApiConfig | None = None) -> None:
         command.history(create_alembic_config(api_config))
 
 
+def check_database_schema(*, config: GovernanceApiConfig | None = None) -> int:
+    """Print read-only schema health and return a shell-friendly status code."""
+
+    api_config = config or GovernanceApiConfig.from_env()
+    from .schema_health import check_schema_health, format_schema_health_for_cli
+
+    engine = create_engine_for_config(api_config)
+    try:
+        health = check_schema_health(engine, config=api_config)
+        print(format_schema_health_for_cli(health))
+        return 0 if health.ok else 1
+    finally:
+        engine.dispose()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run governance API migrations from the command line."""
 
@@ -146,6 +162,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     subparsers.add_parser("current", help="Show the current database revision.")
     subparsers.add_parser("history", help="Show migration history.")
+    subparsers.add_parser(
+        "check",
+        help=(
+            "Check Alembic revision and metadata table health without mutating "
+            "the database."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
@@ -157,6 +180,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         show_current_revision()
     elif args.command == "history":
         show_revision_history()
+    elif args.command == "check":
+        return check_database_schema()
     else:  # pragma: no cover - argparse enforces known commands
         parser.error(f"Unknown migration command: {args.command}")
     return 0

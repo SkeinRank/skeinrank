@@ -31,10 +31,19 @@ For the API/PostgreSQL-only smoke path, start `docker-compose.headless.yml` and 
 GET /livez
 GET /healthz
 GET /readyz
+GET /schema/health
 GET /metrics
 ```
 
-`/readyz` reports database and configured Elasticsearch readiness. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration.
+`/healthz` reports process/database health and includes a schema-health block. `/readyz` also requires the migrated governance schema to be at the current Alembic head, then checks configured Elasticsearch readiness. `/schema/health` is a read-only schema check for operators and CI. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration.
+
+CLI equivalent:
+
+```bash
+poetry run python -m skeinrank_governance_api.migrations check
+```
+
+The schema check reports `current_revision`, `head_revision`, multiple Alembic heads, whether `alembic_version` exists, and any SQLAlchemy metadata tables missing from the database.
 
 ## Headless dictionary workflows
 
@@ -742,3 +751,36 @@ GET /v1/agents/runs/{run_id}/proposal-attempts
 ```
 
 LLM review rows store model/prompt metadata, response ids, usage, structured judgment, raw response, and a run-scoped review hash. Proposal-attempt rows store validation/submission status, idempotency keys, source payloads, and optional links to candidate observations, LLM reviews, and governance suggestions.
+
+
+## Proposal lifecycle metadata
+
+`SuggestionResponse` includes additive lifecycle fields: `validation_status`, `lifecycle_status`, `lifecycle_reason`, `can_approve`, and `can_apply`. Approval of a single suggestion rejects blocked validation summaries and requires `allow_warnings: true` for warning summaries. Batch apply keeps the same explicit `allow_warnings` behavior.
+
+### Idempotent proposal batch apply
+
+`POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch` is retry-safe for explicit `suggestion_ids`. Already approved suggestions are returned as idempotent no-ops. Pending proposals that map to already-existing same-canonical aliases are approved as no-ops when warnings are explicitly allowed.
+
+### Patch 43C — RBAC/scoped token enforcement for agent actions
+
+Agent-facing APIs now enforce API-token scopes in addition to role checks. Session
+login tokens and local-dev mode keep the existing role-based behavior, while
+personal/service-account API tokens must include the required scopes.
+
+Recommended service-account scopes:
+
+```text
+agent:runs:read
+agent:runs:write
+agent:tracking:read
+agent:tracking:write
+agent:tools:read
+agent:tools:validate
+agent:tools:suggest
+agent:tools:explain
+```
+
+This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
+runs and tracking records, validation-only jobs can call `validate-alias`, and
+proposal-writing jobs must explicitly carry `agent:tools:suggest`.
+
