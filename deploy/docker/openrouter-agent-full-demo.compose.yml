@@ -1,0 +1,59 @@
+# OpenRouter alias scout full demo overlay.
+# Run with:
+#   docker compose --env-file deploy/docker/openrouter-agent-full-demo.env.example \
+#     -f docker-compose.dev.yml \
+#     -f deploy/docker/openrouter-agent-full-demo.compose.yml \
+#     up --build --abort-on-container-exit --exit-code-from openrouter-agent-full-demo openrouter-agent-full-demo
+
+services:
+  openrouter-agent-full-demo:
+    build:
+      context: .
+      dockerfile: deploy/docker/openrouter-alias-scout.Dockerfile
+    image: skeinrank-openrouter-agent-demo:dev
+    container_name: skeinrank-openrouter-agent-full-demo
+    restart: "no"
+    env_file:
+      - ./deploy/docker/openrouter-agent-full-demo.env.example
+    environment:
+      SKEINRANK_AGENT_API_URL: ${SKEINRANK_AGENT_API_URL:-http://governance-api:8010}
+      SKEINRANK_AGENT_ROLE: ${SKEINRANK_AGENT_ROLE:-contributor}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+    command:
+      - sh
+      - -lc
+      - |
+        set -euo pipefail
+        mkdir -p examples/agents/openrouter_alias_scout/reports/docker-demo/real-es
+        python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+          --write-real-elasticsearch-validation-fixtures \
+          --real-es-validation-artifacts-dir examples/agents/openrouter_alias_scout/reports/docker-demo/real-es \
+          --elasticsearch-url "$${SKEINRANK_DOCKER_DEMO_ELASTICSEARCH_URL:-http://elasticsearch:9200}" \
+          --elasticsearch-index "$${SKEINRANK_DOCKER_DEMO_ELASTICSEARCH_INDEX:-skeinrank_agent_demo}" > examples/agents/openrouter_alias_scout/reports/docker-demo/real-es-fixtures.json
+        python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+          --index-real-elasticsearch-validation-docs \
+          --real-es-validation-artifacts-dir examples/agents/openrouter_alias_scout/reports/docker-demo/real-es \
+          --elasticsearch-url "$${SKEINRANK_DOCKER_DEMO_ELASTICSEARCH_URL:-http://elasticsearch:9200}" \
+          --elasticsearch-index "$${SKEINRANK_DOCKER_DEMO_ELASTICSEARCH_INDEX:-skeinrank_agent_demo}" \
+          --real-es-validation-reset-index > examples/agents/openrouter_alias_scout/reports/docker-demo/real-es-indexing.json
+        python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+          --write-real-elasticsearch-validation-report examples/agents/openrouter_alias_scout/reports/docker-demo/real-es-validation-report.json \
+          --real-es-validation-artifacts-dir examples/agents/openrouter_alias_scout/reports/docker-demo/real-es \
+          --elasticsearch-url "$${SKEINRANK_DOCKER_DEMO_ELASTICSEARCH_URL:-http://elasticsearch:9200}" \
+          --elasticsearch-index "$${SKEINRANK_DOCKER_DEMO_ELASTICSEARCH_INDEX:-skeinrank_agent_demo}"
+        CYCLE_FLAGS=""
+        if [ "$${SKEINRANK_DOCKER_DEMO_LIVE_LLM:-false}" = "true" ]; then
+          CYCLE_FLAGS="$$CYCLE_FLAGS --agent-cycle-live-llm --max-llm-calls $${SKEINRANK_DOCKER_DEMO_MAX_LLM_CALLS:-3} --max-run-cost-usd $${SKEINRANK_DOCKER_DEMO_MAX_RUN_COST_USD:-0.05}"
+        fi
+        python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+          --write-agent-cycle-report examples/agents/openrouter_alias_scout/reports/docker-demo/agent-cycle-report.json \
+          --agent-cycle-artifacts-dir examples/agents/openrouter_alias_scout/reports/docker-demo/scheduled \
+          $$CYCLE_FLAGS
+    volumes:
+      - ./examples/agents/openrouter_alias_scout/reports:/app/examples/agents/openrouter_alias_scout/reports
+      - ./examples/agents/openrouter_alias_scout/.cache:/app/examples/agents/openrouter_alias_scout/.cache
+    depends_on:
+      governance-api:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy

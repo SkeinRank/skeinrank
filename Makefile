@@ -126,3 +126,13 @@ agent-artifacts-plan:
 
 agent-artifacts-manifest:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-artifacts-manifest examples/agents/openrouter_alias_scout/reports/scheduled/manifest.json --artifacts-run-id openrouter-alias-scout-cycle
+
+
+agent-docker-demo-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-docker-demo-plan
+
+agent-docker-demo-config:
+	deploy/docker/scripts/openrouter-agent-full-demo.sh config
+
+agent-docker-demo-run:
+	deploy/docker/scripts/openrouter-agent-full-demo.sh run

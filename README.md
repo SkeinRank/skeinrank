@@ -645,3 +645,16 @@ reports/<run_id>/reports/<stage>.json
 
 This makes scheduled runs easier to archive from Airflow, cron, GitHub Actions,
 or Kubernetes CronJobs without changing the Governance API.
+
+
+### Patch 42D — Docker Compose full agent demo
+
+Patch 42D adds a reproducible Docker Compose demo for the OpenRouter alias scout. It layers `deploy/docker/openrouter-agent-full-demo.compose.yml` on top of `docker-compose.dev.yml`, indexes the bundled real-ES validation fixtures, runs the safe scheduled agent cycle, and writes 42C-standard artifacts under `examples/agents/openrouter_alias_scout/reports/docker-demo/`.
+
+```bash
+make agent-docker-demo-plan
+make agent-docker-demo-config
+make agent-docker-demo-run
+```
+
+The demo is safe by default: OpenRouter calls, proposal submission, runtime mutation, and snapshot publishing stay disabled unless explicitly configured. See `docs/deployment/openrouter-agent-full-demo.md`.
