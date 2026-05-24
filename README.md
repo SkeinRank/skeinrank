@@ -582,3 +582,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
 ```
 
+
+### Patch 41F — Agent run/document tracking
+
+The OpenRouter alias scout can now produce local run/document tracking reports with deterministic content hashes and processing-context hashes. This helps identify unchanged documents before spending LLM budget and provides a migration path toward PostgreSQL-backed `agent_runs` / `agent_document_visits` state.

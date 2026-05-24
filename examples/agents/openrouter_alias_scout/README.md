@@ -456,3 +456,39 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
 ```
 
+
+## Patch 41F — Agent run/document tracking
+
+Patch 41F adds a local JSONL run/document tracking ledger for the OpenRouter alias scout. It is a DB-ready contract for future PostgreSQL persistence, but it does not add migrations or backend routes in this patch.
+
+The tracker records `run_id`, `source_id`, `content_hash`, `processing_context_hash`, `agent_version`, `prompt_version`, model, binding/profile context, and a visit status:
+
+```text
+new_document
+unchanged_seen
+content_changed
+context_changed
+```
+
+Preview the tracking plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-agent-tracking-plan
+```
+
+Write a tracking report without appending the ledger:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-agent-tracking-report /tmp/skeinrank-agent-tracking-report.json
+```
+
+Append document visits to the local ledger explicitly:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --append-agent-tracking-ledger \
+  --agent-tracking-ledger /tmp/skeinrank-agent-ledger.jsonl
+```
+
+The ledger is local-only and ignored by Git under `.cache/`. It helps the agent avoid reprocessing unchanged documents and gives a clear handoff point for a later PostgreSQL tracking model.

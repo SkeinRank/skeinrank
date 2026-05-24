@@ -259,5 +259,32 @@
     "idempotency_key": null,
     "verify_idempotency_retry": true,
     "source_type": "smoke_test"
+  },
+  "agent_tracking": {
+    "enabled": true,
+    "ledger_path": ".cache/openrouter_alias_scout_run_ledger.jsonl",
+    "agent_name": "openrouter-alias-scout",
+    "agent_version": "41F",
+    "prompt_version": "canonical-hints-v1",
+    "skip_unchanged_documents": true,
+    "content_fields": [
+      "query",
+      "title",
+      "text",
+      "message",
+      "content",
+      "body",
+      "snippet"
+    ],
+    "source_id_fields": [
+      "id",
+      "source_id",
+      "doc_id",
+      "document_id",
+      "trace_id"
+    ],
+    "max_recent_ledger_entries": 10000,
+    "include_record_previews": false,
+    "preview_chars": 160
   }
 }

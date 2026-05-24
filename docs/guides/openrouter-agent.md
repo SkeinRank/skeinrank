@@ -261,3 +261,24 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
 ```
 
+
+## Patch 41F — Agent run/document tracking
+
+Patch 41F adds a local JSONL tracking contract for agent runs and document visits. This is intentionally local and dependency-light: it does not call OpenRouter, Elasticsearch, or the SkeinRank API, and it does not mutate runtime state.
+
+The tracker fingerprints evidence/source records with a `content_hash` and combines `agent_version`, `prompt_version`, model, profile, and binding into a `processing_context_hash`. Repeated runs can therefore distinguish unchanged documents from changed content or changed processing context.
+
+Useful commands:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-agent-tracking-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-agent-tracking-report /tmp/skeinrank-agent-tracking-report.json
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --append-agent-tracking-ledger \
+  --agent-tracking-ledger /tmp/skeinrank-agent-ledger.jsonl
+```
+
+The future production version can move the same fields into PostgreSQL tables such as `agent_runs`, `agent_source_documents`, and `agent_document_visits`.

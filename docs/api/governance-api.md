@@ -629,3 +629,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
 ```
 
+
+### Agent tracking note
+
+Patch 41F keeps agent run/document tracking outside the Governance API for now. The reference runner writes a local JSONL ledger and does not add backend routes or migrations. This preserves the existing API surface while establishing the future PostgreSQL tracking contract.

@@ -23,6 +23,10 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         load_evaluation_outcomes,
         load_json_report,
     )
+    from .agent_run_tracking import (
+        AgentRunTrackingConfig,
+        build_agent_run_tracking_report,
+    )
     from .alias_scout_workflow import (
         LlmReviewConfig,
         build_llm_review_plan,
@@ -97,6 +101,10 @@ except ImportError:  # pragma: no cover
         build_agent_evaluation_report,
         load_evaluation_outcomes,
         load_json_report,
+    )
+    from agent_run_tracking import (
+        AgentRunTrackingConfig,
+        build_agent_run_tracking_report,
     )
     from alias_scout_workflow import (
         LlmReviewConfig,
@@ -189,6 +197,7 @@ class AgentRunnerConfig:
     canonical_hints: CanonicalHintsConfig
     evidence_sampler: EvidenceSamplerConfig
     elasticsearch_source: ElasticsearchSourceConfig
+    agent_tracking: AgentRunTrackingConfig
     demo_report: DemoReportConfig
     llm_review: LlmReviewConfig
     budget_cache: AgentBudgetCacheConfig
@@ -266,6 +275,9 @@ class AgentRunnerConfig:
             ),
             elasticsearch_source=ElasticsearchSourceConfig.from_mapping(
                 raw.get("elasticsearch_source")
+            ),
+            agent_tracking=AgentRunTrackingConfig.from_mapping(
+                raw.get("agent_tracking"), base_dir=base_dir
             ),
             demo_report=DemoReportConfig.from_mapping(raw.get("demo_report")),
             llm_review=LlmReviewConfig.from_mapping(raw.get("llm_review")),
@@ -378,6 +390,7 @@ def build_run_plan(
             "Patch 41A adds canonical hints and stronger review packs.",
             "Patch 41B adds safe validation/submission of ready proposal payloads.",
             "Patch 41E adds an optional Elasticsearch evidence connector.",
+            "Patch 41F adds local run/document tracking and content hashes.",
         ],
         "sample_queries": [
             {
@@ -529,6 +542,26 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--elasticsearch-api-key-env",
         help="Override the environment variable used for the optional ES API key.",
+    )
+    parser.add_argument(
+        "--print-agent-tracking-plan",
+        action="store_true",
+        help="Print the 41F local run/document tracking plan without writing the ledger.",
+    )
+    parser.add_argument(
+        "--write-agent-tracking-report",
+        type=Path,
+        help="Write a 41F run/document tracking report to this JSON path.",
+    )
+    parser.add_argument(
+        "--append-agent-tracking-ledger",
+        action="store_true",
+        help="Append document visit entries to the configured local tracking ledger.",
+    )
+    parser.add_argument(
+        "--agent-tracking-ledger",
+        type=Path,
+        help="Override agent_tracking.ledger_path for this run.",
     )
     parser.add_argument(
         "--run-demo-report",
@@ -907,6 +940,39 @@ def write_elasticsearch_evidence_records_for_config(
     }
 
 
+def _agent_tracking_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> AgentRunTrackingConfig:
+    """Apply CLI overrides to the 41F local tracking config."""
+
+    return config.agent_tracking.with_overrides(ledger_path=args.agent_tracking_ledger)
+
+
+def build_agent_tracking_report_for_config(
+    config: AgentRunnerConfig,
+    failed_queries: list[JsonDict],
+    args: argparse.Namespace,
+    *,
+    append_ledger: bool = False,
+) -> JsonDict:
+    """Build the 41F local agent run/document tracking report."""
+
+    _ = failed_queries
+    tracking_config = _agent_tracking_config_from_args(config, args)
+    evidence_records = load_jsonl_records(
+        config.evidence_records_path, limit=config.evidence_sampler.max_records
+    )
+    return build_agent_run_tracking_report(
+        evidence_records,
+        config=tracking_config,
+        binding_id=config.default_binding_id,
+        profile_name=config.default_profile_name,
+        openrouter_model=args.model or config.openrouter_model,
+        source_name="local_evidence_records",
+        append_ledger=append_ledger,
+    )
+
+
 def build_evaluation_report_for_config(
     config: AgentRunnerConfig,
     failed_queries: list[JsonDict],
@@ -1035,6 +1101,33 @@ def main(argv: list[str] | None = None) -> int:
     failed_queries = load_failed_queries(
         config.failed_queries_path, limit=config.max_queries_per_run
     )
+
+    if args.print_agent_tracking_plan:
+        print(
+            json.dumps(
+                _agent_tracking_config_from_args(config, args).to_plan(),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.write_agent_tracking_report or args.append_agent_tracking_ledger:
+        report = build_agent_tracking_report_for_config(
+            config,
+            failed_queries,
+            args,
+            append_ledger=bool(args.append_agent_tracking_ledger),
+        )
+        if args.write_agent_tracking_report:
+            args.write_agent_tracking_report.parent.mkdir(parents=True, exist_ok=True)
+            args.write_agent_tracking_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
 
     if args.sample_evidence_from_elasticsearch:
         report = build_elasticsearch_evidence_report_for_config(

@@ -1194,3 +1194,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
 ```
 
+
+### Patch 41F — Agent tracking contract
+
+The OpenRouter alias scout reference runner now supports local run/document tracking through `--print-agent-tracking-plan`, `--write-agent-tracking-report`, and `--append-agent-tracking-ledger`. This patch does not change the Governance API schema or routes.

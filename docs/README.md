@@ -261,3 +261,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
 ```
 
+
+### Patch 41F — Agent run/document tracking
+
+The OpenRouter alias scout now includes a local JSONL tracking ledger for run/document visits. Use `--print-agent-tracking-plan`, `--write-agent-tracking-report`, or `--append-agent-tracking-ledger` to inspect document fingerprints and skip/revisit decisions before moving the same contract into PostgreSQL.

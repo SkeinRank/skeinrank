@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -63,4 +63,10 @@ agent-es-evidence-plan:
 agent-es-evidence-report:
 	mkdir -p examples/agents/openrouter_alias_scout/reports
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-evidence-from-elasticsearch > examples/agents/openrouter_alias_scout/reports/elasticsearch-evidence-report.json
+agent-tracking-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-agent-tracking-plan
+
+agent-tracking-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-agent-tracking-report examples/agents/openrouter_alias_scout/reports/agent-tracking-report.json
 
