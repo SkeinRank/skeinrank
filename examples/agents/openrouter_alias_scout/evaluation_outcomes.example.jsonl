@@ -1,0 +1,3 @@
+{"candidate_alias":"pg","outcome":"ambiguous","reason":"pg can mean postgresql, page, or product_group without stronger canonical evidence."}
+{"candidate_alias":"k8s","outcome":"accepted","reason":"sample reviewer would accept k8s as a Kubernetes alias after evidence review."}
+{"candidate_alias":"kube","outcome":"accepted","reason":"sample reviewer would accept kube as a Kubernetes alias after evidence review."}

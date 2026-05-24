@@ -117,5 +117,14 @@
     "cache_namespace": "openrouter-alias-scout-v1",
     "force_refresh": false,
     "write_cache": true
+  },
+  "evaluation_outcomes_path": "evaluation_outcomes.example.jsonl",
+  "evaluation": {
+    "min_confidence_for_review_ready": 0.75,
+    "include_reviewed_items": true,
+    "include_candidate_packs": false,
+    "max_items": 50,
+    "qrels_enabled": false,
+    "snapshot_eval_enabled": false
   }
 }

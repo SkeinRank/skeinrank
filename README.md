@@ -442,3 +442,22 @@ proposal submission stays disabled, and cached responses never mutate runtime
 state. Use `--print-budget-cache-plan` for an offline `skeinrank.agent_budget_cache_plan.v1`
 preview, `--max-llm-calls` / `--max-run-cost-usd` for live-run limits, and
 `--clear-llm-cache` to remove the configured local cache.
+## Patch 40N — Agent evaluation loop
+
+Patch 40N adds an offline evaluation report for the OpenRouter alias scout. It
+can score the local demo pipeline or a saved `skeinrank.agent_llm_review_report.v1`
+without calling OpenRouter, SkeinRank, Elasticsearch, or publishing snapshots.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-evaluation-report
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-alias-scout-llm-report.json \
+  --run-evaluation-report
+```
+
+The output schema is `skeinrank.agent_evaluation_report.v1`. It reports
+evidence coverage, LLM action mix, proposal-ready counts, optional human/policy
+outcomes (`accepted`, `rejected`, `blocked`, `ambiguous`, `noisy`, `conflict`),
+cost/cache summary, and a quality gate. Snapshot before/after evaluation remains
+disabled until approved proposals are applied through the governed workflow.
+

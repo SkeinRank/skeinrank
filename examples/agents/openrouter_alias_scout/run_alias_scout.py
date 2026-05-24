@@ -17,6 +17,12 @@ from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - import style depends on how the example is executed.
+    from .agent_evaluation import (
+        AgentEvaluationConfig,
+        build_agent_evaluation_report,
+        load_evaluation_outcomes,
+        load_json_report,
+    )
     from .alias_scout_workflow import (
         LlmReviewConfig,
         build_llm_review_plan,
@@ -60,6 +66,12 @@ try:  # pragma: no cover - import style depends on how the example is executed.
     from .skeinrank_client import SkeinRankAgentClient
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from agent_evaluation import (
+        AgentEvaluationConfig,
+        build_agent_evaluation_report,
+        load_evaluation_outcomes,
+        load_json_report,
+    )
     from alias_scout_workflow import (
         LlmReviewConfig,
         build_llm_review_plan,
@@ -119,6 +131,7 @@ class AgentRunnerConfig:
     proposal_source_name: str
     failed_queries_path: Path
     evidence_records_path: Path
+    evaluation_outcomes_path: Path | None
     max_queries_per_run: int
     candidate_discovery: CandidateDiscoveryConfig
     evidence_sampler: EvidenceSamplerConfig
@@ -126,6 +139,7 @@ class AgentRunnerConfig:
     llm_review: LlmReviewConfig
     budget_cache: AgentBudgetCacheConfig
     security_profile: SecurityProfileConfig
+    evaluation: AgentEvaluationConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -145,6 +159,12 @@ class AgentRunnerConfig:
         )
         if not evidence_records.is_absolute():
             evidence_records = base_dir / evidence_records
+        raw_evaluation_outcomes = raw.get("evaluation_outcomes_path")
+        evaluation_outcomes: Path | None = None
+        if raw_evaluation_outcomes:
+            evaluation_outcomes = Path(str(raw_evaluation_outcomes))
+            if not evaluation_outcomes.is_absolute():
+                evaluation_outcomes = base_dir / evaluation_outcomes
         binding_id = raw.get("default_binding_id")
         return cls(
             skeinrank_api_url=str(
@@ -175,6 +195,7 @@ class AgentRunnerConfig:
             ),
             failed_queries_path=failed_queries,
             evidence_records_path=evidence_records,
+            evaluation_outcomes_path=evaluation_outcomes,
             max_queries_per_run=int(raw.get("max_queries_per_run", 50)),
             candidate_discovery=CandidateDiscoveryConfig.from_mapping(
                 raw.get("candidate_discovery")
@@ -190,6 +211,7 @@ class AgentRunnerConfig:
             security_profile=SecurityProfileConfig.from_mapping(
                 raw.get("security_profile")
             ),
+            evaluation=AgentEvaluationConfig.from_mapping(raw.get("evaluation")),
             openrouter_base_url=str(
                 os.getenv(
                     "OPENROUTER_BASE_URL",
@@ -278,6 +300,7 @@ def build_run_plan(
             "Patch 40J adds OpenRouter execution and a LangGraph-ready workflow.",
             "Patch 40L adds a service-account security profile.",
             "Patch 40M adds run budgets and JSON response caching.",
+            "Patch 40N adds offline agent evaluation reports.",
         ],
         "sample_queries": [
             {
@@ -467,6 +490,26 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Ignore existing cached LLM responses and refresh them when live calls run.",
     )
+    parser.add_argument(
+        "--run-evaluation-report",
+        action="store_true",
+        help="Build an offline 40N agent evaluation report and print JSON.",
+    )
+    parser.add_argument(
+        "--write-evaluation-report",
+        type=Path,
+        help="Write the offline 40N agent evaluation report to this JSON path.",
+    )
+    parser.add_argument(
+        "--llm-review-report",
+        type=Path,
+        help="Evaluate an existing skeinrank.agent_llm_review_report.v1 JSON file.",
+    )
+    parser.add_argument(
+        "--evaluation-outcomes",
+        type=Path,
+        help="Optional JSONL with human/policy outcomes for accepted/rejected counts.",
+    )
     return parser.parse_args(argv)
 
 
@@ -515,6 +558,48 @@ def build_security_report_for_config(config: AgentRunnerConfig) -> JsonDict:
     )
 
 
+def _load_evaluation_outcomes_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> list[JsonDict]:
+    path = args.evaluation_outcomes or config.evaluation_outcomes_path
+    if path is None:
+        return []
+    return load_evaluation_outcomes(path)
+
+
+def build_evaluation_report_for_config(
+    config: AgentRunnerConfig,
+    failed_queries: list[JsonDict],
+    args: argparse.Namespace,
+) -> JsonDict:
+    """Build the offline 40N evaluation report for CLI/tests."""
+
+    evidence_records = load_jsonl_records(
+        config.evidence_records_path, limit=config.evidence_sampler.max_records
+    )
+    demo_report = build_alias_scout_demo_report(
+        failed_queries,
+        evidence_records,
+        candidate_config=config.candidate_discovery,
+        evidence_config=config.evidence_sampler,
+        demo_config=config.demo_report,
+        binding_id=config.default_binding_id,
+        profile_name=config.default_profile_name,
+        proposal_source_name=config.proposal_source_name,
+        openrouter_model=args.model or config.openrouter_model,
+    )
+    llm_report = (
+        load_json_report(args.llm_review_report) if args.llm_review_report else None
+    )
+    outcome_records = _load_evaluation_outcomes_for_args(config, args)
+    return build_agent_evaluation_report(
+        demo_report=demo_report,
+        llm_review_report=llm_report,
+        outcome_records=outcome_records,
+        evaluation_config=config.evaluation,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
@@ -540,6 +625,22 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    failed_queries = load_failed_queries(
+        config.failed_queries_path, limit=config.max_queries_per_run
+    )
+
+    if args.run_evaluation_report or args.write_evaluation_report:
+        report = build_evaluation_report_for_config(config, failed_queries, args)
+        if args.write_evaluation_report:
+            args.write_evaluation_report.parent.mkdir(parents=True, exist_ok=True)
+            args.write_evaluation_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
     if args.print_tool_schemas:
         print(json.dumps(get_openrouter_tool_schemas(), indent=2, sort_keys=True))
         return 0
@@ -558,10 +659,6 @@ def main(argv: list[str] | None = None) -> int:
         bindings = client.list_bindings(profile_name=config.default_profile_name)
         print(json.dumps(bindings, indent=2, sort_keys=True))
         return 0
-
-    failed_queries = load_failed_queries(
-        config.failed_queries_path, limit=config.max_queries_per_run
-    )
 
     if args.discover_candidates:
         report = build_candidate_discovery_report(
