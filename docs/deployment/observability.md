@@ -52,6 +52,18 @@ The built-in metrics include:
 | `skeinrank_http_requests_total` | counter | HTTP requests by method, path, and status. |
 | `skeinrank_http_request_duration_seconds` | histogram | HTTP request duration. |
 | `skeinrank_http_exceptions_total` | counter | Unhandled HTTP exceptions. |
+| `skeinrank_health_checks_total` | counter | Health endpoint responses by endpoint and status. |
+| `skeinrank_health_check_duration_seconds` | histogram | Health endpoint execution duration. |
+| `skeinrank_database_up` | gauge | Database connectivity status from operational health refresh. |
+| `skeinrank_schema_ok` | gauge | Governance schema health status from operational health refresh. |
+| `skeinrank_schema_current_matches_head` | gauge | Whether the DB revision matches the Alembic head. |
+| `skeinrank_schema_missing_tables` | gauge | Number of expected metadata tables missing from the DB. |
+| `skeinrank_alembic_multiple_heads` | gauge | Whether multiple Alembic heads are present. |
+| `skeinrank_elasticsearch_up` | gauge | Elasticsearch health status, labelled by configured state. |
+| `skeinrank_operational_metrics_refresh_total` | counter | `/metrics`-time operational refresh attempts by status. |
+| `skeinrank_operational_metrics_refresh_duration_seconds` | histogram | Operational refresh duration. |
+| `skeinrank_operational_metrics_last_refresh_success` | gauge | Whether the latest operational refresh succeeded. |
+| `skeinrank_operational_metrics_last_refresh_timestamp_seconds` | gauge | Unix timestamp of the latest operational refresh. |
 | `skeinrank_runtime_search_requests_total` | counter | Runtime query/search calls by endpoint and status. |
 | `skeinrank_runtime_search_duration_seconds` | histogram | Runtime query/search latency. |
 | `skeinrank_runtime_search_hits_total` | counter | Hits returned by runtime search endpoints. |
@@ -65,6 +77,27 @@ The built-in metrics include:
 | `skeinrank_proposal_reviews_total` | counter | Proposal review decisions by source type and decision. |
 | `skeinrank_proposal_batch_apply_total` | counter | Proposal batch apply operations by status and snapshot publish flag. |
 | `skeinrank_proposal_batch_suggestions_total` | counter | Suggestions processed by proposal batch apply operations. |
+| `skeinrank_agent_runs_current` | gauge | Current persisted agent runs by status. |
+| `skeinrank_agent_document_visits_current` | gauge | Current persisted agent document visits by status. |
+| `skeinrank_agent_candidate_observations_current` | gauge | Current persisted agent observations by status. |
+| `skeinrank_agent_llm_reviews_current` | gauge | Current persisted agent LLM reviews by status. |
+| `skeinrank_agent_proposal_attempts_current` | gauge | Current persisted agent proposal attempts by status. |
+| `skeinrank_agent_evidence_windows_current` | gauge | Current persisted agent evidence windows. |
+
+### Operational refresh behavior
+
+Patch 45A refreshes deployment-health and agent-tracking gauges during Prometheus scrapes. The refresh is best-effort: `/metrics` still returns Prometheus text if the database, schema, or Elasticsearch dependency is degraded. Failures are reflected through `skeinrank_operational_metrics_refresh_total{status="failed"}` and `skeinrank_operational_metrics_last_refresh_success`.
+
+The health gauges intentionally mirror the operator-facing endpoints:
+
+```text
+GET /healthz
+GET /readyz
+GET /schema/health
+GET /metrics
+```
+
+`/readyz` remains the deployment gate. The gauges make the same status visible to Prometheus/Grafana without requiring operators to parse JSON responses.
 
 ## Environment variables
 

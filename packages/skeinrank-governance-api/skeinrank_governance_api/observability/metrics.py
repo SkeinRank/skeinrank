@@ -256,6 +256,90 @@ def register_default_metrics() -> None:
         labels=("method", "path"),
     )
     registry.counter(
+        "skeinrank_health_checks_total",
+        "Health check responses by endpoint and status.",
+        labels=("endpoint", "status"),
+    )
+    registry.histogram(
+        "skeinrank_health_check_duration_seconds",
+        "Health check execution duration in seconds.",
+        labels=("endpoint", "status"),
+        buckets=DEFAULT_HTTP_DURATION_BUCKETS,
+    )
+    registry.gauge(
+        "skeinrank_database_up",
+        "Database connectivity status reported by operational health checks.",
+    )
+    registry.gauge(
+        "skeinrank_schema_ok",
+        "Governance schema health status reported by operational health checks.",
+    )
+    registry.gauge(
+        "skeinrank_schema_current_matches_head",
+        "Whether the current database revision matches the Alembic head.",
+    )
+    registry.gauge(
+        "skeinrank_schema_missing_tables",
+        "Number of SQLAlchemy metadata tables missing from the database.",
+    )
+    registry.gauge(
+        "skeinrank_alembic_multiple_heads",
+        "Whether the migration script tree exposes multiple Alembic heads.",
+    )
+    registry.gauge(
+        "skeinrank_elasticsearch_up",
+        "Elasticsearch dependency status reported by operational health checks.",
+        labels=("configured",),
+    )
+    registry.counter(
+        "skeinrank_operational_metrics_refresh_total",
+        "Operational metrics refresh attempts by status.",
+        labels=("status",),
+    )
+    registry.histogram(
+        "skeinrank_operational_metrics_refresh_duration_seconds",
+        "Operational metrics refresh duration in seconds.",
+        labels=("status",),
+        buckets=DEFAULT_HTTP_DURATION_BUCKETS,
+    )
+    registry.gauge(
+        "skeinrank_operational_metrics_last_refresh_success",
+        "Whether the last operational metrics refresh completed successfully.",
+    )
+    registry.gauge(
+        "skeinrank_operational_metrics_last_refresh_timestamp_seconds",
+        "Unix timestamp of the last operational metrics refresh attempt.",
+    )
+    registry.gauge(
+        "skeinrank_agent_runs_current",
+        "Current persisted agent run rows by status.",
+        labels=("status",),
+    )
+    registry.gauge(
+        "skeinrank_agent_document_visits_current",
+        "Current persisted agent document visit rows by visit status.",
+        labels=("status",),
+    )
+    registry.gauge(
+        "skeinrank_agent_candidate_observations_current",
+        "Current persisted agent candidate observation rows by status.",
+        labels=("status",),
+    )
+    registry.gauge(
+        "skeinrank_agent_llm_reviews_current",
+        "Current persisted agent LLM review rows by status.",
+        labels=("status",),
+    )
+    registry.gauge(
+        "skeinrank_agent_proposal_attempts_current",
+        "Current persisted agent proposal attempt rows by status.",
+        labels=("status",),
+    )
+    registry.gauge(
+        "skeinrank_agent_evidence_windows_current",
+        "Current persisted agent evidence window rows.",
+    )
+    registry.counter(
         "skeinrank_runtime_search_requests_total",
         "Runtime search requests handled by endpoint type.",
         labels=("endpoint", "status"),
@@ -344,6 +428,81 @@ def record_http_exception(*, method: str, path: str) -> None:
     registry.inc(
         "skeinrank_http_exceptions_total", labels={"method": method, "path": path}
     )
+
+
+def record_health_check(*, endpoint: str, status: str, duration_seconds: float) -> None:
+    """Record one health endpoint execution."""
+
+    labels = {"endpoint": endpoint, "status": status}
+    registry.inc("skeinrank_health_checks_total", labels=labels)
+    registry.observe(
+        "skeinrank_health_check_duration_seconds", duration_seconds, labels=labels
+    )
+
+
+def set_operational_health_metrics(
+    *,
+    database_ok: bool,
+    schema_ok: bool,
+    schema_current_matches_head: bool,
+    schema_missing_tables: int,
+    alembic_multiple_heads: bool,
+    elasticsearch_ok: bool,
+    elasticsearch_configured: bool,
+) -> None:
+    """Set gauges that describe the current deployment health surface."""
+
+    registry.set("skeinrank_database_up", _bool_value(database_ok))
+    registry.set("skeinrank_schema_ok", _bool_value(schema_ok))
+    registry.set(
+        "skeinrank_schema_current_matches_head",
+        _bool_value(schema_current_matches_head),
+    )
+    registry.set("skeinrank_schema_missing_tables", max(schema_missing_tables, 0))
+    registry.set(
+        "skeinrank_alembic_multiple_heads", _bool_value(alembic_multiple_heads)
+    )
+    registry.set(
+        "skeinrank_elasticsearch_up",
+        _bool_value(elasticsearch_ok),
+        labels={"configured": str(bool(elasticsearch_configured)).lower()},
+    )
+
+
+def record_operational_metrics_refresh(*, status: str, duration_seconds: float) -> None:
+    """Record one /metrics-time operational refresh attempt."""
+
+    labels = {"status": status}
+    registry.inc("skeinrank_operational_metrics_refresh_total", labels=labels)
+    registry.observe(
+        "skeinrank_operational_metrics_refresh_duration_seconds",
+        duration_seconds,
+        labels=labels,
+    )
+    registry.set(
+        "skeinrank_operational_metrics_last_refresh_success",
+        1.0 if status == "succeeded" else 0.0,
+    )
+    registry.set(
+        "skeinrank_operational_metrics_last_refresh_timestamp_seconds", time.time()
+    )
+
+
+def set_agent_tracking_metric(
+    *, metric_name: str, status_values: Iterable[str], counts: Mapping[str, int]
+) -> None:
+    """Set a status-labelled current-state agent tracking metric."""
+
+    for status in status_values:
+        registry.set(
+            metric_name, float(counts.get(status, 0)), labels={"status": status}
+        )
+
+
+def set_agent_evidence_windows_current(count: int) -> None:
+    """Set the current persisted evidence window count."""
+
+    registry.set("skeinrank_agent_evidence_windows_current", float(max(count, 0)))
 
 
 def record_runtime_search_request(
@@ -463,6 +622,10 @@ def current_time() -> float:
 
 def elapsed_seconds(started_at: float) -> float:
     return max(time.perf_counter() - started_at, 0.0)
+
+
+def _bool_value(value: bool) -> float:
+    return 1.0 if value else 0.0
 
 
 def _sample(name: str, labels: tuple[tuple[str, str], ...], value: float) -> str:

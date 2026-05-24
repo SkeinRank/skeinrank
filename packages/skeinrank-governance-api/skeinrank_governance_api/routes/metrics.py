@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response
 
 from ..observability.metrics import render_prometheus_metrics
+from ..operational_metrics import refresh_operational_metrics
 
 router = APIRouter(tags=["observability"])
 
@@ -26,6 +27,7 @@ def metrics_response(request: Request) -> Response:
             media_type="text/plain; version=0.0.4; charset=utf-8",
             status_code=404,
         )
+    refresh_operational_metrics(request.app)
     return Response(
         content=render_prometheus_metrics(),
         media_type="text/plain; version=0.0.4; charset=utf-8",

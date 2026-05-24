@@ -35,7 +35,22 @@ GET /schema/health
 GET /metrics
 ```
 
-`/healthz` reports process/database health and includes a schema-health block. `/readyz` also requires the migrated governance schema to be at the current Alembic head, then checks configured Elasticsearch readiness. `/schema/health` is a read-only schema check for operators and CI. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration.
+`/healthz` reports process/database health and includes a schema-health block. `/readyz` also requires the migrated governance schema to be at the current Alembic head, then checks configured Elasticsearch readiness. `/schema/health` is a read-only schema check for operators and CI. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration and refreshes best-effort operational gauges for database/schema health, Elasticsearch reachability, and DB-backed agent tracking counts.
+
+Patch 45A metrics to watch first:
+
+```text
+skeinrank_database_up
+skeinrank_schema_ok
+skeinrank_schema_current_matches_head
+skeinrank_schema_missing_tables
+skeinrank_elasticsearch_up
+skeinrank_agent_runs_current
+skeinrank_agent_document_visits_current
+skeinrank_agent_candidate_observations_current
+skeinrank_agent_llm_reviews_current
+skeinrank_agent_proposal_attempts_current
+```
 
 CLI equivalent:
 

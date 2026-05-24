@@ -48,9 +48,12 @@ def test_grafana_provisioning_references_dashboard_and_prometheus() -> None:
     assert "url: http://prometheus:9090" in datasource
     assert "path: /var/lib/grafana/dashboards" in dashboard_provider
     assert dashboard["title"] == "SkeinRank Overview"
-    assert "skeinrank_http_requests_total" in json.dumps(dashboard)
-    assert "skeinrank_runtime_search_requests_total" in json.dumps(dashboard)
-    assert "skeinrank_enrichment_jobs_total" in json.dumps(dashboard)
+    dashboard_json = json.dumps(dashboard)
+    assert "skeinrank_http_requests_total" in dashboard_json
+    assert "skeinrank_runtime_search_requests_total" in dashboard_json
+    assert "skeinrank_enrichment_jobs_total" in dashboard_json
+    assert "skeinrank_database_up" in dashboard_json
+    assert "skeinrank_agent_runs_current" in dashboard_json
 
 
 def test_observability_docs_reference_metrics_stack() -> None:
@@ -67,6 +70,8 @@ def test_observability_docs_reference_metrics_stack() -> None:
         "OpenTelemetry tracing",
         "SKEINRANK_GOVERNANCE_API_TRACING_ENABLED",
         "deploy/otel/collector.yml",
+        "skeinrank_database_up",
+        "skeinrank_agent_runs_current",
     )
     for fragment in expected:
         assert fragment in observability
