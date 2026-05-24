@@ -1525,3 +1525,65 @@ class ServiceAccountResponse(BaseModel):
     last_used_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class AgentRunCreateRequest(BaseModel):
+    """Request body for registering one agent workflow run."""
+
+    run_id: str | None = Field(default=None, min_length=1, max_length=128)
+    agent_name: str = Field(
+        default="openrouter_alias_scout", min_length=1, max_length=128
+    )
+    agent_version: str | None = Field(default=None, max_length=64)
+    status: str = Field(default="queued", max_length=32)
+    trigger_type: str = Field(default="manual", max_length=32)
+    profile_name: str | None = Field(default=None, max_length=128)
+    binding_id: int | None = None
+    openrouter_model: str | None = Field(default=None, max_length=128)
+    prompt_version: str | None = Field(default=None, max_length=128)
+    workflow_engine: str | None = Field(default=None, max_length=128)
+    config_hash: str | None = Field(default=None, max_length=64)
+    artifacts_uri: str | None = None
+    report_uri: str | None = None
+    summary: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    requested_by: str | None = Field(default=None, max_length=128)
+
+
+class AgentRunUpdateRequest(BaseModel):
+    """Request body for updating a registered agent run."""
+
+    status: str | None = Field(default=None, max_length=32)
+    artifacts_uri: str | None = None
+    report_uri: str | None = None
+    summary: dict[str, Any] | None = None
+    error_message: str | None = None
+    mark_started: bool = False
+    mark_finished: bool = False
+
+
+class AgentRunResponse(BaseModel):
+    """Persisted agent run registry response."""
+
+    id: int
+    run_id: str
+    agent_name: str
+    agent_version: str | None = None
+    status: str
+    trigger_type: str
+    profile_name: str | None = None
+    normalized_profile_name: str | None = None
+    binding_id: int | None = None
+    openrouter_model: str | None = None
+    prompt_version: str | None = None
+    workflow_engine: str | None = None
+    config_hash: str | None = None
+    artifacts_uri: str | None = None
+    report_uri: str | None = None
+    summary: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    requested_by: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime

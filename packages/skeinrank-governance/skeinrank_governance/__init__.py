@@ -21,6 +21,8 @@ from .cli import (
 from .db import Base, create_all, create_governance_engine, create_session_factory
 from .models import (
     ACTIVE_STATUS,
+    AGENT_RUN_STATUSES,
+    AGENT_RUN_TRIGGER_TYPES,
     ALIAS_STATUSES,
     AMBIGUOUS_ALIAS_CANDIDATE_SOURCES,
     AMBIGUOUS_ALIAS_CANDIDATE_STATUSES,
@@ -42,6 +44,7 @@ from .models import (
     TERM_STATUSES,
     USER_ROLES,
     USER_STATUSES,
+    AgentRun,
     AuditEvent,
     CanonicalTerm,
     ElasticsearchBinding,
@@ -78,6 +81,8 @@ __all__ = [
     "resolve_database_url",
     "set_term_tags",
     "ACTIVE_STATUS",
+    "AGENT_RUN_STATUSES",
+    "AGENT_RUN_TRIGGER_TYPES",
     "ALIAS_STATUSES",
     "AMBIGUOUS_ALIAS_CANDIDATE_SOURCES",
     "AMBIGUOUS_ALIAS_CANDIDATE_STATUSES",
@@ -92,6 +97,7 @@ __all__ = [
     "ELASTICSEARCH_BINDING_WRITE_STRATEGIES",
     "ELASTICSEARCH_ENRICHMENT_JOB_STATUSES",
     "Base",
+    "AgentRun",
     "AuditEvent",
     "CanonicalTerm",
     "GovernanceAmbiguousAlias",

@@ -54,6 +54,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
         "elasticsearch_enrichment_jobs",
+        "agent_runs",
     }.issubset(set(inspector.get_table_names()))
     user_columns = {
         column["name"] for column in inspector.get_columns("governance_users")
@@ -281,11 +282,46 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "result_json",
     }.issubset(job_columns)
 
+    agent_run_columns = {
+        column["name"] for column in inspector.get_columns("agent_runs")
+    }
+    assert {
+        "run_id",
+        "agent_name",
+        "agent_version",
+        "status",
+        "trigger_type",
+        "profile_id",
+        "profile_name",
+        "normalized_profile_name",
+        "binding_id",
+        "openrouter_model",
+        "prompt_version",
+        "workflow_engine",
+        "config_hash",
+        "artifacts_uri",
+        "report_uri",
+        "summary_json",
+        "error_message",
+        "requested_by",
+        "started_at",
+        "finished_at",
+    }.issubset(agent_run_columns)
+    agent_run_indexes = {
+        index["name"]: index for index in inspector.get_indexes("agent_runs")
+    }
+    assert "ix_agent_runs_status_created" in agent_run_indexes
+    assert "ix_agent_runs_profile_created" in agent_run_indexes
+    agent_run_uniques = {
+        item["name"]: item for item in inspector.get_unique_constraints("agent_runs")
+    }
+    assert "uq_agent_runs_run_id" in agent_run_uniques
+
     with engine.connect() as connection:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260523_0021"
+    assert revision == "20260524_0022"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

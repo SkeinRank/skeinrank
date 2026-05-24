@@ -1270,3 +1270,16 @@ It validates `/v1/text/canonicalize`, `/v1/query/plan`, and optional `/v1/headle
 
 The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
 
+
+
+### Agent run registry
+
+The API includes a DB-backed agent run registry for scheduled/worker executions. Use it to register one durable run row before or during an agent cycle, then update status and report metadata as the cycle progresses.
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/agents/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"run_id":"agent-run-001","agent_name":"openrouter_alias_scout","status":"queued","trigger_type":"manual"}'
+```
+
+Run registry writes do not change dictionaries, proposals, snapshots, or runtime state.

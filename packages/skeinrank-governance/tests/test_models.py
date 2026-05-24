@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from skeinrank_governance import (
+    AgentRun,
     AuditEvent,
     Base,
     CanonicalTerm,
@@ -62,6 +63,7 @@ def test_metadata_contains_expected_tables():
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
         "elasticsearch_enrichment_jobs",
+        "agent_runs",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -217,6 +219,23 @@ def test_create_governance_rows_and_normalized_values(session):
         alias_name="docs_current",
         requested_by="tester",
     )
+    agent_run = AgentRun(
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        agent_name="openrouter_alias_scout",
+        agent_version="44A",
+        status="running",
+        trigger_type="scheduled",
+        openrouter_model="openai/gpt-4o-mini",
+        prompt_version="prompt-v1",
+        workflow_engine="dependency_light_state_machine",
+        config_hash="abc123",
+        artifacts_uri="reports/run-001",
+        report_uri="reports/run-001/manifest.json",
+        summary_json={"candidates": 3},
+        requested_by="agent-service-account",
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -244,6 +263,7 @@ def test_create_governance_rows_and_normalized_values(session):
             service_token,
             binding,
             job,
+            agent_run,
             audit,
         ]
     )
@@ -303,6 +323,10 @@ def test_create_governance_rows_and_normalized_values(session):
     assert job.status == "queued"
     assert job.write_strategy == "reindex_alias_swap"
     assert job.documents_seen == 0
+    assert agent_run.status == "running"
+    assert agent_run.trigger_type == "scheduled"
+    assert agent_run.normalized_profile_name == "default_it"
+    assert agent_run.summary_json == {"candidates": 3}
     assert audit.payload_json == {"alias": "K8S"}
 
 

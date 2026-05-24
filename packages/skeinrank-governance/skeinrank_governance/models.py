@@ -69,6 +69,15 @@ ELASTICSEARCH_ENRICHMENT_JOB_STATUSES = (
     "failed",
 )
 ELASTICSEARCH_BINDING_PROVIDERS = ("elasticsearch",)
+AGENT_RUN_STATUSES = (
+    "queued",
+    "running",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "needs_review",
+)
+AGENT_RUN_TRIGGER_TYPES = ("manual", "scheduled", "api", "worker", "test")
 USER_ROLES = ("admin", "moderator", "contributor")
 USER_STATUSES = ("active", "suspended", "deactivated")
 API_TOKEN_OWNER_TYPES = ("personal", "service_account")
@@ -169,6 +178,11 @@ class TerminologyProfile(TimestampMixin, Base):
             cascade="all, delete-orphan",
             passive_deletes=True,
         )
+    )
+    agent_runs: Mapped[list[AgentRun]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     audit_events: Mapped[list[AuditEvent]] = relationship(
         back_populates="profile",
@@ -375,7 +389,10 @@ class GovernanceAuthToken(TimestampMixin, Base):
     user: Mapped[GovernanceUser] = relationship(back_populates="tokens")
 
     def __repr__(self) -> str:
-        return f"GovernanceAuthToken(user_id={self.user_id!r}, prefix={self.token_prefix!r})"
+        return (
+            "GovernanceAuthToken("
+            f"user_id={self.user_id!r}, prefix={self.token_prefix!r})"
+        )
 
 
 class GovernanceServiceAccount(TimestampMixin, Base):
@@ -950,6 +967,11 @@ class ElasticsearchBinding(TimestampMixin, Base):
         passive_deletes=True,
         uselist=False,
     )
+    agent_runs: Mapped[list[AgentRun]] = relationship(
+        back_populates="binding",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -1090,6 +1112,82 @@ class ElasticsearchEnrichmentJob(TimestampMixin, Base):
         )
 
 
+class AgentRun(TimestampMixin, Base):
+    """One persisted execution record for an agent workflow run.
+
+    Agent runs are the top-level audit/registry object for DB-backed agent
+    tracking. Later tables attach document visits, observations, LLM reviews,
+    and proposal attempts to this stable ``run_id``.
+    """
+
+    __tablename__ = "agent_runs"
+    __table_args__ = (
+        UniqueConstraint("run_id", name="uq_agent_runs_run_id"),
+        CheckConstraint(
+            f"status IN {AGENT_RUN_STATUSES!r}",
+            name="agent_run_status",
+        ),
+        CheckConstraint(
+            f"trigger_type IN {AGENT_RUN_TRIGGER_TYPES!r}",
+            name="agent_run_trigger_type",
+        ),
+        Index("ix_agent_runs_status_created", "status", "created_at"),
+        Index("ix_agent_runs_agent_created", "agent_name", "created_at"),
+        Index("ix_agent_runs_profile_created", "profile_id", "created_at"),
+        Index("ix_agent_runs_binding_created", "binding_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    agent_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    agent_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
+    trigger_type: Mapped[str] = mapped_column(
+        String(32), default="manual", nullable=False
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    profile_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    normalized_profile_name: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    openrouter_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    workflow_engine: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    config_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    artifacts_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_runs"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_runs"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentRun("
+            f"run_id={self.run_id!r}, agent={self.agent_name!r}, "
+            f"status={self.status!r})"
+        )
+
+
 class ProfileSnapshot(TimestampMixin, Base):
     """A versioned runtime snapshot exported from governance data."""
 
@@ -1154,6 +1252,18 @@ class AuditEvent(Base):
 
     def __repr__(self) -> str:
         return f"AuditEvent(action={self.action!r}, entity_type={self.entity_type!r})"
+
+
+def _fill_agent_run_defaults(mapper: Any, connection: Any, target: AgentRun) -> None:
+    del mapper, connection
+    target.agent_name = target.agent_name.strip()
+    target.status = target.status.strip().lower()
+    target.trigger_type = target.trigger_type.strip().lower()
+    if target.profile_name is not None:
+        target.normalized_profile_name = normalize_profile_name(target.profile_name)
+    elif target.profile is not None:
+        target.profile_name = target.profile.name
+        target.normalized_profile_name = target.profile.normalized_name
 
 
 def _fill_normalized_profile(
@@ -1394,3 +1504,5 @@ event.listen(
 )
 event.listen(GovernanceBindingPolicy, "before_insert", _fill_normalized_binding_policy)
 event.listen(GovernanceBindingPolicy, "before_update", _fill_normalized_binding_policy)
+event.listen(AgentRun, "before_insert", _fill_agent_run_defaults)
+event.listen(AgentRun, "before_update", _fill_agent_run_defaults)

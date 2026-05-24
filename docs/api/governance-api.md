@@ -690,3 +690,31 @@ Patch 42G does not add new backend endpoints. The smoke runner exercises existin
 
 This keeps the runtime smoke safe: no proposal submission, no dictionary mutation, and no snapshot publishing.
 
+
+
+## Agent run registry
+
+Patch 44A adds a DB-backed run registry under `/v1/agents`.
+
+### Create an agent run
+
+```http
+POST /v1/agents/runs
+```
+
+Request fields include `run_id`, `agent_name`, `agent_version`, `status`, `trigger_type`, optional `profile_name`, optional `binding_id`, model/prompt metadata, artifact/report URIs, and `summary`.
+
+### List agent runs
+
+```http
+GET /v1/agents/runs?status=running&agent_name=openrouter_alias_scout&profile_name=default_it
+```
+
+### Read or update one run
+
+```http
+GET /v1/agents/runs/{run_id}
+PATCH /v1/agents/runs/{run_id}
+```
+
+Supported statuses are `queued`, `running`, `succeeded`, `failed`, `cancelled`, and `needs_review`. Supported trigger types are `manual`, `scheduled`, `api`, `worker`, and `test`.

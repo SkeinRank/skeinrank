@@ -13,6 +13,7 @@ def test_public_api_exports_governance_models_and_helpers():
         == "governance_binding_policies"
     )
     assert governance.ProfileSnapshot.__tablename__ == "profile_snapshots"
+    assert governance.AgentRun.__tablename__ == "agent_runs"
     assert governance.AuditEvent.__tablename__ == "audit_events"
     assert governance.GovernanceUser.__tablename__ == "governance_users"
     assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"
@@ -90,6 +91,21 @@ def test_public_api_exports_governance_models_and_helpers():
         "failed",
     )
     assert governance.ELASTICSEARCH_BINDING_PROVIDERS == ("elasticsearch",)
+    assert governance.AGENT_RUN_STATUSES == (
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "needs_review",
+    )
+    assert governance.AGENT_RUN_TRIGGER_TYPES == (
+        "manual",
+        "scheduled",
+        "api",
+        "worker",
+        "test",
+    )
     assert governance.normalize_value(" K8S ") == "k8s"
     assert governance.normalize_profile_name("Default IT") == "default_it"
     assert governance.create_profile is not None

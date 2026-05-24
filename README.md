@@ -692,3 +692,19 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-runtime
 
 The smoke calls `POST /v1/text/canonicalize`, `POST /v1/query/plan`, and optionally `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest`.
 
+
+
+### Patch 44A — DB-backed agent run registry
+
+SkeinRank Governance API now includes a persisted `agent_runs` registry for agent workflow executions. The registry is the first DB-backed layer for production agent tracking: every run can be registered with a stable `run_id`, lifecycle status, profile/binding scope, model/prompt metadata, artifact URIs, and a compact summary payload.
+
+Initial endpoints:
+
+```text
+POST /v1/agents/runs
+GET /v1/agents/runs
+GET /v1/agents/runs/{run_id}
+PATCH /v1/agents/runs/{run_id}
+```
+
+This patch only tracks run-level metadata. Document visits, candidate observations, LLM reviews, and proposal attempts are planned as later 44B–44D layers.

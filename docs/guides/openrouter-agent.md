@@ -487,3 +487,8 @@ For binding-scoped smoke, add `--runtime-smoke-binding-id <id> --runtime-smoke-e
 
 The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
 
+
+
+## DB-backed run registry
+
+Patch 44A introduces `agent_runs` as the durable top-level registry for OpenRouter Alias Scout executions. A scheduled runner can create one run row, attach profile/binding/model metadata, update lifecycle status, and store report/artifact URIs. Later tracking patches attach document visits, candidate observations, LLM reviews, and proposal attempts to the same run identity.

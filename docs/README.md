@@ -326,3 +326,10 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-docker-
 ```
 
 The default demo mode is report-only and does not submit proposals or publish snapshots.
+
+
+### Agent run registry
+
+Patch 44A adds the first DB-backed agent tracking table: `agent_runs`. It lets scheduled/worker-style agent executions register a durable run record with status, trigger type, profile/binding context, model/prompt metadata, report/artifact URIs, and summary JSON.
+
+The run registry is intentionally separate from runtime snapshots and proposal application: recording a run does not mutate terminology, submit proposals, or publish snapshots.
