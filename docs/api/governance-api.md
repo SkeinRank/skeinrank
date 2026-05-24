@@ -31,10 +31,19 @@ For the API/PostgreSQL-only smoke path, start `docker-compose.headless.yml` and 
 GET /livez
 GET /healthz
 GET /readyz
+GET /schema/health
 GET /metrics
 ```
 
-`/readyz` reports database and configured Elasticsearch readiness. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration.
+`/healthz` reports process/database health and includes a schema-health block. `/readyz` also requires the migrated governance schema to be at the current Alembic head, then checks configured Elasticsearch readiness. `/schema/health` is a read-only schema check for operators and CI. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration.
+
+CLI equivalent:
+
+```bash
+poetry run python -m skeinrank_governance_api.migrations check
+```
+
+The schema check reports `current_revision`, `head_revision`, multiple Alembic heads, whether `alembic_version` exists, and any SQLAlchemy metadata tables missing from the database.
 
 ## Headless dictionary workflows
 

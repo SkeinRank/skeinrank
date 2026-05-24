@@ -339,6 +339,18 @@ Show migration history:
 poetry run python -m skeinrank_governance_api.migrations history
 ```
 
+Check that the database is at the current Alembic head and that all SQLAlchemy metadata tables exist:
+
+```bash
+poetry run python -m skeinrank_governance_api.migrations check
+```
+
+The same read-only report is available over HTTP:
+
+```bash
+curl http://127.0.0.1:8010/schema/health | python -m json.tool
+```
+
 Downgrade one revision when developing locally:
 
 ```bash
@@ -366,7 +378,7 @@ This package currently provides:
 - FastAPI app factory
 - environment-based configuration
 - SQLAlchemy session dependency
-- `/healthz` endpoint
+- `/healthz`, `/readyz`, and `/schema/health` endpoints
 - governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
 - user-console dictionary validation, import, and export endpoints for migration workflows
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
@@ -374,7 +386,7 @@ This package currently provides:
 - admin-only user management endpoints
 - role-aware API permissions for Admin, Moderator, and Contributor
 - Uvicorn launcher command
-- Alembic migration wrapper for the API database URL
+- Alembic migration wrapper and read-only schema-health check for the API database URL
 - tests for app creation, health checks, DB dependency wiring, migrations, and governance routes
 
 ## Governance REST endpoints

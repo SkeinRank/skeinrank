@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .dictionary_spec import DICTIONARY_SCHEMA_VERSION
 
@@ -36,12 +36,32 @@ class ExternalDependencyHealth(BaseModel):
     error: str | None = None
 
 
+class SchemaHealth(BaseModel):
+    """Read-only governance schema health status."""
+
+    ok: bool
+    alembic_version_present: bool
+    current_revision: str | None = None
+    current_revisions: list[str] = Field(default_factory=list)
+    head_revision: str | None = None
+    migration_heads: list[str] = Field(default_factory=list)
+    current_matches_head: bool
+    multiple_heads: bool
+    missing_tables: list[str] = Field(default_factory=list)
+    expected_tables_count: int
+    database_tables_count: int
+    error: str | None = None
+
+
 class HealthzResponse(BaseModel):
     """Health check response."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     status: str = Field(..., examples=["ok", "degraded"])
     service: ServiceInfo
     database: DatabaseHealth
+    schema_health: SchemaHealth = Field(..., alias="schema")
 
 
 class LivezResponse(BaseModel):
@@ -54,9 +74,12 @@ class LivezResponse(BaseModel):
 class ReadyzResponse(BaseModel):
     """Readiness check response with external dependency status."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     status: str = Field(..., examples=["ok", "degraded"])
     service: ServiceInfo
     database: DatabaseHealth
+    schema_health: SchemaHealth = Field(..., alias="schema")
     elasticsearch: ExternalDependencyHealth
 
 

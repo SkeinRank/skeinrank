@@ -535,3 +535,16 @@ This keeps scheduled agents and CI jobs least-privileged: read-only jobs can lis
 runs and tracking records, validation-only jobs can call `validate-alias`, and
 proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 
+
+
+### Patch 43D — Migration stability and schema health checks
+
+Before scheduled agents or CI jobs run proposal/apply workflows, check that the Governance API database is migrated and structurally healthy:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run python -m skeinrank_governance_api.migrations upgrade head
+poetry run python -m skeinrank_governance_api.migrations check
+```
+
+For running services, use `GET /schema/health`. The report is read-only and includes the current Alembic revision, expected head revision, multiple-head detection, `alembic_version` presence, and missing metadata tables. `/readyz` now incorporates this schema-health result so agents do not start against a stale or partially migrated control-plane schema.

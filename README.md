@@ -110,6 +110,15 @@ Default local URLs:
 
 Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md).
 
+Operational schema check after migrations:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run python -m skeinrank_governance_api.migrations check
+```
+
+The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the database schema to match the current Alembic head.
+
 
 ## Quickstart: headless runtime
 

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from skeinrank_governance_api import GovernanceApiConfig, create_app
 from skeinrank_governance_api.dependencies import get_session
 from skeinrank_governance_api.routes.health import _safe_url
+from skeinrank_governance_api.schemas import HealthzResponse, ReadyzResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,8 @@ def test_healthz_returns_database_status(tmp_path):
     }
     assert payload["database"]["ok"] is True
     assert payload["database"]["url"].startswith("sqlite:///")
+    assert payload["schema"]["ok"] is False
+    assert payload["schema"]["alembic_version_present"] is False
 
 
 def test_livez_returns_process_status(tmp_path):
@@ -49,7 +52,9 @@ def test_livez_returns_process_status(tmp_path):
     }
 
 
-def test_readyz_reports_database_and_unconfigured_elasticsearch(tmp_path):
+def test_readyz_requires_migrated_schema_and_reports_unconfigured_elasticsearch(
+    tmp_path,
+):
     app = create_app(
         GovernanceApiConfig(
             database_url=f"sqlite:///{tmp_path / 'governance.db'}",
@@ -62,8 +67,10 @@ def test_readyz_reports_database_and_unconfigured_elasticsearch(tmp_path):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "ok"
+    assert payload["status"] == "degraded"
     assert payload["database"]["ok"] is True
+    assert payload["schema"]["ok"] is False
+    assert payload["schema"]["alembic_version_present"] is False
     assert payload["elasticsearch"] == {
         "ok": False,
         "configured": False,
@@ -99,3 +106,10 @@ def test_session_dependency_can_execute_sql(tmp_path):
 
     assert response.status_code == 200
     assert response.json() == {"value": 1}
+
+
+def test_health_response_models_keep_schema_alias_without_shadowing_base_model():
+    assert "schema" not in HealthzResponse.model_fields
+    assert HealthzResponse.model_fields["schema_health"].alias == "schema"
+    assert "schema" not in ReadyzResponse.model_fields
+    assert ReadyzResponse.model_fields["schema_health"].alias == "schema"

@@ -7,12 +7,14 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from ..elasticsearch import ElasticsearchDiscoveryClient, ElasticsearchDiscoveryError
+from ..schema_health import check_schema_health
 from ..schemas import (
     DatabaseHealth,
     ExternalDependencyHealth,
     HealthzResponse,
     LivezResponse,
     ReadyzResponse,
+    SchemaHealth,
     ServiceInfo,
 )
 
@@ -32,33 +34,50 @@ def livez(request: Request) -> LivezResponse:
 
 @router.get("/healthz", response_model=HealthzResponse)
 def healthz(request: Request) -> HealthzResponse:
-    """Return service and database connectivity status."""
+    """Return service, database connectivity, and schema migration status."""
 
     engine: Engine = request.app.state.governance_engine
     config = request.app.state.config
     database = _check_database(engine, url=config.database_url)
+    schema = check_schema_health(engine, config=config) if database.ok else None
     return HealthzResponse(
         status="ok" if database.ok else "degraded",
         service=_service_info(config),
         database=database,
+        schema_health=schema or _unavailable_schema_health(),
     )
 
 
 @router.get("/readyz", response_model=ReadyzResponse)
 def readyz(request: Request) -> ReadyzResponse:
-    """Return readiness status for database and configured search dependency."""
+    """Return readiness status for database, schema, and search dependency."""
 
     engine: Engine = request.app.state.governance_engine
     config = request.app.state.config
     database = _check_database(engine, url=config.database_url)
+    schema = check_schema_health(engine, config=config) if database.ok else None
     elasticsearch = _check_elasticsearch(ElasticsearchDiscoveryClient(config))
-    ready = database.ok and (elasticsearch.ok or not elasticsearch.configured)
+    ready = (
+        database.ok
+        and bool(schema and schema.ok)
+        and (elasticsearch.ok or not elasticsearch.configured)
+    )
     return ReadyzResponse(
         status="ok" if ready else "degraded",
         service=_service_info(config),
         database=database,
+        schema_health=schema or _unavailable_schema_health(),
         elasticsearch=elasticsearch,
     )
+
+
+@router.get("/schema/health", response_model=SchemaHealth)
+def schema_health(request: Request) -> SchemaHealth:
+    """Return read-only Alembic and metadata health for the governance schema."""
+
+    engine: Engine = request.app.state.governance_engine
+    config = request.app.state.config
+    return check_schema_health(engine, config=config)
 
 
 def _service_info(config) -> ServiceInfo:
@@ -114,3 +133,20 @@ def _safe_url(url: str) -> str:
     if "@" not in rest:
         return url
     return f"{scheme}://***@{rest.rsplit('@', 1)[1]}"
+
+
+def _unavailable_schema_health() -> SchemaHealth:
+    return SchemaHealth(
+        ok=False,
+        alembic_version_present=False,
+        current_revision=None,
+        current_revisions=[],
+        head_revision=None,
+        migration_heads=[],
+        current_matches_head=False,
+        multiple_heads=False,
+        missing_tables=[],
+        expected_tables_count=0,
+        database_tables_count=0,
+        error="database_unavailable",
+    )
