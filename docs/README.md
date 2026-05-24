@@ -27,7 +27,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/observability.md`](deployment/observability.md) — logs, metrics, tracing, Prometheus, and Grafana.
 - [`deployment/dev-stack-troubleshooting.md`](deployment/dev-stack-troubleshooting.md) — common local stack issues.
 
-Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables. Patch 45A mirrors this state into Prometheus gauges and adds DB-backed agent tracking gauges under `GET /metrics`.
+Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables. Patch 45A mirrors this state into Prometheus gauges and adds DB-backed agent tracking gauges under `GET /metrics`. Patch 45B adds structured log event fields and a sanitized troubleshooting report at `GET /v1/ops/troubleshooting/report` / `python -m skeinrank_governance_api.troubleshooting report`.
 
 
 ## Headless dictionary facade
@@ -372,6 +372,7 @@ agent:tools:read
 agent:tools:validate
 agent:tools:suggest
 agent:tools:explain
+ops:reports:read
 ```
 
 This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list

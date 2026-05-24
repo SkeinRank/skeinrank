@@ -108,6 +108,54 @@ def configure_logging(config: GovernanceApiConfig) -> None:
         )
 
 
+def structured_log(
+    logger: logging.Logger,
+    level: int,
+    message: str,
+    *,
+    event: str,
+    outcome: str | None = None,
+    exc_info: bool | tuple[Any, Any, Any] | None = None,
+    **fields: Any,
+) -> None:
+    """Emit a structured log event with collision-safe extra fields.
+
+    ``logging`` rejects ``extra`` keys that collide with LogRecord attributes.
+    This helper keeps route/middleware code simple by normalizing those keys and
+    by applying the same JSON-safety rules used by :class:`JsonLogFormatter`.
+    """
+
+    logger.log(
+        level,
+        message,
+        extra=structured_log_extra(event=event, outcome=outcome, **fields),
+        exc_info=exc_info,
+    )
+
+
+def structured_log_extra(
+    *,
+    event: str,
+    outcome: str | None = None,
+    **fields: Any,
+) -> dict[str, Any]:
+    """Build a collision-safe ``extra`` payload for structured logs."""
+
+    payload: dict[str, Any] = {"event": event}
+    if outcome:
+        payload["outcome"] = outcome
+    for key, value in fields.items():
+        normalized_key = _safe_extra_key(str(key))
+        payload[normalized_key] = _json_safe(value)
+    return payload
+
+
+def _safe_extra_key(key: str) -> str:
+    if key in _RESERVED_LOG_RECORD_FIELDS or key.startswith("_"):
+        return f"field_{key.lstrip('_')}"
+    return key
+
+
 def _find_observability_handler(logger: logging.Logger) -> logging.Handler | None:
     for handler in logger.handlers:
         if getattr(handler, "name", None) == _OBSERVABILITY_HANDLER_NAME:

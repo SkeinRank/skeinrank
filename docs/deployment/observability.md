@@ -169,6 +169,8 @@ Example event shape:
   "level": "info",
   "logger": "skeinrank_governance_api.observability.http",
   "message": "HTTP request completed",
+  "event": "http.request.completed",
+  "outcome": "succeeded",
   "request_id": "local-smoke-1",
   "http_method": "GET",
   "http_path": "/readyz",
@@ -180,6 +182,21 @@ Example event shape:
   }
 }
 ```
+
+## Troubleshooting reports
+
+Patch 45B adds a sanitized operator report for support/debug sessions:
+
+```bash
+curl http://127.0.0.1:8010/v1/ops/troubleshooting/report \
+  -H "Authorization: Bearer $SKEINRANK_TOKEN" | python -m json.tool
+
+poetry run python -m skeinrank_governance_api.troubleshooting report
+```
+
+The report includes service metadata, deployment environment, sanitized config, database/schema/Elasticsearch/observability checks, selected table counts, and recommendations. It does not include credentials, API tokens, request bodies, query text, or document snippets.
+
+For API tokens, use the `ops:reports:read` scope. Session login and local-dev mode remain role-based.
 
 ## Docker Compose observability profile
 
@@ -264,5 +281,6 @@ The foundation does not log request bodies or document snippets. Runtime query t
 
 The next observability patches can build on this foundation:
 
+- backup/restore smoke reports;
 - optional Sentry error reporting;
 - deployment dashboards for enrichment jobs and runtime search.

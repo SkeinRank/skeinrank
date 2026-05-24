@@ -357,6 +357,15 @@ Patch 45A also mirrors deployment health and current DB-backed agent tracking st
 curl http://127.0.0.1:8010/metrics | grep -E "skeinrank_(database_up|schema_ok|agent_runs_current)"
 ```
 
+Patch 45B adds structured log events and a sanitized troubleshooting report:
+
+```bash
+curl http://127.0.0.1:8010/v1/ops/troubleshooting/report | python -m json.tool
+poetry run python -m skeinrank_governance_api.troubleshooting report
+```
+
+When auth is enabled, the HTTP report requires an admin user. Personal/service-account tokens also need the `ops:reports:read` scope.
+
 Downgrade one revision when developing locally:
 
 ```bash
@@ -386,6 +395,7 @@ This package currently provides:
 - SQLAlchemy session dependency
 - `/healthz`, `/readyz`, and `/schema/health` endpoints
 - Prometheus health and DB-backed agent tracking gauges under `/metrics`
+- structured log events and `/v1/ops/troubleshooting/report` diagnostics
 - governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
 - user-console dictionary validation, import, and export endpoints for migration workflows
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
@@ -1339,6 +1349,7 @@ agent:tools:read
 agent:tools:validate
 agent:tools:suggest
 agent:tools:explain
+ops:reports:read
 ```
 
 This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
