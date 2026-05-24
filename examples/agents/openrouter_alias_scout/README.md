@@ -575,3 +575,22 @@ submit proposals, does not mutate dictionaries, and does not publish snapshots. 
 steps require explicit flags such as `--agent-cycle-live-llm` and
 `--agent-cycle-validate-proposals`; proposal submission still requires the explicit
 `--agent-cycle-submit-proposals` flag plus the existing security/config guardrails.
+
+## Patch 42A — full agent integration smoke test
+
+Patch 42A adds a network-free smoke test for the full headless agent contour:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-integration-smoke-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-integration-smoke-report /tmp/skeinrank-agent-smoke.json \
+  --integration-smoke-artifacts-dir /tmp/skeinrank-agent-smoke-artifacts
+```
+
+The smoke builds deterministic reports for demo discovery, synthetic LLM review,
+synthetic validation, proposal inbox, approved apply planning, snapshot evaluation,
+and a cycle summary. It does not call OpenRouter, Elasticsearch, or the SkeinRank API,
+and it does not submit proposals, apply dictionary changes, or publish snapshots.
+Use it as a fast CI/Airflow/Kubernetes preflight before running live 41I cycles.

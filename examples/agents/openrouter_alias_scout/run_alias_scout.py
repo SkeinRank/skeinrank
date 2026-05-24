@@ -78,6 +78,10 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         load_jsonl_records,
         sample_evidence_windows,
     )
+    from .integration_smoke import (
+        FullIntegrationSmokeConfig,
+        build_full_integration_smoke_report,
+    )
     from .new_alias_smoke import (
         NewAliasSmokeConfig,
         build_new_alias_smoke_llm_report,
@@ -176,6 +180,10 @@ except ImportError:  # pragma: no cover
         load_jsonl_records,
         sample_evidence_windows,
     )
+    from integration_smoke import (
+        FullIntegrationSmokeConfig,
+        build_full_integration_smoke_report,
+    )
     from new_alias_smoke import (
         NewAliasSmokeConfig,
         build_new_alias_smoke_llm_report,
@@ -247,6 +255,7 @@ class AgentRunnerConfig:
     approved_apply: ApprovedApplyConfig
     new_alias_smoke: NewAliasSmokeConfig
     scheduled_runner: ScheduledRunnerConfig
+    integration_smoke: FullIntegrationSmokeConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -347,6 +356,9 @@ class AgentRunnerConfig:
             scheduled_runner=ScheduledRunnerConfig.from_mapping(
                 raw.get("scheduled_runner"), base_dir=base_dir
             ),
+            integration_smoke=FullIntegrationSmokeConfig.from_mapping(
+                raw.get("integration_smoke"), base_dir=base_dir
+            ),
             openrouter_base_url=str(
                 os.getenv(
                     "OPENROUTER_BASE_URL",
@@ -444,6 +456,7 @@ def build_run_plan(
             "Patch 41G adds an offline proposal inbox/review workflow.",
             "Patch 41H adds approved-proposal apply planning and snapshot evaluation.",
             "Patch 41I adds scheduled/worker-mode agent cycle orchestration.",
+            "Patch 42A adds a one-command full agent integration smoke test.",
         ],
         "sample_queries": [
             {
@@ -882,6 +895,27 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--agent-cycle-fail-on-needs-review",
         action="store_true",
         help="Return the configured needs-review exit code when the cycle needs human review.",
+    )
+
+    parser.add_argument(
+        "--print-integration-smoke-plan",
+        action="store_true",
+        help="Print the 42A full agent integration smoke-test plan.",
+    )
+    parser.add_argument(
+        "--run-integration-smoke-test",
+        action="store_true",
+        help="Run a network-free full agent integration smoke test and print JSON.",
+    )
+    parser.add_argument(
+        "--write-integration-smoke-report",
+        type=Path,
+        help="Run the 42A smoke test and write the report to this JSON path.",
+    )
+    parser.add_argument(
+        "--integration-smoke-artifacts-dir",
+        type=Path,
+        help="Override integration_smoke.artifacts_dir for this run.",
     )
 
     parser.add_argument(
@@ -1446,6 +1480,55 @@ def run_scheduled_agent_cycle_for_config(
     return final_report, int(final_report.get("recommended_exit_code", 0))
 
 
+def _integration_smoke_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> FullIntegrationSmokeConfig:
+    """Apply CLI overrides to the 42A full integration smoke config."""
+
+    return config.integration_smoke.with_overrides(
+        artifacts_dir=args.integration_smoke_artifacts_dir,
+        max_candidates=args.max_candidates,
+    )
+
+
+def build_integration_smoke_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the network-free 42A smoke-test plan."""
+
+    return _integration_smoke_config_from_args(config, args).to_plan()
+
+
+def run_integration_smoke_for_config(
+    config: AgentRunnerConfig,
+    failed_queries: list[JsonDict],
+    args: argparse.Namespace,
+) -> JsonDict:
+    """Run the network-free 42A full agent integration smoke test."""
+
+    evidence_records = load_jsonl_records(
+        config.evidence_records_path, limit=config.evidence_sampler.max_records
+    )
+    return build_full_integration_smoke_report(
+        failed_queries=failed_queries,
+        evidence_records=evidence_records,
+        smoke_config=_integration_smoke_config_from_args(config, args),
+        candidate_config=config.candidate_discovery,
+        evidence_config=config.evidence_sampler,
+        demo_config=config.demo_report,
+        canonical_hints_config=config.canonical_hints,
+        proposal_submission_config=config.proposal_submission,
+        proposal_inbox_config=config.proposal_inbox,
+        approved_apply_config=config.approved_apply,
+        evaluation_config=config.evaluation,
+        scheduled_config=config.scheduled_runner,
+        binding_id=config.default_binding_id,
+        profile_name=config.default_profile_name,
+        proposal_source_name=config.proposal_source_name,
+        openrouter_model=args.model or config.openrouter_model,
+    )
+
+
 def _elasticsearch_source_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> ElasticsearchSourceConfig:
@@ -1717,6 +1800,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0
 
+    if args.print_integration_smoke_plan:
+        report = build_integration_smoke_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
     if args.print_security_profile or args.check_security_profile:
         report = build_security_report_for_config(config)
         print(json.dumps(report, indent=2, sort_keys=True))
@@ -1741,6 +1829,20 @@ def main(argv: list[str] | None = None) -> int:
     failed_queries = load_failed_queries(
         config.failed_queries_path, limit=config.max_queries_per_run
     )
+
+    if args.run_integration_smoke_test or args.write_integration_smoke_report:
+        report = run_integration_smoke_for_config(config, failed_queries, args)
+        if args.write_integration_smoke_report:
+            args.write_integration_smoke_report.parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            args.write_integration_smoke_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
 
     if args.run_agent_cycle or args.write_agent_cycle_report:
         report, exit_code = run_scheduled_agent_cycle_for_config(

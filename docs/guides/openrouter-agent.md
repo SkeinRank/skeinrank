@@ -376,3 +376,33 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 
 `--agent-cycle-submit-proposals` is intentionally separate and still cannot publish
 snapshots or mutate runtime state.
+
+## Patch 42A — full agent integration smoke test
+
+Patch 42A packages the manually verified agent contour into one reproducible,
+network-free smoke test. It exercises the report chain without external services:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-integration-smoke-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-integration-smoke-report /tmp/skeinrank-agent-smoke.json \
+  --integration-smoke-artifacts-dir /tmp/skeinrank-agent-smoke-artifacts
+```
+
+The smoke creates artifacts for:
+
+1. demo candidate/evidence report;
+2. synthetic proposal-ready LLM review report;
+3. synthetic validation report;
+4. proposal inbox report;
+5. approved apply plan;
+6. snapshot evaluation report;
+7. agent evaluation report;
+8. scheduled cycle summary.
+
+It keeps `openrouter_calls=false`, `elasticsearch_calls=false`,
+`skeinrank_api_calls=false`, `proposal_submission_enabled=false`,
+`runtime_mutation_enabled=false`, and `snapshot_publish_enabled=false`. This makes it
+safe to run in CI as a fast preflight before live OpenRouter/API validation.

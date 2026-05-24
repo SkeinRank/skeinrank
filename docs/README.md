@@ -286,3 +286,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-agent-cyc
 
 This is designed for external schedulers such as Airflow, cron, Prefect, GitHub Actions,
 or Kubernetes CronJob. The default mode is report-only and does not mutate runtime state.
+
+Patch 42A adds a full, network-free OpenRouter alias scout integration smoke test:
+`--print-integration-smoke-plan` and `--write-integration-smoke-report`. The smoke
+creates the complete report chain without external API calls or runtime mutation.

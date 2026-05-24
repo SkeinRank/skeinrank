@@ -648,3 +648,10 @@ Patch 41H does not add new governance API routes. The OpenRouter alias scout bui
 Patch 41I does not add Governance API routes. The OpenRouter alias scout scheduled mode
 is an external worker entrypoint that can optionally call existing tool endpoints in later
 explicit stages. The safe default is offline and does not call SkeinRank APIs.
+
+## Agent integration smoke test
+
+Patch 42A adds an offline integration smoke test for the OpenRouter alias scout.
+It does not add or require new Governance API endpoints. The smoke validates the
+agent-side report chain before live use of `/v1/tools/validate-alias` or
+`/v1/tools/suggest-alias`.

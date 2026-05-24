@@ -320,5 +320,14 @@
     "success_exit_code": 0,
     "needs_review_exit_code": 10,
     "error_exit_code": 2
+  },
+  "integration_smoke": {
+    "artifacts_dir": "reports/integration",
+    "max_candidates": 3,
+    "approve_ready_proposals": true,
+    "write_artifacts": true,
+    "include_snapshot_artifacts": true,
+    "confidence": 0.91,
+    "run_id_prefix": "openrouter-alias-scout-smoke"
   }
 }

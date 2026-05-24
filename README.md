@@ -614,3 +614,17 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-agent-cyc
 
 The safe default is offline and report-only. Live LLM review, proposal validation, and
 proposal submission require explicit flags and still do not publish snapshots.
+
+### Patch 42A — full agent integration smoke test
+
+Patch 42A adds a one-command, network-free smoke test for the OpenRouter alias scout
+contour. It builds demo, synthetic LLM, synthetic validation, proposal inbox,
+approved-apply, snapshot-evaluation, evaluation, and cycle-summary artifacts without
+calling OpenRouter, Elasticsearch, or the SkeinRank API:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-integration-smoke-report /tmp/skeinrank-agent-smoke.json
+```
+
+This is intended as a CI/preflight check before live validation.

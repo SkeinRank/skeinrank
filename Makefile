@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -99,3 +99,10 @@ agent-cycle:
 agent-cycle-report:
 	mkdir -p examples/agents/openrouter_alias_scout/reports/scheduled
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-agent-cycle-report examples/agents/openrouter_alias_scout/reports/scheduled/agent-cycle-report.json
+
+agent-integration-smoke-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-integration-smoke-plan
+
+agent-integration-smoke-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports/integration
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-integration-smoke-report examples/agents/openrouter_alias_scout/reports/integration/full-integration-smoke-report.json

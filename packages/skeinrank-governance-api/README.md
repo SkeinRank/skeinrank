@@ -1223,3 +1223,15 @@ poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.p
 
 The default scheduled cycle writes reports only and does not call OpenRouter or mutate
 SkeinRank state.
+
+### Patch 42A — full agent integration smoke test
+
+The OpenRouter alias scout now includes a network-free full contour smoke test:
+
+```bash
+poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-integration-smoke-report /tmp/skeinrank-agent-smoke.json
+```
+
+It builds deterministic smoke artifacts for the agent report chain without calling
+OpenRouter, Elasticsearch, or the Governance API.
