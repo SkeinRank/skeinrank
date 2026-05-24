@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from skeinrank_governance import (
+    AgentDocumentVisit,
     AgentRun,
     AuditEvent,
     Base,
@@ -236,6 +237,24 @@ def test_create_governance_rows_and_normalized_values(session):
         summary_json={"candidates": 3},
         requested_by="agent-service-account",
     )
+    visit = AgentDocumentVisit(
+        agent_run=agent_run,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        source_id="doc-001",
+        source_type="elasticsearch_hit",
+        index_name="default-it-docs",
+        content_hash="abc123def456",
+        processing_context_hash="ctx123def456",
+        agent_name="openrouter_alias_scout",
+        agent_version="44B",
+        prompt_version="prompt-v1",
+        openrouter_model="openai/gpt-4o-mini",
+        visit_status="new_document",
+        should_scan=True,
+        metadata_json={"title": "Kubernetes rollout"},
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -264,6 +283,7 @@ def test_create_governance_rows_and_normalized_values(session):
             binding,
             job,
             agent_run,
+            visit,
             audit,
         ]
     )
@@ -327,6 +347,8 @@ def test_create_governance_rows_and_normalized_values(session):
     assert agent_run.trigger_type == "scheduled"
     assert agent_run.normalized_profile_name == "default_it"
     assert agent_run.summary_json == {"candidates": 3}
+    assert agent_run.document_visits[0].source_id == "doc-001"
+    assert agent_run.document_visits[0].should_scan is True
     assert audit.payload_json == {"alias": "K8S"}
 
 

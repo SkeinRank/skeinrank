@@ -1283,3 +1283,8 @@ curl -X POST http://127.0.0.1:8010/v1/agents/runs \
 ```
 
 Run registry writes do not change dictionaries, proposals, snapshots, or runtime state.
+
+
+### Agent document visit API
+
+The API exposes DB-backed document visit tracking at `/v1/agents/runs/{run_id}/document-visits`. This is the first persistent layer for determining whether an agent should scan or skip source documents in future runs.

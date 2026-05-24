@@ -78,6 +78,14 @@ AGENT_RUN_STATUSES = (
     "needs_review",
 )
 AGENT_RUN_TRIGGER_TYPES = ("manual", "scheduled", "api", "worker", "test")
+AGENT_DOCUMENT_VISIT_STATUSES = (
+    "new_document",
+    "unchanged_seen",
+    "content_changed",
+    "context_changed",
+    "skipped",
+    "error",
+)
 USER_ROLES = ("admin", "moderator", "contributor")
 USER_STATUSES = ("active", "suspended", "deactivated")
 API_TOKEN_OWNER_TYPES = ("personal", "service_account")
@@ -180,6 +188,11 @@ class TerminologyProfile(TimestampMixin, Base):
         )
     )
     agent_runs: Mapped[list[AgentRun]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_document_visits: Mapped[list[AgentDocumentVisit]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -972,6 +985,10 @@ class ElasticsearchBinding(TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    agent_document_visits: Mapped[list[AgentDocumentVisit]] = relationship(
+        back_populates="binding",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -1179,12 +1196,102 @@ class AgentRun(TimestampMixin, Base):
     binding: Mapped[ElasticsearchBinding | None] = relationship(
         back_populates="agent_runs"
     )
+    document_visits: Mapped[list[AgentDocumentVisit]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
             "AgentRun("
             f"run_id={self.run_id!r}, agent={self.agent_name!r}, "
             f"status={self.status!r})"
+        )
+
+
+class AgentDocumentVisit(TimestampMixin, Base):
+    """One tracked document visit for an agent run.
+
+    Visits are append-only audit records. They let agents decide whether a
+    source document should be scanned again by comparing content hashes and
+    processing-context hashes with the most recent previous visit for the same
+    source identity.
+    """
+
+    __tablename__ = "agent_document_visits"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_run_id",
+            "source_id",
+            name="uq_agent_document_visits_run_source",
+        ),
+        CheckConstraint(
+            f"visit_status IN {AGENT_DOCUMENT_VISIT_STATUSES!r}",
+            name="agent_document_visit_status",
+        ),
+        Index("ix_agent_document_visits_run_status", "agent_run_id", "visit_status"),
+        Index("ix_agent_document_visits_source_created", "source_id", "created_at"),
+        Index(
+            "ix_agent_document_visits_binding_source",
+            "binding_id",
+            "source_id",
+        ),
+        Index(
+            "ix_agent_document_visits_hashes",
+            "content_hash",
+            "processing_context_hash",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    source_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    external_document_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    source_type: Mapped[str] = mapped_column(
+        String(64), default="document", nullable=False
+    )
+    index_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    processing_context_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    agent_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    agent_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    openrouter_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    visit_status: Mapped[str] = mapped_column(
+        String(32), default="new_document", nullable=False
+    )
+    should_scan: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    evidence_windows_found: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="document_visits")
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_document_visits"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_document_visits"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentDocumentVisit("
+            f"run_id={self.run_id!r}, source_id={self.source_id!r}, "
+            f"status={self.visit_status!r}, should_scan={self.should_scan!r})"
         )
 
 

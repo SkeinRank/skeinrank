@@ -1562,6 +1562,54 @@ class AgentRunUpdateRequest(BaseModel):
     mark_finished: bool = False
 
 
+class AgentDocumentVisitCreateRequest(BaseModel):
+    """Request body for recording one agent document visit."""
+
+    source_id: str = Field(min_length=1, max_length=512)
+    external_document_id: str | None = Field(default=None, max_length=512)
+    source_type: str = Field(default="document", max_length=64)
+    index_name: str | None = Field(default=None, max_length=256)
+    content_hash: str | None = Field(default=None, min_length=12, max_length=64)
+    content: str | dict[str, Any] | list[Any] | None = None
+    processing_context_hash: str | None = Field(
+        default=None, min_length=12, max_length=64
+    )
+    agent_version: str | None = Field(default=None, max_length=64)
+    prompt_version: str | None = Field(default=None, max_length=128)
+    openrouter_model: str | None = Field(default=None, max_length=128)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    evidence_windows_found: int = Field(default=0, ge=0)
+    error_message: str | None = None
+    force_rescan: bool = False
+
+
+class AgentDocumentVisitResponse(BaseModel):
+    """Persisted agent document visit response."""
+
+    id: int
+    agent_run_id: int
+    run_id: str
+    source_id: str
+    external_document_id: str | None = None
+    source_type: str
+    index_name: str | None = None
+    content_hash: str
+    processing_context_hash: str
+    agent_name: str
+    agent_version: str | None = None
+    prompt_version: str | None = None
+    openrouter_model: str | None = None
+    profile_name: str | None = None
+    binding_id: int | None = None
+    visit_status: str
+    should_scan: bool
+    evidence_windows_found: int
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class AgentRunResponse(BaseModel):
     """Persisted agent run registry response."""
 

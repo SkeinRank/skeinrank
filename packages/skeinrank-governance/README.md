@@ -223,3 +223,8 @@ The governance package models the state used by the Phase C coverage framework. 
 Patch 44A adds the `agent_runs` table as the first DB-backed agent tracking primitive. It stores one durable row per agent workflow run, including the stable `run_id`, lifecycle status, trigger type, optional profile and Elasticsearch binding scope, model/prompt metadata, report/artifact URIs, summary JSON, and start/finish timestamps.
 
 Later tracking layers attach document visits, candidate observations, LLM reviews, and proposal attempts to the run registry.
+
+
+### Agent document visits
+
+The governance model includes `AgentDocumentVisit`, an append-only record that links source documents to `AgentRun` rows and stores `content_hash`, `processing_context_hash`, `visit_status`, and `should_scan`.

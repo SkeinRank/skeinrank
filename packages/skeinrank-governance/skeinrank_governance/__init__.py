@@ -21,6 +21,7 @@ from .cli import (
 from .db import Base, create_all, create_governance_engine, create_session_factory
 from .models import (
     ACTIVE_STATUS,
+    AGENT_DOCUMENT_VISIT_STATUSES,
     AGENT_RUN_STATUSES,
     AGENT_RUN_TRIGGER_TYPES,
     ALIAS_STATUSES,
@@ -44,6 +45,7 @@ from .models import (
     TERM_STATUSES,
     USER_ROLES,
     USER_STATUSES,
+    AgentDocumentVisit,
     AgentRun,
     AuditEvent,
     CanonicalTerm,
@@ -81,6 +83,7 @@ __all__ = [
     "resolve_database_url",
     "set_term_tags",
     "ACTIVE_STATUS",
+    "AGENT_DOCUMENT_VISIT_STATUSES",
     "AGENT_RUN_STATUSES",
     "AGENT_RUN_TRIGGER_TYPES",
     "ALIAS_STATUSES",
@@ -97,6 +100,7 @@ __all__ = [
     "ELASTICSEARCH_BINDING_WRITE_STRATEGIES",
     "ELASTICSEARCH_ENRICHMENT_JOB_STATUSES",
     "Base",
+    "AgentDocumentVisit",
     "AgentRun",
     "AuditEvent",
     "CanonicalTerm",

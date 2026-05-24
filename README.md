@@ -708,3 +708,8 @@ PATCH /v1/agents/runs/{run_id}
 ```
 
 This patch only tracks run-level metadata. Document visits, candidate observations, LLM reviews, and proposal attempts are planned as later 44B–44D layers.
+
+
+### Patch 44B — Agent document visits
+
+Patch 44B adds DB-backed `agent_document_visits` tracking for agent runs. Each visit records a source document identity, content hash, processing-context hash, visit status, and `should_scan` decision. This is the foundation for skipping unchanged documents and rerunning only when content or agent context changes.

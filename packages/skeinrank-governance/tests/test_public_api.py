@@ -14,6 +14,7 @@ def test_public_api_exports_governance_models_and_helpers():
     )
     assert governance.ProfileSnapshot.__tablename__ == "profile_snapshots"
     assert governance.AgentRun.__tablename__ == "agent_runs"
+    assert governance.AgentDocumentVisit.__tablename__ == "agent_document_visits"
     assert governance.AuditEvent.__tablename__ == "audit_events"
     assert governance.GovernanceUser.__tablename__ == "governance_users"
     assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"

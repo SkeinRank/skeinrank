@@ -718,3 +718,13 @@ PATCH /v1/agents/runs/{run_id}
 ```
 
 Supported statuses are `queued`, `running`, `succeeded`, `failed`, `cancelled`, and `needs_review`. Supported trigger types are `manual`, `scheduled`, `api`, `worker`, and `test`.
+
+
+## Agent document visits
+
+Patch 44B adds document visit endpoints under the agent registry:
+
+- `POST /v1/agents/runs/{run_id}/document-visits` records one visited source document.
+- `GET /v1/agents/runs/{run_id}/document-visits` lists visits for a run and supports `status`, `should_scan`, and `limit` filters.
+
+A visit stores `source_id`, optional external document metadata, `content_hash`, `processing_context_hash`, `visit_status`, and `should_scan`. The API classifies visits as `new_document`, `unchanged_seen`, `content_changed`, `context_changed`, `skipped`, or `error`.

@@ -333,3 +333,8 @@ The default demo mode is report-only and does not submit proposals or publish sn
 Patch 44A adds the first DB-backed agent tracking table: `agent_runs`. It lets scheduled/worker-style agent executions register a durable run record with status, trigger type, profile/binding context, model/prompt metadata, report/artifact URIs, and summary JSON.
 
 The run registry is intentionally separate from runtime snapshots and proposal application: recording a run does not mutate terminology, submit proposals, or publish snapshots.
+
+
+### Agent tracking: document visits
+
+The governance API now supports DB-backed document visit tracking under `/v1/agents/runs/{run_id}/document-visits`. Agents can persist content hashes and processing-context hashes to decide whether a source document is new, unchanged, content-changed, or context-changed.

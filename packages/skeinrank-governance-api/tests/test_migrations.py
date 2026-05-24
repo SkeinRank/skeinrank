@@ -321,7 +321,7 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260524_0022"
+    assert revision == "20260524_0023"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from skeinrank_governance.models import AgentRun
+from skeinrank_governance.models import AgentDocumentVisit, AgentRun
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..agent_document_visits import (
+    AgentDocumentVisitError,
+    list_document_visits,
+    record_document_visit,
+)
 from ..agent_run_registry import (
     AgentRunRegistryError,
     create_agent_run,
@@ -16,7 +21,13 @@ from ..agent_run_registry import (
 )
 from ..auth import AuthContext, require_roles
 from ..dependencies import get_session
-from ..schemas import AgentRunCreateRequest, AgentRunResponse, AgentRunUpdateRequest
+from ..schemas import (
+    AgentDocumentVisitCreateRequest,
+    AgentDocumentVisitResponse,
+    AgentRunCreateRequest,
+    AgentRunResponse,
+    AgentRunUpdateRequest,
+)
 
 router = APIRouter(prefix="/v1/agents", tags=["agents"])
 
@@ -150,6 +161,83 @@ def update_agent_run_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
+@router.post(
+    "/runs/{run_id}/document-visits",
+    response_model=AgentDocumentVisitResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_agent_document_visit_endpoint(
+    run_id: str,
+    request: AgentDocumentVisitCreateRequest,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> AgentDocumentVisitResponse:
+    """Record one source document visit for an agent run."""
+
+    try:
+        visit = record_document_visit(
+            session,
+            run_id=run_id,
+            source_id=request.source_id,
+            external_document_id=request.external_document_id,
+            source_type=request.source_type,
+            index_name=request.index_name,
+            content_hash=request.content_hash,
+            content=request.content,
+            processing_context_hash=request.processing_context_hash,
+            agent_version=request.agent_version,
+            prompt_version=request.prompt_version,
+            openrouter_model=request.openrouter_model,
+            metadata_json=request.metadata,
+            evidence_windows_found=request.evidence_windows_found,
+            error_message=request.error_message,
+            force_rescan=request.force_rescan,
+        )
+        session.commit()
+        session.refresh(visit)
+        return _agent_document_visit_response(visit)
+    except AgentDocumentVisitError as exc:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Document visit already exists for this run and source_id.",
+        ) from exc
+
+
+@router.get(
+    "/runs/{run_id}/document-visits",
+    response_model=list[AgentDocumentVisitResponse],
+)
+def list_agent_document_visits_endpoint(
+    run_id: str,
+    visit_status: str | None = Query(default=None, alias="status"),
+    should_scan: bool | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> list[AgentDocumentVisitResponse]:
+    """List document visits recorded for one agent run."""
+
+    try:
+        visits = list_document_visits(
+            session,
+            run_id=run_id,
+            visit_status=visit_status,
+            should_scan=should_scan,
+            limit=limit,
+        )
+    except AgentDocumentVisitError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return [_agent_document_visit_response(visit) for visit in visits]
+
+
 def _agent_run_response(agent_run: AgentRun) -> AgentRunResponse:
     return AgentRunResponse(
         id=agent_run.id,
@@ -174,4 +262,33 @@ def _agent_run_response(agent_run: AgentRun) -> AgentRunResponse:
         finished_at=agent_run.finished_at,
         created_at=agent_run.created_at,
         updated_at=agent_run.updated_at,
+    )
+
+
+def _agent_document_visit_response(
+    visit: AgentDocumentVisit,
+) -> AgentDocumentVisitResponse:
+    return AgentDocumentVisitResponse(
+        id=visit.id,
+        agent_run_id=visit.agent_run_id,
+        run_id=visit.run_id,
+        source_id=visit.source_id,
+        external_document_id=visit.external_document_id,
+        source_type=visit.source_type,
+        index_name=visit.index_name,
+        content_hash=visit.content_hash,
+        processing_context_hash=visit.processing_context_hash,
+        agent_name=visit.agent_name,
+        agent_version=visit.agent_version,
+        prompt_version=visit.prompt_version,
+        openrouter_model=visit.openrouter_model,
+        profile_name=visit.agent_run.profile_name if visit.agent_run else None,
+        binding_id=visit.binding_id,
+        visit_status=visit.visit_status,
+        should_scan=visit.should_scan,
+        evidence_windows_found=visit.evidence_windows_found,
+        metadata=visit.metadata_json or {},
+        error_message=visit.error_message,
+        created_at=visit.created_at,
+        updated_at=visit.updated_at,
     )
