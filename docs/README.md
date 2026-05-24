@@ -304,3 +304,5 @@ reports in `reports/<run_id>/reports/`. See `docs/guides/openrouter-agent.md`.
 ### Patch 42E — Dictionary quickstart
 
 Patch 42E documents a reproducible dictionary import → binding → source=latest snapshot quickstart for headless onboarding. Use `--print-dictionary-quickstart-plan` to inspect the safe plan, `--write-dictionary-quickstart-payloads` to write JSON payloads, and `--run-dictionary-quickstart` for validate-first API checks. Import, binding creation, and snapshot export require explicit flags.
+
+- Agent/product hardening: proposal batches can now be previewed before apply, and validation warnings require explicit `allow_warnings=true` before backend apply.

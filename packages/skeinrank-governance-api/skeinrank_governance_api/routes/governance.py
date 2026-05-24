@@ -138,6 +138,8 @@ from ..schemas import (
     ProfileUpdateRequest,
     ProposalBatchApplyRequest,
     ProposalBatchApplyResponse,
+    ProposalBatchPreviewItemResponse,
+    ProposalBatchPreviewResponse,
     ProposalBatchSnapshotResponse,
     ProposalSourceQualityResponse,
     RuntimeSnapshotResponse,
@@ -2349,6 +2351,53 @@ def reject_profile_suggestion(
 
 
 @router.post(
+    "/profiles/{profile_name}/suggestions/apply-batch/preview",
+    response_model=ProposalBatchPreviewResponse,
+)
+def preview_profile_suggestion_batch(
+    profile_name: str,
+    request: ProposalBatchApplyRequest | None = Body(default=None),
+    _reviewer: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ProposalBatchPreviewResponse:
+    """Preview a proposal batch without mutating terms, aliases, or snapshots."""
+
+    request = request or ProposalBatchApplyRequest()
+    profile = _get_profile_or_404(session, profile_name)
+    binding = None
+    if request.publish_snapshot and request.binding_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="publish_snapshot requires binding_id.",
+        )
+    if request.binding_id is not None:
+        binding = _get_elasticsearch_binding_or_404(session, request.binding_id)
+        if binding.profile_id != profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Proposal batch binding must belong to the profile.",
+            )
+
+    suggestions = _pending_suggestions_for_batch(
+        session=session,
+        profile=profile,
+        suggestion_ids=request.suggestion_ids,
+    )
+    requested_ids = (
+        list(dict.fromkeys(request.suggestion_ids))
+        if request.suggestion_ids is not None
+        else [suggestion.id for suggestion in suggestions]
+    )
+    return _proposal_batch_preview_response(
+        profile=profile,
+        request=request,
+        requested_ids=requested_ids,
+        suggestions=suggestions,
+        binding_id=binding.id if binding is not None else None,
+    )
+
+
+@router.post(
     "/profiles/{profile_name}/suggestions/apply-batch",
     response_model=ProposalBatchApplyResponse,
 )
@@ -2393,7 +2442,9 @@ def apply_profile_suggestion_batch(
             detail="No pending suggestions are available for this batch.",
         )
 
-    _ensure_batch_suggestions_are_applyable(suggestions)
+    _ensure_batch_suggestions_are_applyable(
+        suggestions, allow_warnings=request.allow_warnings
+    )
 
     created_terms = 0
     created_aliases = 0
@@ -3549,20 +3600,146 @@ def _ordered_suggestions_for_apply(
     )
 
 
-def _ensure_batch_suggestions_are_applyable(
+def _proposal_batch_preview_response(
+    *,
+    profile: TerminologyProfile,
+    request: ProposalBatchApplyRequest,
+    requested_ids: list[int],
     suggestions: list[GovernanceSuggestion],
+    binding_id: int | None,
+) -> ProposalBatchPreviewResponse:
+    items = [
+        _proposal_batch_preview_item(suggestion, allow_warnings=request.allow_warnings)
+        for suggestion in suggestions
+    ]
+    blocked_suggestions = sum(
+        1 for item in items if item.validation_status == "blocked"
+    )
+    warning_suggestions = sum(
+        1 for item in items if item.validation_status == "warning"
+    )
+    applyable_suggestions = sum(1 for item in items if item.applyable)
+    status_value = "ready"
+    if not items:
+        status_value = "empty"
+    elif blocked_suggestions:
+        status_value = "blocked"
+    elif warning_suggestions and not request.allow_warnings:
+        status_value = "needs_review"
+
+    return ProposalBatchPreviewResponse(
+        status=status_value,
+        profile_name=profile.name,
+        normalized_profile_name=profile.normalized_name,
+        requested_suggestion_ids=requested_ids,
+        suggestions_total=len(items),
+        applyable_suggestions=applyable_suggestions,
+        blocked_suggestions=blocked_suggestions,
+        warning_suggestions=warning_suggestions,
+        allow_warnings=request.allow_warnings,
+        will_publish_snapshot=request.publish_snapshot,
+        binding_id=binding_id,
+        snapshot_version=request.snapshot_version,
+        items=items,
+    )
+
+
+def _proposal_batch_preview_item(
+    suggestion: GovernanceSuggestion, *, allow_warnings: bool
+) -> ProposalBatchPreviewItemResponse:
+    summary = suggestion.validation_summary_json or {}
+    validation_status_value = _proposal_validation_status(summary)
+    applyable = validation_status_value != "blocked" and (
+        validation_status_value != "warning" or allow_warnings
+    )
+    return ProposalBatchPreviewItemResponse(
+        suggestion_id=suggestion.id,
+        suggestion_type=suggestion.suggestion_type,
+        canonical_value=suggestion.canonical_value,
+        alias_value=suggestion.alias_value,
+        slot=suggestion.slot,
+        status=suggestion.status,
+        validation_status=validation_status_value,
+        validation_counts=_proposal_validation_counts(summary),
+        applyable=applyable,
+        warning_reasons=_proposal_validation_reasons(summary, "warning"),
+        blocked_reasons=_proposal_validation_reasons(summary, "blocked"),
+        proposal_source_type=suggestion.proposal_source_type,
+        proposal_source_name=suggestion.proposal_source_name,
+        idempotency_key=suggestion.idempotency_key,
+    )
+
+
+def _proposal_validation_status(summary: object) -> str:
+    if isinstance(summary, dict):
+        value = summary.get("status")
+        if isinstance(value, str) and value.strip():
+            return value.strip().lower()
+    return "unknown"
+
+
+def _proposal_validation_counts(summary: object) -> dict[str, int]:
+    if not isinstance(summary, dict):
+        return {}
+    counts = summary.get("counts")
+    if not isinstance(counts, dict):
+        return {}
+    normalized: dict[str, int] = {}
+    for key, value in counts.items():
+        if isinstance(key, str) and isinstance(value, int):
+            normalized[key] = value
+    return normalized
+
+
+def _proposal_validation_reasons(summary: object, expected_status: str) -> list[str]:
+    if not isinstance(summary, dict):
+        return []
+    checks = summary.get("checks")
+    if not isinstance(checks, dict):
+        return []
+    reasons: list[str] = []
+    for name, check in checks.items():
+        if not isinstance(name, str) or not isinstance(check, dict):
+            continue
+        status_value = check.get("status")
+        if status_value != expected_status:
+            continue
+        message = check.get("message")
+        if isinstance(message, str) and message.strip():
+            reasons.append(f"{name}: {message.strip()}")
+        else:
+            reasons.append(name)
+    return reasons
+
+
+def _ensure_batch_suggestions_are_applyable(
+    suggestions: list[GovernanceSuggestion], *, allow_warnings: bool
 ) -> None:
     blocked_ids: list[int] = []
+    warning_ids: list[int] = []
     for suggestion in suggestions:
-        summary = suggestion.validation_summary_json or {}
-        if isinstance(summary, dict) and summary.get("status") == "blocked":
+        validation_status_value = _proposal_validation_status(
+            suggestion.validation_summary_json or {}
+        )
+        if validation_status_value == "blocked":
             blocked_ids.append(suggestion.id)
+        elif validation_status_value == "warning":
+            warning_ids.append(suggestion.id)
     if blocked_ids:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 "Proposal batch contains blocked suggestions. "
                 f"Review or reject them before applying: {blocked_ids}"
+            ),
+        )
+    if warning_ids and not allow_warnings:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Proposal batch contains suggestions with validation warnings. "
+                "Preview the batch, review warnings, or set allow_warnings=true "
+                f"to apply them explicitly: {warning_ids}"
             ),
         )
 

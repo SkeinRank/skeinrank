@@ -678,3 +678,5 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionar
 ```
 
 Import, binding creation, and snapshot export remain explicit opt-in flags: `--dictionary-quickstart-apply-import`, `--dictionary-quickstart-create-binding`, and `--dictionary-quickstart-export-snapshot`. The quickstart never publishes runtime snapshots and does not write directly to dictionaries outside the console import endpoint.
+
+- Patch 42F adds backend proposal batch hardening: a dry-run apply preview endpoint and warning-gated batch apply semantics for agent/human review flows.

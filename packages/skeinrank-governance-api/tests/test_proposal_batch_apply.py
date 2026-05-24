@@ -212,3 +212,120 @@ def test_proposal_batch_publish_requires_matching_binding(tmp_path):
 
     assert response.status_code == 422
     assert "binding must belong" in response.json()["detail"]
+
+
+def test_proposal_batch_apply_preview_reports_warnings_without_mutation(tmp_path):
+    client = _client(tmp_path)
+    _seed_profile(client)
+    suggestion = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "tool",
+            "validation_summary": {
+                "schema_version": "skeinrank.proposal_validation.v1",
+                "status": "warning",
+                "counts": {"passed": 1, "warning": 1, "blocked": 0, "skipped": 0},
+                "checks": {
+                    "manual_review": {
+                        "status": "warning",
+                        "severity": "warning",
+                        "message": "Synthetic warning for preview.",
+                    }
+                },
+            },
+        },
+    )
+    assert suggestion.status_code == 201, suggestion.text
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions/apply-batch/preview",
+        json={"suggestion_ids": [suggestion.json()["id"]]},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "needs_review"
+    assert payload["suggestions_total"] == 1
+    assert payload["applyable_suggestions"] == 0
+    assert payload["warning_suggestions"] == 1
+    assert payload["items"][0]["validation_status"] == "warning"
+    assert payload["items"][0]["applyable"] is False
+    assert payload["items"][0]["warning_reasons"] == [
+        "manual_review: Synthetic warning for preview."
+    ]
+
+    listed = client.get("/v1/governance/profiles/default_it/suggestions?status=pending")
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()] == [suggestion.json()["id"]]
+
+
+def test_proposal_batch_apply_rejects_warnings_by_default(tmp_path):
+    client = _client(tmp_path)
+    _seed_profile(client)
+    suggestion = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "tool",
+            "validation_summary": {
+                "schema_version": "skeinrank.proposal_validation.v1",
+                "status": "warning",
+                "counts": {"passed": 1, "warning": 1, "blocked": 0, "skipped": 0},
+                "checks": {
+                    "manual_review": {
+                        "status": "warning",
+                        "severity": "warning",
+                        "message": "Synthetic warning for apply hardening.",
+                    }
+                },
+            },
+        },
+    )
+    assert suggestion.status_code == 201, suggestion.text
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions/apply-batch",
+        json={"suggestion_ids": [suggestion.json()["id"]]},
+    )
+
+    assert response.status_code == 409
+    assert "validation warnings" in response.json()["detail"]
+
+
+def test_proposal_batch_apply_allows_warnings_when_explicit(tmp_path):
+    client = _client(tmp_path)
+    _seed_profile(client)
+    suggestion = client.post(
+        "/v1/governance/profiles/default_it/suggestions",
+        json={
+            "canonical_value": "kubernetes",
+            "alias_value": "kube",
+            "slot": "tool",
+            "validation_summary": {
+                "schema_version": "skeinrank.proposal_validation.v1",
+                "status": "warning",
+                "counts": {"passed": 1, "warning": 1, "blocked": 0, "skipped": 0},
+                "checks": {
+                    "manual_review": {
+                        "status": "warning",
+                        "severity": "warning",
+                        "message": "Synthetic warning for explicit apply.",
+                    }
+                },
+            },
+        },
+    )
+    assert suggestion.status_code == 201, suggestion.text
+
+    response = client.post(
+        "/v1/governance/profiles/default_it/suggestions/apply-batch",
+        json={"suggestion_ids": [suggestion.json()["id"]], "allow_warnings": True},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["created_aliases"] == 1
+    assert payload["suggestions"][0]["status"] == "approved"

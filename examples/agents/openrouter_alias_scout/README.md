@@ -662,3 +662,5 @@ python run_alias_scout.py --run-dictionary-quickstart
 ```
 
 Use `--dictionary-quickstart-apply-import`, `--dictionary-quickstart-create-binding`, and `--dictionary-quickstart-export-snapshot` only after reviewing the validate-first report.
+
+- Backend hardening note: after building an approved apply plan, preview the backend proposal batch before applying. Validation warnings require explicit reviewer opt-in via `allow_warnings`.

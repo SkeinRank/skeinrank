@@ -466,3 +466,7 @@ The flow uses existing Governance API endpoints only:
 4. `GET /v1/headless/snapshots/export?source=latest` with `--dictionary-quickstart-export-snapshot`
 
 Safe defaults are validation-first: no OpenRouter calls, no runtime mutation, and no snapshot publishing.
+
+### Backend proposal apply hardening
+
+Before applying agent-created proposals, use the governance preview endpoint to inspect blocked and warning items. Warnings are not applied by default; `allow_warnings=true` is an explicit reviewer decision.

@@ -675,3 +675,7 @@ The 42E quickstart uses existing API endpoints only:
 - `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest` for headless source=latest snapshot artifact export.
 
 The quickstart runner exposes `--print-dictionary-quickstart-plan`, `--write-dictionary-quickstart-payloads`, and `--run-dictionary-quickstart`. Import, binding creation, and snapshot export remain opt-in flags.
+
+### Proposal batch preview and warning gates
+
+Patch 42F adds `POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch/preview` for dry-run proposal review. The existing `apply-batch` endpoint now blocks validation-warning proposals by default; pass `allow_warnings: true` only after explicit review.

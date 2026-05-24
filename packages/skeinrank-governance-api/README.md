@@ -1249,3 +1249,5 @@ runs and is safe for CI/Airflow collection.
 ### Patch 42E — Dictionary import → binding → snapshot quickstart
 
 Patch 42E adds a safe quickstart around existing governance endpoints. From the repository root or package Poetry environment, use `--print-dictionary-quickstart-plan`, `--write-dictionary-quickstart-payloads`, and `--run-dictionary-quickstart` to validate a sample dictionary payload. Applying the import, creating the Elasticsearch binding, and exporting the source=latest snapshot artifact require explicit CLI flags.
+
+- Proposal batch hardening: `apply-batch/preview` provides a no-mutation dry run, and `apply-batch` now requires explicit `allow_warnings` for validation-warning proposals.
