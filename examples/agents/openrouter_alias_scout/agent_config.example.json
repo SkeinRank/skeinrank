@@ -247,6 +247,13 @@
     "treat_existing_alias_as_idempotent": true,
     "manual_review_on_warning": true
   },
+  "proposal_inbox": {
+    "max_items": 50,
+    "evidence_preview_chars": 240,
+    "include_source_payload": false,
+    "include_validation_response": false,
+    "review_decisions_path": null
+  },
   "new_alias_smoke": {
     "profile_name": "infra_incidents",
     "binding_id": null,

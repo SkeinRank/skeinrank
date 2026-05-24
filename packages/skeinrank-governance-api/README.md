@@ -1198,3 +1198,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ### Patch 41F — Agent tracking contract
 
 The OpenRouter alias scout reference runner now supports local run/document tracking through `--print-agent-tracking-plan`, `--write-agent-tracking-report`, and `--append-agent-tracking-ledger`. This patch does not change the Governance API schema or routes.
+
+### Patch 41G — Proposal inbox / review workflow
+
+The OpenRouter alias scout can now build an offline proposal inbox from saved LLM review and validation/submission reports. Use `--print-proposal-inbox-plan`, `--build-proposal-inbox`, and `--write-proposal-inbox` from `examples/agents/openrouter_alias_scout/run_alias_scout.py`. This patch does not add backend routes or migrations.

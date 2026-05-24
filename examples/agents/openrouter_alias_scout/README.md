@@ -492,3 +492,34 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ```
 
 The ledger is local-only and ignored by Git under `.cache/`. It helps the agent avoid reprocessing unchanged documents and gives a clear handoff point for a later PostgreSQL tracking model.
+
+## Patch 41G — Proposal inbox / review workflow
+
+Patch 41G adds an offline proposal inbox for agent-produced alias proposals. It turns saved LLM review and validation/submission reports into review cards with evidence previews, validation categories, recommended next actions, and optional local review decisions.
+
+Preview the inbox plan without API calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-proposal-inbox-plan
+```
+
+Build an inbox from a saved LLM review report and proposal submission report:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --proposal-submission-report /tmp/skeinrank-proposal-submission-report.json \
+  --build-proposal-inbox
+```
+
+Apply local review decisions without mutating SkeinRank state:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --proposal-submission-report /tmp/skeinrank-proposal-submission-report.json \
+  --review-decisions examples/agents/openrouter_alias_scout/review_decisions.example.jsonl \
+  --write-proposal-inbox /tmp/skeinrank-proposal-inbox.json
+```
+
+Supported decision actions are `approve`, `reject`, `edit`, and `defer`. The inbox is offline-only in this patch: it does not approve proposals in the backend, does not apply dictionary changes, and does not publish snapshots.

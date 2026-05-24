@@ -83,6 +83,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_alias_review_prompt,
         build_sample_candidate_pack,
     )
+    from .proposal_inbox import (
+        ProposalInboxConfig,
+        build_proposal_inbox_report,
+        load_review_decisions,
+    )
     from .proposal_submission import (
         ProposalSubmissionConfig,
         build_proposal_submission_plan,
@@ -162,6 +167,11 @@ except ImportError:  # pragma: no cover
         build_alias_review_prompt,
         build_sample_candidate_pack,
     )
+    from proposal_inbox import (
+        ProposalInboxConfig,
+        build_proposal_inbox_report,
+        load_review_decisions,
+    )
     from proposal_submission import (
         ProposalSubmissionConfig,
         build_proposal_submission_plan,
@@ -205,6 +215,7 @@ class AgentRunnerConfig:
     evaluation: AgentEvaluationConfig
     deployment: AgentDeploymentConfig
     proposal_submission: ProposalSubmissionConfig
+    proposal_inbox: ProposalInboxConfig
     new_alias_smoke: NewAliasSmokeConfig
     openrouter_base_url: str
     openrouter_app_title: str
@@ -293,6 +304,9 @@ class AgentRunnerConfig:
             ),
             proposal_submission=ProposalSubmissionConfig.from_mapping(
                 raw.get("proposal_submission")
+            ),
+            proposal_inbox=ProposalInboxConfig.from_mapping(
+                raw.get("proposal_inbox"), base_dir=base_dir
             ),
             new_alias_smoke=NewAliasSmokeConfig.from_mapping(
                 raw.get("new_alias_smoke")
@@ -391,6 +405,7 @@ def build_run_plan(
             "Patch 41B adds safe validation/submission of ready proposal payloads.",
             "Patch 41E adds an optional Elasticsearch evidence connector.",
             "Patch 41F adds local run/document tracking and content hashes.",
+            "Patch 41G adds an offline proposal inbox/review workflow.",
         ],
         "sample_queries": [
             {
@@ -702,6 +717,36 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Write the 41B validation/submission report to this JSON path.",
     )
     parser.add_argument(
+        "--print-proposal-inbox-plan",
+        action="store_true",
+        help="Print the 41G offline proposal inbox/review plan.",
+    )
+    parser.add_argument(
+        "--build-proposal-inbox",
+        action="store_true",
+        help="Build the 41G proposal review inbox from saved reports.",
+    )
+    parser.add_argument(
+        "--write-proposal-inbox",
+        type=Path,
+        help="Write the 41G proposal review inbox JSON to this path.",
+    )
+    parser.add_argument(
+        "--proposal-submission-report",
+        type=Path,
+        help="Saved skeinrank.agent_proposal_submission_report.v1 JSON input.",
+    )
+    parser.add_argument(
+        "--review-decisions",
+        type=Path,
+        help="Optional JSONL with local approve/reject/edit/defer review decisions.",
+    )
+    parser.add_argument(
+        "--max-inbox-items",
+        type=int,
+        help="Override proposal_inbox.max_items for this run.",
+    )
+    parser.add_argument(
         "--print-new-alias-smoke-plan",
         action="store_true",
         help="Preview the 41D controlled new-alias smoke test without API calls.",
@@ -834,6 +879,51 @@ def run_proposal_submission_for_args(
         security_config=config.security_profile,
         submit=bool(args.submit_ready_proposals),
     )
+
+
+def _proposal_inbox_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> ProposalInboxConfig:
+    """Apply CLI overrides to the 41G offline proposal inbox config."""
+
+    return config.proposal_inbox.with_overrides(
+        review_decisions_path=args.review_decisions,
+        max_items=args.max_inbox_items,
+    )
+
+
+def build_proposal_inbox_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the 41G offline proposal inbox from saved reports."""
+
+    if args.llm_review_report is None and args.proposal_submission_report is None:
+        raise RuntimeError(
+            "--llm-review-report or --proposal-submission-report is required "
+            "to build the proposal inbox."
+        )
+    inbox_config = _proposal_inbox_config_from_args(config, args)
+    llm_report = (
+        load_json_report(args.llm_review_report) if args.llm_review_report else None
+    )
+    submission_report = (
+        load_json_report(args.proposal_submission_report)
+        if args.proposal_submission_report
+        else None
+    )
+    decisions = load_review_decisions(inbox_config.review_decisions_path)
+    return build_proposal_inbox_report(
+        llm_review_report=llm_report,
+        proposal_submission_report=submission_report,
+        review_decisions=decisions,
+        config=inbox_config,
+    )
+
+
+def build_proposal_inbox_plan_for_config(config: AgentRunnerConfig) -> JsonDict:
+    """Build the offline 41G proposal inbox plan for CLI/tests."""
+
+    return config.proposal_inbox.to_plan()
 
 
 def build_new_alias_smoke_plan_for_config(
@@ -1058,6 +1148,23 @@ def main(argv: list[str] | None = None) -> int:
                 parents=True, exist_ok=True
             )
             args.write_proposal_submission_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.print_proposal_inbox_plan:
+        report = build_proposal_inbox_plan_for_config(config)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.build_proposal_inbox or args.write_proposal_inbox:
+        report = build_proposal_inbox_for_args(config, args)
+        if args.write_proposal_inbox:
+            args.write_proposal_inbox.parent.mkdir(parents=True, exist_ok=True)
+            args.write_proposal_inbox.write_text(
                 json.dumps(report, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )

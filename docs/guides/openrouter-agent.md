@@ -282,3 +282,36 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ```
 
 The future production version can move the same fields into PostgreSQL tables such as `agent_runs`, `agent_source_documents`, and `agent_document_visits`.
+
+## Patch 41G — Proposal inbox / review workflow
+
+Patch 41G adds a local proposal inbox for human-in-the-loop review. The inbox combines a saved LLM review report with an optional proposal validation/submission report and optional JSONL review decisions.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-proposal-inbox-plan
+```
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --proposal-submission-report /tmp/skeinrank-proposal-submission-report.json \
+  --build-proposal-inbox
+```
+
+Review decisions are local JSONL records:
+
+```jsonl
+{"candidate_alias":"pg","action":"defer","reviewer":"knowledge-manager","comment":"Already exists; no proposal is needed."}
+{"candidate_alias":"k8s","action":"edit","reviewer":"knowledge-manager","comment":"Resolve slot mismatch before apply.","edited_slot":"tool"}
+```
+
+This patch is still offline: it records review intent for the agent workflow, but it does not mutate production terminology. A later apply/snapshot step should consume approved decisions through the governed pipeline.
+
+Write the inbox JSON to disk:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --proposal-submission-report /tmp/skeinrank-proposal-submission-report.json \
+  --write-proposal-inbox /tmp/skeinrank-proposal-inbox.json
+```

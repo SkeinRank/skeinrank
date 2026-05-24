@@ -586,3 +586,13 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ### Patch 41F — Agent run/document tracking
 
 The OpenRouter alias scout can now produce local run/document tracking reports with deterministic content hashes and processing-context hashes. This helps identify unchanged documents before spending LLM budget and provides a migration path toward PostgreSQL-backed `agent_runs` / `agent_document_visits` state.
+
+### Patch 41G — Proposal inbox / review workflow
+
+The OpenRouter alias scout now includes an offline proposal inbox. It converts LLM review + validation reports into review cards with evidence previews, validation status, recommended next action, and optional JSONL review decisions.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-proposal-inbox-plan
+```
+
+The inbox is safe by default: it does not write dictionaries, submit snapshots, or mutate runtime state.

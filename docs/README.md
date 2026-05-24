@@ -265,3 +265,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ### Patch 41F — Agent run/document tracking
 
 The OpenRouter alias scout now includes a local JSONL tracking ledger for run/document visits. Use `--print-agent-tracking-plan`, `--write-agent-tracking-report`, or `--append-agent-tracking-ledger` to inspect document fingerprints and skip/revisit decisions before moving the same contract into PostgreSQL.
+
+### Agent proposal inbox
+
+Patch 41G adds an offline proposal inbox/review workflow for the OpenRouter alias scout. See `docs/guides/openrouter-agent.md` for `--print-proposal-inbox-plan`, `--build-proposal-inbox`, and `--write-proposal-inbox` examples.

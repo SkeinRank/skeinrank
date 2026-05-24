@@ -633,3 +633,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ### Agent tracking note
 
 Patch 41F keeps agent run/document tracking outside the Governance API for now. The reference runner writes a local JSONL ledger and does not add backend routes or migrations. This preserves the existing API surface while establishing the future PostgreSQL tracking contract.
+
+### Agent proposal inbox note
+
+Patch 41G does not add new governance API routes. The OpenRouter alias scout builds an offline proposal inbox from saved LLM review and `/v1/tools/validate-alias` / `/v1/tools/suggest-alias` reports. Review decisions remain local JSONL records until a later governed apply workflow consumes them.

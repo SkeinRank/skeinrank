@@ -70,3 +70,10 @@ agent-tracking-report:
 	mkdir -p examples/agents/openrouter_alias_scout/reports
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-agent-tracking-report examples/agents/openrouter_alias_scout/reports/agent-tracking-report.json
 
+
+agent-proposal-inbox-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-proposal-inbox-plan
+
+agent-proposal-inbox:
+	mkdir -p examples/agents/openrouter_alias_scout/reports
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-proposal-inbox examples/agents/openrouter_alias_scout/reports/proposal-inbox.json --llm-review-report examples/agents/openrouter_alias_scout/reports/llm-review-report.json
