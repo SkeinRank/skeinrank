@@ -69,6 +69,47 @@ ELASTICSEARCH_ENRICHMENT_JOB_STATUSES = (
     "failed",
 )
 ELASTICSEARCH_BINDING_PROVIDERS = ("elasticsearch",)
+AGENT_RUN_STATUSES = (
+    "queued",
+    "running",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "needs_review",
+)
+AGENT_RUN_TRIGGER_TYPES = ("manual", "scheduled", "api", "worker", "test")
+AGENT_DOCUMENT_VISIT_STATUSES = (
+    "new_document",
+    "unchanged_seen",
+    "content_changed",
+    "context_changed",
+    "skipped",
+    "error",
+)
+AGENT_CANDIDATE_OBSERVATION_STATUSES = (
+    "discovered",
+    "queued_for_review",
+    "reviewed",
+    "rejected",
+    "needs_evidence",
+    "error",
+)
+AGENT_LLM_REVIEW_STATUSES = (
+    "proposed",
+    "rejected",
+    "needs_evidence",
+    "error",
+)
+AGENT_PROPOSAL_ATTEMPT_STATUSES = (
+    "validation_passed",
+    "validation_warning",
+    "validation_blocked",
+    "submitted",
+    "created",
+    "idempotent_existing_alias",
+    "manual_review_required",
+    "error",
+)
 USER_ROLES = ("admin", "moderator", "contributor")
 USER_STATUSES = ("active", "suspended", "deactivated")
 API_TOKEN_OWNER_TYPES = ("personal", "service_account")
@@ -169,6 +210,38 @@ class TerminologyProfile(TimestampMixin, Base):
             cascade="all, delete-orphan",
             passive_deletes=True,
         )
+    )
+    agent_runs: Mapped[list[AgentRun]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_document_visits: Mapped[list[AgentDocumentVisit]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_candidate_observations: Mapped[list[AgentCandidateObservation]] = (
+        relationship(
+            back_populates="profile",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
+    )
+    agent_evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_llm_reviews: Mapped[list[AgentLlmReview]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     audit_events: Mapped[list[AuditEvent]] = relationship(
         back_populates="profile",
@@ -375,7 +448,10 @@ class GovernanceAuthToken(TimestampMixin, Base):
     user: Mapped[GovernanceUser] = relationship(back_populates="tokens")
 
     def __repr__(self) -> str:
-        return f"GovernanceAuthToken(user_id={self.user_id!r}, prefix={self.token_prefix!r})"
+        return (
+            "GovernanceAuthToken("
+            f"user_id={self.user_id!r}, prefix={self.token_prefix!r})"
+        )
 
 
 class GovernanceServiceAccount(TimestampMixin, Base):
@@ -950,6 +1026,33 @@ class ElasticsearchBinding(TimestampMixin, Base):
         passive_deletes=True,
         uselist=False,
     )
+    agent_runs: Mapped[list[AgentRun]] = relationship(
+        back_populates="binding",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_document_visits: Mapped[list[AgentDocumentVisit]] = relationship(
+        back_populates="binding",
+        passive_deletes=True,
+    )
+    agent_candidate_observations: Mapped[list[AgentCandidateObservation]] = (
+        relationship(
+            back_populates="binding",
+            passive_deletes=True,
+        )
+    )
+    agent_evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="binding",
+        passive_deletes=True,
+    )
+    agent_llm_reviews: Mapped[list[AgentLlmReview]] = relationship(
+        back_populates="binding",
+        passive_deletes=True,
+    )
+    agent_proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="binding",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
@@ -1090,6 +1193,579 @@ class ElasticsearchEnrichmentJob(TimestampMixin, Base):
         )
 
 
+class AgentRun(TimestampMixin, Base):
+    """One persisted execution record for an agent workflow run.
+
+    Agent runs are the top-level audit/registry object for DB-backed agent
+    tracking. Later tables attach document visits, observations, LLM reviews,
+    and proposal attempts to this stable ``run_id``.
+    """
+
+    __tablename__ = "agent_runs"
+    __table_args__ = (
+        UniqueConstraint("run_id", name="uq_agent_runs_run_id"),
+        CheckConstraint(
+            f"status IN {AGENT_RUN_STATUSES!r}",
+            name="agent_run_status",
+        ),
+        CheckConstraint(
+            f"trigger_type IN {AGENT_RUN_TRIGGER_TYPES!r}",
+            name="agent_run_trigger_type",
+        ),
+        Index("ix_agent_runs_status_created", "status", "created_at"),
+        Index("ix_agent_runs_agent_created", "agent_name", "created_at"),
+        Index("ix_agent_runs_profile_created", "profile_id", "created_at"),
+        Index("ix_agent_runs_binding_created", "binding_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    agent_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    agent_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
+    trigger_type: Mapped[str] = mapped_column(
+        String(32), default="manual", nullable=False
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    profile_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    normalized_profile_name: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    openrouter_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    workflow_engine: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    config_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    artifacts_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_runs"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_runs"
+    )
+    document_visits: Mapped[list[AgentDocumentVisit]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    candidate_observations: Mapped[list[AgentCandidateObservation]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    llm_reviews: Mapped[list[AgentLlmReview]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="agent_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentRun("
+            f"run_id={self.run_id!r}, agent={self.agent_name!r}, "
+            f"status={self.status!r})"
+        )
+
+
+class AgentDocumentVisit(TimestampMixin, Base):
+    """One tracked document visit for an agent run.
+
+    Visits are append-only audit records. They let agents decide whether a
+    source document should be scanned again by comparing content hashes and
+    processing-context hashes with the most recent previous visit for the same
+    source identity.
+    """
+
+    __tablename__ = "agent_document_visits"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_run_id",
+            "source_id",
+            name="uq_agent_document_visits_run_source",
+        ),
+        CheckConstraint(
+            f"visit_status IN {AGENT_DOCUMENT_VISIT_STATUSES!r}",
+            name="agent_document_visit_status",
+        ),
+        Index("ix_agent_document_visits_run_status", "agent_run_id", "visit_status"),
+        Index("ix_agent_document_visits_source_created", "source_id", "created_at"),
+        Index(
+            "ix_agent_document_visits_binding_source",
+            "binding_id",
+            "source_id",
+        ),
+        Index(
+            "ix_agent_document_visits_hashes",
+            "content_hash",
+            "processing_context_hash",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    source_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    external_document_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    source_type: Mapped[str] = mapped_column(
+        String(64), default="document", nullable=False
+    )
+    index_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    processing_context_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    agent_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    agent_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    openrouter_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    visit_status: Mapped[str] = mapped_column(
+        String(32), default="new_document", nullable=False
+    )
+    should_scan: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    evidence_windows_found: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="document_visits")
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_document_visits"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_document_visits"
+    )
+    candidate_observations: Mapped[list[AgentCandidateObservation]] = relationship(
+        back_populates="document_visit",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="document_visit",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentDocumentVisit("
+            f"run_id={self.run_id!r}, source_id={self.source_id!r}, "
+            f"status={self.visit_status!r}, should_scan={self.should_scan!r})"
+        )
+
+
+class AgentCandidateObservation(TimestampMixin, Base):
+    """One persisted candidate alias observation produced by an agent run.
+
+    Observations are run-scoped and deduplicated by normalized alias. Evidence
+    windows are stored separately so a candidate can point at multiple source
+    documents or snippets without duplicating candidate-level metadata.
+    """
+
+    __tablename__ = "agent_candidate_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_run_id",
+            "normalized_alias",
+            name="uq_agent_candidate_observations_run_alias",
+        ),
+        CheckConstraint(
+            f"observation_status IN {AGENT_CANDIDATE_OBSERVATION_STATUSES!r}",
+            name="agent_candidate_observation_status",
+        ),
+        Index(
+            "ix_agent_candidate_observations_run_status",
+            "agent_run_id",
+            "observation_status",
+        ),
+        Index(
+            "ix_agent_candidate_observations_alias",
+            "normalized_alias",
+        ),
+        Index(
+            "ix_agent_candidate_observations_profile_alias",
+            "profile_id",
+            "normalized_alias",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    document_visit_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_document_visits.id", ondelete="SET NULL"), nullable=True
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    candidate_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    possible_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    slot: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    observation_status: Mapped[str] = mapped_column(
+        String(32), default="discovered", nullable=False
+    )
+    discovery_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    weighted_count: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    document_frequency: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    evidence_windows_found: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    discovery_reasons_json: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    canonical_hint_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    candidate_pack_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="candidate_observations")
+    document_visit: Mapped[AgentDocumentVisit | None] = relationship(
+        back_populates="candidate_observations"
+    )
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_candidate_observations"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_candidate_observations"
+    )
+    evidence_windows: Mapped[list[AgentEvidenceWindow]] = relationship(
+        back_populates="candidate_observation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    llm_reviews: Mapped[list[AgentLlmReview]] = relationship(
+        back_populates="candidate_observation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="candidate_observation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentCandidateObservation("
+            f"run_id={self.run_id!r}, alias={self.candidate_alias!r}, "
+            f"status={self.observation_status!r})"
+        )
+
+
+class AgentEvidenceWindow(TimestampMixin, Base):
+    """One persisted evidence window supporting an agent candidate observation."""
+
+    __tablename__ = "agent_evidence_windows"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_observation_id",
+            "evidence_hash",
+            name="uq_agent_evidence_windows_candidate_hash",
+        ),
+        Index(
+            "ix_agent_evidence_windows_run",
+            "agent_run_id",
+            "created_at",
+        ),
+        Index(
+            "ix_agent_evidence_windows_candidate",
+            "candidate_observation_id",
+            "created_at",
+        ),
+        Index(
+            "ix_agent_evidence_windows_source",
+            "source_id",
+            "field",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    candidate_observation_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_candidate_observations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    document_visit_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_document_visits.id", ondelete="SET NULL"), nullable=True
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    candidate_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    source_type: Mapped[str] = mapped_column(
+        String(64), default="evidence", nullable=False
+    )
+    field: Mapped[str] = mapped_column(String(128), default="text", nullable=False)
+    start_char: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_char: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="evidence_windows")
+    candidate_observation: Mapped[AgentCandidateObservation] = relationship(
+        back_populates="evidence_windows"
+    )
+    document_visit: Mapped[AgentDocumentVisit | None] = relationship(
+        back_populates="evidence_windows"
+    )
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_evidence_windows"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_evidence_windows"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentEvidenceWindow("
+            f"run_id={self.run_id!r}, alias={self.candidate_alias!r}, "
+            f"source_id={self.source_id!r})"
+        )
+
+
+class AgentLlmReview(TimestampMixin, Base):
+    """One persisted LLM review for a candidate observation.
+
+    LLM reviews store the model judgment, usage metadata, and raw response needed
+    for auditability without making the LLM output the source of truth.
+    """
+
+    __tablename__ = "agent_llm_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_run_id",
+            "normalized_alias",
+            "review_hash",
+            name="uq_agent_llm_reviews_run_alias_hash",
+        ),
+        CheckConstraint(
+            f"review_status IN {AGENT_LLM_REVIEW_STATUSES!r}",
+            name="agent_llm_review_status",
+        ),
+        Index("ix_agent_llm_reviews_run_status", "agent_run_id", "review_status"),
+        Index("ix_agent_llm_reviews_alias", "normalized_alias"),
+        Index("ix_agent_llm_reviews_model_created", "model", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    candidate_observation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_candidate_observations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    candidate_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    possible_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    slot: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    review_status: Mapped[str] = mapped_column(
+        String(32), default="needs_evidence", nullable=False
+    )
+    action: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    response_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    prompt_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    review_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    usage_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    judgment_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    raw_response_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="llm_reviews")
+    candidate_observation: Mapped[AgentCandidateObservation | None] = relationship(
+        back_populates="llm_reviews"
+    )
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_llm_reviews"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_llm_reviews"
+    )
+    proposal_attempts: Mapped[list[AgentProposalAttempt]] = relationship(
+        back_populates="llm_review",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentLlmReview("
+            f"run_id={self.run_id!r}, alias={self.candidate_alias!r}, "
+            f"status={self.review_status!r})"
+        )
+
+
+class AgentProposalAttempt(TimestampMixin, Base):
+    """One validation/submission attempt created from an agent proposal payload."""
+
+    __tablename__ = "agent_proposal_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_run_id",
+            "idempotency_key",
+            name="uq_agent_proposal_attempts_run_idempotency",
+        ),
+        CheckConstraint(
+            f"attempt_status IN {AGENT_PROPOSAL_ATTEMPT_STATUSES!r}",
+            name="agent_proposal_attempt_status",
+        ),
+        Index(
+            "ix_agent_proposal_attempts_run_status",
+            "agent_run_id",
+            "attempt_status",
+        ),
+        Index("ix_agent_proposal_attempts_idempotency", "idempotency_key"),
+        Index("ix_agent_proposal_attempts_suggestion", "governance_suggestion_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    candidate_observation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_candidate_observations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    llm_review_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_llm_reviews.id", ondelete="SET NULL"), nullable=True
+    )
+    governance_suggestion_id: Mapped[int | None] = mapped_column(
+        ForeignKey("governance_suggestions.id", ondelete="SET NULL"), nullable=True
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    alias_value: Mapped[str] = mapped_column(String(256), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    canonical_value: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    slot: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    attempt_status: Mapped[str] = mapped_column(
+        String(64), default="validation_passed", nullable=False
+    )
+    validation_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    validation_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    submitted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    proposal_source_type: Mapped[str] = mapped_column(
+        String(32), default="agent", nullable=False
+    )
+    proposal_source_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    validation_response_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    submission_response_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    source_payload_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="proposal_attempts")
+    candidate_observation: Mapped[AgentCandidateObservation | None] = relationship(
+        back_populates="proposal_attempts"
+    )
+    llm_review: Mapped[AgentLlmReview | None] = relationship(
+        back_populates="proposal_attempts"
+    )
+    governance_suggestion: Mapped[GovernanceSuggestion | None] = relationship()
+    profile: Mapped[TerminologyProfile | None] = relationship(
+        back_populates="agent_proposal_attempts"
+    )
+    binding: Mapped[ElasticsearchBinding | None] = relationship(
+        back_populates="agent_proposal_attempts"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            "AgentProposalAttempt("
+            f"run_id={self.run_id!r}, alias={self.alias_value!r}, "
+            f"status={self.attempt_status!r})"
+        )
+
+
 class ProfileSnapshot(TimestampMixin, Base):
     """A versioned runtime snapshot exported from governance data."""
 
@@ -1154,6 +1830,18 @@ class AuditEvent(Base):
 
     def __repr__(self) -> str:
         return f"AuditEvent(action={self.action!r}, entity_type={self.entity_type!r})"
+
+
+def _fill_agent_run_defaults(mapper: Any, connection: Any, target: AgentRun) -> None:
+    del mapper, connection
+    target.agent_name = target.agent_name.strip()
+    target.status = target.status.strip().lower()
+    target.trigger_type = target.trigger_type.strip().lower()
+    if target.profile_name is not None:
+        target.normalized_profile_name = normalize_profile_name(target.profile_name)
+    elif target.profile is not None:
+        target.profile_name = target.profile.name
+        target.normalized_profile_name = target.profile.normalized_name
 
 
 def _fill_normalized_profile(
@@ -1394,3 +2082,5 @@ event.listen(
 )
 event.listen(GovernanceBindingPolicy, "before_insert", _fill_normalized_binding_policy)
 event.listen(GovernanceBindingPolicy, "before_update", _fill_normalized_binding_policy)
+event.listen(AgentRun, "before_insert", _fill_agent_run_defaults)
+event.listen(AgentRun, "before_update", _fill_agent_run_defaults)

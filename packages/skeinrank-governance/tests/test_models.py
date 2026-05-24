@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import pytest
 from skeinrank_governance import (
+    AgentCandidateObservation,
+    AgentDocumentVisit,
+    AgentEvidenceWindow,
+    AgentLlmReview,
+    AgentProposalAttempt,
+    AgentRun,
     AuditEvent,
     Base,
     CanonicalTerm,
@@ -62,6 +68,12 @@ def test_metadata_contains_expected_tables():
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
         "elasticsearch_enrichment_jobs",
+        "agent_runs",
+        "agent_document_visits",
+        "agent_candidate_observations",
+        "agent_evidence_windows",
+        "agent_llm_reviews",
+        "agent_proposal_attempts",
     }
 
     assert expected.issubset(set(Base.metadata.tables))
@@ -217,6 +229,124 @@ def test_create_governance_rows_and_normalized_values(session):
         alias_name="docs_current",
         requested_by="tester",
     )
+    agent_run = AgentRun(
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        agent_name="openrouter_alias_scout",
+        agent_version="44A",
+        status="running",
+        trigger_type="scheduled",
+        openrouter_model="openai/gpt-4o-mini",
+        prompt_version="prompt-v1",
+        workflow_engine="dependency_light_state_machine",
+        config_hash="abc123",
+        artifacts_uri="reports/run-001",
+        report_uri="reports/run-001/manifest.json",
+        summary_json={"candidates": 3},
+        requested_by="agent-service-account",
+    )
+    visit = AgentDocumentVisit(
+        agent_run=agent_run,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        source_id="doc-001",
+        source_type="elasticsearch_hit",
+        index_name="default-it-docs",
+        content_hash="abc123def456",
+        processing_context_hash="ctx123def456",
+        agent_name="openrouter_alias_scout",
+        agent_version="44B",
+        prompt_version="prompt-v1",
+        openrouter_model="openai/gpt-4o-mini",
+        visit_status="new_document",
+        should_scan=True,
+        metadata_json={"title": "Kubernetes rollout"},
+    )
+    observation = AgentCandidateObservation(
+        agent_run=agent_run,
+        document_visit=visit,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        candidate_alias="k8s",
+        normalized_alias="k8s",
+        possible_canonical="kubernetes",
+        normalized_canonical="kubernetes",
+        slot="TOOL",
+        observation_status="queued_for_review",
+        discovery_score=9.5,
+        weighted_count=3.0,
+        document_frequency=1,
+        discovery_reasons_json=["mixed_alpha_digit"],
+        canonical_hint_json={"reason": "single_configured_alias_match"},
+        candidate_pack_json={"possible_canonical": "kubernetes"},
+        metadata_json={"source": "unit-test"},
+    )
+    evidence_window = AgentEvidenceWindow(
+        agent_run=agent_run,
+        candidate_observation=observation,
+        document_visit=visit,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        candidate_alias="k8s",
+        normalized_alias="k8s",
+        source_id="doc-001",
+        source_type="elasticsearch_hit",
+        field="body",
+        start_char=0,
+        end_char=17,
+        text="k8s rollout notes",
+        evidence_hash="evidence123456",
+        metadata_json={"title": "Kubernetes rollout"},
+    )
+    llm_review = AgentLlmReview(
+        agent_run=agent_run,
+        candidate_observation=observation,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        candidate_alias="k8s",
+        normalized_alias="k8s",
+        possible_canonical="kubernetes",
+        normalized_canonical="kubernetes",
+        slot="TOOL",
+        review_status="proposed",
+        action="propose",
+        confidence=0.9,
+        model="openai/gpt-4o-mini",
+        prompt_version="prompt-v1",
+        response_id="resp-001",
+        prompt_hash="prompt123456",
+        review_hash="review123456",
+        usage_json={"total_tokens": 123},
+        judgment_json={"reason": "evidence matched"},
+        raw_response_json={"id": "resp-001"},
+    )
+    proposal_attempt = AgentProposalAttempt(
+        agent_run=agent_run,
+        candidate_observation=observation,
+        llm_review=llm_review,
+        profile=profile,
+        binding=binding,
+        run_id="run-001",
+        alias_value="k8s",
+        normalized_alias="k8s",
+        canonical_value="kubernetes",
+        normalized_canonical="kubernetes",
+        slot="TOOL",
+        attempt_status="validation_passed",
+        validation_status="passed",
+        validation_category="validation_passed",
+        confidence=0.9,
+        idempotency_key="run-001:k8s",
+        proposal_source_type="agent",
+        proposal_source_name="openrouter-alias-scout",
+        validation_response_json={"status": "passed"},
+        source_payload_json={"candidate_alias": "k8s"},
+    )
     audit = AuditEvent(
         profile=profile,
         actor="tester",
@@ -244,6 +374,12 @@ def test_create_governance_rows_and_normalized_values(session):
             service_token,
             binding,
             job,
+            agent_run,
+            visit,
+            observation,
+            evidence_window,
+            llm_review,
+            proposal_attempt,
             audit,
         ]
     )
@@ -303,6 +439,19 @@ def test_create_governance_rows_and_normalized_values(session):
     assert job.status == "queued"
     assert job.write_strategy == "reindex_alias_swap"
     assert job.documents_seen == 0
+    assert agent_run.status == "running"
+    assert agent_run.trigger_type == "scheduled"
+    assert agent_run.normalized_profile_name == "default_it"
+    assert agent_run.summary_json == {"candidates": 3}
+    assert agent_run.document_visits[0].source_id == "doc-001"
+    assert agent_run.document_visits[0].should_scan is True
+    assert agent_run.candidate_observations[0].candidate_alias == "k8s"
+    assert agent_run.candidate_observations[0].evidence_windows_found == 0
+    assert agent_run.evidence_windows[0].text == "k8s rollout notes"
+    assert agent_run.llm_reviews[0].review_status == "proposed"
+    assert agent_run.llm_reviews[0].review_hash == "review123456"
+    assert agent_run.proposal_attempts[0].attempt_status == "validation_passed"
+    assert agent_run.proposal_attempts[0].idempotency_key == "run-001:k8s"
     assert audit.payload_json == {"alias": "K8S"}
 
 
@@ -380,6 +529,10 @@ def test_tables_can_be_created_with_sqlalchemy_inspector():
     assert "governance_global_stop_list_entries" in table_names
     assert "elasticsearch_bindings" in table_names
     assert "elasticsearch_enrichment_jobs" in table_names
+    assert "agent_runs" in table_names
+    assert "agent_document_visits" in table_names
+    assert "agent_candidate_observations" in table_names
+    assert "agent_evidence_windows" in table_names
 
     suggestion_columns = {
         column["name"]

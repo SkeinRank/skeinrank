@@ -13,6 +13,7 @@ from .observability import (
     configure_tracing,
     set_build_info,
 )
+from .routes.agents import router as agents_router
 from .routes.auth import router as auth_router
 from .routes.console import router as console_router
 from .routes.dashboard import router as dashboard_router
@@ -68,6 +69,7 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
                 include_in_schema=False,
             )
     app.include_router(auth_router)
+    app.include_router(agents_router)
     app.include_router(dashboard_router)
     app.include_router(text_router)
     app.include_router(search_router)

@@ -54,6 +54,12 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "governance_global_stop_list_entries",
         "elasticsearch_bindings",
         "elasticsearch_enrichment_jobs",
+        "agent_runs",
+        "agent_document_visits",
+        "agent_candidate_observations",
+        "agent_evidence_windows",
+        "agent_llm_reviews",
+        "agent_proposal_attempts",
     }.issubset(set(inspector.get_table_names()))
     user_columns = {
         column["name"] for column in inspector.get_columns("governance_users")
@@ -281,11 +287,213 @@ def test_api_migrations_upgrade_creates_governance_schema(tmp_path):
         "result_json",
     }.issubset(job_columns)
 
+    agent_run_columns = {
+        column["name"] for column in inspector.get_columns("agent_runs")
+    }
+    assert {
+        "run_id",
+        "agent_name",
+        "agent_version",
+        "status",
+        "trigger_type",
+        "profile_id",
+        "profile_name",
+        "normalized_profile_name",
+        "binding_id",
+        "openrouter_model",
+        "prompt_version",
+        "workflow_engine",
+        "config_hash",
+        "artifacts_uri",
+        "report_uri",
+        "summary_json",
+        "error_message",
+        "requested_by",
+        "started_at",
+        "finished_at",
+    }.issubset(agent_run_columns)
+    agent_run_indexes = {
+        index["name"]: index for index in inspector.get_indexes("agent_runs")
+    }
+    assert "ix_agent_runs_status_created" in agent_run_indexes
+    assert "ix_agent_runs_profile_created" in agent_run_indexes
+    agent_run_uniques = {
+        item["name"]: item for item in inspector.get_unique_constraints("agent_runs")
+    }
+    assert "uq_agent_runs_run_id" in agent_run_uniques
+
+    visit_columns = {
+        column["name"] for column in inspector.get_columns("agent_document_visits")
+    }
+    assert {
+        "agent_run_id",
+        "run_id",
+        "profile_id",
+        "binding_id",
+        "source_id",
+        "external_document_id",
+        "source_type",
+        "index_name",
+        "content_hash",
+        "processing_context_hash",
+        "visit_status",
+        "should_scan",
+        "metadata_json",
+    }.issubset(visit_columns)
+    visit_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_document_visits")
+    }
+    assert "ix_agent_document_visits_run_status" in visit_indexes
+    assert "ix_agent_document_visits_hashes" in visit_indexes
+
+    observation_columns = {
+        column["name"]
+        for column in inspector.get_columns("agent_candidate_observations")
+    }
+    assert {
+        "agent_run_id",
+        "run_id",
+        "document_visit_id",
+        "profile_id",
+        "binding_id",
+        "candidate_alias",
+        "normalized_alias",
+        "possible_canonical",
+        "normalized_canonical",
+        "slot",
+        "observation_status",
+        "discovery_score",
+        "weighted_count",
+        "document_frequency",
+        "evidence_windows_found",
+        "discovery_reasons_json",
+        "canonical_hint_json",
+        "candidate_pack_json",
+        "metadata_json",
+    }.issubset(observation_columns)
+    observation_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_candidate_observations")
+    }
+    assert "ix_agent_candidate_observations_run_status" in observation_indexes
+    assert "ix_agent_candidate_observations_alias" in observation_indexes
+    observation_uniques = {
+        item["name"]
+        for item in inspector.get_unique_constraints("agent_candidate_observations")
+    }
+    assert "uq_agent_candidate_observations_run_alias" in observation_uniques
+
+    evidence_window_columns = {
+        column["name"] for column in inspector.get_columns("agent_evidence_windows")
+    }
+    assert {
+        "agent_run_id",
+        "candidate_observation_id",
+        "document_visit_id",
+        "run_id",
+        "profile_id",
+        "binding_id",
+        "candidate_alias",
+        "normalized_alias",
+        "source_id",
+        "source_type",
+        "field",
+        "start_char",
+        "end_char",
+        "text",
+        "evidence_hash",
+        "metadata_json",
+    }.issubset(evidence_window_columns)
+    evidence_window_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_evidence_windows")
+    }
+    assert "ix_agent_evidence_windows_run" in evidence_window_indexes
+    assert "ix_agent_evidence_windows_candidate" in evidence_window_indexes
+    evidence_window_uniques = {
+        item["name"]
+        for item in inspector.get_unique_constraints("agent_evidence_windows")
+    }
+    assert "uq_agent_evidence_windows_candidate_hash" in evidence_window_uniques
+
+    llm_review_columns = {
+        column["name"] for column in inspector.get_columns("agent_llm_reviews")
+    }
+    assert {
+        "agent_run_id",
+        "run_id",
+        "candidate_observation_id",
+        "profile_id",
+        "binding_id",
+        "candidate_alias",
+        "normalized_alias",
+        "possible_canonical",
+        "normalized_canonical",
+        "slot",
+        "review_status",
+        "action",
+        "confidence",
+        "model",
+        "prompt_version",
+        "response_id",
+        "prompt_hash",
+        "review_hash",
+        "usage_json",
+        "judgment_json",
+        "raw_response_json",
+    }.issubset(llm_review_columns)
+    llm_review_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_llm_reviews")
+    }
+    assert "ix_agent_llm_reviews_run_status" in llm_review_indexes
+    assert "ix_agent_llm_reviews_model_created" in llm_review_indexes
+    llm_review_uniques = {
+        item["name"] for item in inspector.get_unique_constraints("agent_llm_reviews")
+    }
+    assert "uq_agent_llm_reviews_run_alias_hash" in llm_review_uniques
+
+    proposal_attempt_columns = {
+        column["name"] for column in inspector.get_columns("agent_proposal_attempts")
+    }
+    assert {
+        "agent_run_id",
+        "run_id",
+        "candidate_observation_id",
+        "llm_review_id",
+        "governance_suggestion_id",
+        "profile_id",
+        "binding_id",
+        "alias_value",
+        "normalized_alias",
+        "canonical_value",
+        "normalized_canonical",
+        "slot",
+        "attempt_status",
+        "validation_status",
+        "validation_category",
+        "confidence",
+        "idempotency_key",
+        "submitted",
+        "proposal_source_type",
+        "proposal_source_name",
+        "validation_response_json",
+        "submission_response_json",
+        "source_payload_json",
+    }.issubset(proposal_attempt_columns)
+    proposal_attempt_indexes = {
+        index["name"] for index in inspector.get_indexes("agent_proposal_attempts")
+    }
+    assert "ix_agent_proposal_attempts_run_status" in proposal_attempt_indexes
+    assert "ix_agent_proposal_attempts_idempotency" in proposal_attempt_indexes
+    proposal_attempt_uniques = {
+        item["name"]
+        for item in inspector.get_unique_constraints("agent_proposal_attempts")
+    }
+    assert "uq_agent_proposal_attempts_run_idempotency" in proposal_attempt_uniques
+
     with engine.connect() as connection:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20260523_0021"
+    assert revision == "20260524_0025"
 
 
 def test_api_migration_script_location_override_is_validated(tmp_path, monkeypatch):

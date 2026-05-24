@@ -690,3 +690,55 @@ Patch 42G does not add new backend endpoints. The smoke runner exercises existin
 
 This keeps the runtime smoke safe: no proposal submission, no dictionary mutation, and no snapshot publishing.
 
+
+
+## Agent run registry
+
+Patch 44A adds a DB-backed run registry under `/v1/agents`.
+
+### Create an agent run
+
+```http
+POST /v1/agents/runs
+```
+
+Request fields include `run_id`, `agent_name`, `agent_version`, `status`, `trigger_type`, optional `profile_name`, optional `binding_id`, model/prompt metadata, artifact/report URIs, and `summary`.
+
+### List agent runs
+
+```http
+GET /v1/agents/runs?status=running&agent_name=openrouter_alias_scout&profile_name=default_it
+```
+
+### Read or update one run
+
+```http
+GET /v1/agents/runs/{run_id}
+PATCH /v1/agents/runs/{run_id}
+```
+
+Supported statuses are `queued`, `running`, `succeeded`, `failed`, `cancelled`, and `needs_review`. Supported trigger types are `manual`, `scheduled`, `api`, `worker`, and `test`.
+
+
+## Agent document visits
+
+Patch 44B adds document visit endpoints under the agent registry:
+
+- `POST /v1/agents/runs/{run_id}/document-visits` records one visited source document.
+- `GET /v1/agents/runs/{run_id}/document-visits` lists visits for a run and supports `status`, `should_scan`, and `limit` filters.
+
+A visit stores `source_id`, optional external document metadata, `content_hash`, `processing_context_hash`, `visit_status`, and `should_scan`. The API classifies visits as `new_document`, `unchanged_seen`, `content_changed`, `context_changed`, `skipped`, or `error`.
+
+
+## Agent LLM reviews and proposal attempts
+
+Patch 44D extends `/v1/agents` with persisted LLM review and proposal-attempt tracking.
+
+```http
+POST /v1/agents/runs/{run_id}/llm-reviews
+GET /v1/agents/runs/{run_id}/llm-reviews
+POST /v1/agents/runs/{run_id}/proposal-attempts
+GET /v1/agents/runs/{run_id}/proposal-attempts
+```
+
+LLM review rows store model/prompt metadata, response ids, usage, structured judgment, raw response, and a run-scoped review hash. Proposal-attempt rows store validation/submission status, idempotency keys, source payloads, and optional links to candidate observations, LLM reviews, and governance suggestions.

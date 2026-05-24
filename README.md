@@ -692,3 +692,55 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-runtime
 
 The smoke calls `POST /v1/text/canonicalize`, `POST /v1/query/plan`, and optionally `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest`.
 
+
+
+### Patch 44A — DB-backed agent run registry
+
+SkeinRank Governance API now includes a persisted `agent_runs` registry for agent workflow executions. The registry is the first DB-backed layer for production agent tracking: every run can be registered with a stable `run_id`, lifecycle status, profile/binding scope, model/prompt metadata, artifact URIs, and a compact summary payload.
+
+Initial endpoints:
+
+```text
+POST /v1/agents/runs
+GET /v1/agents/runs
+GET /v1/agents/runs/{run_id}
+PATCH /v1/agents/runs/{run_id}
+```
+
+This patch only tracks run-level metadata. Document visits, candidate observations, LLM reviews, and proposal attempts are planned as later 44B–44D layers.
+
+
+### Patch 44B — Agent document visits
+
+Patch 44B adds DB-backed `agent_document_visits` tracking for agent runs. Each visit records a source document identity, content hash, processing-context hash, visit status, and `should_scan` decision. This is the foundation for skipping unchanged documents and rerunning only when content or agent context changes.
+
+### Patch 44C — Candidate observations and evidence windows
+
+Patch 44C adds DB-backed persistence for agent candidate observations and evidence windows. Agent runs can now persist discovered aliases, canonical hints, discovery scores, candidate packs, and the evidence snippets that support later LLM review or proposal attempts.
+
+New API endpoints:
+
+```text
+POST /v1/agents/runs/{run_id}/candidate-observations
+GET  /v1/agents/runs/{run_id}/candidate-observations
+GET  /v1/agents/runs/{run_id}/evidence-windows
+```
+
+This remains a tracking/audit layer: it stores observations and evidence for review, but does not directly mutate dictionaries, publish snapshots, or submit proposals.
+
+
+
+### Patch 44D — LLM reviews and proposal attempts
+
+Patch 44D completes the first DB-backed agent tracking milestone by adding persisted `agent_llm_reviews` and `agent_proposal_attempts`. Agent runs can now store model judgments, usage metadata, raw OpenRouter responses, validation/submission attempts, idempotency keys, and proposal-source payloads for audit.
+
+New API endpoints:
+
+```text
+POST /v1/agents/runs/{run_id}/llm-reviews
+GET  /v1/agents/runs/{run_id}/llm-reviews
+POST /v1/agents/runs/{run_id}/proposal-attempts
+GET  /v1/agents/runs/{run_id}/proposal-attempts
+```
+
+This is still a tracking/audit layer: it does not directly mutate dictionaries, submit proposals, or publish snapshots.

@@ -13,6 +13,15 @@ def test_public_api_exports_governance_models_and_helpers():
         == "governance_binding_policies"
     )
     assert governance.ProfileSnapshot.__tablename__ == "profile_snapshots"
+    assert governance.AgentRun.__tablename__ == "agent_runs"
+    assert governance.AgentDocumentVisit.__tablename__ == "agent_document_visits"
+    assert (
+        governance.AgentCandidateObservation.__tablename__
+        == "agent_candidate_observations"
+    )
+    assert governance.AgentEvidenceWindow.__tablename__ == "agent_evidence_windows"
+    assert governance.AgentLlmReview.__tablename__ == "agent_llm_reviews"
+    assert governance.AgentProposalAttempt.__tablename__ == "agent_proposal_attempts"
     assert governance.AuditEvent.__tablename__ == "audit_events"
     assert governance.GovernanceUser.__tablename__ == "governance_users"
     assert governance.GovernanceAuthToken.__tablename__ == "governance_auth_tokens"
@@ -90,6 +99,45 @@ def test_public_api_exports_governance_models_and_helpers():
         "failed",
     )
     assert governance.ELASTICSEARCH_BINDING_PROVIDERS == ("elasticsearch",)
+    assert governance.AGENT_RUN_STATUSES == (
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "needs_review",
+    )
+    assert governance.AGENT_RUN_TRIGGER_TYPES == (
+        "manual",
+        "scheduled",
+        "api",
+        "worker",
+        "test",
+    )
+    assert governance.AGENT_CANDIDATE_OBSERVATION_STATUSES == (
+        "discovered",
+        "queued_for_review",
+        "reviewed",
+        "rejected",
+        "needs_evidence",
+        "error",
+    )
+    assert governance.AGENT_LLM_REVIEW_STATUSES == (
+        "proposed",
+        "rejected",
+        "needs_evidence",
+        "error",
+    )
+    assert governance.AGENT_PROPOSAL_ATTEMPT_STATUSES == (
+        "validation_passed",
+        "validation_warning",
+        "validation_blocked",
+        "submitted",
+        "created",
+        "idempotent_existing_alias",
+        "manual_review_required",
+        "error",
+    )
     assert governance.normalize_value(" K8S ") == "k8s"
     assert governance.normalize_profile_name("Default IT") == "default_it"
     assert governance.create_profile is not None
