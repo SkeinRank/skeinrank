@@ -274,3 +274,15 @@ Patch 41G adds an offline proposal inbox/review workflow for the OpenRouter alia
 ### Agent approved apply and snapshot evaluation
 
 Patch 41H adds the offline apply/evaluation bridge after proposal inbox review. It builds an approved-proposal apply plan and can compare before/after snapshot artifacts without calling SkeinRank APIs or publishing runtime snapshots.
+
+### Agent scheduled runner
+
+Patch 41I adds a scheduled/worker-mode entrypoint for the OpenRouter alias scout:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-scheduled-runner-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-agent-cycle
+```
+
+This is designed for external schedulers such as Airflow, cron, Prefect, GitHub Actions,
+or Kubernetes CronJob. The default mode is report-only and does not mutate runtime state.

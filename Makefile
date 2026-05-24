@@ -89,3 +89,13 @@ agent-approved-apply:
 agent-snapshot-eval:
 	mkdir -p examples/agents/openrouter_alias_scout/reports
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-snapshot-evaluation-report examples/agents/openrouter_alias_scout/reports/snapshot-evaluation-report.json --approved-apply-plan examples/agents/openrouter_alias_scout/reports/approved-apply-plan.json
+
+agent-scheduled-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-scheduled-runner-plan
+
+agent-cycle:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-agent-cycle
+
+agent-cycle-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports/scheduled
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-agent-cycle-report examples/agents/openrouter_alias_scout/reports/scheduled/agent-cycle-report.json

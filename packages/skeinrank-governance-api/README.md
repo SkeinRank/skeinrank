@@ -1207,3 +1207,19 @@ The OpenRouter alias scout can now build an offline proposal inbox from saved LL
 ### Patch 41H — Apply approved proposals + snapshot evaluation
 
 The OpenRouter alias scout can now build an offline approved-proposal apply plan from a saved proposal inbox and can evaluate before/after snapshot artifacts. Use `--print-approved-apply-plan`, `--build-approved-apply-plan`, `--write-approved-apply-plan`, `--run-snapshot-evaluation`, and `--write-snapshot-evaluation-report`. This patch does not add backend routes or migrations.
+
+### Agent scheduled runner checks
+
+Patch 41I adds a dependency-light scheduled runner for the OpenRouter alias scout.
+From this package, the safe offline cycle can be invoked with:
+
+```bash
+poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-scheduled-runner-plan
+
+poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --run-agent-cycle
+```
+
+The default scheduled cycle writes reports only and does not call OpenRouter or mutate
+SkeinRank state.

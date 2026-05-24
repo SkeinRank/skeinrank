@@ -101,6 +101,12 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_proposal_submission_plan,
         validate_and_optionally_submit_proposals,
     )
+    from .scheduled_runner import (
+        ScheduledRunnerConfig,
+        build_scheduled_cycle_report,
+        make_scheduled_run_id,
+        write_cycle_artifact,
+    )
     from .security_profile import (
         SecurityProfileConfig,
         assert_security_allows_llm_review,
@@ -193,6 +199,12 @@ except ImportError:  # pragma: no cover
         build_proposal_submission_plan,
         validate_and_optionally_submit_proposals,
     )
+    from scheduled_runner import (
+        ScheduledRunnerConfig,
+        build_scheduled_cycle_report,
+        make_scheduled_run_id,
+        write_cycle_artifact,
+    )
     from security_profile import (
         SecurityProfileConfig,
         assert_security_allows_llm_review,
@@ -234,6 +246,7 @@ class AgentRunnerConfig:
     proposal_inbox: ProposalInboxConfig
     approved_apply: ApprovedApplyConfig
     new_alias_smoke: NewAliasSmokeConfig
+    scheduled_runner: ScheduledRunnerConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -331,6 +344,9 @@ class AgentRunnerConfig:
             new_alias_smoke=NewAliasSmokeConfig.from_mapping(
                 raw.get("new_alias_smoke")
             ),
+            scheduled_runner=ScheduledRunnerConfig.from_mapping(
+                raw.get("scheduled_runner"), base_dir=base_dir
+            ),
             openrouter_base_url=str(
                 os.getenv(
                     "OPENROUTER_BASE_URL",
@@ -427,6 +443,7 @@ def build_run_plan(
             "Patch 41F adds local run/document tracking and content hashes.",
             "Patch 41G adds an offline proposal inbox/review workflow.",
             "Patch 41H adds approved-proposal apply planning and snapshot evaluation.",
+            "Patch 41I adds scheduled/worker-mode agent cycle orchestration.",
         ],
         "sample_queries": [
             {
@@ -817,6 +834,56 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         help="Override approved_apply.max_items for this run.",
     )
+
+    parser.add_argument(
+        "--print-scheduled-runner-plan",
+        action="store_true",
+        help="Print the 41I scheduled/worker-mode agent cycle plan.",
+    )
+    parser.add_argument(
+        "--run-agent-cycle",
+        action="store_true",
+        help="Run a safe scheduled agent cycle and print the cycle report.",
+    )
+    parser.add_argument(
+        "--write-agent-cycle-report",
+        type=Path,
+        help="Run a scheduled agent cycle and write the final cycle report to this JSON path.",
+    )
+    parser.add_argument(
+        "--agent-cycle-artifacts-dir",
+        type=Path,
+        help="Override scheduled_runner.artifacts_dir for this run.",
+    )
+    parser.add_argument(
+        "--agent-cycle-live-llm",
+        action="store_true",
+        help="Allow the scheduled cycle to call OpenRouter for LLM review.",
+    )
+    parser.add_argument(
+        "--agent-cycle-validate-proposals",
+        action="store_true",
+        help="Allow the scheduled cycle to validate ready proposal payloads through SkeinRank.",
+    )
+    parser.add_argument(
+        "--agent-cycle-submit-proposals",
+        action="store_true",
+        help=(
+            "Allow the scheduled cycle to submit validated proposals. Requires "
+            "safe proposal/security config and never publishes snapshots."
+        ),
+    )
+    parser.add_argument(
+        "--agent-cycle-append-tracking-ledger",
+        action="store_true",
+        help="Append document visit entries during the scheduled cycle.",
+    )
+    parser.add_argument(
+        "--agent-cycle-fail-on-needs-review",
+        action="store_true",
+        help="Return the configured needs-review exit code when the cycle needs human review.",
+    )
+
     parser.add_argument(
         "--print-new-alias-smoke-plan",
         action="store_true",
@@ -1074,6 +1141,309 @@ def run_new_alias_smoke_for_config(
         config=config.new_alias_smoke,
         submit=bool(args.submit_new_alias_smoke_test),
     )
+
+
+def _scheduled_runner_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> ScheduledRunnerConfig:
+    """Apply CLI overrides to the 41I scheduled/worker-mode config."""
+
+    return config.scheduled_runner.with_overrides(
+        artifacts_dir=args.agent_cycle_artifacts_dir,
+        live_llm_review_enabled=True if args.agent_cycle_live_llm else None,
+        validate_proposals_enabled=(
+            True if args.agent_cycle_validate_proposals else None
+        ),
+        submit_proposals_enabled=True if args.agent_cycle_submit_proposals else None,
+        append_tracking_ledger=(
+            True if args.agent_cycle_append_tracking_ledger else None
+        ),
+        fail_on_needs_review=(True if args.agent_cycle_fail_on_needs_review else None),
+    )
+
+
+def build_scheduled_runner_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build a network-free 41I scheduled/worker-mode plan."""
+
+    return _scheduled_runner_config_from_args(config, args).to_plan()
+
+
+def run_scheduled_agent_cycle_for_config(
+    config: AgentRunnerConfig,
+    failed_queries: list[JsonDict],
+    args: argparse.Namespace,
+) -> tuple[JsonDict, int]:
+    """Run one safe scheduled agent cycle and return report + exit code."""
+
+    scheduled_config = _scheduled_runner_config_from_args(config, args)
+    run_id = make_scheduled_run_id(cycle_name=scheduled_config.cycle_name)
+    artifacts: list[JsonDict] = []
+    steps: list[JsonDict] = []
+    reports: dict[str, JsonDict | None] = {}
+
+    def store(name: str, report: JsonDict | None) -> None:
+        reports[name] = report
+        if report is None:
+            return
+        if scheduled_config.write_artifacts:
+            path = write_cycle_artifact(
+                artifacts_dir=scheduled_config.artifacts_dir,
+                run_id=run_id,
+                name=name,
+                payload=report,
+            )
+            artifacts.append(
+                {
+                    "name": name,
+                    "path": str(path),
+                    "schema_version": report.get("schema_version"),
+                }
+            )
+
+    evidence_records = load_jsonl_records(
+        config.evidence_records_path, limit=config.evidence_sampler.max_records
+    )
+    demo_report = build_alias_scout_demo_report(
+        failed_queries,
+        evidence_records,
+        candidate_config=config.candidate_discovery,
+        evidence_config=config.evidence_sampler,
+        demo_config=config.demo_report,
+        canonical_hints_config=config.canonical_hints,
+        binding_id=config.default_binding_id,
+        profile_name=config.default_profile_name,
+        proposal_source_name=config.proposal_source_name,
+        openrouter_model=args.model or config.openrouter_model,
+    )
+    store("demo_report", demo_report)
+    steps.append(
+        {
+            "name": "demo_report",
+            "status": "completed",
+            "network_calls": False,
+            "candidates_in_review_queue": demo_report.get("candidate_summary", {}).get(
+                "candidates_in_review_queue"
+            ),
+        }
+    )
+
+    tracking_report = build_agent_tracking_report_for_config(
+        config,
+        failed_queries,
+        args,
+        append_ledger=scheduled_config.append_tracking_ledger,
+    )
+    store("tracking_report", tracking_report)
+    steps.append(
+        {
+            "name": "tracking_report",
+            "status": "completed",
+            "network_calls": False,
+            "ledger_appended": scheduled_config.append_tracking_ledger,
+        }
+    )
+
+    llm_report: JsonDict | None = None
+    if scheduled_config.live_llm_review_enabled:
+        llm_config = _llm_review_config_from_args(config, args)
+        budget_config = _budget_cache_config_from_args(config, args)
+        assert_security_allows_llm_review(
+            security_config=config.security_profile,
+            skeinrank_role=config.skeinrank_role,
+            api_token_env=config.api_token_env,
+            llm_submit_proposals=llm_config.submit_proposals,
+        )
+        llm_report = run_openrouter_llm_review_workflow(
+            failed_queries,
+            evidence_records,
+            openrouter_client=build_openrouter_client(config),
+            candidate_config=config.candidate_discovery,
+            evidence_config=config.evidence_sampler,
+            demo_config=config.demo_report,
+            canonical_hints_config=config.canonical_hints,
+            llm_config=llm_config,
+            budget_cache_config=budget_config,
+            binding_id=config.default_binding_id,
+            profile_name=config.default_profile_name,
+            proposal_source_name=config.proposal_source_name,
+            openrouter_model=args.model or config.openrouter_model,
+            tools=get_openrouter_tool_schemas(),
+        )
+        store("llm_review_report", llm_report)
+        steps.append(
+            {
+                "name": "llm_review",
+                "status": "completed",
+                "network_calls": True,
+                "openrouter_calls": True,
+                "summary": llm_report.get("llm_review_summary"),
+            }
+        )
+    else:
+        store("llm_review_report", None)
+        steps.append(
+            {
+                "name": "llm_review",
+                "status": "skipped",
+                "reason": "agent_cycle_live_llm_not_enabled",
+                "network_calls": False,
+            }
+        )
+
+    submission_report: JsonDict | None = None
+    if scheduled_config.validate_proposals_enabled:
+        if llm_report is None:
+            steps.append(
+                {
+                    "name": "proposal_validation",
+                    "status": "skipped",
+                    "reason": "llm_review_report_not_available",
+                    "network_calls": False,
+                }
+            )
+        else:
+            submission_report = validate_and_optionally_submit_proposals(
+                llm_report,
+                client=build_client(config),
+                submission_config=config.proposal_submission,
+                security_config=config.security_profile,
+                submit=scheduled_config.submit_proposals_enabled,
+            )
+            store("proposal_submission_report", submission_report)
+            summary = submission_report.get("summary", {})
+            needs_review = bool(summary.get("manual_review_required"))
+            steps.append(
+                {
+                    "name": "proposal_validation",
+                    "status": "needs_review" if needs_review else "completed",
+                    "needs_review": needs_review,
+                    "network_calls": True,
+                    "skeinrank_api_calls": True,
+                    "summary": summary,
+                }
+            )
+    else:
+        store("proposal_submission_report", None)
+        steps.append(
+            {
+                "name": "proposal_validation",
+                "status": "skipped",
+                "reason": "agent_cycle_validate_proposals_not_enabled",
+                "network_calls": False,
+            }
+        )
+
+    inbox_report: JsonDict | None = None
+    if scheduled_config.build_inbox_enabled and (llm_report or submission_report):
+        decisions = load_review_decisions(config.proposal_inbox.review_decisions_path)
+        inbox_report = build_proposal_inbox_report(
+            llm_review_report=llm_report,
+            proposal_submission_report=submission_report,
+            review_decisions=decisions,
+            config=config.proposal_inbox,
+        )
+        store("proposal_inbox_report", inbox_report)
+        summary = inbox_report.get("summary", {})
+        needs_review = bool(summary.get("pending_review") or summary.get("deferred"))
+        steps.append(
+            {
+                "name": "proposal_inbox",
+                "status": "needs_review" if needs_review else "completed",
+                "needs_review": needs_review,
+                "network_calls": False,
+                "summary": summary,
+            }
+        )
+    else:
+        store("proposal_inbox_report", None)
+        steps.append(
+            {
+                "name": "proposal_inbox",
+                "status": "skipped",
+                "reason": "no_llm_or_submission_report_available",
+                "network_calls": False,
+            }
+        )
+
+    apply_plan: JsonDict | None = None
+    if scheduled_config.build_apply_plan_enabled and inbox_report is not None:
+        apply_plan = build_approved_proposals_apply_plan(
+            inbox_report, config=config.approved_apply
+        )
+        store("approved_apply_plan", apply_plan)
+        steps.append(
+            {
+                "name": "approved_apply_plan",
+                "status": "completed",
+                "network_calls": False,
+                "summary": apply_plan.get("summary"),
+            }
+        )
+    else:
+        store("approved_apply_plan", None)
+        steps.append(
+            {
+                "name": "approved_apply_plan",
+                "status": "skipped",
+                "reason": "proposal_inbox_not_available",
+                "network_calls": False,
+            }
+        )
+
+    snapshot_eval_report: JsonDict | None = None
+    if scheduled_config.run_snapshot_evaluation_enabled:
+        snapshot_eval_report = build_snapshot_evaluation_report(apply_plan=apply_plan)
+        store("snapshot_evaluation_report", snapshot_eval_report)
+        steps.append(
+            {
+                "name": "snapshot_evaluation",
+                "status": "completed",
+                "network_calls": False,
+                "snapshot_eval_enabled": snapshot_eval_report.get(
+                    "snapshot_eval_enabled"
+                ),
+            }
+        )
+    else:
+        store("snapshot_evaluation_report", None)
+        steps.append(
+            {
+                "name": "snapshot_evaluation",
+                "status": "skipped",
+                "reason": "scheduled_snapshot_eval_disabled",
+                "network_calls": False,
+            }
+        )
+
+    evaluation_report = build_agent_evaluation_report(
+        demo_report=demo_report,
+        llm_review_report=llm_report,
+        outcome_records=_load_evaluation_outcomes_for_args(config, args),
+        evaluation_config=config.evaluation,
+    )
+    store("evaluation_report", evaluation_report)
+    gate_status = str(evaluation_report.get("quality_gate", {}).get("status") or "")
+    steps.append(
+        {
+            "name": "evaluation_report",
+            "status": "needs_review" if gate_status == "needs_review" else "completed",
+            "needs_review": gate_status == "needs_review",
+            "network_calls": False,
+            "quality_gate": evaluation_report.get("quality_gate"),
+        }
+    )
+
+    final_report = build_scheduled_cycle_report(
+        config=scheduled_config,
+        run_id=run_id,
+        artifacts=artifacts,
+        steps=steps,
+        reports=reports,
+    )
+    store("cycle_report", final_report)
+    return final_report, int(final_report.get("recommended_exit_code", 0))
 
 
 def _elasticsearch_source_config_from_args(
@@ -1342,6 +1712,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2, sort_keys=True))
         return 0
 
+    if args.print_scheduled_runner_plan:
+        report = build_scheduled_runner_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
     if args.print_security_profile or args.check_security_profile:
         report = build_security_report_for_config(config)
         print(json.dumps(report, indent=2, sort_keys=True))
@@ -1366,6 +1741,20 @@ def main(argv: list[str] | None = None) -> int:
     failed_queries = load_failed_queries(
         config.failed_queries_path, limit=config.max_queries_per_run
     )
+
+    if args.run_agent_cycle or args.write_agent_cycle_report:
+        report, exit_code = run_scheduled_agent_cycle_for_config(
+            config, failed_queries, args
+        )
+        if args.write_agent_cycle_report:
+            args.write_agent_cycle_report.parent.mkdir(parents=True, exist_ok=True)
+            args.write_agent_cycle_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return exit_code
 
     if args.print_agent_tracking_plan:
         print(

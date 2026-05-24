@@ -542,3 +542,36 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --approved-apply-plan /tmp/approved-apply-plan.json \
   --run-snapshot-evaluation
 ```
+
+## Patch 41I — scheduled runner / worker mode
+
+Patch 41I adds a production-friendly single-run cycle that can be invoked from cron,
+Airflow, Prefect, GitHub Actions, Kubernetes CronJob, or Docker Compose without adding
+an orchestration dependency.
+
+Safe preview:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-scheduled-runner-plan
+```
+
+Run the safe offline cycle:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --run-agent-cycle
+```
+
+Write a final cycle report and per-step artifacts:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-agent-cycle-report examples/agents/openrouter_alias_scout/reports/scheduled/agent-cycle-report.json
+```
+
+The default cycle writes local reports only. It does not call OpenRouter, does not
+submit proposals, does not mutate dictionaries, and does not publish snapshots. Live
+steps require explicit flags such as `--agent-cycle-live-llm` and
+`--agent-cycle-validate-proposals`; proposal submission still requires the explicit
+`--agent-cycle-submit-proposals` flag plus the existing security/config guardrails.

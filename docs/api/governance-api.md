@@ -642,3 +642,9 @@ Patch 41G does not add new governance API routes. The OpenRouter alias scout bui
 ### Agent approved apply and snapshot evaluation note
 
 Patch 41H does not add new governance API routes. The OpenRouter alias scout builds an offline approved-proposal apply plan from the proposal inbox and can evaluate before/after snapshot artifacts. Actual profile mutation and snapshot publishing remain in the governed backend workflow.
+
+## Agent scheduled runner notes
+
+Patch 41I does not add Governance API routes. The OpenRouter alias scout scheduled mode
+is an external worker entrypoint that can optionally call existing tool endpoints in later
+explicit stages. The safe default is offline and does not call SkeinRank APIs.

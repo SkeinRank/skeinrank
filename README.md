@@ -601,3 +601,16 @@ The inbox is safe by default: it does not write dictionaries, submit snapshots, 
 ### Patch 41H — Apply approved proposals + snapshot evaluation
 
 The OpenRouter alias scout now includes an offline approved-proposal apply plan and snapshot evaluation report. It consumes the 41G proposal inbox, selects locally approved review decisions, and produces a governed apply plan without direct dictionary writes, snapshot publishing, or runtime mutation. Use `--print-approved-apply-plan`, `--build-approved-apply-plan`, `--write-approved-apply-plan`, `--run-snapshot-evaluation`, and `--write-snapshot-evaluation-report`.
+
+### Patch 41I — scheduled agent runner
+
+The OpenRouter alias scout can now run as a one-shot scheduled worker suitable for
+cron, Airflow, Prefect, GitHub Actions, Docker Compose, or Kubernetes CronJob:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-scheduled-runner-plan
+python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-agent-cycle
+```
+
+The safe default is offline and report-only. Live LLM review, proposal validation, and
+proposal submission require explicit flags and still do not publish snapshots.

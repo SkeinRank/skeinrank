@@ -302,5 +302,23 @@
     "include_item_details": true,
     "before_snapshot_path": null,
     "after_snapshot_path": null
+  },
+  "scheduled_runner": {
+    "artifacts_dir": "reports/scheduled",
+    "cycle_name": "openrouter-alias-scout-cycle",
+    "default_mode": "offline",
+    "write_artifacts": true,
+    "append_tracking_ledger": false,
+    "live_llm_review_enabled": false,
+    "validate_proposals_enabled": false,
+    "submit_proposals_enabled": false,
+    "build_inbox_enabled": true,
+    "build_apply_plan_enabled": true,
+    "run_snapshot_evaluation_enabled": true,
+    "fail_on_needs_review": false,
+    "fail_on_errors": true,
+    "success_exit_code": 0,
+    "needs_review_exit_code": 10,
+    "error_exit_code": 2
   }
 }

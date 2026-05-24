@@ -336,3 +336,43 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 The report uses the schema `skeinrank.agent_approved_apply_plan.v1` for apply planning and `skeinrank.agent_snapshot_evaluation_report.v1` for before/after snapshot diffs.
 
 Patch 41H CLI flags: `--print-approved-apply-plan`.
+
+## Patch 41I — scheduled runner / worker mode
+
+Patch 41I introduces a single worker-style entrypoint for orchestrators. Instead of
+calling every stage manually, an external scheduler can run one command and collect a
+cycle report plus per-step JSON artifacts.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-scheduled-runner-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --run-agent-cycle
+```
+
+For Airflow, Prefect, cron, GitHub Actions, or Kubernetes CronJob, use the same command
+as a one-shot job. By default the cycle is offline and safe: no OpenRouter calls, no
+SkeinRank proposal submission, no dictionary writes, and no snapshot publication.
+
+Optional live mode is explicit:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --run-agent-cycle \
+  --agent-cycle-live-llm \
+  --max-llm-calls 3 \
+  --max-run-cost-usd 0.05
+```
+
+Validation and submission remain gated separately:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --run-agent-cycle \
+  --agent-cycle-live-llm \
+  --agent-cycle-validate-proposals
+```
+
+`--agent-cycle-submit-proposals` is intentionally separate and still cannot publish
+snapshots or mutate runtime state.
