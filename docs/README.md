@@ -343,3 +343,8 @@ The governance API now supports DB-backed document visit tracking under `/v1/age
 ### Agent LLM reviews and proposal attempts
 
 Patch 44D adds the final DB-backed tracking tables for the initial agent audit trail: `agent_llm_reviews` and `agent_proposal_attempts`. These tables let operators trace each candidate from observation and evidence through LLM judgment, validation, submission/no-op, and idempotency handling.
+
+
+### Proposal lifecycle hardening
+
+Suggestion responses include lifecycle fields that help headless clients and UI review flows distinguish reviewable, warning, blocked, approved/applied, and rejected proposals without guessing from raw validation summaries.

@@ -689,3 +689,8 @@ The smoke is read-only: no OpenRouter calls, no proposals, no dictionary mutatio
 
 The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
 
+
+
+### Lifecycle-aware proposal review
+
+When consuming SkeinRank suggestion responses, prefer `lifecycle_status`, `validation_status`, `can_approve`, and `can_apply` over raw validation JSON. Agent-created warning proposals should remain in the inbox unless a human or policy explicitly allows warnings.

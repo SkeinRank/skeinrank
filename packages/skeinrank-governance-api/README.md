@@ -1293,3 +1293,8 @@ The API exposes DB-backed document visit tracking at `/v1/agents/runs/{run_id}/d
 ### Agent LLM reviews and proposal attempts
 
 The API exposes DB-backed LLM review and proposal-attempt tracking at `/v1/agents/runs/{run_id}/llm-reviews` and `/v1/agents/runs/{run_id}/proposal-attempts`. These endpoints persist audit metadata only; they do not submit proposals or mutate snapshots.
+
+
+### Proposal lifecycle hardening
+
+The governance API now returns proposal lifecycle metadata on suggestions and enforces the same warning/blocked validation gates for single-suggestion approval as for batch apply. Use `allow_warnings=true` only after a human or policy review.

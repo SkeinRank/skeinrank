@@ -807,6 +807,7 @@ class SuggestionReviewRequest(BaseModel):
     """Request body for approving or rejecting a suggestion."""
 
     review_comment: str | None = None
+    allow_warnings: bool = False
 
 
 class SuggestionResponse(BaseModel):
@@ -833,6 +834,11 @@ class SuggestionResponse(BaseModel):
     source_payload: dict[str, Any] | None = None
     validation_summary: dict[str, Any] | None = None
     status: str
+    lifecycle_status: str
+    lifecycle_reason: str
+    validation_status: str
+    can_approve: bool
+    can_apply: bool
     created_by: str | None = None
     reviewed_by: str | None = None
     review_comment: str | None = None

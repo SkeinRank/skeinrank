@@ -24,6 +24,7 @@ from ..proposal_idempotency import (
     resolve_idempotent_suggestion,
     resolve_idempotent_suggestion_from_validation_summary,
 )
+from ..proposal_lifecycle import classify_proposal_lifecycle
 from ..proposal_quality import validation_status
 from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import binding_snapshot_status
@@ -401,6 +402,7 @@ def _tool_binding_response(
 
 
 def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse:
+    lifecycle_decision = classify_proposal_lifecycle(suggestion)
     return SuggestionResponse(
         id=suggestion.id,
         profile_id=suggestion.profile_id,
@@ -423,6 +425,11 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         source_payload=suggestion.source_payload_json,
         validation_summary=suggestion.validation_summary_json,
         status=suggestion.status,
+        lifecycle_status=lifecycle_decision.lifecycle_status,
+        lifecycle_reason=lifecycle_decision.lifecycle_reason,
+        validation_status=lifecycle_decision.validation_status,
+        can_approve=lifecycle_decision.can_approve,
+        can_apply=lifecycle_decision.can_apply,
         created_by=suggestion.created_by,
         reviewed_by=suggestion.reviewed_by,
         review_comment=suggestion.review_comment,

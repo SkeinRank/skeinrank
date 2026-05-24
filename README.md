@@ -744,3 +744,8 @@ GET  /v1/agents/runs/{run_id}/proposal-attempts
 ```
 
 This is still a tracking/audit layer: it does not directly mutate dictionaries, submit proposals, or publish snapshots.
+
+
+### Patch 43A — Proposal lifecycle hardening
+
+SkeinRank now exposes proposal lifecycle metadata on governance suggestions: `validation_status`, `lifecycle_status`, `lifecycle_reason`, `can_approve`, and `can_apply`. Single-suggestion approval now blocks proposals with `blocked` validation status and requires `allow_warnings=true` for validation warnings, matching the safer batch-apply behavior.

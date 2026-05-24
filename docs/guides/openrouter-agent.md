@@ -502,3 +502,8 @@ Patch 44B extends the agent registry with document visits. A scheduled agent can
 ## Patch 44D — DB-backed LLM reviews and proposal attempts
 
 The agent tracking registry now persists LLM reviews and proposal attempts in the Governance API. This gives the OpenRouter Alias Scout an audit trail from candidate observation to evidence, LLM judgment, validation result, and proposal attempt status without making the model output the source of truth.
+
+
+### Proposal lifecycle behavior
+
+Agent proposals should treat `validation_status=blocked` as non-applyable and `validation_status=warning` as requiring human review or explicit override. `lifecycle_status` is the preferred high-level field for inboxes and automation gates.

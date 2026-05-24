@@ -742,3 +742,8 @@ GET /v1/agents/runs/{run_id}/proposal-attempts
 ```
 
 LLM review rows store model/prompt metadata, response ids, usage, structured judgment, raw response, and a run-scoped review hash. Proposal-attempt rows store validation/submission status, idempotency keys, source payloads, and optional links to candidate observations, LLM reviews, and governance suggestions.
+
+
+## Proposal lifecycle metadata
+
+`SuggestionResponse` includes additive lifecycle fields: `validation_status`, `lifecycle_status`, `lifecycle_reason`, `can_approve`, and `can_apply`. Approval of a single suggestion rejects blocked validation summaries and requires `allow_warnings: true` for warning summaries. Batch apply keeps the same explicit `allow_warnings` behavior.

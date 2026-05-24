@@ -88,6 +88,12 @@ from ..proposal_idempotency import (
     resolve_idempotent_suggestion,
     resolve_idempotent_suggestion_from_validation_summary,
 )
+from ..proposal_lifecycle import (
+    classify_proposal_lifecycle,
+    proposal_validation_counts,
+    proposal_validation_reasons,
+    proposal_validation_status,
+)
 from ..proposal_quality import build_proposal_source_quality, validation_status
 from ..proposal_validation import build_proposal_validation_summary
 from ..runtime_snapshots import (
@@ -2289,6 +2295,9 @@ def approve_profile_suggestion(
     profile = _get_profile_or_404(session, profile_name)
     suggestion = _get_suggestion_or_404(session, profile, suggestion_id)
     _ensure_pending_suggestion(suggestion)
+    _ensure_suggestion_lifecycle_allows_approval(
+        suggestion, allow_warnings=request.allow_warnings
+    )
 
     if suggestion.suggestion_type == "alias":
         _approve_alias_suggestion(session, profile, suggestion)
@@ -3671,45 +3680,15 @@ def _proposal_batch_preview_item(
 
 
 def _proposal_validation_status(summary: object) -> str:
-    if isinstance(summary, dict):
-        value = summary.get("status")
-        if isinstance(value, str) and value.strip():
-            return value.strip().lower()
-    return "unknown"
+    return proposal_validation_status(summary)
 
 
 def _proposal_validation_counts(summary: object) -> dict[str, int]:
-    if not isinstance(summary, dict):
-        return {}
-    counts = summary.get("counts")
-    if not isinstance(counts, dict):
-        return {}
-    normalized: dict[str, int] = {}
-    for key, value in counts.items():
-        if isinstance(key, str) and isinstance(value, int):
-            normalized[key] = value
-    return normalized
+    return proposal_validation_counts(summary)
 
 
 def _proposal_validation_reasons(summary: object, expected_status: str) -> list[str]:
-    if not isinstance(summary, dict):
-        return []
-    checks = summary.get("checks")
-    if not isinstance(checks, dict):
-        return []
-    reasons: list[str] = []
-    for name, check in checks.items():
-        if not isinstance(name, str) or not isinstance(check, dict):
-            continue
-        status_value = check.get("status")
-        if status_value != expected_status:
-            continue
-        message = check.get("message")
-        if isinstance(message, str) and message.strip():
-            reasons.append(f"{name}: {message.strip()}")
-        else:
-            reasons.append(name)
-    return reasons
+    return proposal_validation_reasons(summary, expected_status)
 
 
 def _ensure_batch_suggestions_are_applyable(
@@ -3740,6 +3719,28 @@ def _ensure_batch_suggestions_are_applyable(
                 "Proposal batch contains suggestions with validation warnings. "
                 "Preview the batch, review warnings, or set allow_warnings=true "
                 f"to apply them explicitly: {warning_ids}"
+            ),
+        )
+
+
+def _ensure_suggestion_lifecycle_allows_approval(
+    suggestion: GovernanceSuggestion, *, allow_warnings: bool
+) -> None:
+    decision = classify_proposal_lifecycle(suggestion)
+    if decision.validation_status == "blocked":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Suggestion validation is blocked. Reject or resubmit the "
+                f"proposal before approval: {suggestion.id}"
+            ),
+        )
+    if decision.requires_warning_override and not allow_warnings:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Suggestion validation has warnings. Review the proposal or set "
+                f"allow_warnings=true to approve explicitly: {suggestion.id}"
             ),
         )
 
@@ -4095,6 +4096,7 @@ def _ambiguous_alias_candidate_response(
 
 
 def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse:
+    lifecycle_decision = classify_proposal_lifecycle(suggestion)
     return SuggestionResponse(
         id=suggestion.id,
         profile_id=suggestion.profile_id,
@@ -4117,6 +4119,11 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         source_payload=suggestion.source_payload_json,
         validation_summary=suggestion.validation_summary_json,
         status=suggestion.status,
+        lifecycle_status=lifecycle_decision.lifecycle_status,
+        lifecycle_reason=lifecycle_decision.lifecycle_reason,
+        validation_status=lifecycle_decision.validation_status,
+        can_approve=lifecycle_decision.can_approve,
+        can_apply=lifecycle_decision.can_apply,
         created_by=suggestion.created_by,
         reviewed_by=suggestion.reviewed_by,
         review_comment=suggestion.review_comment,
