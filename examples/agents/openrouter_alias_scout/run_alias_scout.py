@@ -67,6 +67,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_alias_review_prompt,
         build_sample_candidate_pack,
     )
+    from .proposal_submission import (
+        ProposalSubmissionConfig,
+        build_proposal_submission_plan,
+        validate_and_optionally_submit_proposals,
+    )
     from .security_profile import (
         SecurityProfileConfig,
         assert_security_allows_llm_review,
@@ -125,6 +130,11 @@ except ImportError:  # pragma: no cover
         build_alias_review_prompt,
         build_sample_candidate_pack,
     )
+    from proposal_submission import (
+        ProposalSubmissionConfig,
+        build_proposal_submission_plan,
+        validate_and_optionally_submit_proposals,
+    )
     from security_profile import (
         SecurityProfileConfig,
         assert_security_allows_llm_review,
@@ -160,6 +170,7 @@ class AgentRunnerConfig:
     security_profile: SecurityProfileConfig
     evaluation: AgentEvaluationConfig
     deployment: AgentDeploymentConfig
+    proposal_submission: ProposalSubmissionConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -238,6 +249,9 @@ class AgentRunnerConfig:
             evaluation=AgentEvaluationConfig.from_mapping(raw.get("evaluation")),
             deployment=AgentDeploymentConfig.from_mapping(
                 raw.get("deployment"), repo_root=repo_root
+            ),
+            proposal_submission=ProposalSubmissionConfig.from_mapping(
+                raw.get("proposal_submission")
             ),
             openrouter_base_url=str(
                 os.getenv(
@@ -330,6 +344,7 @@ def build_run_plan(
             "Patch 40N adds offline agent evaluation reports.",
             "Patch 40O adds a Docker Compose deployment recipe.",
             "Patch 41A adds canonical hints and stronger review packs.",
+            "Patch 41B adds safe validation/submission of ready proposal payloads.",
         ],
         "sample_queries": [
             {
@@ -554,6 +569,29 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         help="Write the 40O deployment recipe JSON to this path.",
     )
+    parser.add_argument(
+        "--print-proposal-submission-plan",
+        action="store_true",
+        help="Preview validation/submission for a saved LLM review report without API calls.",
+    )
+    parser.add_argument(
+        "--validate-ready-proposals",
+        action="store_true",
+        help="Validate ready proposal payloads through /v1/tools/validate-alias.",
+    )
+    parser.add_argument(
+        "--submit-ready-proposals",
+        action="store_true",
+        help=(
+            "Validate and then submit ready payloads through /v1/tools/suggest-alias. "
+            "Requires explicit proposal/security config changes."
+        ),
+    )
+    parser.add_argument(
+        "--write-proposal-submission-report",
+        type=Path,
+        help="Write the 41B validation/submission report to this JSON path.",
+    )
     return parser.parse_args(argv)
 
 
@@ -627,6 +665,40 @@ def build_deployment_recipe_for_config(config: AgentRunnerConfig) -> JsonDict:
     )
 
 
+def _load_llm_review_report_for_proposals(args: argparse.Namespace) -> JsonDict:
+    if args.llm_review_report is None:
+        raise RuntimeError(
+            "--llm-review-report is required for proposal validation/submission."
+        )
+    return load_json_report(args.llm_review_report)
+
+
+def build_proposal_submission_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Build the offline 41B proposal submission plan for CLI/tests."""
+
+    return build_proposal_submission_plan(
+        _load_llm_review_report_for_proposals(args),
+        submission_config=config.proposal_submission,
+        submit=bool(args.submit_ready_proposals),
+    )
+
+
+def run_proposal_submission_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    """Validate and optionally submit proposals through the SkeinRank tools API."""
+
+    return validate_and_optionally_submit_proposals(
+        _load_llm_review_report_for_proposals(args),
+        client=build_client(config),
+        submission_config=config.proposal_submission,
+        security_config=config.security_profile,
+        submit=bool(args.submit_ready_proposals),
+    )
+
+
 def build_evaluation_report_for_config(
     config: AgentRunnerConfig,
     failed_queries: list[JsonDict],
@@ -664,6 +736,25 @@ def build_evaluation_report_for_config(
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
+
+    if args.print_proposal_submission_plan:
+        report = build_proposal_submission_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if args.validate_ready_proposals or args.submit_ready_proposals:
+        report = run_proposal_submission_for_args(config, args)
+        if args.write_proposal_submission_report:
+            args.write_proposal_submission_report.parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            args.write_proposal_submission_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
 
     if args.print_deployment_recipe or args.write_deployment_recipe:
         report = build_deployment_recipe_for_config(config)

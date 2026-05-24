@@ -215,5 +215,12 @@
       ]
     },
     "max_known_canonicals_in_pack": 20
+  },
+  "proposal_submission": {
+    "max_proposals_per_run": 5,
+    "min_confidence": 0.85,
+    "require_validation_status": "passed",
+    "submit_enabled": false,
+    "stop_on_error": false
   }
 }

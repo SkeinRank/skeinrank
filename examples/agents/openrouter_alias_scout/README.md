@@ -1,6 +1,6 @@
 # OpenRouter alias scout foundation
 
-This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default. Patch 40L adds a service-account security profile, Patch 40M adds budget/cache controls, Patch 40N adds offline evaluation, and Patch 40O adds a deployable Docker Compose recipe.
+This example is the first step toward a SkeinRank agent workflow. Patch 40F added the dependency-light local runner foundation. Patch 40G adds OpenRouter/OpenAI-compatible tool schemas, safety-focused prompts, and a strict structured output parser. Patch 40H adds candidate discovery and pruning from failed-query JSONL before any LLM call. Patch 40I adds compact evidence windows around discovered candidates. Patch 40K adds a local end-to-end demo report that stitches discovery, evidence, candidate packs, and review prompt preparation together. Patch 40J adds OpenRouter execution through a dependency-light client and a LangGraph-ready workflow plan while keeping proposal submission disabled by default. Patch 40L adds a service-account security profile, Patch 40M adds budget/cache controls, Patch 40N adds offline evaluation, Patch 40O adds a deployable Docker Compose recipe, Patch 41A adds canonical hints, and Patch 41B validates/submits ready proposal payloads safely.
 
 The safety rule stays unchanged:
 
@@ -22,6 +22,7 @@ Agents must not mutate production terminology directly. They can only validate a
 | `evidence_sampler.py` | Dependency-light compact window sampler for candidate evidence packs. |
 | `demo_report.py` | Local E2E demo report builder for discovery + evidence + review queue output. |
 | `deployment_recipe.py` | Offline Docker Compose deployment recipe report for the alias scout. |
+| `proposal_submission.py` | Safe validation/submission bridge for ready proposal payloads. |
 | `openrouter_client.py` | Dependency-light OpenRouter `/chat/completions` client with testable transport injection. |
 | `alias_scout_workflow.py` | LangGraph-ready state-machine workflow for LLM review and proposal payload preparation. |
 | `skeinrank_client.py` | Dependency-light client for `/v1/tools/*`. |
@@ -337,3 +338,40 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-
 
 The report schema is `skeinrank.agent_canonical_hints.v1`. Validation-sprint noise such as `queue`, `red`, and `shard` is pruned before LLM review by default, while real alias candidates such as `pg`, `k8s`, and `kube` receive `possible_canonical`, `slot`, `canonical_hint`, `canonical_candidates`, and `known_canonicals` fields in the review pack.
 
+
+### Patch 41B — Validate and submit proposals safely
+
+Patch 41B bridges prepared `proposal_payload` objects to the existing SkeinRank
+agent tools. It is still governed and safe by default: the runner can validate
+ready proposals through `POST /v1/tools/validate-alias`, and it submits through
+`POST /v1/tools/suggest-alias` only when `--submit-ready-proposals` is used and
+the config/security profile explicitly allow submission.
+
+Preview the saved LLM report without API calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --print-proposal-submission-plan
+```
+
+Validate ready payloads without submitting them:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --validate-ready-proposals
+```
+
+Submission stays opt-in and still creates only pending proposals:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --submit-ready-proposals \
+  --write-proposal-submission-report /tmp/skeinrank-proposal-submission.json
+```
+
+`--submit-ready-proposals` never writes directly to dictionaries and never
+publishes snapshots. The next governed step is human/policy review of pending
+proposals.

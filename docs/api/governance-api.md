@@ -524,3 +524,26 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-
 
 The report schema is `skeinrank.agent_canonical_hints.v1`. Validation-sprint noise such as `queue`, `red`, and `shard` is pruned before LLM review by default, while real alias candidates such as `pg`, `k8s`, and `kube` receive `possible_canonical`, `slot`, `canonical_hint`, `canonical_candidates`, and `known_canonicals` fields in the review pack.
 
+
+## Patch 41B — Validate and submit proposals safely
+
+Patch 41B connects high-confidence agent `proposal_payload` values to the
+existing SkeinRank agent tools without changing backend routes. The runner can
+preview a submission plan, validate ready proposals through
+`POST /v1/tools/validate-alias`, and optionally submit pending proposals through
+`POST /v1/tools/suggest-alias` only when explicitly requested and allowed by
+security/config.
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --print-proposal-submission-plan
+
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
+  --validate-ready-proposals
+```
+
+Submission remains opt-in and governed. It creates pending proposals only; it
+never writes directly to dictionaries, never pushes Git, and never publishes
+runtime snapshots.
