@@ -117,7 +117,7 @@ cd packages/skeinrank-governance-api
 poetry run python -m skeinrank_governance_api.migrations check
 ```
 
-The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the database schema to match the current Alembic head. Patch 45A also exposes the same operational state as Prometheus gauges through `GET /metrics`, including database/schema health and current DB-backed agent tracking counts. Patch 45B adds structured log event fields and `GET /v1/ops/troubleshooting/report` for sanitized operator diagnostics.
+The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the database schema to match the current Alembic head. Patch 45A also exposes the same operational state as Prometheus gauges through `GET /metrics`, including database/schema health and current DB-backed agent tracking counts. Patch 45B adds structured log event fields and `GET /v1/ops/troubleshooting/report` for sanitized operator diagnostics. Patch 45C adds portable governance DB backup/restore commands and operational runbooks in `docs/deployment/backup-restore.md`.
 
 
 ## Quickstart: headless runtime
@@ -309,6 +309,7 @@ Deployment docs:
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md)
 - [`docs/deployment/security.md`](docs/deployment/security.md)
 - [`docs/deployment/observability.md`](docs/deployment/observability.md)
+- [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md)
 
 ## Repository layout

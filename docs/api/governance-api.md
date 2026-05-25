@@ -80,6 +80,9 @@ CLI equivalent:
 ```bash
 poetry run python -m skeinrank_governance_api.troubleshooting report
 poetry run python -m skeinrank_governance_api.troubleshooting report --strict
+poetry run python -m skeinrank_governance_api.backup_restore export --out backups/governance.json
+poetry run python -m skeinrank_governance_api.backup_restore inspect --file backups/governance.json
+poetry run python -m skeinrank_governance_api.backup_restore restore --file backups/governance.json --dry-run
 ```
 
 `--strict` returns a non-zero exit code when the generated report status is degraded.

@@ -364,6 +364,16 @@ curl http://127.0.0.1:8010/v1/ops/troubleshooting/report | python -m json.tool
 poetry run python -m skeinrank_governance_api.troubleshooting report
 ```
 
+Patch 45C adds portable governance DB backup/restore commands:
+
+```bash
+poetry run python -m skeinrank_governance_api.backup_restore export --out backups/governance.json
+poetry run python -m skeinrank_governance_api.backup_restore inspect --file backups/governance.json
+poetry run python -m skeinrank_governance_api.backup_restore restore --file backups/governance.json --dry-run
+```
+
+See `docs/deployment/backup-restore.md` for restore drills and operational runbooks.
+
 When auth is enabled, the HTTP report requires an admin user. Personal/service-account tokens also need the `ops:reports:read` scope.
 
 Downgrade one revision when developing locally:
@@ -396,6 +406,7 @@ This package currently provides:
 - `/healthz`, `/readyz`, and `/schema/health` endpoints
 - Prometheus health and DB-backed agent tracking gauges under `/metrics`
 - structured log events and `/v1/ops/troubleshooting/report` diagnostics
+- portable governance DB backup/restore CLI and operational runbooks
 - governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
 - user-console dictionary validation, import, and export endpoints for migration workflows
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases

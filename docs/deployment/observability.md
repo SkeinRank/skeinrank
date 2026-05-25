@@ -196,6 +196,8 @@ poetry run python -m skeinrank_governance_api.troubleshooting report
 
 The report includes service metadata, deployment environment, sanitized config, database/schema/Elasticsearch/observability checks, selected table counts, and recommendations. It does not include credentials, API tokens, request bodies, query text, or document snippets.
 
+For backup/restore drills and incident runbooks, see `docs/deployment/backup-restore.md`.
+
 For API tokens, use the `ops:reports:read` scope. Session login and local-dev mode remain role-based.
 
 ## Docker Compose observability profile
@@ -281,6 +283,6 @@ The foundation does not log request bodies or document snippets. Runtime query t
 
 The next observability patches can build on this foundation:
 
-- backup/restore smoke reports;
+- backup/restore smoke reports through `python -m skeinrank_governance_api.backup_restore`;
 - optional Sentry error reporting;
 - deployment dashboards for enrichment jobs and runtime search.
