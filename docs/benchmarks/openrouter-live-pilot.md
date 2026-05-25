@@ -129,3 +129,22 @@ publish snapshots.
 - 48A proves the headless workflow deterministically without external services.
 - 48B checks whether a real OpenRouter model can produce useful, contract-safe
   proposal payloads under explicit cost and mutation guardrails.
+
+## Benchmark-style live aliases
+
+Patch 48B.2 adds Makefile aliases so the live pilot sits next to the offline and
+containerized benchmark commands:
+
+```bash
+make benchmark-agent-live-plan
+make benchmark-agent-live-check
+make benchmark-agent-live
+make benchmark-agent-live-validate
+make benchmark-agent-live-full
+```
+
+These are wrappers around the lower-level `agent-openrouter-pilot-*` commands.
+`benchmark-agent-live` performs a guarded OpenRouter call and writes a report.
+`benchmark-agent-live-validate` also requires the Governance API to be running so
+that proposed aliases can be validated through SkeinRank before the report is
+written. Neither command approves/applies proposals or publishes snapshots.

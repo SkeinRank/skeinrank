@@ -273,12 +273,16 @@ def test_live_pilot_validation_preflight_fails_before_openrouter_when_api_is_dow
         env={
             "PATH": "/usr/bin:/bin",
             "OPENROUTER_API_KEY": "test-openrouter-key",
+            # Keep this test isolated from a locally running dev API.
+            # The assertion below verifies that validation/submission preflight
+            # fails before any OpenRouter request can be made.
+            "SKEINRANK_AGENT_API_URL": "http://127.0.0.1:9",
         },
     )
 
     assert result.returncode == 2
     assert "SkeinRank Governance API is required" in result.stderr
-    assert "Configured URL: http://127.0.0.1:8010" in result.stderr
+    assert "Configured URL: http://127.0.0.1:9" in result.stderr
     stderr_before_message = result.stderr.split(
         "SkeinRank Governance API is required", 1
     )[0]

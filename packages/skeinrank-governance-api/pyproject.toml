@@ -17,6 +17,7 @@ python = ">=3.11,<4.0"
 fastapi = ">=0.110,<1.0"
 uvicorn = {version = ">=0.27,<1.0", extras = ["standard"]}
 sqlalchemy = ">=2.0,<3.0"
+psycopg = { version = ">=3,<4", extras = ["binary"] }
 pydantic = ">=2.0,<3.0"
 celery = ">=5.4,<6.0"
 skeinrank-governance = { path = "../skeinrank-governance", develop = true }
@@ -28,6 +29,7 @@ skeinrank-governance-worker = "skeinrank_governance_api.worker_cli:main"
 skeinrank-governance-backup = "skeinrank_governance_api.backup_restore:main"
 skeinrank-governance-env = "skeinrank_governance_api.env_validation:main"
 skeinrank-governance-benchmark = "skeinrank_governance_api.benchmark:main"
+skeinrank-governance-benchmark-stack = "skeinrank_governance_api.benchmark_stack:main"
 skeinrank-mcp = "skeinrank_governance_api.mcp:main"
 
 [tool.poetry.group.dev.dependencies]
