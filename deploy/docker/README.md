@@ -228,3 +228,16 @@ See `docs/deployment/observability.md` for metric names and dashboard details.
 
 The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
 
+
+## Production-ish upgrade flow
+
+Use the upgrade preflight and smoke helpers before replacing a running pilot stack:
+
+```bash
+make prod-upgrade-check
+make prod-preflight
+make prod-upgrade
+make prod-post-upgrade-smoke
+```
+
+Detailed runbooks live in `docs/deployment/upgrade-guide.md`, `docs/deployment/migration-safety.md`, and `docs/deployment/release-checklist.md`.

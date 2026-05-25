@@ -1383,3 +1383,16 @@ This keeps scheduled agents and CI jobs least-privileged: read-only jobs can lis
 runs and tracking records, validation-only jobs can call `validate-alias`, and
 proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 
+
+## Production-ish upgrade runbooks
+
+Deployment upgrades should use the root Makefile helpers:
+
+```bash
+make prod-upgrade-check
+make prod-preflight
+make prod-upgrade
+make prod-post-upgrade-smoke
+```
+
+See `docs/deployment/upgrade-guide.md`, `docs/deployment/migration-safety.md`, and `docs/deployment/release-checklist.md`.

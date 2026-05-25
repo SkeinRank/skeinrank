@@ -199,3 +199,14 @@ docker compose --env-file .env -f docker-compose.prod.yml --profile ops run --rm
 ```
 
 This helper uses the same `python -m skeinrank_governance_api.backup_restore export` command documented above. Native PostgreSQL backups remain recommended for real production disaster recovery.
+
+## Upgrade integration
+
+For production-ish Compose upgrades, use the 46C upgrade flow:
+
+```bash
+make prod-preflight
+make prod-upgrade
+```
+
+The full sequence is documented in `docs/deployment/upgrade-guide.md` and schema-specific safety notes are in `docs/deployment/migration-safety.md`.

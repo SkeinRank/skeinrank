@@ -189,3 +189,18 @@ Production logging should avoid request bodies, document snippets, and sensitive
 ## OpenTelemetry tracing
 
 SkeinRank supports optional OpenTelemetry tracing hooks for the Governance API and worker. See `docs/deployment/observability.md` for `SKEINRANK_GOVERNANCE_API_TRACING_ENABLED`, OTLP exporter settings, and privacy defaults.
+
+## Upgrade and release safety
+
+Before deploying a production-ish release, run the release checklist in `docs/deployment/release-checklist.md` and the upgrade runbook in `docs/deployment/upgrade-guide.md`. The minimum safe sequence is:
+
+```bash
+make prod-env-check
+make prod-config
+make prod-backup-export
+make prod-schema-check
+make prod-up
+make prod-smoke
+```
+
+Migration-specific operational guardrails are documented in `docs/deployment/migration-safety.md`.

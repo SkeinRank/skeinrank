@@ -159,3 +159,18 @@ deploy/grafana/dashboards/skeinrank-overview.json
 - Docker json-file log rotation is configured through `DOCKER_LOG_MAX_SIZE` and `DOCKER_LOG_MAX_FILE`.
 - `governance-backup-export` is CLI-only by design; no HTTP restore endpoint is exposed.
 - Compose is suitable for pilots and controlled deployments; larger company deployments should move secrets, backups, ingress, and service supervision into the target platform.
+
+## Upgrade path
+
+Patch 46C adds Makefile targets and a preflight script for safe production-ish upgrades:
+
+```bash
+make prod-upgrade-check
+make prod-preflight
+make prod-upgrade
+make prod-post-upgrade-smoke
+```
+
+`make prod-preflight` runs env validation, Compose config validation, portable governance backup export, and schema health checks before the stack is upgraded. `make prod-upgrade` then runs the preflight, starts the updated stack, and runs the production smoke test.
+
+See `docs/deployment/upgrade-guide.md`, `docs/deployment/migration-safety.md`, and `docs/deployment/release-checklist.md` for the complete operator flow.
