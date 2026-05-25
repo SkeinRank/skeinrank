@@ -1,0 +1,3 @@
+{"query":"rmq retries after k8s rollout","expected_canonicals":["rabbitmq","kubernetes"],"description":"Newly proposed rmq alias plus seeded k8s alias."}
+{"query":"otel traces for pg timeout","expected_canonicals":["opentelemetry","postgresql"],"description":"New otel alias and new pg alias should be available after apply."}
+{"query":"kube node drain incident","expected_canonicals":["kubernetes"],"description":"Seeded kube alias should remain available and idempotent."}
