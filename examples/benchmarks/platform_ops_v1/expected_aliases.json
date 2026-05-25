@@ -1,0 +1,13 @@
+{
+  "format_version": "skeinrank.benchmark.expected_aliases.v1",
+  "benchmark_name": "platform_ops_v1",
+  "expected_new_aliases": [
+    {"alias": "rmq", "canonical": "rabbitmq", "slot": "TECHNOLOGY"},
+    {"alias": "otel", "canonical": "opentelemetry", "slot": "TECHNOLOGY"},
+    {"alias": "pg", "canonical": "postgresql", "slot": "DATABASE"}
+  ],
+  "expected_blocked_aliases": ["app"],
+  "expected_idempotent_aliases": ["kube"],
+  "expected_skipped_sources": ["inc-001"],
+  "expected_content_changed_sources": ["inc-kube-002"]
+}

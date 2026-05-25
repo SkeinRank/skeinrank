@@ -185,6 +185,21 @@ workers without querying PostgreSQL on every request. Patch 36E adds a local
 artifact loader/cache that validates the artifact checksum and reloads the file
 when it changes.
 
+
+## Headless benchmark CLI
+
+Patch 48A adds a deterministic benchmark harness for the agent proposal workflow. It runs without OpenRouter and without Elasticsearch, using fixture data under `examples/benchmarks/platform_ops_v1`.
+
+```bash
+poetry run skeinrank-governance-benchmark seed --reset
+poetry run skeinrank-governance-benchmark eval \
+  --out ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-report.json
+poetry run skeinrank-governance-benchmark report \
+  --file ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-report.json
+```
+
+From the repository root the same flow is available as `make benchmark-seed`, `make benchmark-eval`, and `make benchmark-report`.
+
 ## Proposal batch apply
 
 Patch 37D adds a release path for agent/human proposals:

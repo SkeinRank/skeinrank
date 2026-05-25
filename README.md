@@ -120,6 +120,20 @@ poetry run python -m skeinrank_governance_api.migrations check
 The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the database schema to match the current Alembic head. Patch 45A also exposes the same operational state as Prometheus gauges through `GET /metrics`, including database/schema health and current DB-backed agent tracking counts. Patch 45B adds structured log event fields and `GET /v1/ops/troubleshooting/report` for sanitized operator diagnostics. Patch 45C adds portable governance DB backup/restore commands and operational runbooks in `docs/deployment/backup-restore.md`. Patch 46B adds `.env` preflight validation through `make prod-env-check` and `python -m skeinrank_governance_api.env_validation validate --file .env`. Patch 46C adds the production-ish upgrade path, migration safety notes, and release checklist in [`docs/deployment/upgrade-guide.md`](docs/deployment/upgrade-guide.md), [`docs/deployment/migration-safety.md`](docs/deployment/migration-safety.md), and [`docs/deployment/release-checklist.md`](docs/deployment/release-checklist.md).
 
 
+
+## Headless benchmark and agent workflow E2E
+
+Patch 48A adds a deterministic benchmark for the headless agent-governance workflow. It seeds a synthetic platform-ops corpus, simulates document visit tracking, candidate observations, evidence windows, proposal attempts, governed suggestions, snapshot publishing, and runtime query checks without calling OpenRouter or Elasticsearch.
+
+```bash
+make benchmark-reset
+make benchmark-seed
+make benchmark-eval
+make benchmark-report
+```
+
+The fixture lives in `examples/benchmarks/platform_ops_v1`; the guide is in [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md).
+
 ## Quickstart: headless runtime
 
 Use the headless Compose profile when you want the automation-first path without the React UI, Elasticsearch, RabbitMQ, or Celery workers. It starts PostgreSQL, runs migrations, and exposes the Governance API for dictionary apply/export and runtime snapshot artifact smoke tests.

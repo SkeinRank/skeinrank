@@ -1,0 +1,57 @@
+{
+  "format_version": "skeinrank.benchmark.seed_dictionary.v1",
+  "benchmark_name": "platform_ops_v1",
+  "profile": {
+    "name": "platform_ops_benchmark",
+    "description": "Synthetic platform operations terminology benchmark for headless agent workflow E2E tests."
+  },
+  "binding": {
+    "name": "Platform Ops Benchmark Docs",
+    "description": "Dry-run binding used by the offline benchmark harness.",
+    "index_name": "platform-ops-benchmark-docs",
+    "text_fields": ["title", "body"],
+    "target_field": "skeinrank_terms",
+    "filter_field": "benchmark",
+    "filter_value": "platform_ops_v1",
+    "mode": "dry_run"
+  },
+  "terms": [
+    {
+      "canonical_value": "kubernetes",
+      "slot": "TECHNOLOGY",
+      "tags": ["infra", "orchestration", "runtime"],
+      "aliases": ["k8s", "kube"]
+    },
+    {
+      "canonical_value": "postgresql",
+      "slot": "DATABASE",
+      "tags": ["database", "storage", "backend"],
+      "aliases": ["postgres"]
+    },
+    {
+      "canonical_value": "rabbitmq",
+      "slot": "TECHNOLOGY",
+      "tags": ["queue", "messaging", "backend"],
+      "aliases": []
+    },
+    {
+      "canonical_value": "elasticsearch",
+      "slot": "TECHNOLOGY",
+      "tags": ["search", "index", "infra"],
+      "aliases": ["elastic"]
+    },
+    {
+      "canonical_value": "opentelemetry",
+      "slot": "TECHNOLOGY",
+      "tags": ["observability", "tracing"],
+      "aliases": []
+    }
+  ],
+  "stop_list": [
+    {
+      "value": "app",
+      "target": "alias",
+      "reason": "Generic product/UI word that is too noisy for the platform ops benchmark."
+    }
+  ]
+}
