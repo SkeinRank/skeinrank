@@ -286,3 +286,14 @@ The next observability patches can build on this foundation:
 - backup/restore smoke reports through `python -m skeinrank_governance_api.backup_restore`;
 - optional Sentry error reporting;
 - deployment dashboards for enrichment jobs and runtime search.
+
+
+## Production Compose observability profile
+
+Patch 46A adds an optional `observability` profile to `docker-compose.prod.yml`:
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml --profile observability up -d prometheus grafana
+```
+
+It reuses `deploy/prometheus/prometheus.yml`, `deploy/grafana/provisioning/`, and `deploy/grafana/dashboards/skeinrank-overview.json`. Keep Prometheus and Grafana bound to `127.0.0.1` or expose them only through a protected operator network.

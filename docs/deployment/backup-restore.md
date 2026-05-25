@@ -188,3 +188,14 @@ pg_dump --format=custom --file=skeinrank-governance.dump "$SKEINRANK_GOVERNANCE_
 ```
 
 The portable JSON backup is useful for support/debug portability and small pilot restores. Native backups remain the source of truth for production disaster recovery.
+
+
+## Docker Compose production backup helper
+
+Patch 46A adds an ops one-shot service to `docker-compose.prod.yml` that exports a timestamped portable JSON backup into the `skeinrank_postgres_backups` Docker volume:
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml --profile ops run --rm governance-backup-export
+```
+
+This helper uses the same `python -m skeinrank_governance_api.backup_restore export` command documented above. Native PostgreSQL backups remain recommended for real production disaster recovery.

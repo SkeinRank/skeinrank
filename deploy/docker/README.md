@@ -74,16 +74,39 @@ Start from:
 
 ```bash
 cp .env.production.example .env
-docker compose -f docker-compose.prod.yml up --build -d
+docker compose --env-file .env -f docker-compose.prod.yml config
+docker compose --env-file .env -f docker-compose.prod.yml up --build -d
 ```
 
 Before running it, replace every `CHANGE_ME` value and review:
 
 ```text
 docs/deployment/security.md
+docs/deployment/production-compose.md
 ```
 
-The production profile keeps PostgreSQL and RabbitMQ internal to the Compose network, requires auth, requires a configured Elasticsearch endpoint, and enables fail-fast security guardrails.
+The production profile keeps PostgreSQL and RabbitMQ internal to the Compose network, requires auth, allows Elasticsearch to be configured when needed, and enables fail-fast security guardrails. Patch 46A also adds optional `ops` and `observability` profiles plus `deploy/docker/scripts/prod-smoke-test.sh`.
+
+Operational helpers can be run directly or through the root Makefile:
+
+```bash
+make prod-config
+make prod-up
+make prod-smoke
+make prod-smoke-strict
+make prod-down
+make prod-schema-check
+make prod-backup-export
+```
+
+Direct commands:
+
+```bash
+deploy/docker/scripts/prod-smoke-test.sh
+docker compose --env-file .env -f docker-compose.prod.yml --profile ops run --rm governance-schema-check
+docker compose --env-file .env -f docker-compose.prod.yml --profile ops run --rm governance-backup-export
+docker compose --env-file .env -f docker-compose.prod.yml --profile observability up -d prometheus grafana
+```
 
 ## Full install guide
 

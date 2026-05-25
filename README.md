@@ -359,6 +359,8 @@ Main files:
 - [`docker-compose.dev.yml`](docker-compose.dev.yml) — local development stack.
 - [`docker-compose.headless.yml`](docker-compose.headless.yml) — API/PostgreSQL-only headless stack.
 - [`docker-compose.prod.yml`](docker-compose.prod.yml) — production-oriented stack.
+- [`.env.production.example`](.env.production.example) — required production Compose environment template.
+- [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md) — production-ish Compose profile, ops services, and smoke checks.
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) — Docker Compose setup guide.
 - [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) — API-only golden path for dictionary apply and snapshot artifact export.
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md) — local stack troubleshooting.

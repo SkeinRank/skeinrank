@@ -1,9 +1,12 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
 DEMO_ARGS ?=
 HEADLESS_COMPOSE := docker compose --env-file deploy/docker/headless.env.example -f docker-compose.headless.yml
+
+PROD_ENV ?= .env
+PROD_COMPOSE := docker compose --env-file $(PROD_ENV) -f docker-compose.prod.yml
 
 demo-seed:
 	$(PYTHON) $(DEMO_SEED) $(DEMO_ARGS)
@@ -25,6 +28,27 @@ headless-reset:
 
 headless-golden-path:
 	deploy/docker/scripts/headless-golden-path.sh
+
+prod-config:
+	$(PROD_COMPOSE) config
+
+prod-up:
+	$(PROD_COMPOSE) up --build -d
+
+prod-smoke:
+	deploy/docker/scripts/prod-smoke-test.sh
+
+prod-smoke-strict:
+	deploy/docker/scripts/prod-smoke-test.sh --strict
+
+prod-down:
+	$(PROD_COMPOSE) down
+
+prod-schema-check:
+	$(PROD_COMPOSE) --profile ops run --rm governance-schema-check
+
+prod-backup-export:
+	$(PROD_COMPOSE) --profile ops run --rm governance-backup-export
 
 agent-demo:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report
@@ -143,7 +167,7 @@ agent-dictionary-quickstart-plan:
 agent-dictionary-quickstart-payloads:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-dictionary-quickstart-payloads
 
-agent-dictionary-quickstart-validate agent-runtime-smoke-plan agent-runtime-smoke-report:
+agent-dictionary-quickstart-validate:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionary-quickstart
 
 agent-runtime-smoke-plan:

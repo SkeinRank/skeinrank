@@ -4,7 +4,7 @@ This page documents the production security baseline for running SkeinRank with 
 
 The development stack in `docker-compose.dev.yml` is intentionally permissive. It disables Elasticsearch security, uses simple local credentials, and binds services to `127.0.0.1` for smoke testing. Do not expose the development stack directly to the internet.
 
-Use `docker-compose.prod.yml` as the production-oriented starting point.
+Use `docker-compose.prod.yml` as the production-oriented starting point. See `docs/deployment/production-compose.md` for the 46A Compose profile, ops services, and smoke helper.
 
 ## Security model
 
@@ -31,7 +31,7 @@ Edit `.env` and replace every `CHANGE_ME` value with a real secret.
 Start the production-oriented stack:
 
 ```bash
-docker compose -f docker-compose.prod.yml up --build -d
+docker compose --env-file .env -f docker-compose.prod.yml up --build -d
 ```
 
 Check API health:
@@ -161,6 +161,7 @@ Back up Elasticsearch indices according to your organization's search/data reten
 - `docs/deployment/docker-compose.md`
 - `docs/deployment/dev-stack-troubleshooting.md`
 - `deploy/docker/README.md`
+- `docs/deployment/production-compose.md`
 
 ## Observability privacy baseline
 

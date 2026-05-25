@@ -12,7 +12,7 @@ dictionary import
 -> UI validation
 ```
 
-For production security hardening, see `docs/deployment/security.md` and `docker-compose.prod.yml`. Do not expose this development stack directly to the internet.
+For production security hardening, see `docs/deployment/security.md`, `docs/deployment/production-compose.md`, and `docker-compose.prod.yml`. Do not expose this development stack directly to the internet.
 
 ## Production-oriented profile
 
@@ -20,16 +20,18 @@ The development stack is not a production security profile. For a production-ori
 
 ```bash
 cp .env.production.example .env
-docker compose -f docker-compose.prod.yml up --build -d
+docker compose --env-file .env -f docker-compose.prod.yml config
+docker compose --env-file .env -f docker-compose.prod.yml up --build -d
 ```
 
-Read the security guide first:
+Read the security and production Compose guides first:
 
 ```text
 docs/deployment/security.md
+docs/deployment/production-compose.md
 ```
 
-The production profile enables fail-fast configuration checks when `SKEINRANK_ENV=production` or `SKEINRANK_GOVERNANCE_API_ENV=production`. It does not publish PostgreSQL or RabbitMQ ports, requires auth, requires a configured Elasticsearch URL, rejects wildcard CORS, and refuses unsafe default secrets.
+The production profile enables fail-fast configuration checks when `SKEINRANK_ENV=production` or `SKEINRANK_GOVERNANCE_API_ENV=production`. It does not publish PostgreSQL or RabbitMQ ports, requires auth, rejects wildcard CORS, refuses unsafe default secrets, and can optionally validate a configured Elasticsearch/OpenSearch URL through `/readyz`. Patch 46A adds a production env example, ops one-shot services, optional Prometheus/Grafana, Docker log rotation, and `deploy/docker/scripts/prod-smoke-test.sh`.
 
 ## What the dev stack starts
 

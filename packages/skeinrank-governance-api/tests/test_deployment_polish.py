@@ -9,14 +9,18 @@ def _read(path: str) -> str:
     return (REPO_ROOT / path).read_text(encoding="utf-8")
 
 
-def test_compose_api_healthchecks_use_readiness_endpoint() -> None:
+def test_compose_api_healthchecks_use_expected_operational_endpoints() -> None:
     dev_compose = _read("docker-compose.dev.yml")
     prod_compose = _read("docker-compose.prod.yml")
 
+    # The dev stack keeps the stricter readiness healthcheck because it includes
+    # a local Elasticsearch service. The production-ish stack uses liveness/DB/schema
+    # health so optional external search backends do not block the first bootstrap.
     assert "http://127.0.0.1:8010/readyz" in dev_compose
-    assert "http://127.0.0.1:8010/readyz" in prod_compose
     assert "http://127.0.0.1:8010/healthz" not in dev_compose
-    assert "http://127.0.0.1:8010/healthz" not in prod_compose
+
+    assert "http://127.0.0.1:8010/healthz" in prod_compose
+    assert "http://127.0.0.1:8010/readyz" not in prod_compose
 
 
 def test_dev_smoke_script_checks_core_deployment_endpoints() -> None:

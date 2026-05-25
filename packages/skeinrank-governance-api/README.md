@@ -374,6 +374,19 @@ poetry run python -m skeinrank_governance_api.backup_restore restore --file back
 
 See `docs/deployment/backup-restore.md` for restore drills and operational runbooks.
 
+Patch 46A adds a production-oriented Docker Compose profile with `.env.production.example`, optional `ops`/`observability` profiles, Docker log rotation, and `deploy/docker/scripts/prod-smoke-test.sh`:
+
+```bash
+cp .env.production.example .env
+docker compose --env-file .env -f docker-compose.prod.yml config
+docker compose --env-file .env -f docker-compose.prod.yml up --build -d
+deploy/docker/scripts/prod-smoke-test.sh
+# or fail if /readyz is degraded because an external dependency is unavailable
+deploy/docker/scripts/prod-smoke-test.sh --strict
+```
+
+See `docs/deployment/production-compose.md` for the full production-ish Compose runbook.
+
 When auth is enabled, the HTTP report requires an admin user. Personal/service-account tokens also need the `ops:reports:read` scope.
 
 Downgrade one revision when developing locally:
@@ -407,6 +420,7 @@ This package currently provides:
 - Prometheus health and DB-backed agent tracking gauges under `/metrics`
 - structured log events and `/v1/ops/troubleshooting/report` diagnostics
 - portable governance DB backup/restore CLI and operational runbooks
+- production-oriented Docker Compose profile, ops helpers, and smoke checks
 - governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
 - user-console dictionary validation, import, and export endpoints for migration workflows
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
