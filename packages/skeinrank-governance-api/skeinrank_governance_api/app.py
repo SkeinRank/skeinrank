@@ -26,6 +26,7 @@ from .routes.search import router as search_router
 from .routes.snapshots import router as snapshots_router
 from .routes.text import router as text_router
 from .routes.tools import router as tools_router
+from .routes.troubleshooting import router as troubleshooting_router
 
 
 def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
@@ -78,4 +79,5 @@ def create_app(config: GovernanceApiConfig | None = None) -> FastAPI:
     app.include_router(console_router)
     app.include_router(headless_router)
     app.include_router(tools_router)
+    app.include_router(troubleshooting_router)
     return app

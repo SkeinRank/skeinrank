@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from .context import reset_request_id, set_request_id
+from .logging import structured_log
 from .metrics import record_http_exception, record_http_request
 from .tracing import start_span
 
@@ -69,16 +70,19 @@ class RequestObservabilityMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 duration_seconds=duration_ms / 1000,
             )
-            logger.exception(
+            structured_log(
+                logger,
+                logging.ERROR,
                 "Unhandled request exception",
-                extra={
-                    "request_id": request_id,
-                    "http_method": request.method,
-                    "http_path": request.url.path,
-                    "http_status_code": 500,
-                    "duration_ms": duration_ms,
-                    "client_host": _client_host(request),
-                },
+                event="http.request.exception",
+                outcome="failed",
+                request_id=request_id,
+                http_method=request.method,
+                http_path=request.url.path,
+                http_status_code=500,
+                duration_ms=duration_ms,
+                client_host=_client_host(request),
+                exc_info=True,
             )
             raise
         finally:
@@ -93,16 +97,18 @@ class RequestObservabilityMiddleware(BaseHTTPMiddleware):
             duration_seconds=duration_ms / 1000,
         )
         if self.access_log_enabled:
-            logger.info(
+            structured_log(
+                logger,
+                logging.INFO,
                 "HTTP request completed",
-                extra={
-                    "request_id": request_id,
-                    "http_method": request.method,
-                    "http_path": request.url.path,
-                    "http_status_code": response.status_code,
-                    "duration_ms": duration_ms,
-                    "client_host": _client_host(request),
-                },
+                event="http.request.completed",
+                outcome="succeeded" if response.status_code < 500 else "failed",
+                request_id=request_id,
+                http_method=request.method,
+                http_path=request.url.path,
+                http_status_code=response.status_code,
+                duration_ms=duration_ms,
+                client_host=_client_host(request),
             )
         return response
 

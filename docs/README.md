@@ -25,9 +25,10 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/headless-quickstart.md`](deployment/headless-quickstart.md) — API/PostgreSQL-only golden path for headless integrations.
 - [`deployment/security.md`](deployment/security.md) — production-oriented security baseline.
 - [`deployment/observability.md`](deployment/observability.md) — logs, metrics, tracing, Prometheus, and Grafana.
+- [`deployment/backup-restore.md`](deployment/backup-restore.md) — portable governance DB backups, restore drills, and operational runbooks.
 - [`deployment/dev-stack-troubleshooting.md`](deployment/dev-stack-troubleshooting.md) — common local stack issues.
 
-Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables.
+Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables. Patch 45A mirrors this state into Prometheus gauges and adds DB-backed agent tracking gauges under `GET /metrics`. Patch 45B adds structured log event fields and a sanitized troubleshooting report at `GET /v1/ops/troubleshooting/report` / `python -m skeinrank_governance_api.troubleshooting report`. Patch 45C adds `python -m skeinrank_governance_api.backup_restore export|inspect|restore` and operational runbooks.
 
 
 ## Headless dictionary facade
@@ -372,6 +373,7 @@ agent:tools:read
 agent:tools:validate
 agent:tools:suggest
 agent:tools:explain
+ops:reports:read
 ```
 
 This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list

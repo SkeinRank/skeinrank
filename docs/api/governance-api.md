@@ -33,9 +33,25 @@ GET /healthz
 GET /readyz
 GET /schema/health
 GET /metrics
+GET /v1/ops/troubleshooting/report
 ```
 
-`/healthz` reports process/database health and includes a schema-health block. `/readyz` also requires the migrated governance schema to be at the current Alembic head, then checks configured Elasticsearch readiness. `/schema/health` is a read-only schema check for operators and CI. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration.
+`/healthz` reports process/database health and includes a schema-health block. `/readyz` also requires the migrated governance schema to be at the current Alembic head, then checks configured Elasticsearch readiness. `/schema/health` is a read-only schema check for operators and CI. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration and refreshes best-effort operational gauges for database/schema health, Elasticsearch reachability, and DB-backed agent tracking counts. `/v1/ops/troubleshooting/report` returns a sanitized operator report with config, health checks, table counts, and recommendations.
+
+Patch 45A metrics to watch first:
+
+```text
+skeinrank_database_up
+skeinrank_schema_ok
+skeinrank_schema_current_matches_head
+skeinrank_schema_missing_tables
+skeinrank_elasticsearch_up
+skeinrank_agent_runs_current
+skeinrank_agent_document_visits_current
+skeinrank_agent_candidate_observations_current
+skeinrank_agent_llm_reviews_current
+skeinrank_agent_proposal_attempts_current
+```
 
 CLI equivalent:
 
@@ -44,6 +60,32 @@ poetry run python -m skeinrank_governance_api.migrations check
 ```
 
 The schema check reports `current_revision`, `head_revision`, multiple Alembic heads, whether `alembic_version` exists, and any SQLAlchemy metadata tables missing from the database.
+
+## Troubleshooting report
+
+```text
+GET /v1/ops/troubleshooting/report
+```
+
+The troubleshooting report is read-only and intended for operators. It includes sanitized runtime configuration, database/schema/Elasticsearch/observability checks, selected table counts, and recommended next steps. It never includes database credentials, API tokens, Elasticsearch passwords, request bodies, document text, or query text.
+
+When authentication is enabled, the endpoint requires the `admin` role. Personal and service-account API tokens must also include:
+
+```text
+ops:reports:read
+```
+
+CLI equivalent:
+
+```bash
+poetry run python -m skeinrank_governance_api.troubleshooting report
+poetry run python -m skeinrank_governance_api.troubleshooting report --strict
+poetry run python -m skeinrank_governance_api.backup_restore export --out backups/governance.json
+poetry run python -m skeinrank_governance_api.backup_restore inspect --file backups/governance.json
+poetry run python -m skeinrank_governance_api.backup_restore restore --file backups/governance.json --dry-run
+```
+
+`--strict` returns a non-zero exit code when the generated report status is degraded.
 
 ## Headless dictionary workflows
 

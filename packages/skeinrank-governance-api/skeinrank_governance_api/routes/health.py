@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from ..elasticsearch import ElasticsearchDiscoveryClient, ElasticsearchDiscoveryError
+from ..observability.metrics import current_time, elapsed_seconds, record_health_check
 from ..schema_health import check_schema_health
 from ..schemas import (
     DatabaseHealth,
@@ -25,33 +26,48 @@ router = APIRouter(tags=["health"])
 def livez(request: Request) -> LivezResponse:
     """Return process liveness without checking external dependencies."""
 
+    started_at = current_time()
     config = request.app.state.config
-    return LivezResponse(
+    response = LivezResponse(
         status="ok",
         service=_service_info(config),
     )
+    record_health_check(
+        endpoint="livez",
+        status=response.status,
+        duration_seconds=elapsed_seconds(started_at),
+    )
+    return response
 
 
 @router.get("/healthz", response_model=HealthzResponse)
 def healthz(request: Request) -> HealthzResponse:
     """Return service, database connectivity, and schema migration status."""
 
+    started_at = current_time()
     engine: Engine = request.app.state.governance_engine
     config = request.app.state.config
     database = _check_database(engine, url=config.database_url)
     schema = check_schema_health(engine, config=config) if database.ok else None
-    return HealthzResponse(
+    response = HealthzResponse(
         status="ok" if database.ok else "degraded",
         service=_service_info(config),
         database=database,
         schema_health=schema or _unavailable_schema_health(),
     )
+    record_health_check(
+        endpoint="healthz",
+        status=response.status,
+        duration_seconds=elapsed_seconds(started_at),
+    )
+    return response
 
 
 @router.get("/readyz", response_model=ReadyzResponse)
 def readyz(request: Request) -> ReadyzResponse:
     """Return readiness status for database, schema, and search dependency."""
 
+    started_at = current_time()
     engine: Engine = request.app.state.governance_engine
     config = request.app.state.config
     database = _check_database(engine, url=config.database_url)
@@ -62,22 +78,35 @@ def readyz(request: Request) -> ReadyzResponse:
         and bool(schema and schema.ok)
         and (elasticsearch.ok or not elasticsearch.configured)
     )
-    return ReadyzResponse(
+    response = ReadyzResponse(
         status="ok" if ready else "degraded",
         service=_service_info(config),
         database=database,
         schema_health=schema or _unavailable_schema_health(),
         elasticsearch=elasticsearch,
     )
+    record_health_check(
+        endpoint="readyz",
+        status=response.status,
+        duration_seconds=elapsed_seconds(started_at),
+    )
+    return response
 
 
 @router.get("/schema/health", response_model=SchemaHealth)
 def schema_health(request: Request) -> SchemaHealth:
     """Return read-only Alembic and metadata health for the governance schema."""
 
+    started_at = current_time()
     engine: Engine = request.app.state.governance_engine
     config = request.app.state.config
-    return check_schema_health(engine, config=config)
+    response = check_schema_health(engine, config=config)
+    record_health_check(
+        endpoint="schema_health",
+        status="ok" if response.ok else "degraded",
+        duration_seconds=elapsed_seconds(started_at),
+    )
+    return response
 
 
 def _service_info(config) -> ServiceInfo:

@@ -83,6 +83,47 @@ class ReadyzResponse(BaseModel):
     elasticsearch: ExternalDependencyHealth
 
 
+class TroubleshootingCheck(BaseModel):
+    """One read-only troubleshooting check result."""
+
+    name: str
+    status: str = Field(..., examples=["ok", "degraded", "unknown", "disabled"])
+    message: str | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class TroubleshootingRuntimeConfig(BaseModel):
+    """Sanitized runtime configuration included in troubleshooting reports."""
+
+    database_url: str | None = None
+    create_tables_on_startup: bool
+    auth_enabled: bool
+    production_security_enabled: bool
+    observability_enabled: bool
+    log_format: str
+    log_level: str
+    metrics_enabled: bool
+    metrics_path: str
+    tracing_enabled: bool
+    elasticsearch_configured: bool
+    enrichment_jobs_backend: str
+    celery_task_queue: str
+
+
+class TroubleshootingReportResponse(BaseModel):
+    """Operator-facing troubleshooting report."""
+
+    status: str = Field(..., examples=["ok", "degraded"])
+    generated_at: datetime
+    service: ServiceInfo
+    environment: str
+    request_id: str | None = None
+    config: TroubleshootingRuntimeConfig
+    checks: list[TroubleshootingCheck] = Field(default_factory=list)
+    counts: dict[str, int | None] = Field(default_factory=dict)
+    recommendations: list[str] = Field(default_factory=list)
+
+
 class DashboardReadinessItem(BaseModel):
     """One product dashboard readiness item."""
 

@@ -351,6 +351,31 @@ The same read-only report is available over HTTP:
 curl http://127.0.0.1:8010/schema/health | python -m json.tool
 ```
 
+Patch 45A also mirrors deployment health and current DB-backed agent tracking state into Prometheus metrics:
+
+```bash
+curl http://127.0.0.1:8010/metrics | grep -E "skeinrank_(database_up|schema_ok|agent_runs_current)"
+```
+
+Patch 45B adds structured log events and a sanitized troubleshooting report:
+
+```bash
+curl http://127.0.0.1:8010/v1/ops/troubleshooting/report | python -m json.tool
+poetry run python -m skeinrank_governance_api.troubleshooting report
+```
+
+Patch 45C adds portable governance DB backup/restore commands:
+
+```bash
+poetry run python -m skeinrank_governance_api.backup_restore export --out backups/governance.json
+poetry run python -m skeinrank_governance_api.backup_restore inspect --file backups/governance.json
+poetry run python -m skeinrank_governance_api.backup_restore restore --file backups/governance.json --dry-run
+```
+
+See `docs/deployment/backup-restore.md` for restore drills and operational runbooks.
+
+When auth is enabled, the HTTP report requires an admin user. Personal/service-account tokens also need the `ops:reports:read` scope.
+
 Downgrade one revision when developing locally:
 
 ```bash
@@ -379,6 +404,9 @@ This package currently provides:
 - environment-based configuration
 - SQLAlchemy session dependency
 - `/healthz`, `/readyz`, and `/schema/health` endpoints
+- Prometheus health and DB-backed agent tracking gauges under `/metrics`
+- structured log events and `/v1/ops/troubleshooting/report` diagnostics
+- portable governance DB backup/restore CLI and operational runbooks
 - governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
 - user-console dictionary validation, import, and export endpoints for migration workflows
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
@@ -1332,6 +1360,7 @@ agent:tools:read
 agent:tools:validate
 agent:tools:suggest
 agent:tools:explain
+ops:reports:read
 ```
 
 This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
