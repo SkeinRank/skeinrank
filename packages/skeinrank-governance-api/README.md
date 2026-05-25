@@ -1411,3 +1411,14 @@ make prod-post-upgrade-smoke
 ```
 
 See `docs/deployment/upgrade-guide.md`, `docs/deployment/migration-safety.md`, and `docs/deployment/release-checklist.md`.
+
+## OpenRouter live pilot
+
+Patch 48B keeps live agent execution opt-in and bounded. Configure `OPENROUTER_API_KEY` locally, preview the plan first, then run a small live pilot:
+
+```bash
+make agent-openrouter-pilot-plan
+OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
+```
+
+The live pilot writes ignored reports under `examples/agents/openrouter_alias_scout/reports/live-pilot/` and does not approve/apply proposals or publish snapshots. Use `make agent-openrouter-pilot-validate` only after the Governance API and scoped agent token are configured.

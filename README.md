@@ -134,6 +134,17 @@ make benchmark-report
 
 The fixture lives in `examples/benchmarks/platform_ops_v1`; the guide is in [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md).
 
+## OpenRouter live agent pilot
+
+Patch 48B adds a guarded live pilot mode on top of the deterministic benchmark foundation. It can call OpenRouter with hard limits, but validation/submission through SkeinRank is opt-in and the agent still cannot approve/apply proposals or publish snapshots.
+
+```bash
+make agent-openrouter-pilot-plan
+OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
+```
+
+Use `OPENROUTER_API_KEY` only in your local shell or ignored `.env` files. See [`docs/benchmarks/openrouter-live-pilot.md`](docs/benchmarks/openrouter-live-pilot.md).
+
 ## Quickstart: headless runtime
 
 Use the headless Compose profile when you want the automation-first path without the React UI, Elasticsearch, RabbitMQ, or Celery workers. It starts PostgreSQL, runs migrations, and exposes the Governance API for dictionary apply/export and runtime snapshot artifact smoke tests.

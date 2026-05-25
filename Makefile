@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -92,6 +92,21 @@ benchmark-report:
 benchmark-clean:
 	rm -f $(BENCHMARK_REPORT)
 	$(BENCHMARK_CLI) reset
+
+
+agent-openrouter-pilot-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-openrouter-live-pilot-plan
+
+agent-openrouter-pilot:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-openrouter-live-pilot
+
+agent-openrouter-pilot-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports/live-pilot
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-openrouter-live-pilot --write-openrouter-live-pilot-report examples/agents/openrouter_alias_scout/reports/live-pilot/openrouter-live-pilot-report.json
+
+agent-openrouter-pilot-validate:
+	mkdir -p examples/agents/openrouter_alias_scout/reports/live-pilot
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-openrouter-live-pilot --write-openrouter-live-pilot-report examples/agents/openrouter_alias_scout/reports/live-pilot/openrouter-live-pilot-validated-report.json --pilot-validate-proposals
 
 agent-demo:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report

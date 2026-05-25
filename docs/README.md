@@ -5,6 +5,7 @@ This directory keeps repository-level documentation for developers, operators, a
 ## Start here
 
 - [`benchmarks/headless-agent-workflow.md`](benchmarks/headless-agent-workflow.md) — deterministic 48A benchmark for the headless agent proposal workflow.
+- [`benchmarks/openrouter-live-pilot.md`](benchmarks/openrouter-live-pilot.md) — guarded 48B live OpenRouter pilot with cost limits and no runtime mutation.
 
 - [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
 - [`concepts/terminology-control-plane.md`](concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.
