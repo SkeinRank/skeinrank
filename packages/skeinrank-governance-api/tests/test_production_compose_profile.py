@@ -62,6 +62,9 @@ def test_production_compose_declares_ops_and_observability_profiles() -> None:
 
     assert "127.0.0.1:${GOVERNANCE_API_PORT:-8010}:8010" in compose
     assert "127.0.0.1:${UI_PORT:-5173}:5173" in compose
+    assert "image: postgres:16.4-alpine" in compose
+    assert "image: rabbitmq:3.13.7-management" in compose
+    assert "image: rabbitmq:3-management" not in compose
     assert "5432:5432" not in compose
     assert "5672:5672" not in compose
     assert "service_completed_successfully" in compose
@@ -110,6 +113,7 @@ def test_production_compose_docs_reference_ops_flow() -> None:
         "cp .env.production.example .env",
         "docker compose --env-file .env -f docker-compose.prod.yml config",
         "deploy/docker/scripts/prod-smoke-test.sh",
+        "make prod-env-check",
         "make prod-up",
         "make prod-smoke",
         "governance-schema-check",
@@ -117,6 +121,7 @@ def test_production_compose_docs_reference_ops_flow() -> None:
         "--profile observability",
         "Prometheus",
         "Grafana",
+        "rabbitmq:3.13.7-management",
     )
     for fragment in expected_fragments:
         assert fragment in production_guide
@@ -129,6 +134,8 @@ def test_production_compose_docs_reference_ops_flow() -> None:
     assert "deploy/docker/scripts/prod-smoke-test.sh" in package_readme
 
     for target in (
+        "prod-env-check:",
+        "prod-env-check-strict:",
         "prod-config:",
         "prod-up:",
         "prod-smoke:",

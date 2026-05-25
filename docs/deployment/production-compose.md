@@ -18,7 +18,15 @@ From the repository root:
 cp .env.production.example .env
 ```
 
-Edit `.env` and replace every `CHANGE_ME` value before starting the stack. Elasticsearch is optional for the first smoke test: leave `SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=` empty until you have a reachable Elasticsearch/OpenSearch endpoint.
+Edit `.env` and replace every `CHANGE_ME` value before starting the stack. Elasticsearch is optional for the first smoke test: leave `SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=` empty until you have a reachable Elasticsearch/OpenSearch endpoint. Validate the file before rendering Compose config:
+
+```bash
+make prod-env-check
+# or fail on warnings too
+make prod-env-check-strict
+```
+
+The validator is documented in `docs/deployment/env-and-secrets.md`.
 
 The production profile intentionally enables fail-fast guardrails:
 
@@ -34,6 +42,7 @@ SKEINRANK_GOVERNANCE_API_PRODUCTION_SECURITY_ENABLED=true
 The direct `docker compose` commands are still documented below, but the root `Makefile` also provides wrappers:
 
 ```bash
+make prod-env-check
 make prod-config
 make prod-up
 make prod-smoke
@@ -50,10 +59,11 @@ Set `PROD_ENV=path/to/.env` if you do not keep the production environment file i
 Render the final config before starting containers:
 
 ```bash
+make prod-env-check
 docker compose --env-file .env -f docker-compose.prod.yml config
 ```
 
-This catches missing required values such as `POSTGRES_PASSWORD`, `RABBITMQ_DEFAULT_PASS`, `SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD`, `SKEINRANK_GOVERNANCE_API_CORS_ORIGINS`, `VITE_SKEINRANK_GOVERNANCE_API_URL`, and secret values before Docker starts anything.
+`make prod-env-check` catches missing values, placeholders, wildcard CORS, example URLs, weak secrets, and Elasticsearch credential/URL mismatches. `docker compose config` then validates Compose interpolation such as `POSTGRES_PASSWORD`, `RABBITMQ_DEFAULT_PASS`, `SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD`, `SKEINRANK_GOVERNANCE_API_CORS_ORIGINS`, `VITE_SKEINRANK_GOVERNANCE_API_URL`, and `GRAFANA_ADMIN_PASSWORD`.
 
 ## Start the stack
 
@@ -62,6 +72,15 @@ docker compose --env-file .env -f docker-compose.prod.yml up --build -d
 ```
 
 The profile runs a one-shot `governance-migrate` service before the API and worker become healthy.
+
+Production datastore images are pinned to explicit version tags for reproducible pilot runs:
+
+```text
+PostgreSQL: postgres:16.4-alpine
+RabbitMQ:   rabbitmq:3.13.7-management
+```
+
+Update these image versions intentionally in a dedicated dependency bump patch instead of relying on broad tags such as `rabbitmq:3-management`.
 
 Published ports are bound to localhost by default:
 

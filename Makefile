@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -6,6 +6,7 @@ DEMO_ARGS ?=
 HEADLESS_COMPOSE := docker compose --env-file deploy/docker/headless.env.example -f docker-compose.headless.yml
 
 PROD_ENV ?= .env
+PROD_ENV_ABS := $(abspath $(PROD_ENV))
 PROD_COMPOSE := docker compose --env-file $(PROD_ENV) -f docker-compose.prod.yml
 
 demo-seed:
@@ -28,6 +29,12 @@ headless-reset:
 
 headless-golden-path:
 	deploy/docker/scripts/headless-golden-path.sh
+
+prod-env-check:
+	cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.env_validation validate --file "$(PROD_ENV_ABS)"
+
+prod-env-check-strict:
+	cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.env_validation validate --file "$(PROD_ENV_ABS)" --strict
 
 prod-config:
 	$(PROD_COMPOSE) config

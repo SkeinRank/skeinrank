@@ -24,12 +24,13 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.
 - [`deployment/headless-quickstart.md`](deployment/headless-quickstart.md) — API/PostgreSQL-only golden path for headless integrations.
 - [`deployment/security.md`](deployment/security.md) — production-oriented security baseline.
+- [`deployment/env-and-secrets.md`](deployment/env-and-secrets.md) — `.env` validation, required settings, and secrets handling.
 - [`deployment/production-compose.md`](deployment/production-compose.md) — production-ish Compose profile, ops services, and smoke checks.
 - [`deployment/observability.md`](deployment/observability.md) — logs, metrics, tracing, Prometheus, and Grafana.
 - [`deployment/backup-restore.md`](deployment/backup-restore.md) — portable governance DB backups, restore drills, and operational runbooks.
 - [`deployment/dev-stack-troubleshooting.md`](deployment/dev-stack-troubleshooting.md) — common local stack issues.
 
-Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables. Patch 45A mirrors this state into Prometheus gauges and adds DB-backed agent tracking gauges under `GET /metrics`. Patch 45B adds structured log event fields and a sanitized troubleshooting report at `GET /v1/ops/troubleshooting/report` / `python -m skeinrank_governance_api.troubleshooting report`. Patch 45C adds `python -m skeinrank_governance_api.backup_restore export|inspect|restore` and operational runbooks. Patch 46A adds `.env.production.example`, production Compose ops services, optional Prometheus/Grafana profile, and `deploy/docker/scripts/prod-smoke-test.sh`.
+Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables. Patch 45A mirrors this state into Prometheus gauges and adds DB-backed agent tracking gauges under `GET /metrics`. Patch 45B adds structured log event fields and a sanitized troubleshooting report at `GET /v1/ops/troubleshooting/report` / `python -m skeinrank_governance_api.troubleshooting report`. Patch 45C adds `python -m skeinrank_governance_api.backup_restore export|inspect|restore` and operational runbooks. Patch 46A adds `.env.production.example`, production Compose ops services, optional Prometheus/Grafana profile, and `deploy/docker/scripts/prod-smoke-test.sh`. Patch 46B adds `python -m skeinrank_governance_api.env_validation validate --file .env` plus `make prod-env-check` / `make prod-env-check-strict` for preflight `.env` validation.
 
 
 ## Headless dictionary facade

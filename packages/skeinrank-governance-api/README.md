@@ -374,10 +374,12 @@ poetry run python -m skeinrank_governance_api.backup_restore restore --file back
 
 See `docs/deployment/backup-restore.md` for restore drills and operational runbooks.
 
-Patch 46A adds a production-oriented Docker Compose profile with `.env.production.example`, optional `ops`/`observability` profiles, Docker log rotation, and `deploy/docker/scripts/prod-smoke-test.sh`:
+Patch 46A adds a production-oriented Docker Compose profile with `.env.production.example`, optional `ops`/`observability` profiles, Docker log rotation, and `deploy/docker/scripts/prod-smoke-test.sh`. Patch 46B adds env validation and secrets documentation:
 
 ```bash
 cp .env.production.example .env
+make prod-env-check
+poetry run python -m skeinrank_governance_api.env_validation validate --file ../../.env
 docker compose --env-file .env -f docker-compose.prod.yml config
 docker compose --env-file .env -f docker-compose.prod.yml up --build -d
 deploy/docker/scripts/prod-smoke-test.sh
@@ -385,7 +387,7 @@ deploy/docker/scripts/prod-smoke-test.sh
 deploy/docker/scripts/prod-smoke-test.sh --strict
 ```
 
-See `docs/deployment/production-compose.md` for the full production-ish Compose runbook.
+See `docs/deployment/production-compose.md` and `docs/deployment/env-and-secrets.md` for the full production-ish Compose runbook and secrets checklist.
 
 When auth is enabled, the HTTP report requires an admin user. Personal/service-account tokens also need the `ops:reports:read` scope.
 
@@ -420,7 +422,7 @@ This package currently provides:
 - Prometheus health and DB-backed agent tracking gauges under `/metrics`
 - structured log events and `/v1/ops/troubleshooting/report` diagnostics
 - portable governance DB backup/restore CLI and operational runbooks
-- production-oriented Docker Compose profile, ops helpers, and smoke checks
+- production-oriented Docker Compose profile, env validation, ops helpers, and smoke checks
 - governance REST endpoints for profiles, terms, aliases, suggestions, profile/global stop lists, and snapshot export
 - user-console dictionary validation, import, and export endpoints for migration workflows
 - CRUD endpoints for updating/deleting profiles, canonical terms, and aliases
@@ -720,7 +722,7 @@ chunk marks the job `succeeded` and swaps the alias for `reindex_alias_swap` job
 Run RabbitMQ separately, for example:
 
 ```bash
-docker run --rm -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+docker run --rm -p 5672:5672 -p 15672:15672 rabbitmq:3.13.7-management
 ```
 
 Run API and worker separately:

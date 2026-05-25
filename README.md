@@ -117,7 +117,7 @@ cd packages/skeinrank-governance-api
 poetry run python -m skeinrank_governance_api.migrations check
 ```
 
-The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the database schema to match the current Alembic head. Patch 45A also exposes the same operational state as Prometheus gauges through `GET /metrics`, including database/schema health and current DB-backed agent tracking counts. Patch 45B adds structured log event fields and `GET /v1/ops/troubleshooting/report` for sanitized operator diagnostics. Patch 45C adds portable governance DB backup/restore commands and operational runbooks in `docs/deployment/backup-restore.md`.
+The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the database schema to match the current Alembic head. Patch 45A also exposes the same operational state as Prometheus gauges through `GET /metrics`, including database/schema health and current DB-backed agent tracking counts. Patch 45B adds structured log event fields and `GET /v1/ops/troubleshooting/report` for sanitized operator diagnostics. Patch 45C adds portable governance DB backup/restore commands and operational runbooks in `docs/deployment/backup-restore.md`. Patch 46B adds `.env` preflight validation through `make prod-env-check` and `python -m skeinrank_governance_api.env_validation validate --file .env`.
 
 
 ## Quickstart: headless runtime
@@ -308,6 +308,7 @@ Deployment docs:
 
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md)
 - [`docs/deployment/security.md`](docs/deployment/security.md)
+- [`docs/deployment/env-and-secrets.md`](docs/deployment/env-and-secrets.md)
 - [`docs/deployment/observability.md`](docs/deployment/observability.md)
 - [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md)
@@ -359,7 +360,7 @@ Main files:
 - [`docker-compose.dev.yml`](docker-compose.dev.yml) — local development stack.
 - [`docker-compose.headless.yml`](docker-compose.headless.yml) — API/PostgreSQL-only headless stack.
 - [`docker-compose.prod.yml`](docker-compose.prod.yml) — production-oriented stack.
-- [`.env.production.example`](.env.production.example) — required production Compose environment template.
+- [`.env.production.example`](.env.production.example) — required production Compose environment template; validate a copied `.env` with `make prod-env-check`.
 - [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md) — production-ish Compose profile, ops services, and smoke checks.
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) — Docker Compose setup guide.
 - [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) — API-only golden path for dictionary apply and snapshot artifact export.

@@ -4,7 +4,7 @@ This page documents the production security baseline for running SkeinRank with 
 
 The development stack in `docker-compose.dev.yml` is intentionally permissive. It disables Elasticsearch security, uses simple local credentials, and binds services to `127.0.0.1` for smoke testing. Do not expose the development stack directly to the internet.
 
-Use `docker-compose.prod.yml` as the production-oriented starting point. See `docs/deployment/production-compose.md` for the 46A Compose profile, ops services, and smoke helper.
+Use `docker-compose.prod.yml` as the production-oriented starting point. See `docs/deployment/production-compose.md` for the 46A Compose profile, ops services, and smoke helper. See `docs/deployment/env-and-secrets.md` for the 46B environment validator and secrets checklist.
 
 ## Security model
 
@@ -26,7 +26,11 @@ Create a production environment file:
 cp .env.production.example .env
 ```
 
-Edit `.env` and replace every `CHANGE_ME` value with a real secret.
+Edit `.env` and replace every `CHANGE_ME` value with a real secret. Then run the 46B preflight validator:
+
+```bash
+make prod-env-check
+```
 
 Start the production-oriented stack:
 
@@ -52,7 +56,8 @@ SKEINRANK_GOVERNANCE_API_ENV=production
 SKEINRANK_GOVERNANCE_API_AUTH_ENABLED=true
 SKEINRANK_GOVERNANCE_API_PRODUCTION_SECURITY_ENABLED=true
 SKEINRANK_GOVERNANCE_API_CORS_ORIGINS=https://your-ui.example.com
-SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=https://your-es.example.com:9200
+# Optional for first bootstrap; configure before strict readiness/search validation.
+SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=
 ```
 
 Use strong secrets for:
@@ -61,7 +66,8 @@ Use strong secrets for:
 POSTGRES_PASSWORD
 RABBITMQ_DEFAULT_PASS
 SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD
-SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD or SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY
+GRAFANA_ADMIN_PASSWORD
+SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD or SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY, if search is configured
 ```
 
 ## Fail-fast guardrails
@@ -77,10 +83,10 @@ It refuses to start if:
 - wildcard CORS is configured
 - bootstrap admin uses an unsafe default password
 - Celery uses default broker credentials
-- Elasticsearch URL is missing
+- Elasticsearch credentials are set without an Elasticsearch/OpenSearch URL
 ```
 
-This is intentional. A production deployment should fail loudly instead of starting with development defaults.
+This is intentional. A production deployment should fail loudly instead of starting with development defaults. Elasticsearch/OpenSearch is optional for first bootstrap, but strict readiness and search flows require a real reachable endpoint.
 
 If you need to inspect a failed production config during local testing, you can temporarily set:
 
@@ -105,6 +111,17 @@ Recommended flow:
 
 Bootstrap does not overwrite an existing admin user. Changing `SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD` after the user exists does not reset that user's password.
 
+## Image version policy
+
+The production Compose profile pins datastore images to explicit version tags:
+
+```text
+postgres:16.4-alpine
+rabbitmq:3.13.7-management
+```
+
+Do not use broad production tags such as `rabbitmq:3-management`. Bump image versions intentionally in a dedicated dependency update patch after checking compatibility and release notes. Digest pinning can be added later for stricter release builds.
+
 ## Network exposure
 
 `docker-compose.prod.yml` intentionally does not publish PostgreSQL or RabbitMQ ports.
@@ -120,7 +137,7 @@ Expose them through a reverse proxy or private network boundary rather than bind
 
 ## Elasticsearch security
 
-For production, use an Elasticsearch or OpenSearch endpoint with TLS and credentials.
+Elasticsearch/OpenSearch is optional for first bootstrap. For production search/enrichment flows, use an endpoint with TLS and credentials.
 
 Supported environment variables:
 
@@ -162,6 +179,7 @@ Back up Elasticsearch indices according to your organization's search/data reten
 - `docs/deployment/dev-stack-troubleshooting.md`
 - `deploy/docker/README.md`
 - `docs/deployment/production-compose.md`
+- `docs/deployment/env-and-secrets.md`
 
 ## Observability privacy baseline
 

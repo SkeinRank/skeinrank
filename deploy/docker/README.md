@@ -74,6 +74,7 @@ Start from:
 
 ```bash
 cp .env.production.example .env
+make prod-env-check
 docker compose --env-file .env -f docker-compose.prod.yml config
 docker compose --env-file .env -f docker-compose.prod.yml up --build -d
 ```
@@ -83,13 +84,17 @@ Before running it, replace every `CHANGE_ME` value and review:
 ```text
 docs/deployment/security.md
 docs/deployment/production-compose.md
+docs/deployment/env-and-secrets.md
 ```
 
 The production profile keeps PostgreSQL and RabbitMQ internal to the Compose network, requires auth, allows Elasticsearch to be configured when needed, and enables fail-fast security guardrails. Patch 46A also adds optional `ops` and `observability` profiles plus `deploy/docker/scripts/prod-smoke-test.sh`.
 
+Production datastore image tags are pinned explicitly: `postgres:16.4-alpine` and `rabbitmq:3.13.7-management`. Avoid broad production tags such as `rabbitmq:3-management`; bump image versions in a deliberate dependency update patch.
+
 Operational helpers can be run directly or through the root Makefile:
 
 ```bash
+make prod-env-check
 make prod-config
 make prod-up
 make prod-smoke

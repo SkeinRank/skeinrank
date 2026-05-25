@@ -30,6 +30,9 @@ def test_production_compose_declares_hardened_services() -> None:
     assert "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL" in compose
     assert "127.0.0.1:${GOVERNANCE_API_PORT:-8010}:8010" in compose
     assert "127.0.0.1:${UI_PORT:-5173}:5173" in compose
+    assert "image: postgres:16.4-alpine" in compose
+    assert "image: rabbitmq:3.13.7-management" in compose
+    assert "image: rabbitmq:3-management" not in compose
 
 
 def test_production_compose_does_not_publish_internal_datastores() -> None:
@@ -55,7 +58,7 @@ def test_production_env_example_documents_required_secrets() -> None:
         "RABBITMQ_DEFAULT_PASS=CHANGE_ME_STRONG_RABBITMQ_PASSWORD",
         "SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD=CHANGE_ME_STRONG_BOOTSTRAP_ADMIN_PASSWORD",
         "SKEINRANK_GOVERNANCE_API_CORS_ORIGINS=https://skeinrank.example.com",
-        "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=https://elasticsearch.example.com:9200",
+        "SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL=",
         "SKEINRANK_GOVERNANCE_API_LOG_FORMAT=json",
         "SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER=X-Request-ID",
         "SKEINRANK_GOVERNANCE_API_TRACING_ENABLED=false",
@@ -77,9 +80,11 @@ def test_security_guide_documents_production_guardrails() -> None:
         "SQLite is used as the database",
         "wildcard CORS",
         "Celery uses default broker credentials",
-        "Elasticsearch URL is missing",
+        "Elasticsearch/OpenSearch is optional for first bootstrap",
         "PostgreSQL, RabbitMQ, and Elasticsearch should not be exposed directly",
         "Observability privacy baseline",
+        "Image version policy",
+        "rabbitmq:3.13.7-management",
     )
     for fragment in expected_fragments:
         assert fragment in guide

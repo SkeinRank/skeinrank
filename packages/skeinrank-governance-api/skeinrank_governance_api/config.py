@@ -354,8 +354,14 @@ class GovernanceApiConfig:
             self.celery_broker_url
         ):
             problems.append("Celery broker URL uses unsafe default credentials")
-        if not self.elasticsearch_url:
-            problems.append("Elasticsearch URL must be configured in production")
+        if (
+            self.elasticsearch_username
+            or self.elasticsearch_password
+            or self.elasticsearch_api_key
+        ) and not self.elasticsearch_url:
+            problems.append(
+                "Elasticsearch credentials require SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL"
+            )
 
         if problems:
             details = "; ".join(problems)
