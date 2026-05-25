@@ -14,7 +14,7 @@ import sys
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 try:  # pragma: no cover - import style depends on how the example is executed.
     from .agent_evaluation import (
@@ -96,6 +96,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
     from .integration_smoke import (
         FullIntegrationSmokeConfig,
         build_full_integration_smoke_report,
+    )
+    from .live_pilot import (
+        OpenRouterLivePilotConfig,
+        build_openrouter_live_pilot_plan,
+        run_openrouter_live_pilot,
     )
     from .new_alias_smoke import (
         NewAliasSmokeConfig,
@@ -226,6 +231,11 @@ except ImportError:  # pragma: no cover
         FullIntegrationSmokeConfig,
         build_full_integration_smoke_report,
     )
+    from live_pilot import (
+        OpenRouterLivePilotConfig,
+        build_openrouter_live_pilot_plan,
+        run_openrouter_live_pilot,
+    )
     from new_alias_smoke import (
         NewAliasSmokeConfig,
         build_new_alias_smoke_llm_report,
@@ -315,6 +325,7 @@ class AgentRunnerConfig:
     integration_smoke: FullIntegrationSmokeConfig
     real_elasticsearch_validation: RealElasticsearchValidationConfig
     runtime_api_smoke: RuntimeApiSmokeConfig
+    live_pilot: OpenRouterLivePilotConfig
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
@@ -435,6 +446,7 @@ class AgentRunnerConfig:
             runtime_api_smoke=RuntimeApiSmokeConfig.from_mapping(
                 raw.get("runtime_api_smoke"), base_dir=base_dir
             ),
+            live_pilot=OpenRouterLivePilotConfig.from_mapping(raw.get("live_pilot")),
             openrouter_base_url=str(
                 os.getenv(
                     "OPENROUTER_BASE_URL",
@@ -569,7 +581,7 @@ def build_openrouter_client(config: AgentRunnerConfig) -> OpenRouterClient:
     if not api_key:
         raise RuntimeError(
             f"OpenRouter API key is required. Set {config.openrouter_api_key_env} "
-            "or use --print-llm-review-plan for an offline preview."
+            "or use --print-llm-review-plan / --print-openrouter-live-pilot-plan for an offline preview."
         )
     return OpenRouterClient(
         api_key=api_key,
@@ -745,6 +757,39 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Call OpenRouter and write the LLM review report to this JSON path.",
     )
     parser.add_argument(
+        "--print-openrouter-live-pilot-plan",
+        action="store_true",
+        help="Print the 48B live OpenRouter pilot plan without network calls.",
+    )
+    parser.add_argument(
+        "--run-openrouter-live-pilot",
+        action="store_true",
+        help="Run the 48B cost-safe OpenRouter pilot. Requires OPENROUTER_API_KEY.",
+    )
+    parser.add_argument(
+        "--write-openrouter-live-pilot-report",
+        type=Path,
+        help="Run the 48B live pilot and write the JSON report to this path.",
+    )
+    parser.add_argument(
+        "--pilot-validate-proposals",
+        action="store_true",
+        help="After live review, validate ready proposals against SkeinRank tools API.",
+    )
+    parser.add_argument(
+        "--pilot-submit-proposals",
+        action="store_true",
+        help=(
+            "After validation, submit ready proposals to SkeinRank. This creates "
+            "pending suggestions only; it does not approve/apply or publish snapshots."
+        ),
+    )
+    parser.add_argument(
+        "--pilot-use-tools",
+        action="store_true",
+        help="Include OpenRouter/OpenAI-compatible SkeinRank tool schemas in the live pilot call.",
+    )
+    parser.add_argument(
         "--model",
         help="Override the configured OpenRouter model for this run.",
     )
@@ -752,6 +797,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--max-candidates",
         type=int,
         help="Override llm_review.max_candidates for this run.",
+    )
+    parser.add_argument(
+        "--max-proposals",
+        type=int,
+        help="Override live_pilot/proposal_submission max proposals for this run.",
     )
     parser.add_argument(
         "--print-security-profile",
@@ -1223,6 +1273,102 @@ def _budget_cache_config_from_args(
         cache_enabled=cache_enabled,
         force_refresh=True if args.force_refresh_cache else None,
     )
+
+
+def _live_pilot_config_from_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> OpenRouterLivePilotConfig:
+    return config.live_pilot.with_overrides(
+        max_candidates=args.max_candidates,
+        max_llm_calls=args.max_llm_calls,
+        max_proposals=args.max_proposals,
+        max_run_cost_usd=args.max_run_cost_usd,
+        validate_with_skeinrank=True if args.pilot_validate_proposals else None,
+        submit_proposals=True if args.pilot_submit_proposals else None,
+        force_refresh_cache=True if args.force_refresh_cache else None,
+        use_tools=True if args.pilot_use_tools else None,
+    )
+
+
+def build_openrouter_live_pilot_plan_for_args(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> JsonDict:
+    return build_openrouter_live_pilot_plan(
+        pilot_config=_live_pilot_config_from_args(config, args),
+        openrouter_model=args.model or config.openrouter_model,
+        openrouter_api_key_env=config.openrouter_api_key_env,
+        skeinrank_api_url=config.skeinrank_api_url,
+        profile_name=config.default_profile_name,
+        binding_id=config.default_binding_id,
+        proposal_source_name=config.proposal_source_name,
+    )
+
+
+def run_openrouter_live_pilot_for_args(
+    config: AgentRunnerConfig, failed_queries: list[JsonDict], args: argparse.Namespace
+) -> JsonDict:
+    pilot_config = _live_pilot_config_from_args(config, args)
+    skeinrank_client = None
+    if pilot_config.validate_with_skeinrank or pilot_config.submit_proposals:
+        skeinrank_client = build_client(config)
+        _preflight_skeinrank_api_for_live_pilot(skeinrank_client, config)
+
+    return run_openrouter_live_pilot(
+        failed_queries=failed_queries,
+        evidence_records_path=config.evidence_records_path,
+        openrouter_client=build_openrouter_client(config),
+        pilot_config=pilot_config,
+        candidate_config=config.candidate_discovery,
+        evidence_config=config.evidence_sampler,
+        demo_config=config.demo_report,
+        canonical_hints_config=config.canonical_hints,
+        submission_config=config.proposal_submission,
+        security_config=config.security_profile,
+        skeinrank_client=skeinrank_client,
+        openrouter_model=args.model or config.openrouter_model,
+        profile_name=config.default_profile_name,
+        binding_id=config.default_binding_id,
+        proposal_source_name=config.proposal_source_name,
+    )
+
+
+def _preflight_skeinrank_api_for_live_pilot(
+    client: SkeinRankAgentClient, config: AgentRunnerConfig
+) -> None:
+    """Fail before OpenRouter calls when live validation/submission needs API."""
+
+    try:
+        response = client.request("GET", "/livez")
+    except Exception as exc:  # noqa: BLE001 - operator-facing CLI guardrail.
+        raise RuntimeError(
+            "SkeinRank Governance API is required for --pilot-validate-proposals "
+            "or --pilot-submit-proposals, but it is not reachable. Start the API "
+            "first, for example: `poetry run skeinrank-governance-api --reload` "
+            "or `make prod-up`. "
+            f"Configured URL: {config.skeinrank_api_url}"
+        ) from exc
+
+    if isinstance(response, dict) and response.get("status") not in {"ok", "healthy"}:
+        raise RuntimeError(
+            "SkeinRank Governance API /livez did not report ok status before live "
+            f"pilot validation. Response: {response!r}"
+        )
+
+
+def _live_pilot_cli_summary(
+    report: Mapping[str, Any], report_path: Path | None
+) -> JsonDict:
+    """Build a concise summary for operator-facing live pilot CLI output."""
+
+    return {
+        "schema_version": "skeinrank.openrouter_live_pilot_cli_summary.v1",
+        "status": report.get("status"),
+        "report": str(report_path) if report_path is not None else None,
+        "openrouter_calls": bool(report.get("openrouter_calls")),
+        "skeinrank_api_calls": bool(report.get("skeinrank_api_calls")),
+        "summary": report.get("summary") or {},
+        "recommended_exit_code": report.get("recommended_exit_code", 0),
+    }
 
 
 def build_security_report_for_config(config: AgentRunnerConfig) -> JsonDict:
@@ -2375,6 +2521,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    if args.print_openrouter_live_pilot_plan:
+        report = build_openrouter_live_pilot_plan_for_args(config, args)
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
     if args.clear_llm_cache:
         budget_config = _budget_cache_config_from_args(config, args)
         print(
@@ -2385,6 +2536,29 @@ def main(argv: list[str] | None = None) -> int:
     failed_queries = load_failed_queries(
         config.failed_queries_path, limit=config.max_queries_per_run
     )
+
+    if args.run_openrouter_live_pilot or args.write_openrouter_live_pilot_report:
+        report = run_openrouter_live_pilot_for_args(config, failed_queries, args)
+        if args.write_openrouter_live_pilot_report:
+            args.write_openrouter_live_pilot_report.parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            args.write_openrouter_live_pilot_report.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            print(
+                json.dumps(
+                    _live_pilot_cli_summary(
+                        report, args.write_openrouter_live_pilot_report
+                    ),
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        else:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        return int(report.get("recommended_exit_code", 0))
 
     if args.run_integration_smoke_test or args.write_integration_smoke_report:
         report = run_integration_smoke_for_config(config, failed_queries, args)
@@ -2674,4 +2848,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc

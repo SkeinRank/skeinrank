@@ -111,3 +111,13 @@ Live OpenRouter execution belongs in the next layer:
 ```
 
 That mode should stay opt-in, cost-bounded, and dry-run by default.
+
+## Full-stack integration layer
+
+The next layer is the 48C containerized stack benchmark. It uses the same `platform_ops_v1` fixture, but runs against Docker Compose PostgreSQL, Governance API, and Elasticsearch evidence endpoints:
+
+```bash
+make benchmark-stack-run
+```
+
+See `docs/benchmarks/containerized-benchmark-integration.md`.

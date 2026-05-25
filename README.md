@@ -134,6 +134,41 @@ make benchmark-report
 
 The fixture lives in `examples/benchmarks/platform_ops_v1`; the guide is in [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md).
 
+## OpenRouter live agent pilot
+
+Patch 48B adds a guarded live pilot mode on top of the deterministic benchmark foundation. It can call OpenRouter with hard limits, but validation/submission through SkeinRank is opt-in and the agent still cannot approve/apply proposals or publish snapshots.
+
+## Containerized benchmark integration
+
+Patch 48C adds a full-stack benchmark harness that runs the `platform_ops_v1` fixture against Docker Compose services: PostgreSQL, Governance API, and Elasticsearch. It is the integration layer above the deterministic 48A benchmark and does not call OpenRouter.
+
+```bash
+make benchmark-stack-up
+make benchmark-stack-wait
+make benchmark-stack-reset
+make benchmark-stack-seed
+make benchmark-stack-eval
+make benchmark-stack-report
+make benchmark-stack-clean
+```
+
+Use the shorthand when you want the complete stack flow without stopping the containers:
+
+```bash
+make benchmark-stack-run
+
+The stack uses `deploy/docker/benchmark.env.example` and a dedicated `skeinrank-benchmark` Compose project.
+```
+
+See [`docs/benchmarks/containerized-benchmark-integration.md`](docs/benchmarks/containerized-benchmark-integration.md).
+
+```bash
+make agent-openrouter-pilot-plan
+OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
+```
+
+Use `OPENROUTER_API_KEY` only in your local shell or ignored `.env` files. See [`docs/benchmarks/openrouter-live-pilot.md`](docs/benchmarks/openrouter-live-pilot.md).
+
 ## Quickstart: headless runtime
 
 Use the headless Compose profile when you want the automation-first path without the React UI, Elasticsearch, RabbitMQ, or Celery workers. It starts PostgreSQL, runs migrations, and exposes the Governance API for dictionary apply/export and runtime snapshot artifact smoke tests.
@@ -802,3 +837,17 @@ ops:reports:read
 This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
 runs and tracking records, validation-only jobs can call `validate-alias`, proposal-writing jobs must explicitly carry `agent:tools:suggest`, and support/ops automation can read troubleshooting reports with `ops:reports:read`.
 
+
+
+### Benchmark stack troubleshooting
+
+If `benchmark-stack-up` reports a Docker container name conflict for `skeinrank-*-dev`, the stack target now prunes the fixed dev-stack benchmark containers before startup:
+
+```bash
+make benchmark-stack-prune-containers
+make benchmark-stack-up
+```
+
+The prune step removes containers only; named volumes are not deleted. Use `docker compose -f docker-compose.dev.yml down -v` only when you intentionally want to remove persisted dev volumes.
+
+The stack benchmark connects to PostgreSQL from the local Poetry environment, so run `cd packages/skeinrank-governance-api && poetry install` after applying dependency changes.

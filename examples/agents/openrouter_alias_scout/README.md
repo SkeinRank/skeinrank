@@ -722,3 +722,40 @@ This keeps scheduled agents and CI jobs least-privileged: read-only jobs can lis
 runs and tracking records, validation-only jobs can call `validate-alias`, and
 proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 
+
+## Patch 48B — OpenRouter live pilot mode
+
+Patch 48B adds OpenRouter live pilot mode for manual, cost-safe checks of the alias scout against a real model. The default flow is still safe: it can prepare proposal payloads, but it does not approve/apply proposals, publish snapshots, or write dictionaries directly.
+
+Preview the plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-openrouter-live-pilot-plan \
+  --max-candidates 1 \
+  --max-llm-calls 1
+```
+
+Run a tiny live pilot with a local key:
+
+```bash
+OPENROUTER_API_KEY=sk-or-... \
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --run-openrouter-live-pilot
+```
+
+Or write the report to disk:
+
+```bash
+OPENROUTER_API_KEY=sk-or-... \
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --run-openrouter-live-pilot \
+  --write-openrouter-live-pilot-report \
+  examples/agents/openrouter_alias_scout/reports/live-pilot/openrouter-live-pilot-report.json \
+  --max-candidates 1 \
+  --max-llm-calls 1
+```
+
+Report schema: `skeinrank.openrouter_live_pilot_report.v1`. When the report is written to disk, the CLI also prints a short operator summary to stdout.
+
+Use `--pilot-validate-proposals` only when the Governance API is running and the agent has a scoped token for validation. Validation now preflights `/livez` before the OpenRouter call, so a stopped API fails fast without spending model budget. Proposal submission requires an additional explicit `--pilot-submit-proposals` flag and still creates pending suggestions only.

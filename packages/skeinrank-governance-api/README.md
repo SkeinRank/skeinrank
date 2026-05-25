@@ -24,6 +24,29 @@ poetry install
 poetry run pytest -q
 ```
 
+## Containerized benchmark stack
+
+Patch 48C adds a stack integration harness for the `platform_ops_v1` benchmark. It uses Docker Compose services for PostgreSQL, the Governance API, and Elasticsearch while keeping OpenRouter out of the loop.
+
+From the repository root:
+
+```bash
+make benchmark-stack-up
+make benchmark-stack-wait
+make benchmark-stack-seed
+make benchmark-stack-eval
+make benchmark-stack-report
+```
+
+The direct CLI is also available:
+
+```bash
+poetry run python -m skeinrank_governance_api.benchmark_stack eval
+poetry run skeinrank-governance-benchmark-stack report
+```
+
+See `docs/benchmarks/containerized-benchmark-integration.md`.
+
 ## Run the API locally
 
 By default the API uses the same local SQLite URL as the governance CLI:
@@ -1411,3 +1434,28 @@ make prod-post-upgrade-smoke
 ```
 
 See `docs/deployment/upgrade-guide.md`, `docs/deployment/migration-safety.md`, and `docs/deployment/release-checklist.md`.
+
+## OpenRouter live pilot
+
+Patch 48B keeps live agent execution opt-in and bounded. Configure `OPENROUTER_API_KEY` locally, preview the plan first, then run a small live pilot:
+
+```bash
+make agent-openrouter-pilot-plan
+OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
+```
+
+The live pilot writes ignored reports under `examples/agents/openrouter_alias_scout/reports/live-pilot/` and does not approve/apply proposals or publish snapshots. Use `make agent-openrouter-pilot-validate` only after the Governance API and scoped agent token are configured.
+
+
+### Benchmark stack troubleshooting
+
+If `benchmark-stack-up` reports a Docker container name conflict for `skeinrank-*-dev`, the stack target now prunes the fixed dev-stack benchmark containers before startup:
+
+```bash
+make benchmark-stack-prune-containers
+make benchmark-stack-up
+```
+
+The prune step removes containers only; named volumes are not deleted. Use `docker compose -f docker-compose.dev.yml down -v` only when you intentionally want to remove persisted dev volumes.
+
+The stack benchmark connects to PostgreSQL from the local Poetry environment, so run `cd packages/skeinrank-governance-api && poetry install` after applying dependency changes.

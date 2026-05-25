@@ -286,6 +286,17 @@
     "run_id_prefix": "openrouter-alias-scout-smoke",
     "write_artifacts": true
   },
+  "live_pilot": {
+    "force_refresh_cache": false,
+    "max_candidates": 2,
+    "max_llm_calls": 1,
+    "max_proposals": 2,
+    "max_run_cost_usd": 0.01,
+    "reports_dir": "reports/live-pilot",
+    "submit_proposals": false,
+    "use_tools": false,
+    "validate_with_skeinrank": false
+  },
   "llm_review": {
     "include_tools": false,
     "max_candidates": 3,
