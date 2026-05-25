@@ -2,10 +2,30 @@
 # Copy .env.production.example to .env, replace every CHANGE_ME value, and review
 # docs/deployment/security.md before using this file outside local testing.
 
+name: ${COMPOSE_PROJECT_NAME:-skeinrank-prod}
+
+x-skeinrank-logging: &skeinrank_logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-5}
+
+x-governance-healthcheck: &governance_healthcheck
+  test:
+    [
+      "CMD-SHELL",
+      "python -c 'import json, urllib.request; data=json.load(urllib.request.urlopen(\"http://127.0.0.1:8010/healthz\", timeout=5)); raise SystemExit(0 if data.get(\"status\") == \"ok\" else 1)'",
+    ]
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 20s
+
 services:
   postgres:
     image: postgres:16.4-alpine
     restart: unless-stopped
+    logging: *skeinrank_logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
@@ -24,8 +44,9 @@ services:
       retries: 10
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13.7-management
     restart: unless-stopped
+    logging: *skeinrank_logging
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
@@ -38,11 +59,13 @@ services:
       retries: 10
 
   governance-migrate:
+    init: true
     build:
       context: .
       dockerfile: deploy/docker/governance-api.Dockerfile
     image: skeinrank-governance-api:prod
     restart: "no"
+    logging: *skeinrank_logging
     environment: &governance_env
       SKEINRANK_ENV: production
       SKEINRANK_GOVERNANCE_API_ENV: production
@@ -55,7 +78,7 @@ services:
       SKEINRANK_GOVERNANCE_API_TOKEN_TTL_HOURS: ${SKEINRANK_GOVERNANCE_API_TOKEN_TTL_HOURS:-12}
       SKEINRANK_GOVERNANCE_API_CORS_ORIGINS: ${SKEINRANK_GOVERNANCE_API_CORS_ORIGINS:?SKEINRANK_GOVERNANCE_API_CORS_ORIGINS is required}
       SKEINRANK_GOVERNANCE_API_PRODUCTION_SECURITY_ENABLED: ${SKEINRANK_GOVERNANCE_API_PRODUCTION_SECURITY_ENABLED:-true}
-      SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL:?SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL is required}
+      SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL:-}
       SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME:-}
       SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD:-}
       SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY: ${SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY:-}
@@ -83,11 +106,14 @@ services:
         condition: service_healthy
 
   governance-api:
+    init: true
     image: skeinrank-governance-api:prod
     build:
       context: .
       dockerfile: deploy/docker/governance-api.Dockerfile
     restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *skeinrank_logging
     environment:
       <<: *governance_env
     command:
@@ -101,22 +127,17 @@ services:
         condition: service_healthy
       governance-migrate:
         condition: service_completed_successfully
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "python -c 'import json, urllib.request; data=json.load(urllib.request.urlopen(\"http://127.0.0.1:8010/readyz\", timeout=5)); raise SystemExit(0 if data.get(\"status\") == \"ok\" else 1)'",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+    healthcheck: *governance_healthcheck
 
   governance-worker:
+    init: true
     image: skeinrank-governance-api:prod
     build:
       context: .
       dockerfile: deploy/docker/governance-api.Dockerfile
     restart: unless-stopped
+    stop_grace_period: 60s
+    logging: *skeinrank_logging
     environment:
       <<: *governance_env
     command:
@@ -140,11 +161,13 @@ services:
         condition: service_completed_successfully
 
   ui:
+    init: true
     build:
       context: .
       dockerfile: deploy/docker/ui.Dockerfile
     image: skeinrank-ui:prod
     restart: unless-stopped
+    logging: *skeinrank_logging
     environment:
       VITE_SKEINRANK_GOVERNANCE_API_URL: ${VITE_SKEINRANK_GOVERNANCE_API_URL:?VITE_SKEINRANK_GOVERNANCE_API_URL is required}
     ports:
@@ -153,6 +176,90 @@ services:
       governance-api:
         condition: service_healthy
 
+
+  governance-schema-check:
+    init: true
+    image: skeinrank-governance-api:prod
+    build:
+      context: .
+      dockerfile: deploy/docker/governance-api.Dockerfile
+    profiles: ["ops"]
+    restart: "no"
+    logging: *skeinrank_logging
+    environment:
+      <<: *governance_env
+    command: ["python", "-m", "skeinrank_governance_api.migrations", "check"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      governance-migrate:
+        condition: service_completed_successfully
+
+  governance-backup-export:
+    init: true
+    image: skeinrank-governance-api:prod
+    build:
+      context: .
+      dockerfile: deploy/docker/governance-api.Dockerfile
+    profiles: ["ops"]
+    restart: "no"
+    logging: *skeinrank_logging
+    environment:
+      <<: *governance_env
+    command:
+      [
+        "sh",
+        "-lc",
+        "mkdir -p /backups && python -m skeinrank_governance_api.backup_restore export --out /backups/governance-$$(date -u +%Y%m%dT%H%M%SZ).json",
+      ]
+    volumes:
+      - skeinrank_postgres_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      governance-migrate:
+        condition: service_completed_successfully
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    logging: *skeinrank_logging
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - skeinrank_prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      governance-api:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    profiles: ["observability"]
+    restart: unless-stopped
+    logging: *skeinrank_logging
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - skeinrank_grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+
 volumes:
   skeinrank_postgres_data:
   skeinrank_rabbitmq_data:
+  skeinrank_postgres_backups:
+  skeinrank_prometheus_data:
+  skeinrank_grafana_data:

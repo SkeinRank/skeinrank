@@ -1,9 +1,15 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
 DEMO_ARGS ?=
 HEADLESS_COMPOSE := docker compose --env-file deploy/docker/headless.env.example -f docker-compose.headless.yml
+
+PROD_ENV ?= .env
+PROD_ENV_ABS := $(abspath $(PROD_ENV))
+PROD_COMPOSE_FILE ?= docker-compose.prod.yml
+PROD_COMPOSE_FILE_ABS := $(abspath $(PROD_COMPOSE_FILE))
+PROD_COMPOSE := docker compose --env-file $(PROD_ENV) -f $(PROD_COMPOSE_FILE)
 
 demo-seed:
 	$(PYTHON) $(DEMO_SEED) $(DEMO_ARGS)
@@ -25,6 +31,47 @@ headless-reset:
 
 headless-golden-path:
 	deploy/docker/scripts/headless-golden-path.sh
+
+prod-env-check:
+	cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.env_validation validate --file "$(PROD_ENV_ABS)"
+
+prod-env-check-strict:
+	cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.env_validation validate --file "$(PROD_ENV_ABS)" --strict
+
+prod-config:
+	$(PROD_COMPOSE) config
+
+prod-up:
+	$(PROD_COMPOSE) up --build -d
+
+prod-smoke:
+	deploy/docker/scripts/prod-smoke-test.sh
+
+prod-smoke-strict:
+	deploy/docker/scripts/prod-smoke-test.sh --strict
+
+prod-down:
+	$(PROD_COMPOSE) down
+
+prod-schema-check:
+	$(PROD_COMPOSE) --profile ops run --rm governance-schema-check
+
+prod-backup-export:
+	$(PROD_COMPOSE) --profile ops run --rm governance-backup-export
+
+prod-preflight:
+	SKEINRANK_PROD_ENV_FILE="$(PROD_ENV_ABS)" SKEINRANK_PROD_COMPOSE_FILE="$(PROD_COMPOSE_FILE_ABS)" deploy/docker/scripts/prod-upgrade-preflight.sh
+
+prod-upgrade-check:
+	SKEINRANK_PROD_ENV_FILE="$(PROD_ENV_ABS)" SKEINRANK_PROD_COMPOSE_FILE="$(PROD_COMPOSE_FILE_ABS)" deploy/docker/scripts/prod-upgrade-preflight.sh --no-backup --no-schema-check
+
+prod-upgrade:
+	$(MAKE) prod-preflight PROD_ENV="$(PROD_ENV)" PROD_COMPOSE_FILE="$(PROD_COMPOSE_FILE)"
+	$(PROD_COMPOSE) up --build -d
+	$(MAKE) prod-post-upgrade-smoke
+
+prod-post-upgrade-smoke:
+	deploy/docker/scripts/prod-smoke-test.sh
 
 agent-demo:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report
@@ -143,7 +190,7 @@ agent-dictionary-quickstart-plan:
 agent-dictionary-quickstart-payloads:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-dictionary-quickstart-payloads
 
-agent-dictionary-quickstart-validate agent-runtime-smoke-plan agent-runtime-smoke-report:
+agent-dictionary-quickstart-validate:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionary-quickstart
 
 agent-runtime-smoke-plan:

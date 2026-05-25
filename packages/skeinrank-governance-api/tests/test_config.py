@@ -167,7 +167,7 @@ def test_production_security_rejects_unsafe_defaults():
     assert "unsafe default value" in message
     assert "wildcard CORS" in message
     assert "unsafe default credentials" in message
-    assert "Elasticsearch URL" in message
+    assert "Elasticsearch URL" not in message
 
 
 def test_production_security_accepts_hardened_config():
@@ -180,10 +180,33 @@ def test_production_security_accepts_hardened_config():
         cors_allow_origins=("https://skeinrank.example.com",),
         enrichment_jobs_backend="celery",
         celery_broker_url="amqp://skeinrank:long-unique-rabbit-password@rabbitmq:5672//",
-        elasticsearch_url="https://elasticsearch.example.com:9200",
+        elasticsearch_url=None,
     )
 
     config.validate_production_security()
+
+
+def test_production_security_rejects_elasticsearch_credentials_without_url():
+    config = GovernanceApiConfig(
+        deployment_environment="production",
+        database_url="postgresql+psycopg://user:strong@postgres:5432/skeinrank",
+        auth_enabled=True,
+        bootstrap_admin=True,
+        admin_password="long-unique-admin-password",
+        cors_allow_origins=("https://skeinrank.example.com",),
+        enrichment_jobs_backend="sync",
+        elasticsearch_url=None,
+        elasticsearch_api_key="secret-es-api-key",
+    )
+
+    try:
+        config.validate_production_security()
+    except ValueError as exc:
+        message = str(exc)
+    else:  # pragma: no cover - defensive assertion
+        raise AssertionError("expected production security validation to fail")
+
+    assert "Elasticsearch credentials require" in message
 
 
 def test_config_parses_tracing_env(monkeypatch):

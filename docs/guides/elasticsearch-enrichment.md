@@ -130,7 +130,7 @@ export SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL=amqp://guest:guest@localhost:5
 Run RabbitMQ for local testing:
 
 ```bash
-docker run --rm -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+docker run --rm -p 5672:5672 -p 15672:15672 rabbitmq:3.13.7-management
 ```
 
 Run API and worker separately:

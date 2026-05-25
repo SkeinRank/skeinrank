@@ -74,16 +74,44 @@ Start from:
 
 ```bash
 cp .env.production.example .env
-docker compose -f docker-compose.prod.yml up --build -d
+make prod-env-check
+docker compose --env-file .env -f docker-compose.prod.yml config
+docker compose --env-file .env -f docker-compose.prod.yml up --build -d
 ```
 
 Before running it, replace every `CHANGE_ME` value and review:
 
 ```text
 docs/deployment/security.md
+docs/deployment/production-compose.md
+docs/deployment/env-and-secrets.md
 ```
 
-The production profile keeps PostgreSQL and RabbitMQ internal to the Compose network, requires auth, requires a configured Elasticsearch endpoint, and enables fail-fast security guardrails.
+The production profile keeps PostgreSQL and RabbitMQ internal to the Compose network, requires auth, allows Elasticsearch to be configured when needed, and enables fail-fast security guardrails. Patch 46A also adds optional `ops` and `observability` profiles plus `deploy/docker/scripts/prod-smoke-test.sh`.
+
+Production datastore image tags are pinned explicitly: `postgres:16.4-alpine` and `rabbitmq:3.13.7-management`. Avoid broad production tags such as `rabbitmq:3-management`; bump image versions in a deliberate dependency update patch.
+
+Operational helpers can be run directly or through the root Makefile:
+
+```bash
+make prod-env-check
+make prod-config
+make prod-up
+make prod-smoke
+make prod-smoke-strict
+make prod-down
+make prod-schema-check
+make prod-backup-export
+```
+
+Direct commands:
+
+```bash
+deploy/docker/scripts/prod-smoke-test.sh
+docker compose --env-file .env -f docker-compose.prod.yml --profile ops run --rm governance-schema-check
+docker compose --env-file .env -f docker-compose.prod.yml --profile ops run --rm governance-backup-export
+docker compose --env-file .env -f docker-compose.prod.yml --profile observability up -d prometheus grafana
+```
 
 ## Full install guide
 
@@ -200,3 +228,16 @@ See `docs/deployment/observability.md` for metric names and dashboard details.
 
 The `openrouter-agent-full-demo` Compose overlay provides a report-only full demo path for the OpenRouter alias scout. Use `--print-docker-demo-plan` to inspect the plan before running Docker Compose.
 
+
+## Production-ish upgrade flow
+
+Use the upgrade preflight and smoke helpers before replacing a running pilot stack:
+
+```bash
+make prod-upgrade-check
+make prod-preflight
+make prod-upgrade
+make prod-post-upgrade-smoke
+```
+
+Detailed runbooks live in `docs/deployment/upgrade-guide.md`, `docs/deployment/migration-safety.md`, and `docs/deployment/release-checklist.md`.

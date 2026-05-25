@@ -23,7 +23,7 @@ services:
       retries: 10
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13.7-management
     container_name: skeinrank-rabbitmq-dev
     restart: unless-stopped
     environment:
