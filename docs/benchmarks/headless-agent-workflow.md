@@ -16,13 +16,15 @@ exercises the database-backed governance workflow end to end.
 The default fixture lives in `examples/benchmarks/platform_ops_v1` and includes:
 
 - a seed dictionary for `platform_ops_benchmark`;
-- synthetic platform operations documents;
+- 50 synthetic platform operations documents;
+- incidents, runbooks, support tickets, and noisy docs;
 - previously seen unchanged documents;
 - changed documents that must be revisited;
-- new aliases such as `rmq`, `otel`, and `pg`;
-- an idempotent existing alias case for `kube`;
-- a stop-list blocked noisy alias case for `app`;
-- golden runtime queries after proposals are applied.
+- new aliases such as `rmq`, `otel`, `pg`, `prom`, `lk`, `ns`, `svc`, `redis-sentinel`, `redis-cluster`, `slo`, and `es`;
+- idempotent existing alias cases for `kube`, `k8s`, `postgres`, and `elastic`;
+- stop-list blocked noisy aliases such as `app`, `error`, `job`, and `api`;
+- golden runtime queries after proposals are applied;
+- quality thresholds for precision-like, recall-like, noise, skipped documents, blocked aliases, and snapshot creation.
 
 The workflow is:
 
@@ -87,8 +89,12 @@ The report schema is `skeinrank.benchmark_report.v1`. Important fields:
 - `scores.expected_alias_recall` — whether expected aliases reached runtime;
 - `scores.runtime_canonicalization_accuracy` — golden query match accuracy;
 - `scores.unexpected_proposals` — number of unexpected proposal aliases;
+- `scores.proposal_precision_like` — expected proposals divided by created proposal aliases;
+- `scores.proposal_recall_like` / `scores.alias_coverage` — expected aliases that reached runtime;
+- `scores.noise_rate` — unexpected proposal aliases divided by created proposal aliases;
 - `counts.visit_statuses` — document visit decisions such as `unchanged_seen`;
 - `counts.idempotent_noops` — existing aliases correctly treated as no-ops;
+- `quality` — expanded 49A quality report with proposal counts, warnings, blocked aliases, snapshot status, and quality gates;
 - `checks[]` — named pass/fail checks with details.
 
 A successful report should show:
@@ -96,8 +102,38 @@ A successful report should show:
 ```text
 expected_alias_recall = 1.0
 runtime_canonicalization_accuracy = 1.0
+proposal_precision_like = 1.0
 unexpected_proposals = 0
+noise_rate = 0.0
 ```
+
+## Quality report
+
+Patch 49A expands the benchmark from a small happy-path fixture into a 50-document quality benchmark. The report includes:
+
+```text
+proposal_precision_like
+proposal_recall_like
+accepted_expected_proposals
+missed_expected_proposals
+unexpected_created_proposals
+blocked_proposals_count
+blocked_alias_recall
+warning_proposals_count
+expected_warning_aliases_count
+missing_warning_aliases
+idempotent_noops_count
+agent_revisited_documents_count
+agent_skipped_unchanged_documents_count
+runtime_canonicalization_accuracy
+snapshot_created
+query_plan_matches_expected
+alias_coverage
+noise_rate
+quality_gates[]
+```
+
+These signals are intended to make prompt/rule/validator changes measurable: a patch should not increase unexpected aliases, reduce skipped unchanged documents, or reduce runtime canonicalization accuracy.
 
 ## Why OpenRouter is not used here
 

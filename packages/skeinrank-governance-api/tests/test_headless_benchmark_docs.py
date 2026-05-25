@@ -30,7 +30,9 @@ def test_benchmark_docs_and_fixtures_are_discoverable() -> None:
     pyproject = _read("packages/skeinrank-governance-api/pyproject.toml")
 
     assert "48A" in docs
+    assert "49A" in docs
     assert "make benchmark-eval" in docs
+    assert "proposal_precision_like" in docs
     assert "OpenRouter" in docs
     assert "examples/benchmarks/platform_ops_v1" in docs
     assert "Headless benchmark" in root_readme

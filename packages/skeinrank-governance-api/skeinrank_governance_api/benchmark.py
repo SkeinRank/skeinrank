@@ -30,6 +30,11 @@ from skeinrank_governance.cli import (
     set_term_tags,
 )
 from skeinrank_governance.models import (
+    AgentCandidateObservation,
+    AgentDocumentVisit,
+    AgentEvidenceWindow,
+    AgentLlmReview,
+    AgentProposalAttempt,
     AgentRun,
     CanonicalTerm,
     ElasticsearchBinding,
@@ -41,7 +46,7 @@ from skeinrank_governance.models import (
     normalize_value,
     utc_now,
 )
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -124,9 +129,20 @@ def reset_benchmark_state(
     *,
     profile_name: str = DEFAULT_PROFILE_NAME,
 ) -> dict[str, Any]:
-    """Delete benchmark-owned state for one profile."""
+    """Delete benchmark-owned state for one profile.
+
+    The benchmark is intentionally re-runnable against the same local SQLite or
+    Postgres database.  Some local SQLite setups do not enforce FK cascades, so
+    benchmark-owned agent tracking rows are purged explicitly before deleting the
+    profile.  This keeps ``make benchmark-reset && make benchmark-seed && make
+    benchmark-eval`` idempotent even after previous failed benchmark runs.
+    """
 
     normalized_profile = normalize_profile_name(profile_name)
+    _delete_benchmark_agent_artifacts(
+        session,
+        run_ids=[DEFAULT_PRIOR_RUN_ID, DEFAULT_RUN_ID],
+    )
     profile = session.scalar(
         select(TerminologyProfile).where(
             TerminologyProfile.normalized_name == normalized_profile
@@ -649,6 +665,19 @@ def _build_report(
         if attempt.attempt_status == "validation_blocked"
     }
     missing_blocked = sorted(blocked_expected - blocked_observed)
+    expected_warning = {
+        normalize_value(value)
+        for value in _require_list(
+            expected_payload.get("expected_warning_aliases", []),
+            "expected_warning_aliases",
+        )
+    }
+    warning_observed = {
+        attempt.normalized_alias
+        for attempt in proposal_attempts
+        if attempt.validation_status == "warning"
+    }
+    missing_warning = sorted(expected_warning - warning_observed)
     expected_skipped = set(expected_payload.get("expected_skipped_sources") or [])
     skipped_sources = {
         source_id
@@ -669,12 +698,26 @@ def _build_report(
         len(runtime_checks),
     )
     expected_alias_recall = _ratio(len(found_expected), len(expected_new))
-    unexpected_created = sorted(
-        {
-            suggestion.normalized_alias
-            for suggestion in suggestions
-            if suggestion.normalized_alias not in expected_new
-        }
+    created_aliases = {suggestion.normalized_alias for suggestion in suggestions}
+    unexpected_created = sorted(created_aliases - set(expected_new))
+    quality = _build_quality_report(
+        expected_payload=expected_payload,
+        expected_new_aliases=expected_new,
+        found_expected=found_expected,
+        missing_expected=missing_expected,
+        unexpected_created=unexpected_created,
+        blocked_observed=blocked_observed,
+        expected_warning=expected_warning,
+        warning_observed=warning_observed,
+        missing_warning=missing_warning,
+        validation_status_counts=validation_status_counts,
+        idempotent_noops=idempotent_noops,
+        visit_status_counts=visit_status_counts,
+        expected_skipped=expected_skipped,
+        expected_changed=expected_changed,
+        runtime_accuracy=runtime_accuracy,
+        snapshot_payload=snapshot_payload,
+        suggestions_created=len(created_aliases),
     )
     checks = [
         _check_item(
@@ -709,6 +752,16 @@ def _build_report(
             },
         ),
         _check_item(
+            "warning_aliases_observed",
+            not missing_warning,
+            "Expected warning-level aliases are represented in proposal validation.",
+            {
+                "expected": sorted(expected_warning),
+                "observed": sorted(warning_observed),
+                "missing": missing_warning,
+            },
+        ),
+        _check_item(
             "runtime_queries_match",
             runtime_accuracy == 1.0,
             "Golden runtime queries match expected canonical values.",
@@ -720,6 +773,7 @@ def _build_report(
             "Benchmark did not create unexpected proposal aliases.",
             {"unexpected_created": unexpected_created},
         ),
+        *quality["quality_gates"],
     ]
     report_status = (
         "passed" if all(item["status"] == "passed" for item in checks) else "failed"
@@ -756,7 +810,12 @@ def _build_report(
                 visit_status_counts.get("unchanged_seen", 0),
                 max(1, len(expected_skipped)),
             ),
+            "proposal_precision_like": quality["proposal_precision_like"],
+            "proposal_recall_like": quality["proposal_recall_like"],
+            "alias_coverage": quality["alias_coverage"],
+            "noise_rate": quality["noise_rate"],
         },
+        "quality": quality,
         "checks": checks,
         "runtime_checks": runtime_checks,
         "approved_suggestion_ids": approved_suggestion_ids,
@@ -766,6 +825,153 @@ def _build_report(
             "alias_entries_total": len(runtime_aliases),
         },
     }
+
+
+def _build_quality_report(
+    *,
+    expected_payload: dict[str, Any],
+    expected_new_aliases: dict[str, str],
+    found_expected: dict[str, str],
+    missing_expected: list[str],
+    unexpected_created: list[str],
+    blocked_observed: set[str],
+    expected_warning: set[str],
+    warning_observed: set[str],
+    missing_warning: list[str],
+    validation_status_counts: Counter[str],
+    idempotent_noops: int,
+    visit_status_counts: Counter[str],
+    expected_skipped: set[str],
+    expected_changed: set[str],
+    runtime_accuracy: float,
+    snapshot_payload: dict[str, Any],
+    suggestions_created: int,
+) -> dict[str, Any]:
+    """Build stable proposal-quality signals for benchmark regression tracking."""
+
+    thresholds = _require_mapping(
+        expected_payload.get("quality_thresholds") or {}, "quality_thresholds"
+    )
+    expected_blocked = {
+        normalize_value(value)
+        for value in _require_list(
+            expected_payload.get("expected_blocked_aliases"),
+            "expected_blocked_aliases",
+        )
+    }
+    accepted_expected = len(found_expected)
+    missed_expected = len(missing_expected)
+    unexpected_count = len(unexpected_created)
+    proposal_precision_like = _ratio(
+        suggestions_created - unexpected_count,
+        suggestions_created,
+    )
+    proposal_recall_like = _ratio(accepted_expected, len(expected_new_aliases))
+    blocked_alias_recall = _ratio(
+        len(blocked_observed & expected_blocked), len(expected_blocked)
+    )
+    unchanged_skipped = visit_status_counts.get("unchanged_seen", 0)
+    changed_revisited = visit_status_counts.get("content_changed", 0)
+    snapshot_created = bool(snapshot_payload.get("version")) and bool(
+        snapshot_payload.get("checksum")
+    )
+    quality_gates = [
+        _threshold_check(
+            name="quality_expected_alias_recall",
+            actual=proposal_recall_like,
+            expected=thresholds.get("min_expected_alias_recall", 1.0),
+            op=">=",
+            message="Expected alias recall meets the benchmark threshold.",
+        ),
+        _threshold_check(
+            name="quality_proposal_precision_like",
+            actual=proposal_precision_like,
+            expected=thresholds.get("min_proposal_precision_like", 1.0),
+            op=">=",
+            message="Proposal precision-like score has no unexpected aliases.",
+        ),
+        _threshold_check(
+            name="quality_runtime_canonicalization_accuracy",
+            actual=runtime_accuracy,
+            expected=thresholds.get("min_runtime_canonicalization_accuracy", 1.0),
+            op=">=",
+            message="Runtime canonicalization accuracy meets the benchmark threshold.",
+        ),
+        _threshold_check(
+            name="quality_unexpected_proposals",
+            actual=unexpected_count,
+            expected=thresholds.get("max_unexpected_proposals", 0),
+            op="<=",
+            message="Unexpected proposal count stays within the benchmark threshold.",
+        ),
+        _threshold_check(
+            name="quality_blocked_alias_recall",
+            actual=blocked_alias_recall,
+            expected=thresholds.get("min_blocked_alias_recall", 1.0),
+            op=">=",
+            message="Blocked/noise aliases are rejected before submission.",
+        ),
+        _check_item(
+            "quality_snapshot_created",
+            snapshot_created is bool(thresholds.get("min_snapshot_created", True)),
+            "Runtime snapshot is created for quality evaluation.",
+            {
+                "snapshot_created": snapshot_created,
+                "threshold": thresholds.get("min_snapshot_created", True),
+                "version": snapshot_payload.get("version"),
+            },
+        ),
+    ]
+    return {
+        "schema_version": "skeinrank.benchmark_quality.v1",
+        "proposal_precision_like": proposal_precision_like,
+        "proposal_recall_like": proposal_recall_like,
+        "accepted_expected_proposals": accepted_expected,
+        "missed_expected_proposals": missed_expected,
+        "unexpected_created_proposals": unexpected_count,
+        "blocked_proposals_count": len(blocked_observed),
+        "blocked_alias_recall": blocked_alias_recall,
+        "expected_warning_aliases_count": len(expected_warning),
+        "warning_aliases_observed_count": len(warning_observed),
+        "missing_warning_aliases": missing_warning,
+        "warning_proposals_count": validation_status_counts.get("warning", 0),
+        "idempotent_noops_count": idempotent_noops,
+        "agent_revisited_documents_count": changed_revisited,
+        "agent_skipped_unchanged_documents_count": unchanged_skipped,
+        "expected_changed_documents_count": len(expected_changed),
+        "expected_skipped_documents_count": len(expected_skipped),
+        "runtime_canonicalization_accuracy": runtime_accuracy,
+        "snapshot_created": snapshot_created,
+        "query_plan_matches_expected": runtime_accuracy == 1.0,
+        "alias_coverage": proposal_recall_like,
+        "noise_rate": _ratio(unexpected_count, max(1, suggestions_created)),
+        "quality_thresholds": thresholds,
+        "quality_gates": quality_gates,
+    }
+
+
+def _threshold_check(
+    *,
+    name: str,
+    actual: float | int,
+    expected: Any,
+    op: str,
+    message: str,
+) -> dict[str, Any]:
+    expected_value = float(expected)
+    actual_value = float(actual)
+    if op == ">=":
+        passed = actual_value >= expected_value
+    elif op == "<=":
+        passed = actual_value <= expected_value
+    else:  # pragma: no cover - defensive programming for future operators.
+        raise BenchmarkError(f"Unsupported threshold operator: {op}")
+    return _check_item(
+        name,
+        passed,
+        message,
+        {"actual": actual, "expected": expected, "operator": op},
+    )
 
 
 def _evaluate_runtime_queries(
@@ -951,10 +1157,35 @@ def _get_or_create_binding(
 
 
 def _delete_agent_run_if_exists(session: Session, run_id: str) -> None:
-    run = session.scalar(select(AgentRun).where(AgentRun.run_id == run_id))
-    if run is not None:
-        session.delete(run)
-        session.flush()
+    _delete_benchmark_agent_artifacts(session, run_ids=[run_id])
+
+
+def _delete_benchmark_agent_artifacts(
+    session: Session,
+    *,
+    run_ids: Iterable[str],
+) -> None:
+    """Explicitly purge benchmark agent tracking rows for stable reruns.
+
+    Deleting ``AgentRun`` normally relies on database-level cascades.  SQLite does
+    not enable FK cascades by default, and stale benchmark rows can then collide
+    with the unique ``(agent_run_id, source_id)`` visit constraint on the next
+    run.  Delete in dependency order to keep the reset command portable.
+    """
+
+    run_ids = [str(run_id) for run_id in run_ids if str(run_id)]
+    if not run_ids:
+        return
+    for model in (
+        AgentProposalAttempt,
+        AgentLlmReview,
+        AgentEvidenceWindow,
+        AgentCandidateObservation,
+        AgentDocumentVisit,
+        AgentRun,
+    ):
+        session.execute(delete(model).where(model.run_id.in_(run_ids)))
+    session.flush()
 
 
 def _get_profile_or_error(session: Session, profile_name: str) -> TerminologyProfile:

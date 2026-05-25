@@ -251,6 +251,7 @@ def run_stack_evaluation(
             "status": base_report.get("status"),
             "scores": base_report.get("scores"),
             "counts": base_report.get("counts"),
+            "quality": base_report.get("quality"),
             "snapshot": base_report.get("snapshot"),
         },
         "checks": checks,

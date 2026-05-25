@@ -58,7 +58,7 @@ The UI and worker are not required for this benchmark.
 
 The stack report schema is `skeinrank.benchmark_stack_report.v1`. It includes:
 
-- the base deterministic 48A benchmark scores;
+- the base deterministic 48A/49A benchmark scores and quality report;
 - `/healthz` API check;
 - `/schema/health` Alembic/schema check;
 - `/metrics` availability check;
@@ -71,8 +71,10 @@ A passing run should show the base scores:
 ```text
 expected_alias_recall = 1.0
 runtime_canonicalization_accuracy = 1.0
+proposal_precision_like = 1.0
 unexpected_proposals = 0
 unchanged_skip_rate = 1.0
+noise_rate = 0.0
 ```
 
 and all stack checks should have `status = passed`.

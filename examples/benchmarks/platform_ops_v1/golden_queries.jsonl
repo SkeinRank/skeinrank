@@ -1,3 +1,7 @@
 {"query":"rmq retries after k8s rollout","expected_canonicals":["rabbitmq","kubernetes"],"description":"Newly proposed rmq alias plus seeded k8s alias."}
-{"query":"otel traces for pg timeout","expected_canonicals":["opentelemetry","postgresql"],"description":"New otel alias and new pg alias should be available after apply."}
+{"query":"otel traces for pg timeout","expected_canonicals":["opentelemetry","postgresql"],"description":"New otel alias and warning-level pg alias should be available after apply."}
 {"query":"kube node drain incident","expected_canonicals":["kubernetes"],"description":"Seeded kube alias should remain available and idempotent."}
+{"query":"prom alert for svc in ns","expected_canonicals":["prometheus","service","namespace"],"description":"Expanded benchmark aliases for observability and Kubernetes objects."}
+{"query":"lk logs after es indexing latency","expected_canonicals":["loki","elasticsearch"],"description":"Short aliases lk/es should resolve after review."}
+{"query":"redis-sentinel failover before redis-cluster reshard","expected_canonicals":["redis sentinel","redis cluster"],"description":"Compound cache aliases should be preserved as exact runtime aliases."}
+{"query":"slo burn after otel trace regression","expected_canonicals":["service level objective","opentelemetry"],"description":"SRE quality alias plus existing new otel alias."}

@@ -123,7 +123,7 @@ The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the databas
 
 ## Headless benchmark and agent workflow E2E
 
-Patch 48A adds a deterministic benchmark for the headless agent-governance workflow. It seeds a synthetic platform-ops corpus, simulates document visit tracking, candidate observations, evidence windows, proposal attempts, governed suggestions, snapshot publishing, and runtime query checks without calling OpenRouter or Elasticsearch.
+Patch 48A adds a deterministic benchmark for the headless agent-governance workflow. Patch 49A expands the `platform_ops_v1` fixture into a 50-document quality benchmark with proposal precision-like, recall-like, blocked-alias, warning, idempotency, skipped-document, snapshot, and runtime canonicalization signals. It runs without calling OpenRouter or Elasticsearch.
 
 ```bash
 make benchmark-reset
@@ -132,7 +132,7 @@ make benchmark-eval
 make benchmark-report
 ```
 
-The fixture lives in `examples/benchmarks/platform_ops_v1`; the guide is in [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md).
+The fixture lives in `examples/benchmarks/platform_ops_v1`; the guide is in [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md). A successful quality report should keep `proposal_precision_like = 1.0`, `expected_alias_recall = 1.0`, `runtime_canonicalization_accuracy = 1.0`, `unexpected_proposals = 0`, and `noise_rate = 0.0`.
 
 ## OpenRouter live agent pilot
 
