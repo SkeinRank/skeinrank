@@ -27,6 +27,8 @@ from skeinrank_governance_api.benchmark import (
 )
 from sqlalchemy import select
 
+EXPECTED_PLATFORM_OPS_CORPUS_DOCS = 200
+
 
 def _session_factory(tmp_path):
     engine = create_governance_engine(
@@ -52,7 +54,7 @@ def test_benchmark_fixtures_include_agent_workflow_edge_cases() -> None:
     assert any(item.get("previous_body") for item in corpus_lines)
     assert "app" in expected["expected_blocked_aliases"]
     assert "kube" in expected["expected_idempotent_aliases"]
-    assert len(corpus_lines) == 50
+    assert len(corpus_lines) == EXPECTED_PLATFORM_OPS_CORPUS_DOCS
     assert {item["alias"] for item in expected["expected_new_aliases"]} >= {
         "rmq",
         "otel",
@@ -88,7 +90,7 @@ def test_headless_benchmark_full_agent_workflow(tmp_path) -> None:
         assert report["scores"]["proposal_recall_like"] == 1.0
         assert report["scores"]["alias_coverage"] == 1.0
         assert report["scores"]["noise_rate"] == 0.0
-        assert report["counts"]["documents_total"] == 50
+        assert report["counts"]["documents_total"] == EXPECTED_PLATFORM_OPS_CORPUS_DOCS
         assert report["counts"]["visit_statuses"]["unchanged_seen"] == 2
         assert report["counts"]["visit_statuses"]["content_changed"] == 2
         assert report["counts"]["idempotent_noops"] == 3
@@ -136,7 +138,10 @@ def test_headless_benchmark_full_agent_workflow(tmp_path) -> None:
         assert (
             diagnostics["schema_version"] == "skeinrank.agent_decision_diagnostics.v1"
         )
-        assert diagnostics["summary"]["documents_total"] == 50
+        assert (
+            diagnostics["summary"]["documents_total"]
+            == EXPECTED_PLATFORM_OPS_CORPUS_DOCS
+        )
         assert diagnostics["summary"]["candidate_decisions"] == 18
         assert diagnostics["summary"]["skipped_candidate_decisions"] == 2
         assert diagnostics["summary"]["decision_reason_coverage"] == 1.0
@@ -216,7 +221,10 @@ def test_benchmark_reset_cleans_agent_tracking_for_reruns(tmp_path) -> None:
         second_report = run_benchmark_evaluation(session)
 
         assert second_report["status"] == "passed"
-        assert second_report["counts"]["documents_total"] == 50
+        assert (
+            second_report["counts"]["documents_total"]
+            == EXPECTED_PLATFORM_OPS_CORPUS_DOCS
+        )
 
 
 def test_benchmark_cli_seed_eval_report_and_reset(tmp_path, capsys) -> None:

@@ -122,3 +122,54 @@ evaluations can build on this layer.
 
 50A/50B/50B.1 do not call OpenRouter, Elasticsearch, or the database. It does not submit
 proposals, approve/apply changes, publish snapshots, or mutate runtime state.
+
+## Retrieval comparison report
+
+Patch 50C adds an operator-facing retrieval comparison report for benchmark,
+pilot, and company-index runs. It consumes any
+`skeinrank.retrieval_eval_report.v1` file and writes
+`skeinrank.retrieval_comparison_report.v1` without calling OpenRouter,
+Elasticsearch, the database, or runtime mutation endpoints.
+
+Run from the repository root after `benchmark-retrieval-eval`:
+
+```bash
+make benchmark-retrieval-compare
+make benchmark-retrieval-compare-report
+```
+
+Or run the full local flow:
+
+```bash
+make benchmark-retrieval-run
+```
+
+Direct CLI usage:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-governance-retrieval-compare compare \
+  --input ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-report.json \
+  --out ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-comparison-report.json
+poetry run skeinrank-governance-retrieval-compare report \
+  --file ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-comparison-report.json
+```
+
+The comparison report includes:
+
+```text
+query_counts
+query_groups.largest_ndcg_improvements
+query_groups.largest_ndcg_regressions
+query_groups.high_hard_negative_leakage
+query_groups.high_generic_token_noise
+query_groups.zero_recall_after_expansion
+query_groups.no_gain_with_expansion
+query_diagnostics[].recommended_actions
+```
+
+For pilot/company index evaluation, the intended contract is the same: produce or
+export a retrieval eval report in `skeinrank.retrieval_eval_report.v1` format,
+then run the comparison CLI against that file. This keeps the comparison layer
+provider-independent while still giving operators a compact view of regressions,
+hard-negative leakage, generic-token noise, and zero-recall queries.

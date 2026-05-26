@@ -31,7 +31,7 @@ The benchmark is deterministic and does not call OpenRouter or Elasticsearch. Us
 
 ## Retrieval eval baseline
 
-Patch 50A adds retrieval fixtures, Patch 50B expands them to a 200-document corpus with hard negatives, and Patch 50B.1 adds query-hygiene scoring for hard-negative tuning:
+Patch 50A adds retrieval fixtures, Patch 50B expands them to a 200-document corpus with hard negatives, Patch 50B.1 adds query-hygiene scoring for hard-negative tuning, and Patch 50C adds a retrieval comparison report for pilot/company index diagnostics:
 
 ```text
 retrieval_queries.jsonl
@@ -44,6 +44,11 @@ Run from the repository root:
 ```bash
 make benchmark-retrieval-eval
 make benchmark-retrieval-report
+make benchmark-retrieval-compare
+make benchmark-retrieval-compare-report
 ```
 
-The report compares a literal baseline against a SkeinRank-expanded run with `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and per-query deltas.
+The retrieval report compares a literal baseline against a SkeinRank-expanded run with `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and per-query deltas.
+
+
+The comparison report uses schema `skeinrank.retrieval_comparison_report.v1` and summarizes largest improvements, regressions, high hard-negative leakage, generic-token noise, zero-recall queries, and operator-facing recommendations.

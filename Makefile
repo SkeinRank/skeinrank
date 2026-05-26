@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -14,9 +14,11 @@ PROD_COMPOSE := docker compose --env-file $(PROD_ENV) -f $(PROD_COMPOSE_FILE)
 BENCHMARK_DATABASE_URL ?= sqlite:///skeinrank_governance.db
 BENCHMARK_REPORT ?= examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-report.json
 BENCHMARK_RETRIEVAL_REPORT ?= examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-report.json
+BENCHMARK_RETRIEVAL_COMPARISON_REPORT ?= examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-comparison-report.json
 BENCHMARK_RETRIEVAL_TOP_K ?= 10
 BENCHMARK_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.benchmark --database-url "$(BENCHMARK_DATABASE_URL)"
 BENCHMARK_RETRIEVAL_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.retrieval_eval
+BENCHMARK_RETRIEVAL_COMPARE_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.retrieval_compare
 
 BENCHMARK_STACK_COMPOSE_FILE ?= docker-compose.dev.yml
 BENCHMARK_STACK_ENV_FILE ?= deploy/docker/benchmark.env.example
@@ -132,8 +134,17 @@ benchmark-retrieval-eval:
 benchmark-retrieval-report:
 	$(BENCHMARK_RETRIEVAL_CLI) report --file ../../$(BENCHMARK_RETRIEVAL_REPORT)
 
+benchmark-retrieval-compare:
+	$(BENCHMARK_RETRIEVAL_COMPARE_CLI) compare --input ../../$(BENCHMARK_RETRIEVAL_REPORT) --out ../../$(BENCHMARK_RETRIEVAL_COMPARISON_REPORT)
+
+benchmark-retrieval-compare-report:
+	$(BENCHMARK_RETRIEVAL_COMPARE_CLI) report --file ../../$(BENCHMARK_RETRIEVAL_COMPARISON_REPORT)
+
+benchmark-retrieval-run: benchmark-retrieval-eval benchmark-retrieval-compare benchmark-retrieval-compare-report
+
 benchmark-retrieval-clean:
 	rm -f $(BENCHMARK_RETRIEVAL_REPORT)
+	rm -f $(BENCHMARK_RETRIEVAL_COMPARISON_REPORT)
 
 benchmark-stack-prune-containers:
 	@$(BENCHMARK_STACK_COMPOSE) down -v --remove-orphans >/dev/null 2>&1 || true

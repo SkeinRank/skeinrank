@@ -31,6 +31,7 @@ skeinrank-governance-env = "skeinrank_governance_api.env_validation:main"
 skeinrank-governance-benchmark = "skeinrank_governance_api.benchmark:main"
 skeinrank-governance-benchmark-stack = "skeinrank_governance_api.benchmark_stack:main"
 skeinrank-governance-retrieval-eval = "skeinrank_governance_api.retrieval_eval:main"
+skeinrank-governance-retrieval-compare = "skeinrank_governance_api.retrieval_compare:main"
 skeinrank-governance-pilot = "skeinrank_governance_api.pilot_integration:main"
 skeinrank-mcp = "skeinrank_governance_api.mcp:main"
 
