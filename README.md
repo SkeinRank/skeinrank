@@ -166,7 +166,7 @@ See [`docs/benchmarks/containerized-benchmark-integration.md`](docs/benchmarks/c
 
 ## Retrieval eval baseline
 
-Patch 50A adds the first retrieval quality baseline for `platform_ops_v1`: qrels, retrieval queries, a literal baseline run, a SkeinRank-expanded run, and `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas.
+Patch 50A adds the first retrieval quality baseline for `platform_ops_v1`: qrels, retrieval queries, a literal baseline run, a SkeinRank-expanded run, and `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas. Patch 50B expands the fixture to 200 documents and adds `hard_negatives.jsonl` plus `hard_negative_leakage@10`; 50B.1 tightens query hygiene with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`.
 
 ```bash
 make benchmark-retrieval-plan

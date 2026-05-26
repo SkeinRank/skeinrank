@@ -37,6 +37,7 @@ class RetrievalPaths:
     expected_aliases: Path
     retrieval_queries: Path
     qrels: Path
+    hard_negatives: Path
     default_report: Path
 
 
@@ -62,6 +63,7 @@ def resolve_retrieval_paths(path: str | Path | None = None) -> RetrievalPaths:
         expected_aliases=root / "expected_aliases.json",
         retrieval_queries=root / "retrieval_queries.jsonl",
         qrels=root / "qrels.jsonl",
+        hard_negatives=root / "hard_negatives.jsonl",
         default_report=root / "reports" / "platform_ops_v1-retrieval-report.json",
     )
     missing = [
@@ -72,6 +74,7 @@ def resolve_retrieval_paths(path: str | Path | None = None) -> RetrievalPaths:
             paths.expected_aliases,
             paths.retrieval_queries,
             paths.qrels,
+            paths.hard_negatives,
         )
         if not candidate.exists()
     ]
@@ -89,6 +92,7 @@ def build_retrieval_plan(*, paths: RetrievalPaths | None = None) -> dict[str, An
     corpus = _read_jsonl(paths.corpus)
     queries = _read_jsonl(paths.retrieval_queries)
     qrels = _load_qrels(paths.qrels)
+    hard_negatives = _load_hard_negatives(paths.hard_negatives)
     alias_map = _build_alias_map(
         seed_dictionary=_read_json(paths.seed_dictionary),
         expected_aliases=_read_json(paths.expected_aliases),
@@ -100,9 +104,16 @@ def build_retrieval_plan(*, paths: RetrievalPaths | None = None) -> dict[str, An
         "documents_total": len(corpus),
         "queries_total": len(queries),
         "qrels_total": sum(len(values) for values in qrels.values()),
+        "hard_negatives_total": sum(len(values) for values in hard_negatives.values()),
         "alias_terms_total": len(alias_map),
         "runs": ["baseline", "skeinrank"],
-        "metrics": ["ndcg@10", "mrr@10", "recall@10", "precision@10"],
+        "metrics": [
+            "ndcg@10",
+            "mrr@10",
+            "recall@10",
+            "precision@10",
+            "hard_negative_leakage@10",
+        ],
         "safety": {
             "openrouter_calls": False,
             "elasticsearch_calls": False,
@@ -113,6 +124,7 @@ def build_retrieval_plan(*, paths: RetrievalPaths | None = None) -> dict[str, An
             "corpus": str(paths.corpus),
             "retrieval_queries": str(paths.retrieval_queries),
             "qrels": str(paths.qrels),
+            "hard_negatives": str(paths.hard_negatives),
         },
     }
 
@@ -129,6 +141,7 @@ def run_retrieval_evaluation(
     corpus = _read_jsonl(paths.corpus)
     queries = _read_jsonl(paths.retrieval_queries)
     qrels = _load_qrels(paths.qrels)
+    hard_negatives = _load_hard_negatives(paths.hard_negatives)
     expected_aliases = _read_json(paths.expected_aliases)
     alias_map = _build_alias_map(
         seed_dictionary=_read_json(paths.seed_dictionary),
@@ -143,15 +156,22 @@ def run_retrieval_evaluation(
         query_id = str(query["query_id"])
         text = str(query["query"])
         relevant = qrels.get(query_id, {})
+        query_hard_negatives = hard_negatives.get(query_id, set())
         baseline_terms = _baseline_terms(text)
         expanded = _skeinrank_terms(text, alias_map=alias_map)
         baseline_ranking = _rank_documents(documents, baseline_terms)
         skeinrank_ranking = _rank_documents(documents, expanded)
         baseline_metrics = _metrics_for_query(
-            ranking=baseline_ranking, qrels=relevant, top_k=top_k
+            ranking=baseline_ranking,
+            qrels=relevant,
+            hard_negatives=query_hard_negatives,
+            top_k=top_k,
         )
         skeinrank_metrics = _metrics_for_query(
-            ranking=skeinrank_ranking, qrels=relevant, top_k=top_k
+            ranking=skeinrank_ranking,
+            qrels=relevant,
+            hard_negatives=query_hard_negatives,
+            top_k=top_k,
         )
         baseline_results.append(baseline_metrics)
         skeinrank_results.append(skeinrank_metrics)
@@ -167,11 +187,12 @@ def run_retrieval_evaluation(
                         relevant.items(), key=lambda item: (-item[1], item[0])
                     )
                 ],
+                "hard_negative_documents": sorted(query_hard_negatives),
                 "baseline": {
                     "terms": baseline_terms,
                     "metrics": baseline_metrics,
                     "top_documents": _compact_ranking(
-                        baseline_ranking, relevant, top_k
+                        baseline_ranking, relevant, query_hard_negatives, top_k
                     ),
                 },
                 "skeinrank": {
@@ -181,7 +202,7 @@ def run_retrieval_evaluation(
                     ],
                     "metrics": skeinrank_metrics,
                     "top_documents": _compact_ranking(
-                        skeinrank_ranking, relevant, top_k
+                        skeinrank_ranking, relevant, query_hard_negatives, top_k
                     ),
                 },
                 "delta": _metric_delta(skeinrank_metrics, baseline_metrics),
@@ -203,6 +224,7 @@ def run_retrieval_evaluation(
         "documents_total": len(documents),
         "queries_total": len(queries),
         "qrels_total": sum(len(values) for values in qrels.values()),
+        "hard_negatives_total": sum(len(values) for values in hard_negatives.values()),
         "top_k": top_k,
         "baseline": baseline_summary,
         "skeinrank": skeinrank_summary,
@@ -340,22 +362,32 @@ def _rank_documents(
     documents: list[dict[str, Any]], terms: list[str]
 ) -> list[dict[str, Any]]:
     ranking = []
-    term_weights = Counter(terms)
+    term_counts = Counter(terms)
     for document in documents:
         normalized_text = _normalize_text(document["text"])
         tokens = Counter(_tokens(document["text"]))
         score = 0.0
         matched_terms = []
-        for term, weight in term_weights.items():
+        weighted_matches: dict[str, float] = {}
+        for term, count_weight in term_counts.items():
+            term_weight = _retrieval_term_weight(term) * float(count_weight)
             if " " in term:
                 if _phrase_present(term, normalized_text):
-                    score += 3.0 * weight
+                    contribution = 3.0 * term_weight
+                    score += contribution
                     matched_terms.append(term)
+                    weighted_matches[term] = round(contribution, 4)
                 continue
             count = tokens.get(term, 0)
             if count:
-                score += float(count) * weight
+                contribution = float(count) * term_weight
+                score += contribution
                 matched_terms.append(term)
+                weighted_matches[term] = round(contribution, 4)
+        noise_penalty = _retrieval_noise_penalty(
+            tokens=tokens, matched_terms=matched_terms
+        )
+        score = max(0.0, score - noise_penalty)
         if score > 0:
             ranking.append(
                 {
@@ -364,13 +396,18 @@ def _rank_documents(
                     "title": document["title"],
                     "score": round(score, 4),
                     "matched_terms": sorted(set(matched_terms)),
+                    "noise_penalty": round(noise_penalty, 4),
+                    "weighted_matches": weighted_matches,
                 }
             )
     return sorted(ranking, key=lambda item: (-float(item["score"]), item["source_id"]))
 
 
 def _compact_ranking(
-    ranking: list[dict[str, Any]], qrels: dict[str, int], top_k: int
+    ranking: list[dict[str, Any]],
+    qrels: dict[str, int],
+    hard_negatives: set[str],
+    top_k: int,
 ) -> list[dict[str, Any]]:
     compact = []
     for rank, item in enumerate(ranking[:top_k], 1):
@@ -381,14 +418,21 @@ def _compact_ranking(
                 "title": item["title"],
                 "score": item["score"],
                 "relevance": qrels.get(str(item["source_id"]), 0),
+                "hard_negative": _is_hard_negative_result(item, hard_negatives),
                 "matched_terms": item["matched_terms"],
+                "generic_token_noise": _generic_token_noise(item["matched_terms"]),
+                "noise_penalty": item.get("noise_penalty", 0.0),
             }
         )
     return compact
 
 
 def _metrics_for_query(
-    *, ranking: list[dict[str, Any]], qrels: dict[str, int], top_k: int
+    *,
+    ranking: list[dict[str, Any]],
+    qrels: dict[str, int],
+    hard_negatives: set[str],
+    top_k: int,
 ) -> dict[str, float]:
     ranked_ids = [str(item["source_id"]) for item in ranking[:top_k]]
     relevant_ids = {doc_id for doc_id, relevance in qrels.items() if relevance > 0}
@@ -403,11 +447,26 @@ def _metrics_for_query(
     dcg = _dcg([qrels.get(doc_id, 0) for doc_id in ranked_ids])
     ideal = _dcg(sorted(qrels.values(), reverse=True)[:top_k])
     ndcg = _ratio(dcg, ideal)
+    ranked_items = ranking[:top_k]
+    hard_negative_hits = [
+        str(item["source_id"])
+        for item in ranked_items
+        if _is_hard_negative_result(item, hard_negatives)
+    ]
+    hard_negative_leakage = _ratio(len(hard_negative_hits), top_k)
+    generic_noise = _ratio(
+        sum(
+            _generic_token_noise(item.get("matched_terms", [])) for item in ranked_items
+        ),
+        top_k,
+    )
     return {
         f"ndcg@{top_k}": ndcg,
         f"mrr@{top_k}": reciprocal,
         f"recall@{top_k}": recall,
         f"precision@{top_k}": precision,
+        f"hard_negative_leakage@{top_k}": hard_negative_leakage,
+        f"generic_token_noise@{top_k}": generic_noise,
     }
 
 
@@ -441,6 +500,7 @@ def _metric_delta(
 def _quality_gates(
     *, delta: dict[str, float], skeinrank: dict[str, float], thresholds: dict[str, Any]
 ) -> list[dict[str, Any]]:
+    hard_negative_delta_key = "hard_negative_leakage@10"
     return [
         _threshold_check(
             name="retrieval_ndcg_delta_positive",
@@ -470,6 +530,37 @@ def _quality_gates(
             op=">=",
             message="SkeinRank NDCG@10 should meet the benchmark floor.",
         ),
+        _threshold_check(
+            name="retrieval_hard_negative_leakage_ceiling",
+            actual=skeinrank.get("hard_negative_leakage@10", 0.0),
+            expected=float(
+                thresholds.get("max_skeinrank_hard_negative_leakage_at_10", 1.0)
+            ),
+            op="<=",
+            message=(
+                "SkeinRank top-10 should keep hard-negative leakage "
+                "below the ceiling."
+            ),
+        ),
+        _threshold_check(
+            name="retrieval_hard_negative_leakage_delta_ceiling",
+            actual=delta.get(hard_negative_delta_key, 0.0),
+            expected=float(
+                thresholds.get("max_hard_negative_leakage_at_10_delta", 1.0)
+            ),
+            op="<=",
+            message=(
+                "SkeinRank expansion should not materially increase "
+                "hard-negative leakage."
+            ),
+        ),
+        _threshold_check(
+            name="retrieval_generic_token_noise_delta_ceiling",
+            actual=delta.get("generic_token_noise@10", 0.0),
+            expected=float(thresholds.get("max_generic_token_noise_at_10_delta", 1.0)),
+            op="<=",
+            message="SkeinRank expansion should not amplify generic-token noise.",
+        ),
     ]
 
 
@@ -496,38 +587,45 @@ def _retrieval_thresholds(expected_aliases: dict[str, Any]) -> dict[str, Any]:
     thresholds.setdefault("min_mrr_at_10_delta", 0.0)
     thresholds.setdefault("min_recall_at_10_delta", 0.01)
     thresholds.setdefault("min_skeinrank_ndcg_at_10", 0.65)
+    thresholds.setdefault("max_skeinrank_hard_negative_leakage_at_10", 0.25)
+    thresholds.setdefault("max_hard_negative_leakage_at_10_delta", 0.05)
+    thresholds.setdefault("max_generic_token_noise_at_10_delta", 0.05)
     return thresholds
 
 
 def _build_alias_map(
     *, seed_dictionary: dict[str, Any], expected_aliases: dict[str, Any]
 ) -> dict[str, set[str]]:
-    by_canonical: dict[str, set[str]] = defaultdict(set)
+    # The retrieval evaluator intentionally expands from observed aliases to
+    # canonical values, not from canonical values back to every alias. Expanding
+    # canonical terms such as "service" -> "svc" or "namespace" -> "ns" makes
+    # hard negatives unrealistically strong and hides query hygiene issues.
+    alias_map: dict[str, set[str]] = defaultdict(set)
+
+    def register(alias: str, canonical: str) -> None:
+        normalized_alias = _normalize_text(alias)
+        normalized_canonical = _normalize_text(canonical)
+        if not normalized_alias or not normalized_canonical:
+            return
+        if normalized_alias == normalized_canonical:
+            return
+        alias_map[normalized_alias].add(canonical)
+
     for term in seed_dictionary.get("terms") or []:
         if not isinstance(term, dict):
             continue
         canonical = str(term.get("canonical_value") or "").strip()
         if not canonical:
             continue
-        by_canonical[_normalize_text(canonical)].add(canonical)
         for alias in term.get("aliases") or []:
-            by_canonical[_normalize_text(canonical)].add(str(alias))
+            register(str(alias), canonical)
+
     for section in ("expected_new_aliases", "expected_idempotent_aliases"):
         for item in expected_aliases.get(section) or []:
-            if isinstance(item, dict):
-                alias = str(item.get("alias") or "").strip()
-                canonical = str(item.get("canonical") or "").strip()
-            else:
-                alias = str(item).strip()
-                canonical = ""
-            if alias and canonical:
-                by_canonical[_normalize_text(canonical)].update({alias, canonical})
-    alias_map: dict[str, set[str]] = defaultdict(set)
-    for canonical, values in by_canonical.items():
-        values.add(canonical)
-        for value in values:
-            normalized_value = _normalize_text(value)
-            alias_map[normalized_value].update(values)
+            if not isinstance(item, dict):
+                continue
+            register(str(item.get("alias") or ""), str(item.get("canonical") or ""))
+
     return {key: set(value) for key, value in alias_map.items()}
 
 
@@ -544,8 +642,175 @@ def _load_qrels(path: Path) -> dict[str, dict[str, int]]:
     return dict(qrels)
 
 
+def _load_hard_negatives(path: Path) -> dict[str, set[str]]:
+    hard_negatives: dict[str, set[str]] = defaultdict(set)
+    for item in _read_jsonl(path):
+        query_id = str(item.get("query_id") or "")
+        doc_id = str(item.get("doc_id") or item.get("source_id") or "")
+        if not query_id or not doc_id:
+            raise RetrievalEvalError(
+                f"hard negatives row must include query_id and doc_id: {path}"
+            )
+        hard_negatives[query_id].add(doc_id)
+    return {key: set(values) for key, values in hard_negatives.items()}
+
+
+_RETRIEVAL_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "after",
+    "before",
+    "for",
+    "from",
+    "in",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+}
+
+_TOKEN_NORMALIZATION = {
+    "alerts": "alert",
+    "clusters": "cluster",
+    "documents": "document",
+    "errors": "error",
+    "jobs": "job",
+    "logs": "log",
+    "metrics": "metric",
+    "namespaces": "namespace",
+    "queries": "query",
+    "requests": "request",
+    "retries": "retry",
+    "rollouts": "rollout",
+    "runbooks": "runbook",
+    "services": "service",
+    "spans": "span",
+    "timeouts": "timeout",
+    "traces": "trace",
+}
+
+_HIGH_VALUE_TERMS = {
+    "k8s",
+    "kube",
+    "kubernetes",
+    "rmq",
+    "rabbitmq",
+    "otel",
+    "opentelemetry",
+    "prom",
+    "prometheus",
+    "lk",
+    "loki",
+    "pg",
+    "postgres",
+    "postgresql",
+    "redis-sentinel",
+    "redis-cluster",
+    "redis sentinel",
+    "redis cluster",
+    "slo",
+    "service level objective",
+    "elastic",
+    "elasticsearch",
+}
+
+_MEDIUM_VALUE_TERMS = {
+    "namespace",
+    "ns",
+    "svc",
+    "selector",
+    "rollout",
+    "trace",
+    "log",
+    "metric",
+    "alert",
+    "queue",
+    "failover",
+    "reshard",
+    "indexing",
+    "latency",
+    "timeout",
+    "drain",
+}
+
+_GENERIC_RETRIEVAL_TERMS = {
+    "api",
+    "app",
+    "error",
+    "export",
+    "group",
+    "job",
+    "page",
+    "service",
+    "state",
+}
+
+_NOISE_CONTEXT_TOKENS = {
+    "business",
+    "center",
+    "customer",
+    "desk",
+    "employee",
+    "facilities",
+    "facility",
+    "marketing",
+    "office",
+    "partner",
+    "posting",
+    "product",
+    "survey",
+    "typo",
+    "unrelated",
+}
+
+
 def _tokens(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)?", text.lower())
+    tokens = []
+    for raw_token in re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)?", text.lower()):
+        token = _TOKEN_NORMALIZATION.get(raw_token, raw_token)
+        if token not in _RETRIEVAL_STOPWORDS:
+            tokens.append(token)
+    return tokens
+
+
+def _retrieval_term_weight(term: str) -> float:
+    if term in _HIGH_VALUE_TERMS:
+        return 3.0
+    if term in _MEDIUM_VALUE_TERMS:
+        return 1.8
+    if term in _GENERIC_RETRIEVAL_TERMS:
+        return 0.25
+    if " " in term:
+        return 2.0
+    return 1.0
+
+
+def _retrieval_noise_penalty(
+    *, tokens: Counter[str], matched_terms: list[str]
+) -> float:
+    if not matched_terms:
+        return 0.0
+    matched_generic = {
+        term for term in matched_terms if term in _GENERIC_RETRIEVAL_TERMS
+    }
+    if not matched_generic:
+        return 0.0
+    noise_hits = sum(tokens.get(token, 0) for token in _NOISE_CONTEXT_TOKENS)
+    return min(3.0, 0.75 * float(noise_hits))
+
+
+def _is_hard_negative_result(item: dict[str, Any], hard_negatives: set[str]) -> bool:
+    return (
+        str(item["source_id"]) in hard_negatives
+        or item.get("source_type") == "hard_negative"
+    )
+
+
+def _generic_token_noise(matched_terms: list[str]) -> int:
+    return sum(1 for term in set(matched_terms) if term in _GENERIC_RETRIEVAL_TERMS)
 
 
 def _normalize_text(text: str) -> str:

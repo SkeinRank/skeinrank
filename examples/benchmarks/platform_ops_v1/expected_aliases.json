@@ -96,9 +96,12 @@
     "min_proposal_attempt_coverage": 1.0
   },
   "retrieval_quality_thresholds": {
-    "min_ndcg_at_10_delta": 0.01,
+    "min_ndcg_at_10_delta": 0.05,
     "min_mrr_at_10_delta": 0.0,
     "min_recall_at_10_delta": 0.01,
-    "min_skeinrank_ndcg_at_10": 0.65
+    "min_skeinrank_ndcg_at_10": 0.45,
+    "max_skeinrank_hard_negative_leakage_at_10": 0.7,
+    "max_hard_negative_leakage_at_10_delta": 0.0,
+    "max_generic_token_noise_at_10_delta": 0.05
   }
 }

@@ -31,11 +31,12 @@ The benchmark is deterministic and does not call OpenRouter or Elasticsearch. Us
 
 ## Retrieval eval baseline
 
-Patch 50A adds retrieval fixtures for this 50-document corpus:
+Patch 50A adds retrieval fixtures, Patch 50B expands them to a 200-document corpus with hard negatives, and Patch 50B.1 adds query-hygiene scoring for hard-negative tuning:
 
 ```text
 retrieval_queries.jsonl
 qrels.jsonl
+hard_negatives.jsonl
 ```
 
 Run from the repository root:
@@ -45,4 +46,4 @@ make benchmark-retrieval-eval
 make benchmark-retrieval-report
 ```
 
-The report compares a literal baseline against a SkeinRank-expanded run with `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, and per-query deltas.
+The report compares a literal baseline against a SkeinRank-expanded run with `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and per-query deltas.

@@ -49,7 +49,7 @@ to Elasticsearch.
 
 ## Retrieval eval CLI
 
-Patch 50A adds a deterministic retrieval evaluator for the 50-document `platform_ops_v1` fixture. It reads `retrieval_queries.jsonl` and `qrels.jsonl`, compares a literal baseline with a SkeinRank-expanded run, and reports `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas.
+Patch 50A adds a deterministic retrieval evaluator for the `platform_ops_v1` fixture. Patch 50B expands the fixture to 200 documents and adds hard-negative leakage checks. Patch 50B.1 adds query-hygiene scoring with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. It reads `retrieval_queries.jsonl`, `qrels.jsonl`, and `hard_negatives.jsonl`, compares a literal baseline with a SkeinRank-expanded run, and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and `generic_token_noise@10` deltas.
 
 ```bash
 poetry run skeinrank-governance-retrieval-eval plan

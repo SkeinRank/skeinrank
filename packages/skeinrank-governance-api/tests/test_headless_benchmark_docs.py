@@ -56,5 +56,6 @@ def test_benchmark_fixture_files_exist() -> None:
         "golden_queries.jsonl",
         "retrieval_queries.jsonl",
         "qrels.jsonl",
+        "hard_negatives.jsonl",
     ]:
         assert (fixture_root / relative).exists()

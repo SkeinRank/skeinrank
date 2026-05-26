@@ -28,3 +28,46 @@
 {"query_id":"q_kube_node_drain","doc_id":"incident-k8s-idempotent","relevance":2,"reason":"K8s incident validates seeded alias coverage."}
 {"query_id":"q_kube_node_drain","doc_id":"inc-001","relevance":1,"reason":"Previously seen k8s rollout note is weakly relevant."}
 {"query_id":"q_kube_node_drain","doc_id":"runbook-rollout-001","relevance":1,"reason":"Rollout checklist is weakly related."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"ticket-pg-001","relevance":3,"reason":"Direct pg timeout export ticket."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"ticket-postgres-changed","relevance":3,"reason":"Changed PostgreSQL timeout/export evidence."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"incident-db-readonly-001","relevance":2,"reason":"Database readonly incident is relevant to PostgreSQL operations."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"ticket-timeout-001","relevance":1,"reason":"General timeout ticket is weakly relevant."}
+{"query_id":"q_es_index_latency_hard","doc_id":"incident-es-search-001","relevance":3,"reason":"Direct es indexing latency incident."}
+{"query_id":"q_es_index_latency_hard","doc_id":"runbook-index-001","relevance":3,"reason":"Index lifecycle runbook is directly relevant."}
+{"query_id":"q_es_index_latency_hard","doc_id":"ticket-search-001","relevance":2,"reason":"Search timeout ticket is relevant to Elasticsearch search."}
+{"query_id":"q_es_index_latency_hard","doc_id":"incident-deploy-001","relevance":1,"reason":"Deploy rollback is weakly relevant."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"runbook-svc-001","relevance":3,"reason":"Direct svc service routing runbook."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"ticket-ns-001","relevance":3,"reason":"Direct namespace shorthand ticket."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"runbook-grafana-001","relevance":2,"reason":"Dashboard labels include namespace/service context."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"runbook-rollout-001","relevance":1,"reason":"Rollout checklist is weakly relevant."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"inc-002","relevance":3,"reason":"Direct rmq worker retry incident."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"runbook-rabbitmq-001","relevance":3,"reason":"RabbitMQ operator runbook."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"ticket-queue-001","relevance":2,"reason":"Queue note is relevant to RabbitMQ operations."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"incident-worker-001","relevance":1,"reason":"Worker retry note is weakly relevant."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"runbook-prom-001","relevance":3,"reason":"Prometheus alert runbook."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"incident-metrics-001","relevance":3,"reason":"Metrics scrape gap incident."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"runbook-grafana-001","relevance":2,"reason":"Grafana dashboard relates to metrics alerting."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"ticket-alert-001","relevance":1,"reason":"General alert ticket is weakly relevant."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"incident-loki-001","relevance":3,"reason":"Direct Loki/lk gateway log lag incident."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"incident-logs-001","relevance":3,"reason":"Log ingestion lag is relevant."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"incident-gateway-001","relevance":2,"reason":"Gateway latency note is relevant context."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"ticket-observability-001","relevance":1,"reason":"Observability onboarding is weakly related."}
+{"query_id":"q_redis_cache_ops_hard","doc_id":"ticket-redis-sentinel-001","relevance":3,"reason":"Redis Sentinel failover ticket."}
+{"query_id":"q_redis_cache_ops_hard","doc_id":"ticket-redis-cluster-001","relevance":3,"reason":"Redis Cluster reshard ticket."}
+{"query_id":"q_redis_cache_ops_hard","doc_id":"incident-cache-001","relevance":2,"reason":"Cache warmup incident relates to Redis operations."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"noisy-api-001","relevance":1,"reason":"Generic blocked API noisy doc."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"noisy-app-001","relevance":1,"reason":"Generic blocked app noisy doc."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"noisy-error-001","relevance":1,"reason":"Generic blocked error noisy doc."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"noisy-job-001","relevance":1,"reason":"Generic blocked job noisy doc."}
+{"query_id":"q_otel_trace_facility_hard","doc_id":"runbook-otel-001","relevance":3,"reason":"OpenTelemetry tracing runbook."}
+{"query_id":"q_otel_trace_facility_hard","doc_id":"ticket-observability-001","relevance":2,"reason":"Observability ticket includes trace links."}
+{"query_id":"q_otel_trace_facility_hard","doc_id":"runbook-slo-001","relevance":1,"reason":"SLO regression is weakly related to tracing."}
+{"query_id":"q_k8s_rollout_namespace_service","doc_id":"inc-kube-002","relevance":3,"reason":"Changed Kubernetes rollout incident."}
+{"query_id":"q_k8s_rollout_namespace_service","doc_id":"runbook-svc-001","relevance":2,"reason":"Service routing runbook."}
+{"query_id":"q_k8s_rollout_namespace_service","doc_id":"ticket-ns-001","relevance":2,"reason":"Namespace shorthand ticket."}
+{"query_id":"q_k8s_rollout_namespace_service","doc_id":"runbook-rollout-001","relevance":2,"reason":"Rollout checklist."}
+{"query_id":"q_k8s_rollout_namespace_service","doc_id":"incident-k8s-idempotent","relevance":1,"reason":"K8s idempotent smoke note."}
+{"query_id":"q_elastic_search_timeout","doc_id":"incident-es-search-001","relevance":3,"reason":"Elasticsearch shorthand/search incident."}
+{"query_id":"q_elastic_search_timeout","doc_id":"ticket-search-001","relevance":3,"reason":"Search timeout ticket."}
+{"query_id":"q_elastic_search_timeout","doc_id":"runbook-index-001","relevance":2,"reason":"Index lifecycle relevant to Elasticsearch search."}
+{"query_id":"q_elastic_search_timeout","doc_id":"runbook-elastic-unchanged","relevance":1,"reason":"Existing elastic alias document is weakly relevant."}
