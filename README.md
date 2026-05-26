@@ -171,6 +171,28 @@ OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
 
 Use `OPENROUTER_API_KEY` only in your local shell or ignored `.env` files. See [`docs/benchmarks/openrouter-live-pilot.md`](docs/benchmarks/openrouter-live-pilot.md).
 
+
+## First-company Elasticsearch pilot path
+
+Patch 49E adds a safe integration path for a real Elasticsearch/OpenSearch index.
+Copy `examples/pilots/elasticsearch_pilot.example.json`, edit the profile, index,
+text fields, evidence checks, and runtime queries, then run:
+
+```bash
+make pilot-plan
+# PILOT_CONFIG accepts both repo-relative paths and absolute paths such as /tmp/skeinrank-pilot.json.
+make pilot-preflight PILOT_CONFIG=/tmp/skeinrank-pilot.json
+make pilot-seed PILOT_CONFIG=/tmp/skeinrank-pilot.json
+make pilot-eval PILOT_CONFIG=/tmp/skeinrank-pilot.json
+make pilot-report PILOT_CONFIG=/tmp/skeinrank-pilot.json
+```
+
+The report schema is `skeinrank.pilot.integration_report.v1`. The pilot path is
+read-only after seeding: it does not call OpenRouter, submit proposals,
+approve/apply changes, publish snapshots, or write to Elasticsearch. For local
+smoke testing against the benchmark stack, run `make pilot-stack-run`.
+See [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md).
+
 ## Quickstart: headless runtime
 
 Use the headless Compose profile when you want the automation-first path without the React UI, Elasticsearch, RabbitMQ, or Celery workers. It starts PostgreSQL, runs migrations, and exposes the Governance API for dictionary apply/export and runtime snapshot artifact smoke tests.

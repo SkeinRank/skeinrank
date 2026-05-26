@@ -24,6 +24,28 @@ poetry install
 poetry run pytest -q
 ```
 
+
+## Pilot integration CLI
+
+Patch 49E adds `skeinrank-governance-pilot`, a dependency-light HTTP CLI for
+first-company Elasticsearch pilots. It reads a JSON config, validates the API and
+Elasticsearch index mapping, imports a seed dictionary, creates or reuses a
+dry-run Elasticsearch binding, and writes a read-only evidence/query-plan report.
+
+```bash
+poetry run skeinrank-governance-pilot plan \
+  --config ../../examples/pilots/elasticsearch_pilot.example.json
+
+poetry run skeinrank-governance-pilot run \
+  --api-url http://127.0.0.1:8010 \
+  --config ../../examples/pilots/elasticsearch_pilot.example.json \
+  --out ../../examples/pilots/reports/pilot-integration-report.json
+```
+
+Use `--token ...` or `--username ... --password ...` when auth is enabled. The
+CLI does not call OpenRouter, submit proposals, approve/apply changes, or write
+to Elasticsearch.
+
 ## Containerized benchmark stack
 
 Patch 48C adds a stack integration harness for the `platform_ops_v1` benchmark. It uses Docker Compose services for PostgreSQL, the Governance API, and Elasticsearch while keeping OpenRouter out of the loop.
