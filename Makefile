@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -26,9 +26,13 @@ BENCHMARK_STACK_ES_URL ?= http://127.0.0.1:19200
 BENCHMARK_STACK_ADMIN_USERNAME ?= admin
 BENCHMARK_STACK_ADMIN_PASSWORD ?= change-me
 BENCHMARK_STACK_REPORT ?= examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-stack-report.json
+OPENROUTER_VALIDATED_PILOT_PROFILE ?= platform_ops_benchmark
+OPENROUTER_VALIDATED_PILOT_REPORT ?= examples/agents/openrouter_alias_scout/reports/live-pilot/openrouter-validated-pilot-report.json
+OPENROUTER_VALIDATED_PILOT_ARGS ?= --profile-name $(OPENROUTER_VALIDATED_PILOT_PROFILE) --max-candidates 2 --max-llm-calls 1 --max-proposals 2
 BENCHMARK_STACK_CONTAINERS ?= skeinrank-postgres-dev skeinrank-rabbitmq-dev skeinrank-elasticsearch-dev skeinrank-governance-migrate-dev skeinrank-governance-api-dev
 BENCHMARK_STACK_VOLUMES ?= skeinrank-benchmark_skeinrank_postgres_data skeinrank-benchmark_skeinrank_rabbitmq_data skeinrank-benchmark_skeinrank_elasticsearch_data
 BENCHMARK_STACK_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.benchmark_stack --database-url "$(BENCHMARK_STACK_DATABASE_URL)" --api-url "$(BENCHMARK_STACK_API_URL)" --elasticsearch-url "$(BENCHMARK_STACK_ES_URL)" --admin-username "$(BENCHMARK_STACK_ADMIN_USERNAME)" --admin-password "$(BENCHMARK_STACK_ADMIN_PASSWORD)"
+BENCHMARK_STACK_AUTH_TOKEN := $(PYTHON) -c 'import json, urllib.request; payload=json.dumps({"username":"$(BENCHMARK_STACK_ADMIN_USERNAME)","password":"$(BENCHMARK_STACK_ADMIN_PASSWORD)"}).encode(); req=urllib.request.Request("$(BENCHMARK_STACK_API_URL)/v1/auth/login", data=payload, headers={"Content-Type":"application/json","Accept":"application/json"}, method="POST"); print(json.load(urllib.request.urlopen(req))["access_token"])'
 
 demo-seed:
 	$(PYTHON) $(DEMO_SEED) $(DEMO_ARGS)
@@ -146,13 +150,28 @@ benchmark-agent-live-plan: agent-openrouter-pilot-plan
 
 benchmark-agent-live-check:
 	@test -n "$$OPENROUTER_API_KEY" || (echo "OPENROUTER_API_KEY is required for live agent pilot." >&2; exit 1)
-	@echo "OPENROUTER_API_KEY is set. Use benchmark-agent-live-validate only when Governance API is running."
+	@echo "OPENROUTER_API_KEY is set. Use benchmark-agent-live-validate or benchmark-agent-live-validated-pilot-report only when Governance API is running."
 
 benchmark-agent-live: benchmark-agent-live-check agent-openrouter-pilot-report
 
 benchmark-agent-live-validate: benchmark-agent-live-check agent-openrouter-pilot-validate
 
 benchmark-agent-live-full: benchmark-agent-live-plan benchmark-agent-live benchmark-agent-live-validate
+
+benchmark-agent-live-validated-pilot-plan: agent-openrouter-validated-pilot-plan
+
+benchmark-agent-live-validated-pilot: benchmark-agent-live-check
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-openrouter-validated-pilot $(OPENROUTER_VALIDATED_PILOT_ARGS)
+
+benchmark-agent-live-validated-pilot-report: benchmark-agent-live-check
+	mkdir -p examples/agents/openrouter_alias_scout/reports/live-pilot
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-openrouter-validated-pilot-report $(OPENROUTER_VALIDATED_PILOT_REPORT) $(OPENROUTER_VALIDATED_PILOT_ARGS)
+
+benchmark-stack-auth-token:
+	@$(BENCHMARK_STACK_AUTH_TOKEN)
+
+benchmark-agent-live-validated-pilot-stack: benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed
+	SKEINRANK_AGENT_API_URL="$(BENCHMARK_STACK_API_URL)" SKEINRANK_AGENT_API_TOKEN="$$( $(MAKE) --no-print-directory benchmark-stack-auth-token )" $(MAKE) --no-print-directory benchmark-agent-live-validated-pilot-report
 
 agent-openrouter-pilot-plan:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-openrouter-live-pilot-plan
@@ -167,6 +186,13 @@ agent-openrouter-pilot-report:
 agent-openrouter-pilot-validate:
 	mkdir -p examples/agents/openrouter_alias_scout/reports/live-pilot
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-openrouter-live-pilot --write-openrouter-live-pilot-report examples/agents/openrouter_alias_scout/reports/live-pilot/openrouter-live-pilot-validated-report.json --pilot-validate-proposals
+
+agent-openrouter-validated-pilot-plan:
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-openrouter-validated-pilot-plan $(OPENROUTER_VALIDATED_PILOT_ARGS)
+
+agent-openrouter-validated-pilot-report:
+	mkdir -p examples/agents/openrouter_alias_scout/reports/live-pilot
+	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --write-openrouter-validated-pilot-report $(OPENROUTER_VALIDATED_PILOT_REPORT) $(OPENROUTER_VALIDATED_PILOT_ARGS)
 
 agent-demo:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report

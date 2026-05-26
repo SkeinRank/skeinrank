@@ -389,3 +389,8 @@ This keeps scheduled agents and CI jobs least-privileged: read-only jobs can lis
 runs and tracking records, validation-only jobs can call `validate-alias`, and
 proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 
+
+
+### Patch 49D — Live OpenRouter validated pilot
+
+Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.
