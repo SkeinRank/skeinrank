@@ -27,3 +27,22 @@ make benchmark-clean
 ```
 
 The benchmark is deterministic and does not call OpenRouter or Elasticsearch. Use `make benchmark-stack-run` for the containerized PostgreSQL + Governance API + Elasticsearch integration layer.
+
+
+## Retrieval eval baseline
+
+Patch 50A adds retrieval fixtures for this 50-document corpus:
+
+```text
+retrieval_queries.jsonl
+qrels.jsonl
+```
+
+Run from the repository root:
+
+```bash
+make benchmark-retrieval-eval
+make benchmark-retrieval-report
+```
+
+The report compares a literal baseline against a SkeinRank-expanded run with `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, and per-query deltas.

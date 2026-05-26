@@ -203,6 +203,20 @@ agent_decision_diagnostics.missing_alias_diagnostics[]
 
 This makes benchmark failures actionable: instead of seeing only that an alias was missed, the report can say whether it was skipped due to unchanged content, blocked by a validator, treated as an existing alias, or never observed.
 
+
+## Retrieval evaluation baseline
+
+Patch 50A adds `retrieval_queries.jsonl` and `qrels.jsonl` for the same 50-document fixture. The retrieval evaluator compares a literal lexical baseline with a SkeinRank-expanded run and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, and per-query deltas.
+
+```bash
+make benchmark-retrieval-plan
+make benchmark-retrieval-eval
+make benchmark-retrieval-report
+make benchmark-retrieval-clean
+```
+
+This is the first quality layer that checks whether canonicalization/alias expansion improves ranking, not only whether proposals and snapshots are correct. See `docs/benchmarks/retrieval-eval-baseline.md`.
+
 ## Why OpenRouter is not used here
 
 48A is the stable CI/local layer. It proves the backend contract and lifecycle

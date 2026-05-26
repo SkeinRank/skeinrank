@@ -94,5 +94,11 @@
     "min_snapshot_created": true,
     "min_evidence_window_coverage": 1.0,
     "min_proposal_attempt_coverage": 1.0
+  },
+  "retrieval_quality_thresholds": {
+    "min_ndcg_at_10_delta": 0.01,
+    "min_mrr_at_10_delta": 0.0,
+    "min_recall_at_10_delta": 0.01,
+    "min_skeinrank_ndcg_at_10": 0.65
   }
 }

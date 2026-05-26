@@ -1,0 +1,30 @@
+{"query_id":"q_rmq_k8s_rollout","doc_id":"runbook-rabbitmq-001","relevance":3,"reason":"Canonical RabbitMQ operator runbook for queue drain windows."}
+{"query_id":"q_rmq_k8s_rollout","doc_id":"inc-002","relevance":3,"reason":"Incident uses rmq queue pressure after worker retries."}
+{"query_id":"q_rmq_k8s_rollout","doc_id":"inc-kube-002","relevance":2,"reason":"Changed kube rollout incident with node drain context."}
+{"query_id":"q_rmq_k8s_rollout","doc_id":"incident-k8s-idempotent","relevance":2,"reason":"K8s incident validates existing Kubernetes alias coverage."}
+{"query_id":"q_rmq_k8s_rollout","doc_id":"runbook-rollout-001","relevance":1,"reason":"General rollout checklist is weakly relevant."}
+{"query_id":"q_otel_pg_timeout","doc_id":"runbook-otel-001","relevance":3,"reason":"Tracing runbook mentions otel traces."}
+{"query_id":"q_otel_pg_timeout","doc_id":"ticket-pg-001","relevance":3,"reason":"Support ticket uses pg timeout shorthand."}
+{"query_id":"q_otel_pg_timeout","doc_id":"ticket-postgres-changed","relevance":2,"reason":"Changed PostgreSQL ticket uses canonical postgres wording."}
+{"query_id":"q_otel_pg_timeout","doc_id":"ticket-observability-001","relevance":1,"reason":"Observability onboarding includes traces links."}
+{"query_id":"q_prom_svc_ns","doc_id":"runbook-prom-001","relevance":3,"reason":"Prometheus runbook uses prom shorthand."}
+{"query_id":"q_prom_svc_ns","doc_id":"runbook-svc-001","relevance":3,"reason":"Service routing runbook uses svc shorthand."}
+{"query_id":"q_prom_svc_ns","doc_id":"ticket-ns-001","relevance":3,"reason":"Support ticket uses ns to mean namespace."}
+{"query_id":"q_prom_svc_ns","doc_id":"incident-metrics-001","relevance":2,"reason":"Prometheus restart caused metrics scrape gap."}
+{"query_id":"q_prom_svc_ns","doc_id":"runbook-grafana-001","relevance":1,"reason":"Dashboard hygiene references namespace and service labels."}
+{"query_id":"q_lk_es_latency","doc_id":"incident-loki-001","relevance":3,"reason":"Loki incident uses lk shorthand."}
+{"query_id":"q_lk_es_latency","doc_id":"incident-es-search-001","relevance":3,"reason":"Elasticsearch incident uses es indexing latency shorthand."}
+{"query_id":"q_lk_es_latency","doc_id":"runbook-index-001","relevance":2,"reason":"Index lifecycle is relevant to indexing issues."}
+{"query_id":"q_lk_es_latency","doc_id":"incident-logs-001","relevance":2,"reason":"Log ingestion lag is relevant to log retrieval."}
+{"query_id":"q_lk_es_latency","doc_id":"ticket-search-001","relevance":1,"reason":"Search timeout is weakly related to Elasticsearch search."}
+{"query_id":"q_redis_failover","doc_id":"ticket-redis-sentinel-001","relevance":3,"reason":"Redis Sentinel failover ticket is directly relevant."}
+{"query_id":"q_redis_failover","doc_id":"ticket-redis-cluster-001","relevance":3,"reason":"Redis Cluster resharding ticket is directly relevant."}
+{"query_id":"q_redis_failover","doc_id":"incident-cache-001","relevance":1,"reason":"Cache incident is weakly related to Redis operations."}
+{"query_id":"q_slo_otel_regression","doc_id":"runbook-slo-001","relevance":3,"reason":"SLO burn runbook is directly relevant."}
+{"query_id":"q_slo_otel_regression","doc_id":"runbook-otel-001","relevance":2,"reason":"Tracing runbook is relevant to otel regression."}
+{"query_id":"q_slo_otel_regression","doc_id":"ticket-observability-001","relevance":2,"reason":"Observability onboarding includes traces and logs."}
+{"query_id":"q_slo_otel_regression","doc_id":"incident-metrics-001","relevance":1,"reason":"Metrics incident is weakly related to SLO burn."}
+{"query_id":"q_kube_node_drain","doc_id":"inc-kube-002","relevance":3,"reason":"Changed kube incident mentions node drain."}
+{"query_id":"q_kube_node_drain","doc_id":"incident-k8s-idempotent","relevance":2,"reason":"K8s incident validates seeded alias coverage."}
+{"query_id":"q_kube_node_drain","doc_id":"inc-001","relevance":1,"reason":"Previously seen k8s rollout note is weakly relevant."}
+{"query_id":"q_kube_node_drain","doc_id":"runbook-rollout-001","relevance":1,"reason":"Rollout checklist is weakly related."}

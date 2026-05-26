@@ -46,6 +46,19 @@ Use `--token ...` or `--username ... --password ...` when auth is enabled. The
 CLI does not call OpenRouter, submit proposals, approve/apply changes, or write
 to Elasticsearch.
 
+
+## Retrieval eval CLI
+
+Patch 50A adds a deterministic retrieval evaluator for the 50-document `platform_ops_v1` fixture. It reads `retrieval_queries.jsonl` and `qrels.jsonl`, compares a literal baseline with a SkeinRank-expanded run, and reports `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas.
+
+```bash
+poetry run skeinrank-governance-retrieval-eval plan
+poetry run skeinrank-governance-retrieval-eval eval \
+  --out ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-report.json
+poetry run skeinrank-governance-retrieval-eval report \
+  --file ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-report.json
+```
+
 ## Containerized benchmark stack
 
 Patch 48C adds a stack integration harness for the `platform_ops_v1` benchmark. It uses Docker Compose services for PostgreSQL, the Governance API, and Elasticsearch while keeping OpenRouter out of the loop.

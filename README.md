@@ -164,6 +164,19 @@ The stack uses `deploy/docker/benchmark.env.example` and a dedicated `skeinrank-
 
 See [`docs/benchmarks/containerized-benchmark-integration.md`](docs/benchmarks/containerized-benchmark-integration.md).
 
+## Retrieval eval baseline
+
+Patch 50A adds the first retrieval quality baseline for `platform_ops_v1`: qrels, retrieval queries, a literal baseline run, a SkeinRank-expanded run, and `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas.
+
+```bash
+make benchmark-retrieval-plan
+make benchmark-retrieval-eval
+make benchmark-retrieval-report
+make benchmark-retrieval-clean
+```
+
+See [`docs/benchmarks/retrieval-eval-baseline.md`](docs/benchmarks/retrieval-eval-baseline.md).
+
 ```bash
 make agent-openrouter-pilot-plan
 OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report

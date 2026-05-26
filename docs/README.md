@@ -7,6 +7,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`benchmarks/headless-agent-workflow.md`](benchmarks/headless-agent-workflow.md) — deterministic 48A/49A/49B/49C benchmark for the headless agent proposal workflow, expanded quality report, proposal quality metrics, and agent decision diagnostics.
 - [`benchmarks/openrouter-live-pilot.md`](benchmarks/openrouter-live-pilot.md) — guarded 48B live OpenRouter pilot with cost limits and no runtime mutation.
 - [`benchmarks/containerized-benchmark-integration.md`](benchmarks/containerized-benchmark-integration.md) — 48C Docker Compose + PostgreSQL + Governance API + Elasticsearch integration benchmark.
+- [`benchmarks/retrieval-eval-baseline.md`](benchmarks/retrieval-eval-baseline.md) — 50A retrieval quality baseline with qrels, NDCG@10, MRR@10, Recall@10, and baseline-vs-SkeinRank deltas.
 - [`pilots/elasticsearch-pilot-integration.md`](pilots/elasticsearch-pilot-integration.md) — 49E first-company pilot path for connecting an existing Elasticsearch index, seeding a dictionary/binding, and producing a read-only integration report.
 
 - [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
