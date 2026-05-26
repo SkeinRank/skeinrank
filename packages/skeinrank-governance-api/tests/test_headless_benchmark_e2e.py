@@ -106,6 +106,32 @@ def test_headless_benchmark_full_agent_workflow(tmp_path) -> None:
         assert all(
             item["status"] == "passed" for item in report["quality"]["quality_gates"]
         )
+        assert (
+            report["proposal_quality"]["schema_version"]
+            == "skeinrank.proposal_quality_metrics.v1"
+        )
+        assert report["proposal_quality"]["totals"]["proposal_attempts"] == 18
+        assert report["proposal_quality"]["totals"]["candidate_observations"] == 18
+        assert report["proposal_quality"]["rates"]["proposal_precision_like"] == 1.0
+        assert report["proposal_quality"]["rates"]["proposal_recall_like"] == 1.0
+        assert report["proposal_quality"]["rates"]["evidence_window_coverage"] == 1.0
+        assert report["proposal_quality"]["rates"]["proposal_attempt_coverage"] == 1.0
+        assert report["proposal_quality"]["coverage"]["missed_expected_proposals"] == 0
+        assert report["proposal_quality"]["coverage"]["blocked_missing"] == []
+        assert (
+            report["proposal_quality"]["breakdowns"]["by_alias_class"]["blocked_noise"]
+            == 4
+        )
+        assert (
+            report["proposal_quality"]["breakdowns"]["by_outcome"]["approved_expected"]
+            == 11
+        )
+        assert report["proposal_quality"]["aliases"]["unexpected_created"] == []
+        assert len(report["proposal_quality"]["alias_outcomes"]) == 18
+        assert all(
+            item["status"] == "passed"
+            for item in report["proposal_quality"]["quality_gates"]
+        )
 
         aliases = {
             alias.normalized_alias: alias.term.normalized_value

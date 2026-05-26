@@ -1,6 +1,6 @@
 # Platform Ops Benchmark v1
 
-Synthetic headless benchmark for the governed agent proposal workflow. Patch 49A expands it into a 50-document quality fixture.
+Synthetic headless benchmark for the governed agent proposal workflow. Patch 49A expands it into a 50-document quality fixture; Patch 49B adds proposal-level quality metrics and per-alias outcome breakdowns.
 
 It intentionally includes:
 
@@ -12,7 +12,8 @@ It intentionally includes:
 - changed document revisit behavior;
 - warning-level proposals such as low-confidence `pg`;
 - golden runtime queries after proposals are applied;
-- quality thresholds and a quality report for regression tracking.
+- quality thresholds and a quality report for regression tracking;
+- `proposal_quality` metrics for submission/approval rates, evidence coverage, alias classes, outcomes, and per-alias debugging rows.
 
 Run through the Makefile from the repository root:
 

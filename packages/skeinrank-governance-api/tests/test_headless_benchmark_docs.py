@@ -33,6 +33,8 @@ def test_benchmark_docs_and_fixtures_are_discoverable() -> None:
     assert "49A" in docs
     assert "make benchmark-eval" in docs
     assert "proposal_precision_like" in docs
+    assert "proposal_quality" in docs
+    assert "evidence_window_coverage" in docs
     assert "OpenRouter" in docs
     assert "examples/benchmarks/platform_ops_v1" in docs
     assert "Headless benchmark" in root_readme

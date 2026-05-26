@@ -719,6 +719,23 @@ def _build_report(
         snapshot_payload=snapshot_payload,
         suggestions_created=len(created_aliases),
     )
+    proposal_quality = _build_proposal_quality_metrics(
+        expected_payload=expected_payload,
+        expected_new_aliases=expected_new,
+        found_expected=found_expected,
+        missing_expected=missing_expected,
+        unexpected_created=unexpected_created,
+        blocked_observed=blocked_observed,
+        expected_warning=expected_warning,
+        warning_observed=warning_observed,
+        missing_warning=missing_warning,
+        observations=observations,
+        reviews=reviews,
+        proposal_attempts=proposal_attempts,
+        suggestions=suggestions,
+        approved_suggestion_ids=approved_suggestion_ids,
+        idempotent_noops=idempotent_noops,
+    )
     checks = [
         _check_item(
             "expected_aliases_found",
@@ -774,6 +791,7 @@ def _build_report(
             {"unexpected_created": unexpected_created},
         ),
         *quality["quality_gates"],
+        *proposal_quality["quality_gates"],
     ]
     report_status = (
         "passed" if all(item["status"] == "passed" for item in checks) else "failed"
@@ -816,6 +834,7 @@ def _build_report(
             "noise_rate": quality["noise_rate"],
         },
         "quality": quality,
+        "proposal_quality": proposal_quality,
         "checks": checks,
         "runtime_checks": runtime_checks,
         "approved_suggestion_ids": approved_suggestion_ids,
@@ -824,6 +843,274 @@ def _build_report(
             "checksum": snapshot_payload.get("checksum"),
             "alias_entries_total": len(runtime_aliases),
         },
+    }
+
+
+def _build_proposal_quality_metrics(
+    *,
+    expected_payload: dict[str, Any],
+    expected_new_aliases: dict[str, str],
+    found_expected: dict[str, str],
+    missing_expected: list[str],
+    unexpected_created: list[str],
+    blocked_observed: set[str],
+    expected_warning: set[str],
+    warning_observed: set[str],
+    missing_warning: list[str],
+    observations: list[Any],
+    reviews: list[Any],
+    proposal_attempts: list[Any],
+    suggestions: list[GovernanceSuggestion],
+    approved_suggestion_ids: list[int],
+    idempotent_noops: int,
+) -> dict[str, Any]:
+    """Build proposal-level quality metrics for benchmark tuning.
+
+    49A answers whether the benchmark passed. 49B adds operator-facing
+    instrumentation that explains *why*: which aliases were useful, which were
+    blocked, which were idempotent no-ops, and how proposal attempts are
+    distributed by slot/action/status.  The structure is deterministic and does
+    not depend on external LLM calls.
+    """
+
+    thresholds = _require_mapping(
+        expected_payload.get("quality_thresholds") or {}, "quality_thresholds"
+    )
+    expected_blocked = {
+        normalize_value(value)
+        for value in _require_list(
+            expected_payload.get("expected_blocked_aliases"),
+            "expected_blocked_aliases",
+        )
+    }
+    expected_idempotent = {
+        normalize_value(value)
+        for value in _require_list(
+            expected_payload.get("expected_idempotent_aliases", []),
+            "expected_idempotent_aliases",
+        )
+    }
+    approved_aliases = {
+        suggestion.normalized_alias
+        for suggestion in suggestions
+        if suggestion.id in set(approved_suggestion_ids)
+        or suggestion.status == "approved"
+    }
+    created_aliases = {suggestion.normalized_alias for suggestion in suggestions}
+    idempotent_observed = {
+        attempt.normalized_alias
+        for attempt in proposal_attempts
+        if attempt.attempt_status == "idempotent_existing_alias"
+    }
+    expected_attempted = {
+        attempt.normalized_alias
+        for attempt in proposal_attempts
+        if attempt.normalized_alias in expected_new_aliases
+    }
+    observed_aliases = {attempt.normalized_alias for attempt in proposal_attempts}
+    evidence_covered = {
+        observation.normalized_alias
+        for observation in observations
+        if int(getattr(observation, "evidence_windows_found", 0) or 0) > 0
+    }
+    review_covered = {
+        review.normalized_alias
+        for review in reviews
+        if getattr(review, "normalized_alias", None)
+    }
+    attempt_status_counts = Counter(
+        str(attempt.attempt_status or "unknown") for attempt in proposal_attempts
+    )
+    validation_status_counts = Counter(
+        str(attempt.validation_status or "unknown") for attempt in proposal_attempts
+    )
+    slot_counts = Counter(
+        str(attempt.slot or "unknown") for attempt in proposal_attempts
+    )
+    expected_action_counts: Counter[str] = Counter()
+    source_type_counts: Counter[str] = Counter()
+    alias_class_counts: Counter[str] = Counter()
+    outcome_counts: Counter[str] = Counter()
+    alias_rows: list[dict[str, Any]] = []
+
+    for attempt in sorted(proposal_attempts, key=lambda item: item.normalized_alias):
+        observation = getattr(attempt, "candidate_observation", None)
+        document_visit = getattr(observation, "document_visit", None)
+        expected_action = _candidate_expected_action(observation)
+        source_type = str(getattr(document_visit, "source_type", None) or "unknown")
+        alias_class = _proposal_alias_class(
+            attempt.normalized_alias,
+            expected_new_aliases=set(expected_new_aliases),
+            expected_blocked=expected_blocked,
+            expected_idempotent=expected_idempotent,
+            expected_warning=expected_warning,
+        )
+        outcome = _proposal_attempt_outcome(
+            attempt,
+            approved_aliases=approved_aliases,
+            expected_new_aliases=set(expected_new_aliases),
+            expected_blocked=expected_blocked,
+            expected_idempotent=expected_idempotent,
+        )
+        expected_action_counts[expected_action] += 1
+        source_type_counts[source_type] += 1
+        alias_class_counts[alias_class] += 1
+        outcome_counts[outcome] += 1
+        alias_rows.append(
+            {
+                "alias": attempt.normalized_alias,
+                "canonical": attempt.normalized_canonical,
+                "slot": attempt.slot,
+                "source_id": _attempt_source_id(attempt, observation),
+                "source_type": source_type,
+                "expected_action": expected_action,
+                "alias_class": alias_class,
+                "attempt_status": attempt.attempt_status,
+                "validation_status": attempt.validation_status,
+                "outcome": outcome,
+                "confidence": attempt.confidence,
+                "submitted": bool(attempt.submitted),
+                "suggestion_id": attempt.governance_suggestion_id,
+                "evidence_windows_found": int(
+                    getattr(observation, "evidence_windows_found", 0) or 0
+                ),
+            }
+        )
+
+    attempts_total = len(proposal_attempts)
+    observations_total = len(observations)
+    reviews_total = len(reviews)
+    submitted_count = sum(1 for attempt in proposal_attempts if attempt.submitted)
+    approved_count = len(approved_aliases)
+    accepted_expected = len(found_expected)
+    missed_expected = len(missing_expected)
+    unexpected_count = len(unexpected_created)
+    blocked_missing = sorted(expected_blocked - blocked_observed)
+    idempotent_missing = sorted(expected_idempotent - idempotent_observed)
+    warning_extra = sorted(warning_observed - expected_warning)
+    expected_new_missing_attempts = sorted(
+        set(expected_new_aliases) - expected_attempted
+    )
+    proposal_precision_like = _ratio(
+        len(created_aliases) - unexpected_count,
+        len(created_aliases),
+    )
+    proposal_recall_like = _ratio(accepted_expected, len(expected_new_aliases))
+    evidence_window_coverage = _ratio(len(evidence_covered), observations_total)
+    llm_review_coverage = _ratio(len(review_covered), observations_total)
+    proposal_attempt_coverage = _ratio(len(observed_aliases), observations_total)
+    blocked_alias_recall = _ratio(
+        len(blocked_observed & expected_blocked), len(expected_blocked)
+    )
+    idempotent_alias_recall = _ratio(
+        len(idempotent_observed & expected_idempotent), len(expected_idempotent)
+    )
+    quality_gates = [
+        _threshold_check(
+            name="proposal_quality_expected_recall",
+            actual=proposal_recall_like,
+            expected=thresholds.get("min_expected_alias_recall", 1.0),
+            op=">=",
+            message="Expected proposal aliases are approved/applied.",
+        ),
+        _threshold_check(
+            name="proposal_quality_precision",
+            actual=proposal_precision_like,
+            expected=thresholds.get("min_proposal_precision_like", 1.0),
+            op=">=",
+            message="Proposal creation remains free of unexpected aliases.",
+        ),
+        _threshold_check(
+            name="proposal_quality_blocked_recall",
+            actual=blocked_alias_recall,
+            expected=thresholds.get("min_blocked_alias_recall", 1.0),
+            op=">=",
+            message="Expected noisy aliases are blocked before submission.",
+        ),
+        _threshold_check(
+            name="proposal_quality_evidence_window_coverage",
+            actual=evidence_window_coverage,
+            expected=thresholds.get("min_evidence_window_coverage", 1.0),
+            op=">=",
+            message="Candidate observations retain evidence windows for review.",
+        ),
+        _threshold_check(
+            name="proposal_quality_attempt_coverage",
+            actual=proposal_attempt_coverage,
+            expected=thresholds.get("min_proposal_attempt_coverage", 1.0),
+            op=">=",
+            message="Reviewed candidate observations have proposal attempts.",
+        ),
+    ]
+    return {
+        "schema_version": "skeinrank.proposal_quality_metrics.v1",
+        "totals": {
+            "candidate_observations": observations_total,
+            "llm_reviews": reviews_total,
+            "proposal_attempts": attempts_total,
+            "submitted_proposals": submitted_count,
+            "created_suggestions": len(created_aliases),
+            "approved_suggestions": approved_count,
+            "idempotent_noops": idempotent_noops,
+        },
+        "rates": {
+            "proposal_precision_like": proposal_precision_like,
+            "proposal_recall_like": proposal_recall_like,
+            "useful_proposal_rate": _ratio(accepted_expected, attempts_total),
+            "submission_rate": _ratio(submitted_count, attempts_total),
+            "approval_rate": _ratio(approved_count, max(1, submitted_count)),
+            "blocked_rate": _ratio(
+                attempt_status_counts.get("validation_blocked", 0), attempts_total
+            ),
+            "warning_rate": _ratio(
+                validation_status_counts.get("warning", 0), attempts_total
+            ),
+            "idempotent_noop_rate": _ratio(idempotent_noops, attempts_total),
+            "evidence_window_coverage": evidence_window_coverage,
+            "llm_review_coverage": llm_review_coverage,
+            "proposal_attempt_coverage": proposal_attempt_coverage,
+            "blocked_alias_recall": blocked_alias_recall,
+            "idempotent_alias_recall": idempotent_alias_recall,
+        },
+        "coverage": {
+            "expected_new_aliases": len(expected_new_aliases),
+            "expected_new_attempted": len(expected_attempted),
+            "expected_new_missing_attempts": expected_new_missing_attempts,
+            "accepted_expected_proposals": accepted_expected,
+            "missed_expected_proposals": missed_expected,
+            "blocked_expected_aliases": len(expected_blocked),
+            "blocked_expected_observed": len(blocked_observed & expected_blocked),
+            "blocked_missing": blocked_missing,
+            "warning_expected_aliases": len(expected_warning),
+            "warning_observed": len(warning_observed),
+            "warning_missing": missing_warning,
+            "warning_extra": warning_extra,
+            "idempotent_expected_aliases": len(expected_idempotent),
+            "idempotent_observed": len(idempotent_observed),
+            "idempotent_missing": idempotent_missing,
+        },
+        "breakdowns": {
+            "by_attempt_status": dict(sorted(attempt_status_counts.items())),
+            "by_validation_status": dict(sorted(validation_status_counts.items())),
+            "by_slot": dict(sorted(slot_counts.items())),
+            "by_expected_action": dict(sorted(expected_action_counts.items())),
+            "by_source_type": dict(sorted(source_type_counts.items())),
+            "by_alias_class": dict(sorted(alias_class_counts.items())),
+            "by_outcome": dict(sorted(outcome_counts.items())),
+        },
+        "aliases": {
+            "accepted_expected": sorted(found_expected),
+            "missed_expected": missing_expected,
+            "unexpected_created": unexpected_created,
+            "blocked_observed": sorted(blocked_observed),
+            "blocked_missing": blocked_missing,
+            "warning_observed": sorted(warning_observed),
+            "warning_missing": missing_warning,
+            "idempotent_observed": sorted(idempotent_observed),
+            "idempotent_missing": idempotent_missing,
+        },
+        "alias_outcomes": alias_rows,
+        "quality_gates": quality_gates,
     }
 
 
@@ -972,6 +1259,77 @@ def _threshold_check(
         message,
         {"actual": actual, "expected": expected, "operator": op},
     )
+
+
+def _candidate_expected_action(observation: Any | None) -> str:
+    if observation is None:
+        return "unknown"
+    pack = getattr(observation, "candidate_pack_json", None) or {}
+    if isinstance(pack, dict) and pack.get("expected_action"):
+        return str(pack["expected_action"])
+    return "unknown"
+
+
+def _attempt_source_id(attempt: Any, observation: Any | None) -> str | None:
+    payload = getattr(attempt, "source_payload_json", None) or {}
+    if isinstance(payload, dict) and payload.get("source_id"):
+        return str(payload["source_id"])
+    metadata = getattr(observation, "metadata_json", None) or {}
+    if isinstance(metadata, dict) and metadata.get("source_id"):
+        return str(metadata["source_id"])
+    document_visit = getattr(observation, "document_visit", None)
+    if document_visit is not None and getattr(document_visit, "source_id", None):
+        return str(document_visit.source_id)
+    return None
+
+
+def _proposal_alias_class(
+    alias: str,
+    *,
+    expected_new_aliases: set[str],
+    expected_blocked: set[str],
+    expected_idempotent: set[str],
+    expected_warning: set[str],
+) -> str:
+    if alias in expected_blocked:
+        return "blocked_noise"
+    if alias in expected_new_aliases:
+        return "expected_new_warning" if alias in expected_warning else "expected_new"
+    if alias in expected_idempotent:
+        return (
+            "idempotent_existing_warning"
+            if alias in expected_warning
+            else "idempotent_existing"
+        )
+    if alias in expected_warning:
+        return "warning_only"
+    return "unexpected"
+
+
+def _proposal_attempt_outcome(
+    attempt: Any,
+    *,
+    approved_aliases: set[str],
+    expected_new_aliases: set[str],
+    expected_blocked: set[str],
+    expected_idempotent: set[str],
+) -> str:
+    alias = str(getattr(attempt, "normalized_alias", ""))
+    if getattr(attempt, "attempt_status", None) == "validation_blocked":
+        return "blocked_expected" if alias in expected_blocked else "blocked_unexpected"
+    if getattr(attempt, "attempt_status", None) == "idempotent_existing_alias":
+        return (
+            "idempotent_expected"
+            if alias in expected_idempotent
+            else "idempotent_unexpected"
+        )
+    if alias in approved_aliases and alias in expected_new_aliases:
+        return "approved_expected"
+    if alias in approved_aliases:
+        return "approved_unexpected"
+    if getattr(attempt, "submitted", False):
+        return "submitted_pending"
+    return "not_submitted"
 
 
 def _evaluate_runtime_queries(
@@ -1421,6 +1779,10 @@ def main(argv: Iterable[str] | None = None) -> int:
                     "report": str(out),
                     "scores": report["scores"],
                     "counts": report["counts"],
+                    "proposal_quality": {
+                        "rates": report["proposal_quality"]["rates"],
+                        "coverage": report["proposal_quality"]["coverage"],
+                    },
                 }
             )
             return 0 if report["status"] == "passed" else 1

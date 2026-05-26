@@ -109,7 +109,7 @@ noise_rate = 0.0
 
 ## Quality report
 
-Patch 49A expands the benchmark from a small happy-path fixture into a 50-document quality benchmark. The report includes:
+Patch 49A expands the benchmark from a small happy-path fixture into a 50-document quality benchmark. Patch 49B adds proposal-level quality metrics so prompt, validator, and candidate-filter changes can be compared by alias class, source type, expected action, and outcome. The report includes:
 
 ```text
 proposal_precision_like
@@ -131,9 +131,42 @@ query_plan_matches_expected
 alias_coverage
 noise_rate
 quality_gates[]
+proposal_quality.rates.evidence_window_coverage
+proposal_quality.rates.submission_rate
+proposal_quality.rates.approval_rate
+proposal_quality.breakdowns.by_alias_class
+proposal_quality.breakdowns.by_outcome
+proposal_quality.alias_outcomes[]
 ```
 
 These signals are intended to make prompt/rule/validator changes measurable: a patch should not increase unexpected aliases, reduce skipped unchanged documents, or reduce runtime canonicalization accuracy.
+
+## Proposal quality metrics
+
+Patch 49B adds a top-level `proposal_quality` section with schema `skeinrank.proposal_quality_metrics.v1`. It is designed for tuning agent behavior, not just checking whether the benchmark passed. The section includes:
+
+- `totals` — candidate observations, LLM reviews, proposal attempts, submitted proposals, approved suggestions, and idempotent no-ops;
+- `rates` — precision-like, recall-like, submission, approval, blocked, warning, idempotent, evidence-window, LLM-review, and proposal-attempt coverage;
+- `coverage` — expected, missed, blocked, warning, and idempotent alias coverage;
+- `breakdowns` — attempts by status, validation status, slot, expected action, source type, alias class, and outcome;
+- `aliases` — accepted, missed, unexpected, blocked, warning, and idempotent alias lists;
+- `alias_outcomes[]` — per-alias rows with source id, slot, validation status, outcome, confidence, submission state, and evidence window count;
+- `quality_gates[]` — proposal-quality gates that are also included in the report-level `checks[]` list.
+
+Useful 49B metrics for regression tracking:
+
+```text
+proposal_quality.rates.proposal_precision_like
+proposal_quality.rates.proposal_recall_like
+proposal_quality.rates.evidence_window_coverage
+proposal_quality.rates.proposal_attempt_coverage
+proposal_quality.coverage.blocked_missing
+proposal_quality.coverage.idempotent_missing
+proposal_quality.breakdowns.by_outcome
+proposal_quality.alias_outcomes[]
+```
+
+These metrics answer questions like: did a prompt change create more unexpected aliases, did validators block the intended noisy candidates, did idempotent aliases stay no-op, and did every candidate retain evidence for reviewer inspection?
 
 ## Why OpenRouter is not used here
 

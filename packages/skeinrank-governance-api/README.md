@@ -1459,3 +1459,7 @@ make benchmark-stack-up
 The prune step removes containers only; named volumes are not deleted. Use `docker compose -f docker-compose.dev.yml down -v` only when you intentionally want to remove persisted dev volumes.
 
 The stack benchmark connects to PostgreSQL from the local Poetry environment, so run `cd packages/skeinrank-governance-api && poetry install` after applying dependency changes.
+
+### Proposal quality metrics
+
+Patch 49B adds `proposal_quality` to benchmark reports. It exposes rates, coverage, breakdowns, per-alias outcomes, and proposal-quality gates for tuning agent prompts, validators, and candidate filters without relying only on pass/fail status.
