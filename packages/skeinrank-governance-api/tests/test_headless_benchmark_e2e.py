@@ -132,6 +132,38 @@ def test_headless_benchmark_full_agent_workflow(tmp_path) -> None:
             item["status"] == "passed"
             for item in report["proposal_quality"]["quality_gates"]
         )
+        diagnostics = report["agent_decision_diagnostics"]
+        assert (
+            diagnostics["schema_version"] == "skeinrank.agent_decision_diagnostics.v1"
+        )
+        assert diagnostics["summary"]["documents_total"] == 50
+        assert diagnostics["summary"]["candidate_decisions"] == 18
+        assert diagnostics["summary"]["skipped_candidate_decisions"] == 2
+        assert diagnostics["summary"]["decision_reason_coverage"] == 1.0
+        assert diagnostics["summary"]["skipped_reason_coverage"] == 1.0
+        assert all(item["status"] == "passed" for item in diagnostics["quality_gates"])
+        rmq_decision = next(
+            item
+            for item in diagnostics["candidate_decisions"]
+            if item["alias"] == "rmq"
+        )
+        assert rmq_decision["decision"] == "proposal_created"
+        assert rmq_decision["decision_reason"]
+        app_decision = next(
+            item
+            for item in diagnostics["candidate_decisions"]
+            if item["alias"] == "app"
+        )
+        assert app_decision["decision"] == "blocked_by_validator"
+        assert "validator blocked" in app_decision["decision_reason"]
+        elastic_diagnostic = next(
+            item
+            for item in diagnostics["missing_alias_diagnostics"]
+            if item["alias"] == "elastic"
+        )
+        assert elastic_diagnostic["category"] == "idempotent_missing"
+        assert elastic_diagnostic["explanation_status"] == "explained"
+        assert elastic_diagnostic["source_id"] == "runbook-elastic-unchanged"
 
         aliases = {
             alias.normalized_alias: alias.term.normalized_value

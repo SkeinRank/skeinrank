@@ -14,6 +14,7 @@ It intentionally includes:
 - golden runtime queries after proposals are applied;
 - quality thresholds and a quality report for regression tracking;
 - `proposal_quality` metrics for submission/approval rates, evidence coverage, alias classes, outcomes, and per-alias debugging rows.
+- `agent_decision_diagnostics` rows explaining document scan/skip choices, candidate outcomes, validator reasons, and missing-alias explanations.
 
 Run through the Makefile from the repository root:
 

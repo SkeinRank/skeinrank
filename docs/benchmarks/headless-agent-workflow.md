@@ -109,7 +109,7 @@ noise_rate = 0.0
 
 ## Quality report
 
-Patch 49A expands the benchmark from a small happy-path fixture into a 50-document quality benchmark. Patch 49B adds proposal-level quality metrics so prompt, validator, and candidate-filter changes can be compared by alias class, source type, expected action, and outcome. The report includes:
+Patch 49A expands the benchmark from a small happy-path fixture into a 50-document quality benchmark. Patch 49B adds proposal-level quality metrics so prompt, validator, and candidate-filter changes can be compared by alias class, source type, expected action, and outcome. Patch 49C adds agent decision diagnostics that explain why each document/candidate was scanned, skipped, blocked, submitted, or treated as idempotent. The report includes:
 
 ```text
 proposal_precision_like
@@ -137,6 +137,10 @@ proposal_quality.rates.approval_rate
 proposal_quality.breakdowns.by_alias_class
 proposal_quality.breakdowns.by_outcome
 proposal_quality.alias_outcomes[]
+agent_decision_diagnostics.document_decisions[]
+agent_decision_diagnostics.candidate_decisions[]
+agent_decision_diagnostics.skipped_candidate_decisions[]
+agent_decision_diagnostics.missing_alias_diagnostics[]
 ```
 
 These signals are intended to make prompt/rule/validator changes measurable: a patch should not increase unexpected aliases, reduce skipped unchanged documents, or reduce runtime canonicalization accuracy.
@@ -164,9 +168,40 @@ proposal_quality.coverage.blocked_missing
 proposal_quality.coverage.idempotent_missing
 proposal_quality.breakdowns.by_outcome
 proposal_quality.alias_outcomes[]
+agent_decision_diagnostics.document_decisions[]
+agent_decision_diagnostics.candidate_decisions[]
+agent_decision_diagnostics.skipped_candidate_decisions[]
+agent_decision_diagnostics.missing_alias_diagnostics[]
 ```
 
 These metrics answer questions like: did a prompt change create more unexpected aliases, did validators block the intended noisy candidates, did idempotent aliases stay no-op, and did every candidate retain evidence for reviewer inspection?
+
+
+## Agent decision diagnostics
+
+Patch 49C adds a top-level `agent_decision_diagnostics` section with schema `skeinrank.agent_decision_diagnostics.v1`. It is designed for the next tuning loop: when proposal quality changes, operators can inspect *why* the deterministic agent made each decision.
+
+The section includes:
+
+- `summary` — document/candidate decision counts and decision-reason coverage;
+- `document_decisions[]` — per-source scan/skip/revisit decision, expected state, visit status, declared candidates, observed candidates, and proposal attempts;
+- `candidate_decisions[]` — per-alias decision rows with source id, expected action, model action, validator reason, compact validation checks, confidence, submission state, and evidence summary;
+- `skipped_candidate_decisions[]` — candidates skipped before review because their source document was unchanged;
+- `missing_alias_diagnostics[]` — explanations for expected/idempotent aliases missing from proposal-quality coverage, for example `elastic` being intentionally absent because `runbook-elastic-unchanged` was skipped as unchanged;
+- `quality_gates[]` — diagnostic gates for decision-reason coverage and explained missing aliases.
+
+Useful 49C fields:
+
+```text
+agent_decision_diagnostics.summary.decision_reason_coverage
+agent_decision_diagnostics.summary.skipped_reason_coverage
+agent_decision_diagnostics.document_decisions[]
+agent_decision_diagnostics.candidate_decisions[].decision_reason
+agent_decision_diagnostics.candidate_decisions[].validator_reason
+agent_decision_diagnostics.missing_alias_diagnostics[]
+```
+
+This makes benchmark failures actionable: instead of seeing only that an alias was missed, the report can say whether it was skipped due to unchanged content, blocked by a validator, treated as an existing alias, or never observed.
 
 ## Why OpenRouter is not used here
 

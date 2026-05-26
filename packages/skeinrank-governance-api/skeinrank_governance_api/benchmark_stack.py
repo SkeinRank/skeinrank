@@ -253,6 +253,7 @@ def run_stack_evaluation(
             "counts": base_report.get("counts"),
             "quality": base_report.get("quality"),
             "proposal_quality": base_report.get("proposal_quality"),
+            "agent_decision_diagnostics": base_report.get("agent_decision_diagnostics"),
             "snapshot": base_report.get("snapshot"),
         },
         "checks": checks,

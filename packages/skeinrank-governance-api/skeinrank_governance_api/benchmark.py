@@ -736,6 +736,15 @@ def _build_report(
         approved_suggestion_ids=approved_suggestion_ids,
         idempotent_noops=idempotent_noops,
     )
+    agent_decision_diagnostics = _build_agent_decision_diagnostics(
+        expected_payload=expected_payload,
+        corpus=corpus,
+        source_visit_statuses=source_visit_statuses,
+        observations=observations,
+        reviews=reviews,
+        proposal_attempts=proposal_attempts,
+        proposal_quality=proposal_quality,
+    )
     checks = [
         _check_item(
             "expected_aliases_found",
@@ -792,6 +801,7 @@ def _build_report(
         ),
         *quality["quality_gates"],
         *proposal_quality["quality_gates"],
+        *agent_decision_diagnostics["quality_gates"],
     ]
     report_status = (
         "passed" if all(item["status"] == "passed" for item in checks) else "failed"
@@ -835,6 +845,7 @@ def _build_report(
         },
         "quality": quality,
         "proposal_quality": proposal_quality,
+        "agent_decision_diagnostics": agent_decision_diagnostics,
         "checks": checks,
         "runtime_checks": runtime_checks,
         "approved_suggestion_ids": approved_suggestion_ids,
@@ -1112,6 +1123,395 @@ def _build_proposal_quality_metrics(
         "alias_outcomes": alias_rows,
         "quality_gates": quality_gates,
     }
+
+
+def _build_agent_decision_diagnostics(
+    *,
+    expected_payload: dict[str, Any],
+    corpus: list[dict[str, Any]],
+    source_visit_statuses: dict[str, str],
+    observations: list[Any],
+    reviews: list[Any],
+    proposal_attempts: list[Any],
+    proposal_quality: dict[str, Any],
+) -> dict[str, Any]:
+    """Explain why the deterministic benchmark agent made each decision.
+
+    49B exposes proposal quality numbers. 49C adds the diagnostic layer operators
+    need when those numbers drift: document skip/revisit reasons, proposal
+    decision reasons, validator messages, and explanations for expected aliases
+    that are intentionally absent because their source document was skipped.
+    """
+
+    expected_skipped = set(expected_payload.get("expected_skipped_sources") or [])
+    expected_changed = set(
+        expected_payload.get("expected_content_changed_sources") or []
+    )
+    observations_by_source: dict[str, list[Any]] = {}
+    for observation in observations:
+        source_id = _observation_source_id(observation)
+        if source_id:
+            observations_by_source.setdefault(source_id, []).append(observation)
+
+    attempts_by_source: dict[str, list[Any]] = {}
+    for attempt in proposal_attempts:
+        observation = getattr(attempt, "candidate_observation", None)
+        source_id = _attempt_source_id(attempt, observation)
+        if source_id:
+            attempts_by_source.setdefault(source_id, []).append(attempt)
+
+    document_decisions: list[dict[str, Any]] = []
+    skipped_candidate_decisions: list[dict[str, Any]] = []
+    candidate_lookup: dict[str, dict[str, Any]] = {}
+    for document in corpus:
+        source_id = str(document.get("source_id") or "")
+        candidates = [
+            _require_mapping(candidate, "candidates[]")
+            for candidate in _require_list(document.get("candidates", []), "candidates")
+        ]
+        for candidate in candidates:
+            alias = normalize_value(str(candidate.get("alias") or ""))
+            if alias:
+                candidate_lookup[alias] = {"document": document, "candidate": candidate}
+        visit_status = source_visit_statuses.get(source_id, "not_visited")
+        expected_state = _expected_document_state(
+            source_id,
+            expected_skipped=expected_skipped,
+            expected_changed=expected_changed,
+        )
+        should_scan = visit_status != "unchanged_seen"
+        decision = _document_decision(visit_status)
+        decision_reason = _document_decision_reason(
+            visit_status, expected_state=expected_state
+        )
+        document_decisions.append(
+            {
+                "source_id": source_id,
+                "source_type": str(document.get("source_type") or "document"),
+                "title": str(document.get("title") or ""),
+                "expected_state": expected_state,
+                "visit_status": visit_status,
+                "decision": decision,
+                "decision_reason": decision_reason,
+                "should_scan": should_scan,
+                "declared_candidate_aliases": [
+                    normalize_value(str(candidate.get("alias") or ""))
+                    for candidate in candidates
+                    if candidate.get("alias")
+                ],
+                "observed_candidate_aliases": sorted(
+                    observation.normalized_alias
+                    for observation in observations_by_source.get(source_id, [])
+                ),
+                "proposal_attempt_aliases": sorted(
+                    attempt.normalized_alias
+                    for attempt in attempts_by_source.get(source_id, [])
+                ),
+            }
+        )
+        if not should_scan:
+            for candidate in candidates:
+                skipped_candidate_decisions.append(
+                    {
+                        "alias": normalize_value(str(candidate.get("alias") or "")),
+                        "canonical": normalize_value(
+                            str(candidate.get("canonical") or "")
+                        ),
+                        "slot": str(candidate.get("slot") or ""),
+                        "source_id": source_id,
+                        "source_type": str(document.get("source_type") or "document"),
+                        "expected_action": str(
+                            candidate.get("expected_action") or "skip_unchanged"
+                        ),
+                        "decision": "skipped_before_candidate_review",
+                        "decision_reason": "source document was unchanged and was skipped before candidate review",
+                        "evidence_present": bool(candidate.get("evidence")),
+                    }
+                )
+
+    review_by_observation_id = {
+        review.candidate_observation_id: review
+        for review in reviews
+        if getattr(review, "candidate_observation_id", None) is not None
+    }
+    candidate_decisions = [
+        _candidate_decision_row(
+            attempt,
+            review=review_by_observation_id.get(attempt.candidate_observation_id),
+        )
+        for attempt in sorted(proposal_attempts, key=lambda item: item.normalized_alias)
+    ]
+    missing_alias_diagnostics = _missing_alias_diagnostics(
+        proposal_quality=proposal_quality, candidate_lookup=candidate_lookup
+    )
+    decision_reason_coverage = _ratio(
+        sum(1 for item in candidate_decisions if item.get("decision_reason")),
+        len(candidate_decisions),
+    )
+    skipped_reason_coverage = _ratio(
+        sum(1 for item in skipped_candidate_decisions if item.get("decision_reason")),
+        len(skipped_candidate_decisions),
+    )
+    unexplained_missing = [
+        item["alias"]
+        for item in missing_alias_diagnostics
+        if item.get("explanation_status") != "explained"
+    ]
+    quality_gates = [
+        _threshold_check(
+            name="agent_decision_reason_coverage",
+            actual=decision_reason_coverage,
+            expected=1.0,
+            op=">=",
+            message="Every proposal attempt has an operator-facing decision reason.",
+        ),
+        _threshold_check(
+            name="agent_decision_skipped_reason_coverage",
+            actual=skipped_reason_coverage,
+            expected=1.0,
+            op=">=",
+            message="Skipped unchanged candidates are explained before review.",
+        ),
+        _check_item(
+            "agent_decision_missing_aliases_explained",
+            not unexplained_missing,
+            "Missing expected/idempotent aliases are explained by document or candidate decisions.",
+            {"unexplained_missing": unexplained_missing},
+        ),
+    ]
+    return {
+        "schema_version": "skeinrank.agent_decision_diagnostics.v1",
+        "summary": {
+            "documents_total": len(corpus),
+            "document_decisions": len(document_decisions),
+            "candidate_decisions": len(candidate_decisions),
+            "skipped_candidate_decisions": len(skipped_candidate_decisions),
+            "missing_alias_diagnostics": len(missing_alias_diagnostics),
+            "decision_reason_coverage": decision_reason_coverage,
+            "skipped_reason_coverage": skipped_reason_coverage,
+            "unexplained_missing_aliases": unexplained_missing,
+        },
+        "document_decisions": document_decisions,
+        "candidate_decisions": candidate_decisions,
+        "skipped_candidate_decisions": skipped_candidate_decisions,
+        "missing_alias_diagnostics": missing_alias_diagnostics,
+        "quality_gates": quality_gates,
+    }
+
+
+def _candidate_decision_row(attempt: Any, *, review: Any | None) -> dict[str, Any]:
+    observation = getattr(attempt, "candidate_observation", None)
+    document_visit = getattr(observation, "document_visit", None)
+    validation_response = getattr(attempt, "validation_response_json", None) or {}
+    expected_action = _candidate_expected_action(observation)
+    decision = _attempt_decision(attempt)
+    decision_reason = _attempt_decision_reason(
+        attempt,
+        validation_response=validation_response,
+        expected_action=expected_action,
+    )
+    return {
+        "alias": attempt.normalized_alias,
+        "canonical": attempt.normalized_canonical,
+        "slot": attempt.slot,
+        "source_id": _attempt_source_id(attempt, observation),
+        "source_type": str(getattr(document_visit, "source_type", None) or "unknown"),
+        "expected_action": expected_action,
+        "decision": decision,
+        "decision_reason": decision_reason,
+        "attempt_status": attempt.attempt_status,
+        "validation_status": attempt.validation_status,
+        "submitted": bool(attempt.submitted),
+        "confidence": attempt.confidence,
+        "model_action": getattr(review, "action", None),
+        "review_status": getattr(review, "review_status", None),
+        "review_reason": _review_reason(review),
+        "validator_reason": _validator_reason(validation_response),
+        "validation_checks": _compact_validation_checks(validation_response),
+        "evidence_summary": {
+            "windows_found": int(
+                getattr(observation, "evidence_windows_found", 0) or 0
+            ),
+            "has_evidence": int(getattr(observation, "evidence_windows_found", 0) or 0)
+            > 0,
+        },
+    }
+
+
+def _attempt_decision(attempt: Any) -> str:
+    status = str(getattr(attempt, "attempt_status", "") or "")
+    if status == "validation_blocked":
+        return "blocked_by_validator"
+    if status == "idempotent_existing_alias":
+        return "idempotent_noop"
+    if bool(getattr(attempt, "submitted", False)):
+        return "proposal_created"
+    return "not_submitted"
+
+
+def _attempt_decision_reason(
+    attempt: Any, *, validation_response: dict[str, Any], expected_action: str
+) -> str:
+    status = str(getattr(attempt, "attempt_status", "") or "")
+    validator_reason = _validator_reason(validation_response)
+    if status == "validation_blocked":
+        return f"validator blocked candidate: {validator_reason}"
+    if status == "idempotent_existing_alias":
+        return "alias already exists for the requested canonical; no new proposal was submitted"
+    if str(getattr(attempt, "validation_status", "") or "") == "warning":
+        return f"proposal created with validator warning: {validator_reason}"
+    if bool(getattr(attempt, "submitted", False)):
+        return "proposal created after validation passed and evidence was attached"
+    return f"candidate was not submitted; expected_action={expected_action}"
+
+
+def _validator_reason(validation_response: dict[str, Any]) -> str:
+    checks = (
+        validation_response.get("checks")
+        if isinstance(validation_response, dict)
+        else None
+    )
+    if not isinstance(checks, dict):
+        return "validation summary unavailable"
+    for preferred_status in ("blocked", "warning"):
+        for name, payload in checks.items():
+            if isinstance(payload, dict) and payload.get("status") == preferred_status:
+                return f"{name}: {payload.get('message') or preferred_status}"
+    for name, payload in checks.items():
+        if isinstance(payload, dict) and payload.get("status") == "passed":
+            return f"{name}: {payload.get('message') or 'passed'}"
+    return "validation checks did not include actionable details"
+
+
+def _compact_validation_checks(
+    validation_response: dict[str, Any],
+) -> list[dict[str, Any]]:
+    checks = (
+        validation_response.get("checks")
+        if isinstance(validation_response, dict)
+        else None
+    )
+    if not isinstance(checks, dict):
+        return []
+    rows = []
+    for name, payload in sorted(checks.items()):
+        if not isinstance(payload, dict):
+            continue
+        rows.append(
+            {
+                "name": str(name),
+                "status": payload.get("status"),
+                "severity": payload.get("severity"),
+                "message": payload.get("message"),
+            }
+        )
+    return rows
+
+
+def _review_reason(review: Any | None) -> str | None:
+    if review is None:
+        return None
+    judgment = getattr(review, "judgment_json", None) or {}
+    if isinstance(judgment, dict) and judgment.get("expected_action"):
+        return f"fixture expected_action={judgment['expected_action']}"
+    if getattr(review, "error_message", None):
+        return str(review.error_message)
+    return "deterministic fixture review"
+
+
+def _missing_alias_diagnostics(
+    *, proposal_quality: dict[str, Any], candidate_lookup: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    aliases = _require_mapping(
+        proposal_quality.get("aliases") or {}, "proposal_quality.aliases"
+    )
+    rows: list[dict[str, Any]] = []
+    for category in (
+        "missed_expected",
+        "blocked_missing",
+        "warning_missing",
+        "idempotent_missing",
+    ):
+        for alias in _require_list(
+            aliases.get(category, []), f"proposal_quality.aliases.{category}"
+        ):
+            normalized_alias = normalize_value(str(alias))
+            lookup = candidate_lookup.get(normalized_alias)
+            if lookup is None:
+                rows.append(
+                    {
+                        "alias": normalized_alias,
+                        "category": category,
+                        "source_id": None,
+                        "decision_reason": "no benchmark candidate fixture references this alias",
+                        "explanation_status": "unexplained",
+                    }
+                )
+                continue
+            document = lookup["document"]
+            candidate = lookup["candidate"]
+            if (
+                document.get("previously_seen")
+                and str(candidate.get("expected_action")) == "skip_unchanged"
+            ):
+                explanation = "candidate was declared in an unchanged document and intentionally skipped before review"
+                status = "explained"
+            else:
+                explanation = "candidate fixture exists but did not reach the expected proposal outcome"
+                status = "needs_review"
+            rows.append(
+                {
+                    "alias": normalized_alias,
+                    "category": category,
+                    "canonical": normalize_value(str(candidate.get("canonical") or "")),
+                    "source_id": str(document.get("source_id") or ""),
+                    "source_type": str(document.get("source_type") or "document"),
+                    "expected_action": str(candidate.get("expected_action") or ""),
+                    "decision_reason": explanation,
+                    "explanation_status": status,
+                }
+            )
+    return rows
+
+
+def _expected_document_state(
+    source_id: str, *, expected_skipped: set[str], expected_changed: set[str]
+) -> str:
+    if source_id in expected_skipped:
+        return "expected_unchanged_skip"
+    if source_id in expected_changed:
+        return "expected_content_changed_revisit"
+    return "expected_new_scan"
+
+
+def _document_decision(visit_status: str) -> str:
+    if visit_status == "unchanged_seen":
+        return "skip_document"
+    if visit_status == "content_changed":
+        return "revisit_document"
+    if visit_status == "new_document":
+        return "scan_document"
+    return "unknown_document_decision"
+
+
+def _document_decision_reason(visit_status: str, *, expected_state: str) -> str:
+    if visit_status == "unchanged_seen":
+        return "content hash and processing context matched a previous visit; skip to avoid token spend"
+    if visit_status == "content_changed":
+        return "source was seen before but content hash changed; revisit candidates"
+    if visit_status == "new_document":
+        return "source was not seen in the prior run; scan candidates"
+    return f"visit_status={visit_status}; expected_state={expected_state}"
+
+
+def _observation_source_id(observation: Any) -> str | None:
+    metadata = getattr(observation, "metadata_json", None) or {}
+    if isinstance(metadata, dict) and metadata.get("source_id"):
+        return str(metadata["source_id"])
+    document_visit = getattr(observation, "document_visit", None)
+    if document_visit is not None and getattr(document_visit, "source_id", None):
+        return str(document_visit.source_id)
+    return None
 
 
 def _build_quality_report(

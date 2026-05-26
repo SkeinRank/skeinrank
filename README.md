@@ -123,6 +123,8 @@ The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the databas
 
 ## Headless benchmark and agent workflow E2E
 
+Patch 49C adds `agent_decision_diagnostics` to benchmark reports so proposal quality regressions can be traced back to document skip/revisit decisions, validator reasons, idempotent aliases, and missing-alias explanations.
+
 Patch 48A adds a deterministic benchmark for the headless agent-governance workflow. Patch 49A expands the `platform_ops_v1` fixture into a 50-document quality benchmark with proposal precision-like, recall-like, blocked-alias, warning, idempotency, skipped-document, snapshot, and runtime canonicalization signals. Patch 49B adds proposal-level quality metrics with per-alias outcomes, source/action/status breakdowns, evidence coverage, approval/submission rates, and quality gates. It runs without calling OpenRouter or Elasticsearch.
 
 ```bash

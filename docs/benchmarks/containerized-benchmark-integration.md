@@ -58,7 +58,7 @@ The UI and worker are not required for this benchmark.
 
 The stack report schema is `skeinrank.benchmark_stack_report.v1`. It includes:
 
-- the base deterministic 48A/49A benchmark scores, quality report, and 49B proposal quality metrics;
+- the base deterministic 48A/49A benchmark scores, quality report, 49B proposal quality metrics, and 49C agent decision diagnostics;
 - `/healthz` API check;
 - `/schema/health` Alembic/schema check;
 - `/metrics` availability check;
@@ -77,7 +77,7 @@ unchanged_skip_rate = 1.0
 noise_rate = 0.0
 ```
 
-and all stack checks should have `status = passed`. The nested `base_benchmark.proposal_quality` section mirrors the offline benchmark so the containerized run exposes the same proposal quality metrics and breakdowns.
+and all stack checks should have `status = passed`. The nested `base_benchmark.proposal_quality` and `base_benchmark.agent_decision_diagnostics` sections mirror the offline benchmark so the containerized run exposes the same proposal quality metrics, per-alias decisions, skipped-document reasons, and missing-alias explanations.
 
 ## Defaults
 

@@ -1463,3 +1463,5 @@ The stack benchmark connects to PostgreSQL from the local Poetry environment, so
 ### Proposal quality metrics
 
 Patch 49B adds `proposal_quality` to benchmark reports. It exposes rates, coverage, breakdowns, per-alias outcomes, and proposal-quality gates for tuning agent prompts, validators, and candidate filters without relying only on pass/fail status.
+
+Patch 49C adds `agent_decision_diagnostics` with document decisions, candidate decisions, skipped-candidate explanations, validator reasons, and missing-alias diagnostics. This helps explain why an alias was proposed, blocked, skipped as unchanged, or treated as an idempotent no-op.
