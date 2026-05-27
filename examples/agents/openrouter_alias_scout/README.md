@@ -759,3 +759,17 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 Report schema: `skeinrank.openrouter_live_pilot_report.v1`. When the report is written to disk, the CLI also prints a short operator summary to stdout.
 
 Use `--pilot-validate-proposals` only when the Governance API is running and the agent has a scoped token for validation. Validation now preflights `/livez` before the OpenRouter call, so a stopped API fails fast without spending model budget. Proposal submission requires an additional explicit `--pilot-submit-proposals` flag and still creates pending suggestions only.
+
+
+### Patch 49D — Live OpenRouter validated pilot
+
+Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.
+
+
+### Validated pilot stack auth
+
+`make benchmark-agent-live-validated-pilot-stack` starts the isolated benchmark
+stack, logs in with the benchmark admin credentials from
+`deploy/docker/benchmark.env.example`, and passes the temporary token to the
+agent through `SKEINRANK_AGENT_API_TOKEN`. Manual validated runs still require
+you to provide your own token when Governance API auth is enabled.

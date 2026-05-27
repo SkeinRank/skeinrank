@@ -24,6 +24,44 @@ poetry install
 poetry run pytest -q
 ```
 
+
+## Pilot integration CLI
+
+Patch 49E adds `skeinrank-governance-pilot`, a dependency-light HTTP CLI for
+first-company Elasticsearch pilots. It reads a JSON config, validates the API and
+Elasticsearch index mapping, imports a seed dictionary, creates or reuses a
+dry-run Elasticsearch binding, and writes a read-only evidence/query-plan report.
+
+```bash
+poetry run skeinrank-governance-pilot plan \
+  --config ../../examples/pilots/elasticsearch_pilot.example.json
+
+poetry run skeinrank-governance-pilot run \
+  --api-url http://127.0.0.1:8010 \
+  --config ../../examples/pilots/elasticsearch_pilot.example.json \
+  --out ../../examples/pilots/reports/pilot-integration-report.json
+```
+
+Use `--token ...` or `--username ... --password ...` when auth is enabled. The
+CLI does not call OpenRouter, submit proposals, approve/apply changes, or write
+to Elasticsearch.
+
+
+## Retrieval eval CLI
+
+Patch 50A adds a deterministic retrieval evaluator for the `platform_ops_v1` fixture. Patch 50B expands the fixture to 200 documents and adds hard-negative leakage checks. Patch 50B.1 adds query-hygiene scoring with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs. It reads `retrieval_queries.jsonl`, `qrels.jsonl`, and `hard_negatives.jsonl`, compares a literal baseline with a SkeinRank-expanded run, and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and `generic_token_noise@10` deltas.
+
+```bash
+poetry run skeinrank-governance-retrieval-eval plan
+poetry run skeinrank-governance-retrieval-eval eval \
+  --out ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-report.json
+poetry run skeinrank-governance-retrieval-eval report \
+  --file ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-report.json
+poetry run skeinrank-governance-retrieval-compare compare \
+  --input ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-report.json \
+  --out ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-comparison-report.json
+```
+
 ## Containerized benchmark stack
 
 Patch 48C adds a stack integration harness for the `platform_ops_v1` benchmark. It uses Docker Compose services for PostgreSQL, the Governance API, and Elasticsearch while keeping OpenRouter out of the loop.
@@ -1459,3 +1497,14 @@ make benchmark-stack-up
 The prune step removes containers only; named volumes are not deleted. Use `docker compose -f docker-compose.dev.yml down -v` only when you intentionally want to remove persisted dev volumes.
 
 The stack benchmark connects to PostgreSQL from the local Poetry environment, so run `cd packages/skeinrank-governance-api && poetry install` after applying dependency changes.
+
+### Proposal quality metrics
+
+Patch 49B adds `proposal_quality` to benchmark reports. It exposes rates, coverage, breakdowns, per-alias outcomes, and proposal-quality gates for tuning agent prompts, validators, and candidate filters without relying only on pass/fail status.
+
+Patch 49C adds `agent_decision_diagnostics` with document decisions, candidate decisions, skipped-candidate explanations, validator reasons, and missing-alias diagnostics. This helps explain why an alias was proposed, blocked, skipped as unchanged, or treated as an idempotent no-op.
+
+
+### Patch 49D — Live OpenRouter validated pilot
+
+Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.

@@ -123,7 +123,9 @@ The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the databas
 
 ## Headless benchmark and agent workflow E2E
 
-Patch 48A adds a deterministic benchmark for the headless agent-governance workflow. It seeds a synthetic platform-ops corpus, simulates document visit tracking, candidate observations, evidence windows, proposal attempts, governed suggestions, snapshot publishing, and runtime query checks without calling OpenRouter or Elasticsearch.
+Patch 49C adds `agent_decision_diagnostics` to benchmark reports so proposal quality regressions can be traced back to document skip/revisit decisions, validator reasons, idempotent aliases, and missing-alias explanations.
+
+Patch 48A adds a deterministic benchmark for the headless agent-governance workflow. Patch 49A expands the `platform_ops_v1` fixture into a 50-document quality benchmark with proposal precision-like, recall-like, blocked-alias, warning, idempotency, skipped-document, snapshot, and runtime canonicalization signals. Patch 49B adds proposal-level quality metrics with per-alias outcomes, source/action/status breakdowns, evidence coverage, approval/submission rates, and quality gates. It runs without calling OpenRouter or Elasticsearch.
 
 ```bash
 make benchmark-reset
@@ -132,7 +134,7 @@ make benchmark-eval
 make benchmark-report
 ```
 
-The fixture lives in `examples/benchmarks/platform_ops_v1`; the guide is in [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md).
+The fixture lives in `examples/benchmarks/platform_ops_v1`; the guide is in [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md). A successful quality report should keep `proposal_precision_like = 1.0`, `expected_alias_recall = 1.0`, `runtime_canonicalization_accuracy = 1.0`, `unexpected_proposals = 0`, and `noise_rate = 0.0`.
 
 ## OpenRouter live agent pilot
 
@@ -162,12 +164,49 @@ The stack uses `deploy/docker/benchmark.env.example` and a dedicated `skeinrank-
 
 See [`docs/benchmarks/containerized-benchmark-integration.md`](docs/benchmarks/containerized-benchmark-integration.md).
 
+## Retrieval eval baseline
+
+Patch 50A adds the first retrieval quality baseline for `platform_ops_v1`: qrels, retrieval queries, a literal baseline run, a SkeinRank-expanded run, and `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas. Patch 50B expands the fixture to 200 documents and adds `hard_negatives.jsonl` plus `hard_negative_leakage@10`; 50B.1 tightens query hygiene with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs, with query groups, regressions, leakage diagnostics, and operator recommendations.
+
+```bash
+make benchmark-retrieval-plan
+make benchmark-retrieval-eval
+make benchmark-retrieval-report
+make benchmark-retrieval-compare
+make benchmark-retrieval-compare-report
+make benchmark-retrieval-clean
+```
+
+See [`docs/benchmarks/retrieval-eval-baseline.md`](docs/benchmarks/retrieval-eval-baseline.md).
+
 ```bash
 make agent-openrouter-pilot-plan
 OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
 ```
 
 Use `OPENROUTER_API_KEY` only in your local shell or ignored `.env` files. See [`docs/benchmarks/openrouter-live-pilot.md`](docs/benchmarks/openrouter-live-pilot.md).
+
+
+## First-company Elasticsearch pilot path
+
+Patch 49E adds a safe integration path for a real Elasticsearch/OpenSearch index.
+Copy `examples/pilots/elasticsearch_pilot.example.json`, edit the profile, index,
+text fields, evidence checks, and runtime queries, then run:
+
+```bash
+make pilot-plan
+# PILOT_CONFIG accepts both repo-relative paths and absolute paths such as /tmp/skeinrank-pilot.json.
+make pilot-preflight PILOT_CONFIG=/tmp/skeinrank-pilot.json
+make pilot-seed PILOT_CONFIG=/tmp/skeinrank-pilot.json
+make pilot-eval PILOT_CONFIG=/tmp/skeinrank-pilot.json
+make pilot-report PILOT_CONFIG=/tmp/skeinrank-pilot.json
+```
+
+The report schema is `skeinrank.pilot.integration_report.v1`. The pilot path is
+read-only after seeding: it does not call OpenRouter, submit proposals,
+approve/apply changes, publish snapshots, or write to Elasticsearch. For local
+smoke testing against the benchmark stack, run `make pilot-stack-run`.
+See [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md).
 
 ## Quickstart: headless runtime
 
@@ -851,3 +890,8 @@ make benchmark-stack-up
 The prune step removes containers only; named volumes are not deleted. Use `docker compose -f docker-compose.dev.yml down -v` only when you intentionally want to remove persisted dev volumes.
 
 The stack benchmark connects to PostgreSQL from the local Poetry environment, so run `cd packages/skeinrank-governance-api && poetry install` after applying dependency changes.
+
+
+### Patch 49D — Live OpenRouter validated pilot
+
+Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.

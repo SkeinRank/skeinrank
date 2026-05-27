@@ -3,13 +3,16 @@
   "benchmark_name": "platform_ops_v1",
   "profile": {
     "name": "platform_ops_benchmark",
-    "description": "Synthetic platform operations terminology benchmark for headless agent workflow E2E tests."
+    "description": "Expanded synthetic platform operations terminology benchmark for headless agent workflow quality evaluation."
   },
   "binding": {
     "name": "Platform Ops Benchmark Docs",
     "description": "Dry-run binding used by the offline benchmark harness.",
     "index_name": "platform-ops-benchmark-docs",
-    "text_fields": ["title", "body"],
+    "text_fields": [
+      "title",
+      "body"
+    ],
     "target_field": "skeinrank_terms",
     "filter_field": "benchmark",
     "filter_value": "platform_ops_v1",
@@ -19,31 +22,129 @@
     {
       "canonical_value": "kubernetes",
       "slot": "TECHNOLOGY",
-      "tags": ["infra", "orchestration", "runtime"],
-      "aliases": ["k8s", "kube"]
+      "tags": [
+        "infra",
+        "orchestration",
+        "runtime"
+      ],
+      "aliases": [
+        "k8s",
+        "kube"
+      ]
     },
     {
       "canonical_value": "postgresql",
       "slot": "DATABASE",
-      "tags": ["database", "storage", "backend"],
-      "aliases": ["postgres"]
+      "tags": [
+        "database",
+        "storage",
+        "backend"
+      ],
+      "aliases": [
+        "postgres"
+      ]
     },
     {
       "canonical_value": "rabbitmq",
       "slot": "TECHNOLOGY",
-      "tags": ["queue", "messaging", "backend"],
+      "tags": [
+        "queue",
+        "messaging",
+        "backend"
+      ],
       "aliases": []
     },
     {
       "canonical_value": "elasticsearch",
       "slot": "TECHNOLOGY",
-      "tags": ["search", "index", "infra"],
-      "aliases": ["elastic"]
+      "tags": [
+        "search",
+        "index",
+        "infra"
+      ],
+      "aliases": [
+        "elastic"
+      ]
     },
     {
       "canonical_value": "opentelemetry",
       "slot": "TECHNOLOGY",
-      "tags": ["observability", "tracing"],
+      "tags": [
+        "observability",
+        "tracing"
+      ],
+      "aliases": []
+    },
+    {
+      "canonical_value": "prometheus",
+      "slot": "TECHNOLOGY",
+      "tags": [
+        "observability",
+        "metrics"
+      ],
+      "aliases": []
+    },
+    {
+      "canonical_value": "loki",
+      "slot": "TECHNOLOGY",
+      "tags": [
+        "observability",
+        "logs"
+      ],
+      "aliases": []
+    },
+    {
+      "canonical_value": "namespace",
+      "slot": "KUBERNETES_OBJECT",
+      "tags": [
+        "kubernetes",
+        "scope"
+      ],
+      "aliases": []
+    },
+    {
+      "canonical_value": "service",
+      "slot": "KUBERNETES_OBJECT",
+      "tags": [
+        "kubernetes",
+        "networking"
+      ],
+      "aliases": []
+    },
+    {
+      "canonical_value": "redis sentinel",
+      "slot": "TECHNOLOGY",
+      "tags": [
+        "cache",
+        "ha"
+      ],
+      "aliases": []
+    },
+    {
+      "canonical_value": "redis cluster",
+      "slot": "TECHNOLOGY",
+      "tags": [
+        "cache",
+        "sharding"
+      ],
+      "aliases": []
+    },
+    {
+      "canonical_value": "service level objective",
+      "slot": "SRE_CONCEPT",
+      "tags": [
+        "sre",
+        "reliability"
+      ],
+      "aliases": []
+    },
+    {
+      "canonical_value": "grafana",
+      "slot": "TECHNOLOGY",
+      "tags": [
+        "observability",
+        "dashboards"
+      ],
       "aliases": []
     }
   ],
@@ -52,6 +153,21 @@
       "value": "app",
       "target": "alias",
       "reason": "Generic product/UI word that is too noisy for the platform ops benchmark."
+    },
+    {
+      "value": "error",
+      "target": "alias",
+      "reason": "Generic failure word that should not become a technical alias."
+    },
+    {
+      "value": "job",
+      "target": "alias",
+      "reason": "Generic workload word; too broad without a domain qualifier."
+    },
+    {
+      "value": "api",
+      "target": "alias",
+      "reason": "Too broad for this benchmark; appears in many unrelated contexts."
     }
   ]
 }

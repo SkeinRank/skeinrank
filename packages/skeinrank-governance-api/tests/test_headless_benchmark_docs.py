@@ -30,7 +30,15 @@ def test_benchmark_docs_and_fixtures_are_discoverable() -> None:
     pyproject = _read("packages/skeinrank-governance-api/pyproject.toml")
 
     assert "48A" in docs
+    assert "49A" in docs
     assert "make benchmark-eval" in docs
+    assert "proposal_precision_like" in docs
+    assert "proposal_quality" in docs
+    assert "agent_decision_diagnostics" in docs
+    assert "benchmark-retrieval-eval" in docs
+    assert "retrieval_eval" in pyproject
+    assert "decision_reason_coverage" in docs
+    assert "evidence_window_coverage" in docs
     assert "OpenRouter" in docs
     assert "examples/benchmarks/platform_ops_v1" in docs
     assert "Headless benchmark" in root_readme
@@ -46,5 +54,8 @@ def test_benchmark_fixture_files_exist() -> None:
         "corpus.jsonl",
         "expected_aliases.json",
         "golden_queries.jsonl",
+        "retrieval_queries.jsonl",
+        "qrels.jsonl",
+        "hard_negatives.jsonl",
     ]:
         assert (fixture_root / relative).exists()

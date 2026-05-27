@@ -1,0 +1,122 @@
+{
+  "schema_version": "skeinrank.pilot.integration.v1",
+  "pilot_name": "platform_ops_elasticsearch_pilot",
+  "description": "Example first-company pilot config: seed a small dictionary, bind an existing Elasticsearch index, then run evidence and runtime checks without OpenRouter or runtime mutation.",
+  "dictionary": {
+    "schema_version": "skeinrank.dictionary.v1",
+    "profile_name": "platform_ops_pilot",
+    "profile_description": "Pilot profile for platform operations terminology discovery.",
+    "create_profile": true,
+    "mode": "upsert",
+    "terms": [
+      {
+        "canonical_value": "kubernetes",
+        "slot": "TECHNOLOGY",
+        "aliases": [
+          "k8s",
+          "kube"
+        ],
+        "tags": [
+          "infra",
+          "orchestration"
+        ]
+      },
+      {
+        "canonical_value": "postgresql",
+        "slot": "DATABASE",
+        "aliases": [
+          "postgres"
+        ],
+        "tags": [
+          "database",
+          "storage"
+        ]
+      },
+      {
+        "canonical_value": "rabbitmq",
+        "slot": "TECHNOLOGY",
+        "aliases": [],
+        "tags": [
+          "queue",
+          "messaging"
+        ]
+      },
+      {
+        "canonical_value": "opentelemetry",
+        "slot": "TECHNOLOGY",
+        "aliases": [
+          "otel"
+        ],
+        "tags": [
+          "observability",
+          "tracing"
+        ]
+      }
+    ],
+    "profile_stop_list": [
+      {
+        "value": "app",
+        "target": "alias",
+        "reason": "Generic product/UI word that is too broad for the first pilot."
+      },
+      {
+        "value": "error",
+        "target": "alias",
+        "reason": "Generic failure word; keep it out of alias proposals by default."
+      }
+    ],
+    "global_stop_list": []
+  },
+  "binding": {
+    "name": "Platform Ops Pilot Docs",
+    "description": "Dry-run pilot binding for an existing Elasticsearch index.",
+    "index_name": "platform-ops-benchmark-docs",
+    "text_fields": [
+      "title",
+      "body"
+    ],
+    "target_field": "skeinrank_terms",
+    "filter_field": "benchmark",
+    "filter_value": "platform_ops_v1",
+    "timestamp_field": null,
+    "time_window_days": null,
+    "mode": "dry_run",
+    "write_strategy": "reindex_alias_swap",
+    "is_enabled": true
+  },
+  "evidence_checks": [
+    {
+      "query": "rmq",
+      "canonical_value": "rabbitmq",
+      "min_documents": 1,
+      "max_documents": 5,
+      "context_chars": 80
+    },
+    {
+      "query": "otel",
+      "canonical_value": "opentelemetry",
+      "min_documents": 1,
+      "max_documents": 5,
+      "context_chars": 80
+    }
+  ],
+  "runtime_queries": [
+    {
+      "query": "rmq retries after k8s rollout",
+      "expected_canonicals": [
+        "kubernetes"
+      ],
+      "include_evidence": true,
+      "size": 5
+    },
+    {
+      "query": "otel traces for postgres timeout",
+      "expected_canonicals": [
+        "opentelemetry",
+        "postgresql"
+      ],
+      "include_evidence": true,
+      "size": 5
+    }
+  ]
+}

@@ -148,3 +148,74 @@ These are wrappers around the lower-level `agent-openrouter-pilot-*` commands.
 `benchmark-agent-live-validate` also requires the Governance API to be running so
 that proposed aliases can be validated through SkeinRank before the report is
 written. Neither command approves/applies proposals or publishes snapshots.
+
+## 49D validated pilot flow
+
+Patch 49D makes the live validation path explicit. It is still safe by default:
+OpenRouter may prepare proposal payloads, SkeinRank validates those payloads, but
+no pending suggestions are submitted unless `--pilot-submit-proposals` is passed
+manually.
+
+Plan the validated pilot without network calls:
+
+```bash
+make benchmark-agent-live-validated-pilot-plan
+```
+
+Run it against an already running Governance API:
+
+```bash
+OPENROUTER_API_KEY="sk-or-..." \
+make benchmark-agent-live-validated-pilot-report
+```
+
+Run it after starting and seeding the isolated benchmark stack:
+
+```bash
+make benchmark-stack-down
+make benchmark-stack-prune-containers
+OPENROUTER_API_KEY="sk-or-..." \
+make benchmark-agent-live-validated-pilot-stack
+```
+
+The stack target bootstraps a temporary benchmark-stack admin login token and
+passes it to the agent as `SKEINRANK_AGENT_API_TOKEN`, so validation checks run
+against the authenticated Governance API before any optional proposal submission.
+
+
+The default validation target is the benchmark profile:
+
+```text
+OPENROUTER_VALIDATED_PILOT_PROFILE=platform_ops_benchmark
+```
+
+The generated report keeps the existing live-pilot schema and adds:
+
+```text
+validated_pilot.schema_version = skeinrank.openrouter_validated_pilot.v1
+validated_pilot.mode = validate_only
+validated_pilot.metrics.validation_coverage
+validated_pilot.metrics.validation_pass_rate
+validated_pilot.quality_gates[]
+validated_pilot.safety.runtime_mutation_enabled = false
+```
+
+Use CLI overrides when testing another profile or binding:
+
+```bash
+OPENROUTER_API_KEY="sk-or-..." \
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --write-openrouter-validated-pilot-report \
+  examples/agents/openrouter_alias_scout/reports/live-pilot/openrouter-validated-pilot-report.json \
+  --profile-name platform_ops_benchmark \
+  --max-candidates 2 \
+  --max-llm-calls 1 \
+  --max-proposals 2
+```
+
+## Auth preflight
+
+The validated pilot preflight checks an authenticated tools call before spending
+OpenRouter budget. If the Governance API is running with auth enabled and no
+valid `SKEINRANK_AGENT_API_TOKEN` is provided, the CLI fails before calling
+OpenRouter.

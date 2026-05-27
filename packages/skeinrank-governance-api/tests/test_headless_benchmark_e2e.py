@@ -7,7 +7,12 @@ from skeinrank_governance import (
     create_governance_engine,
     create_session_factory,
 )
-from skeinrank_governance.models import AgentRun, GovernanceSuggestion, TermAlias
+from skeinrank_governance.models import (
+    AgentDocumentVisit,
+    AgentRun,
+    GovernanceSuggestion,
+    TermAlias,
+)
 from skeinrank_governance_api.benchmark import (
     BENCHMARK_FORMAT_VERSION,
     DEFAULT_BENCHMARK_NAME,
@@ -21,6 +26,8 @@ from skeinrank_governance_api.benchmark import (
     main as benchmark_main,
 )
 from sqlalchemy import select
+
+EXPECTED_PLATFORM_OPS_CORPUS_DOCS = 200
 
 
 def _session_factory(tmp_path):
@@ -47,11 +54,21 @@ def test_benchmark_fixtures_include_agent_workflow_edge_cases() -> None:
     assert any(item.get("previous_body") for item in corpus_lines)
     assert "app" in expected["expected_blocked_aliases"]
     assert "kube" in expected["expected_idempotent_aliases"]
+    assert len(corpus_lines) == EXPECTED_PLATFORM_OPS_CORPUS_DOCS
     assert {item["alias"] for item in expected["expected_new_aliases"]} >= {
         "rmq",
         "otel",
         "pg",
+        "prom",
+        "lk",
+        "ns",
+        "svc",
+        "redis-sentinel",
+        "redis-cluster",
+        "slo",
+        "es",
     }
+    assert expected["quality_thresholds"]["min_proposal_precision_like"] == 1.0
 
 
 def test_headless_benchmark_full_agent_workflow(tmp_path) -> None:
@@ -69,11 +86,89 @@ def test_headless_benchmark_full_agent_workflow(tmp_path) -> None:
         assert report["scores"]["expected_alias_recall"] == 1.0
         assert report["scores"]["runtime_canonicalization_accuracy"] == 1.0
         assert report["scores"]["unexpected_proposals"] == 0
-        assert report["counts"]["visit_statuses"]["unchanged_seen"] == 1
-        assert report["counts"]["visit_statuses"]["content_changed"] == 1
-        assert report["counts"]["idempotent_noops"] == 1
-        assert report["counts"]["suggestions_approved"] == 3
-        assert report["counts"]["validation_statuses"]["blocked"] == 1
+        assert report["scores"]["proposal_precision_like"] == 1.0
+        assert report["scores"]["proposal_recall_like"] == 1.0
+        assert report["scores"]["alias_coverage"] == 1.0
+        assert report["scores"]["noise_rate"] == 0.0
+        assert report["counts"]["documents_total"] == EXPECTED_PLATFORM_OPS_CORPUS_DOCS
+        assert report["counts"]["visit_statuses"]["unchanged_seen"] == 2
+        assert report["counts"]["visit_statuses"]["content_changed"] == 2
+        assert report["counts"]["idempotent_noops"] == 3
+        assert report["counts"]["suggestions_approved"] == 11
+        assert report["counts"]["validation_statuses"]["blocked"] == 4
+        assert report["quality"]["schema_version"] == "skeinrank.benchmark_quality.v1"
+        assert report["quality"]["proposal_precision_like"] == 1.0
+        assert report["quality"]["accepted_expected_proposals"] == 11
+        assert report["quality"]["unexpected_created_proposals"] == 0
+        assert report["quality"]["blocked_proposals_count"] == 4
+        assert report["quality"]["warning_proposals_count"] >= 1
+        assert report["quality"]["missing_warning_aliases"] == []
+        assert report["quality"]["expected_warning_aliases_count"] == 4
+        assert report["quality"]["snapshot_created"] is True
+        assert all(
+            item["status"] == "passed" for item in report["quality"]["quality_gates"]
+        )
+        assert (
+            report["proposal_quality"]["schema_version"]
+            == "skeinrank.proposal_quality_metrics.v1"
+        )
+        assert report["proposal_quality"]["totals"]["proposal_attempts"] == 18
+        assert report["proposal_quality"]["totals"]["candidate_observations"] == 18
+        assert report["proposal_quality"]["rates"]["proposal_precision_like"] == 1.0
+        assert report["proposal_quality"]["rates"]["proposal_recall_like"] == 1.0
+        assert report["proposal_quality"]["rates"]["evidence_window_coverage"] == 1.0
+        assert report["proposal_quality"]["rates"]["proposal_attempt_coverage"] == 1.0
+        assert report["proposal_quality"]["coverage"]["missed_expected_proposals"] == 0
+        assert report["proposal_quality"]["coverage"]["blocked_missing"] == []
+        assert (
+            report["proposal_quality"]["breakdowns"]["by_alias_class"]["blocked_noise"]
+            == 4
+        )
+        assert (
+            report["proposal_quality"]["breakdowns"]["by_outcome"]["approved_expected"]
+            == 11
+        )
+        assert report["proposal_quality"]["aliases"]["unexpected_created"] == []
+        assert len(report["proposal_quality"]["alias_outcomes"]) == 18
+        assert all(
+            item["status"] == "passed"
+            for item in report["proposal_quality"]["quality_gates"]
+        )
+        diagnostics = report["agent_decision_diagnostics"]
+        assert (
+            diagnostics["schema_version"] == "skeinrank.agent_decision_diagnostics.v1"
+        )
+        assert (
+            diagnostics["summary"]["documents_total"]
+            == EXPECTED_PLATFORM_OPS_CORPUS_DOCS
+        )
+        assert diagnostics["summary"]["candidate_decisions"] == 18
+        assert diagnostics["summary"]["skipped_candidate_decisions"] == 2
+        assert diagnostics["summary"]["decision_reason_coverage"] == 1.0
+        assert diagnostics["summary"]["skipped_reason_coverage"] == 1.0
+        assert all(item["status"] == "passed" for item in diagnostics["quality_gates"])
+        rmq_decision = next(
+            item
+            for item in diagnostics["candidate_decisions"]
+            if item["alias"] == "rmq"
+        )
+        assert rmq_decision["decision"] == "proposal_created"
+        assert rmq_decision["decision_reason"]
+        app_decision = next(
+            item
+            for item in diagnostics["candidate_decisions"]
+            if item["alias"] == "app"
+        )
+        assert app_decision["decision"] == "blocked_by_validator"
+        assert "validator blocked" in app_decision["decision_reason"]
+        elastic_diagnostic = next(
+            item
+            for item in diagnostics["missing_alias_diagnostics"]
+            if item["alias"] == "elastic"
+        )
+        assert elastic_diagnostic["category"] == "idempotent_missing"
+        assert elastic_diagnostic["explanation_status"] == "explained"
+        assert elastic_diagnostic["source_id"] == "runbook-elastic-unchanged"
 
         aliases = {
             alias.normalized_alias: alias.term.normalized_value
@@ -82,7 +177,18 @@ def test_headless_benchmark_full_agent_workflow(tmp_path) -> None:
         assert aliases["rmq"] == "rabbitmq"
         assert aliases["otel"] == "opentelemetry"
         assert aliases["pg"] == "postgresql"
+        assert aliases["prom"] == "prometheus"
+        assert aliases["lk"] == "loki"
+        assert aliases["ns"] == "namespace"
+        assert aliases["svc"] == "service"
+        assert aliases["redis-sentinel"] == "redis sentinel"
+        assert aliases["redis-cluster"] == "redis cluster"
+        assert aliases["slo"] == "service level objective"
+        assert aliases["es"] == "elasticsearch"
         assert "app" not in aliases
+        assert "error" not in aliases
+        assert "job" not in aliases
+        assert "api" not in aliases
 
         suggestions = list(session.scalars(select(GovernanceSuggestion)).all())
         assert {suggestion.status for suggestion in suggestions} == {"approved"}
@@ -93,6 +199,32 @@ def test_headless_benchmark_full_agent_workflow(tmp_path) -> None:
         assert run is not None
         assert run.status == "succeeded"
         assert run.summary_json["benchmark_name"] == DEFAULT_BENCHMARK_NAME
+
+
+def test_benchmark_reset_cleans_agent_tracking_for_reruns(tmp_path) -> None:
+    session_factory = _session_factory(tmp_path)
+    with session_factory() as session:
+        reset_benchmark_state(session)
+        seed_benchmark_state(session)
+        first_report = run_benchmark_evaluation(session)
+
+        assert first_report["status"] == "passed"
+        assert session.scalar(select(AgentRun)) is not None
+        assert session.scalar(select(AgentDocumentVisit)) is not None
+
+        reset_benchmark_state(session)
+
+        assert list(session.scalars(select(AgentRun)).all()) == []
+        assert list(session.scalars(select(AgentDocumentVisit)).all()) == []
+
+        seed_benchmark_state(session)
+        second_report = run_benchmark_evaluation(session)
+
+        assert second_report["status"] == "passed"
+        assert (
+            second_report["counts"]["documents_total"]
+            == EXPECTED_PLATFORM_OPS_CORPUS_DOCS
+        )
 
 
 def test_benchmark_cli_seed_eval_report_and_reset(tmp_path, capsys) -> None:

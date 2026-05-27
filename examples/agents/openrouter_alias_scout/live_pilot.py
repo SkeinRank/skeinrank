@@ -290,6 +290,12 @@ def run_openrouter_live_pilot(
         "llm_review_report": llm_report,
         "proposal_submission_plan": submission_plan,
         "proposal_submission_report": submission_report,
+        "validated_pilot": build_openrouter_validated_pilot_diagnostics(
+            pilot_config=cfg,
+            summary=summary,
+            submission_plan=submission_plan,
+            submission_report=submission_report,
+        ),
         "safety": {
             "agent_may_mutate_runtime": False,
             "snapshot_publish_enabled": False,
@@ -304,6 +310,168 @@ def run_openrouter_live_pilot(
             ],
         },
         "recommended_exit_code": 0 if status in {"passed", "needs_review"} else 2,
+    }
+
+
+def build_openrouter_validated_pilot_diagnostics(
+    *,
+    pilot_config: OpenRouterLivePilotConfig,
+    summary: Mapping[str, Any],
+    submission_plan: Mapping[str, Any],
+    submission_report: Mapping[str, Any] | None,
+) -> JsonDict:
+    """Return operator-facing diagnostics for live validation mode.
+
+    Patch 49D makes the validated pilot explicit: OpenRouter may prepare
+    proposals, but SkeinRank validation is still the only live backend action by
+    default. Submission remains opt-in and runtime mutation stays blocked.
+    """
+
+    validation_enabled = bool(
+        pilot_config.validate_with_skeinrank or pilot_config.submit_proposals
+    )
+    validation_results = []
+    if isinstance(submission_report, Mapping):
+        raw_results = submission_report.get("results")
+        if isinstance(raw_results, Sequence) and not isinstance(
+            raw_results, (str, bytes)
+        ):
+            validation_results = [
+                dict(item) for item in raw_results if isinstance(item, Mapping)
+            ]
+
+    validation_attempts = (
+        int(summary.get("validation_passed") or 0)
+        + int(summary.get("validation_warning") or 0)
+        + int(summary.get("validation_blocked") or 0)
+    )
+    validation_errors = int(summary.get("errors") or 0)
+    eligible = int(submission_plan.get("eligible_proposals") or 0)
+    live_calls = int(summary.get("live_openrouter_calls") or 0)
+    submitted = int(summary.get("submitted") or 0)
+    validation_passed = int(summary.get("validation_passed") or 0)
+    validation_warning = int(summary.get("validation_warning") or 0)
+    validation_blocked = int(summary.get("validation_blocked") or 0)
+    idempotent_existing = int(summary.get("idempotent_existing_aliases") or 0)
+    manual_review_required = _count_validation_results(
+        validation_results, "manual_review_required"
+    )
+    validated = submission_report is not None
+    validation_coverage = _safe_ratio(validation_attempts, eligible)
+    pass_rate = _safe_ratio(validation_passed, validation_attempts)
+    warning_rate = _safe_ratio(validation_warning, validation_attempts)
+    blocked_rate = _safe_ratio(validation_blocked, validation_attempts)
+    idempotent_rate = _safe_ratio(idempotent_existing, validation_attempts)
+    manual_review_rate = _safe_ratio(manual_review_required, validation_attempts)
+
+    quality_gates = [
+        _validated_gate(
+            "validated_pilot_openrouter_called",
+            live_calls > 0,
+            "OpenRouter produced at least one live review call.",
+            {"live_openrouter_calls": live_calls},
+        ),
+        _validated_gate(
+            "validated_pilot_skeinrank_validation_called",
+            (not validation_enabled) or validated,
+            "SkeinRank validation ran when live validation mode was requested.",
+            {"validation_enabled": validation_enabled, "validated": validated},
+        ),
+        _validated_gate(
+            "validated_pilot_validation_coverage",
+            (not validation_enabled) or validation_coverage >= 1.0,
+            "Every eligible proposal payload was validated by SkeinRank.",
+            {
+                "actual": validation_coverage,
+                "expected": 1.0,
+                "eligible_proposals": eligible,
+                "validation_attempts": validation_attempts,
+            },
+        ),
+        _validated_gate(
+            "validated_pilot_no_validation_errors",
+            validation_errors == 0,
+            "The live validated pilot finished without validation API errors.",
+            {"errors": validation_errors},
+        ),
+        _validated_gate(
+            "validated_pilot_no_runtime_mutation",
+            submitted == 0 or pilot_config.submit_proposals,
+            "Validate-only mode did not submit pending proposals or mutate runtime.",
+            {
+                "submitted": submitted,
+                "submit_proposals": pilot_config.submit_proposals,
+            },
+        ),
+    ]
+    return {
+        "schema_version": "skeinrank.openrouter_validated_pilot.v1",
+        "enabled": validation_enabled,
+        "mode": "submit_pending" if pilot_config.submit_proposals else "validate_only",
+        "validated": validated,
+        "eligible_proposals": eligible,
+        "validation_attempts": validation_attempts,
+        "validation_results_total": len(validation_results),
+        "metrics": {
+            "live_openrouter_calls": live_calls,
+            "validation_passed": validation_passed,
+            "validation_warning": validation_warning,
+            "validation_blocked": validation_blocked,
+            "idempotent_existing_aliases": idempotent_existing,
+            "manual_review_required": manual_review_required,
+            "submitted": submitted,
+            "errors": validation_errors,
+            "validation_coverage": validation_coverage,
+            "validation_pass_rate": pass_rate,
+            "validation_warning_rate": warning_rate,
+            "validation_blocked_rate": blocked_rate,
+            "idempotent_existing_rate": idempotent_rate,
+            "manual_review_rate": manual_review_rate,
+        },
+        "aliases": [
+            {
+                "alias": item.get("alias_value"),
+                "canonical": item.get("canonical_value"),
+                "slot": item.get("slot"),
+                "status": item.get("status"),
+                "validation_status": item.get("validation_status"),
+                "decision": item.get("validation_decision"),
+                "submitted": bool(item.get("submitted")),
+                "error": item.get("error"),
+            }
+            for item in validation_results
+        ],
+        "quality_gates": quality_gates,
+        "safety": {
+            "validation_before_submission": True,
+            "submit_proposals_explicit": pilot_config.submit_proposals,
+            "runtime_mutation_enabled": False,
+            "snapshot_publish_enabled": False,
+            "direct_dictionary_write_enabled": False,
+        },
+    }
+
+
+def _count_validation_results(
+    validation_results: Sequence[Mapping[str, Any]], status: str
+) -> int:
+    return sum(1 for item in validation_results if item.get("status") == status)
+
+
+def _safe_ratio(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 1.0 if numerator == 0 else 0.0
+    return round(numerator / denominator, 4)
+
+
+def _validated_gate(
+    name: str, passed: bool, message: str, details: Mapping[str, Any]
+) -> JsonDict:
+    return {
+        "name": name,
+        "status": "passed" if passed else "failed",
+        "message": message,
+        "details": dict(details),
     }
 
 

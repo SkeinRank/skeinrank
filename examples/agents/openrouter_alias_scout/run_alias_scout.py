@@ -148,7 +148,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         assert_security_allows_llm_review,
         build_security_profile_report,
     )
-    from .skeinrank_client import SkeinRankAgentClient
+    from .skeinrank_client import SkeinRankAgentApiError, SkeinRankAgentClient
 except ImportError:  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from agent_evaluation import (
@@ -282,7 +282,7 @@ except ImportError:  # pragma: no cover
         assert_security_allows_llm_review,
         build_security_profile_report,
     )
-    from skeinrank_client import SkeinRankAgentClient
+    from skeinrank_client import SkeinRankAgentApiError, SkeinRankAgentClient
 
 JsonDict = dict[str, Any]
 
@@ -772,6 +772,27 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Run the 48B live pilot and write the JSON report to this path.",
     )
     parser.add_argument(
+        "--print-openrouter-validated-pilot-plan",
+        action="store_true",
+        help=(
+            "Print the 49D live OpenRouter + SkeinRank validation pilot plan "
+            "without network calls."
+        ),
+    )
+    parser.add_argument(
+        "--run-openrouter-validated-pilot",
+        action="store_true",
+        help=(
+            "Run the 49D live OpenRouter pilot and validate ready proposals "
+            "against the SkeinRank API. Does not submit by default."
+        ),
+    )
+    parser.add_argument(
+        "--write-openrouter-validated-pilot-report",
+        type=Path,
+        help=("Run the 49D validated pilot and write the JSON report to this path."),
+    )
+    parser.add_argument(
         "--pilot-validate-proposals",
         action="store_true",
         help="After live review, validate ready proposals against SkeinRank tools API.",
@@ -792,6 +813,18 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--model",
         help="Override the configured OpenRouter model for this run.",
+    )
+    parser.add_argument(
+        "--profile-name",
+        help=(
+            "Override the configured SkeinRank profile name for live pilot "
+            "validation/submission payloads."
+        ),
+    )
+    parser.add_argument(
+        "--binding-id",
+        type=int,
+        help="Override the configured SkeinRank binding id for live pilot payloads.",
     )
     parser.add_argument(
         "--max-candidates",
@@ -1283,11 +1316,34 @@ def _live_pilot_config_from_args(
         max_llm_calls=args.max_llm_calls,
         max_proposals=args.max_proposals,
         max_run_cost_usd=args.max_run_cost_usd,
-        validate_with_skeinrank=True if args.pilot_validate_proposals else None,
+        validate_with_skeinrank=True
+        if (
+            args.pilot_validate_proposals
+            or args.run_openrouter_validated_pilot
+            or args.write_openrouter_validated_pilot_report
+            or args.print_openrouter_validated_pilot_plan
+        )
+        else None,
         submit_proposals=True if args.pilot_submit_proposals else None,
         force_refresh_cache=True if args.force_refresh_cache else None,
         use_tools=True if args.pilot_use_tools else None,
     )
+
+
+def _effective_profile_name(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> str | None:
+    if args.profile_name is not None:
+        return args.profile_name
+    return config.default_profile_name
+
+
+def _effective_binding_id(
+    config: AgentRunnerConfig, args: argparse.Namespace
+) -> int | None:
+    if args.binding_id is not None:
+        return args.binding_id
+    return config.default_binding_id
 
 
 def build_openrouter_live_pilot_plan_for_args(
@@ -1298,8 +1354,8 @@ def build_openrouter_live_pilot_plan_for_args(
         openrouter_model=args.model or config.openrouter_model,
         openrouter_api_key_env=config.openrouter_api_key_env,
         skeinrank_api_url=config.skeinrank_api_url,
-        profile_name=config.default_profile_name,
-        binding_id=config.default_binding_id,
+        profile_name=_effective_profile_name(config, args),
+        binding_id=_effective_binding_id(config, args),
         proposal_source_name=config.proposal_source_name,
     )
 
@@ -1326,8 +1382,8 @@ def run_openrouter_live_pilot_for_args(
         security_config=config.security_profile,
         skeinrank_client=skeinrank_client,
         openrouter_model=args.model or config.openrouter_model,
-        profile_name=config.default_profile_name,
-        binding_id=config.default_binding_id,
+        profile_name=_effective_profile_name(config, args),
+        binding_id=_effective_binding_id(config, args),
         proposal_source_name=config.proposal_source_name,
     )
 
@@ -1335,7 +1391,12 @@ def run_openrouter_live_pilot_for_args(
 def _preflight_skeinrank_api_for_live_pilot(
     client: SkeinRankAgentClient, config: AgentRunnerConfig
 ) -> None:
-    """Fail before OpenRouter calls when live validation/submission needs API."""
+    """Fail before OpenRouter calls when live validation/submission needs API.
+
+    ``/livez`` only proves that the process is reachable. The validated pilot
+    also needs an authenticated agent tool call; otherwise the runner can spend
+    OpenRouter budget and fail later with a 401/403 during proposal validation.
+    """
 
     try:
         response = client.request("GET", "/livez")
@@ -1353,6 +1414,31 @@ def _preflight_skeinrank_api_for_live_pilot(
             "SkeinRank Governance API /livez did not report ok status before live "
             f"pilot validation. Response: {response!r}"
         )
+
+    try:
+        client.list_bindings(
+            profile_name=config.default_profile_name, enabled_only=True
+        )
+    except SkeinRankAgentApiError as exc:
+        if exc.status_code in {401, 403}:
+            raise RuntimeError(
+                "SkeinRank Governance API validation preflight failed before the "
+                "OpenRouter call. Provide a valid bearer token via "
+                f"{config.api_token_env or 'SKEINRANK_AGENT_API_TOKEN'} or run the "
+                "benchmark stack target that bootstraps a temporary admin token. "
+                f"Configured URL: {config.skeinrank_api_url}. "
+                f"API response: {exc.detail!r}"
+            ) from exc
+        raise RuntimeError(
+            "SkeinRank Governance API validation preflight failed before the "
+            f"OpenRouter call. Response: {exc}"
+        ) from exc
+    except Exception as exc:  # noqa: BLE001 - operator-facing CLI guardrail.
+        raise RuntimeError(
+            "SkeinRank Governance API validation preflight could not complete "
+            "before the OpenRouter call. "
+            f"Configured URL: {config.skeinrank_api_url}. Error: {exc}"
+        ) from exc
 
 
 def _live_pilot_cli_summary(
@@ -2526,6 +2612,19 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0
 
+    if args.print_openrouter_validated_pilot_plan:
+        report = build_openrouter_live_pilot_plan_for_args(config, args)
+        report["validated_pilot"] = {
+            "schema_version": "skeinrank.openrouter_validated_pilot_plan.v1",
+            "enabled": True,
+            "mode": "validate_only",
+            "requires_skeinrank_api": True,
+            "submit_proposals": False,
+            "runtime_mutation_enabled": False,
+        }
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
     if args.clear_llm_cache:
         budget_config = _budget_cache_config_from_args(config, args)
         print(
@@ -2537,21 +2636,26 @@ def main(argv: list[str] | None = None) -> int:
         config.failed_queries_path, limit=config.max_queries_per_run
     )
 
-    if args.run_openrouter_live_pilot or args.write_openrouter_live_pilot_report:
+    if (
+        args.run_openrouter_live_pilot
+        or args.write_openrouter_live_pilot_report
+        or args.run_openrouter_validated_pilot
+        or args.write_openrouter_validated_pilot_report
+    ):
         report = run_openrouter_live_pilot_for_args(config, failed_queries, args)
-        if args.write_openrouter_live_pilot_report:
-            args.write_openrouter_live_pilot_report.parent.mkdir(
-                parents=True, exist_ok=True
-            )
-            args.write_openrouter_live_pilot_report.write_text(
+        report_path = (
+            args.write_openrouter_validated_pilot_report
+            or args.write_openrouter_live_pilot_report
+        )
+        if report_path:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
                 json.dumps(report, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
             print(
                 json.dumps(
-                    _live_pilot_cli_summary(
-                        report, args.write_openrouter_live_pilot_report
-                    ),
+                    _live_pilot_cli_summary(report, report_path),
                     indent=2,
                     sort_keys=True,
                 )

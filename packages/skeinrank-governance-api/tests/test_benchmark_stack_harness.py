@@ -71,6 +71,9 @@ def test_benchmark_stack_docs_are_linked() -> None:
     assert "benchmark-stack-eval" in package_readme
     assert "skeinrank.benchmark_stack_report.v1" in guide
     assert "PostgreSQL, Governance API, and Elasticsearch" in guide
+    assert "quality report" in guide
+    assert "proposal quality metrics" in guide
+    assert "agent decision diagnostics" in guide
 
 
 def test_benchmark_stack_harness_is_not_openrouter_live_mode() -> None:
@@ -84,6 +87,9 @@ def test_benchmark_stack_harness_is_not_openrouter_live_mode() -> None:
     assert "/v1/governance/elasticsearch/bindings/{binding_id}/evidence" in source
     assert "/v1/query/plan" in source
     assert "skeinrank.benchmark_stack_report.v1" in source
+    assert 'base_report.get("quality")' in source
+    assert 'base_report.get("proposal_quality")' in source
+    assert 'base_report.get("agent_decision_diagnostics")' in source
 
 
 def test_benchmark_stack_prunes_fixed_dev_container_names() -> None:

@@ -4,9 +4,11 @@ This directory keeps repository-level documentation for developers, operators, a
 
 ## Start here
 
-- [`benchmarks/headless-agent-workflow.md`](benchmarks/headless-agent-workflow.md) — deterministic 48A benchmark for the headless agent proposal workflow.
+- [`benchmarks/headless-agent-workflow.md`](benchmarks/headless-agent-workflow.md) — deterministic 48A/49A/49B/49C benchmark for the headless agent proposal workflow, expanded quality report, proposal quality metrics, and agent decision diagnostics.
 - [`benchmarks/openrouter-live-pilot.md`](benchmarks/openrouter-live-pilot.md) — guarded 48B live OpenRouter pilot with cost limits and no runtime mutation.
 - [`benchmarks/containerized-benchmark-integration.md`](benchmarks/containerized-benchmark-integration.md) — 48C Docker Compose + PostgreSQL + Governance API + Elasticsearch integration benchmark.
+- [`benchmarks/retrieval-eval-baseline.md`](benchmarks/retrieval-eval-baseline.md) — 50A/50B/50B.1/50C retrieval quality baseline and retrieval comparison report with qrels, hard negatives, query-hygiene metrics, NDCG@10, MRR@10, Recall@10, baseline-vs-SkeinRank deltas, and benchmark-retrieval-compare diagnostics.
+- [`pilots/elasticsearch-pilot-integration.md`](pilots/elasticsearch-pilot-integration.md) — 49E first-company pilot path for connecting an existing Elasticsearch index, seeding a dictionary/binding, and producing a read-only integration report.
 
 - [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
 - [`concepts/terminology-control-plane.md`](concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.
@@ -37,7 +39,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/release-checklist.md`](deployment/release-checklist.md) — release and deployment checklist.
 - [`deployment/dev-stack-troubleshooting.md`](deployment/dev-stack-troubleshooting.md) — common local stack issues.
 
-Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables. Patch 45A mirrors this state into Prometheus gauges and adds DB-backed agent tracking gauges under `GET /metrics`. Patch 45B adds structured log event fields and a sanitized troubleshooting report at `GET /v1/ops/troubleshooting/report` / `python -m skeinrank_governance_api.troubleshooting report`. Patch 45C adds `python -m skeinrank_governance_api.backup_restore export|inspect|restore` and operational runbooks. Patch 46A adds `.env.production.example`, production Compose ops services, optional Prometheus/Grafana profile, and `deploy/docker/scripts/prod-smoke-test.sh`. Patch 46B adds `python -m skeinrank_governance_api.env_validation validate --file .env` plus `make prod-env-check` / `make prod-env-check-strict` for preflight `.env` validation. Patch 46C adds `make prod-upgrade-check`, `make prod-preflight`, `make prod-upgrade`, and deployment runbooks for upgrades, migration safety, and release checks. Patch 48C adds `make benchmark-stack-*` and `python -m skeinrank_governance_api.benchmark_stack` for a containerized benchmark that verifies the same platform-ops fixture against PostgreSQL, the Governance API, and Elasticsearch evidence checks.
+Schema health is available through `GET /schema/health` and `python -m skeinrank_governance_api.migrations check`. It verifies the Alembic head, database revision, `alembic_version`, and missing SQLAlchemy metadata tables. Patch 45A mirrors this state into Prometheus gauges and adds DB-backed agent tracking gauges under `GET /metrics`. Patch 45B adds structured log event fields and a sanitized troubleshooting report at `GET /v1/ops/troubleshooting/report` / `python -m skeinrank_governance_api.troubleshooting report`. Patch 45C adds `python -m skeinrank_governance_api.backup_restore export|inspect|restore` and operational runbooks. Patch 46A adds `.env.production.example`, production Compose ops services, optional Prometheus/Grafana profile, and `deploy/docker/scripts/prod-smoke-test.sh`. Patch 46B adds `python -m skeinrank_governance_api.env_validation validate --file .env` plus `make prod-env-check` / `make prod-env-check-strict` for preflight `.env` validation. Patch 46C adds `make prod-upgrade-check`, `make prod-preflight`, `make prod-upgrade`, and deployment runbooks for upgrades, migration safety, and release checks. Patch 48C adds `make benchmark-stack-*` and `python -m skeinrank_governance_api.benchmark_stack` for a containerized benchmark that verifies the same platform-ops fixture against PostgreSQL, the Governance API, and Elasticsearch evidence checks. Patch 49A expands `platform_ops_v1` to 50 documents and adds proposal/runtime quality metrics for regression tracking. Patch 49B adds proposal-level rates, coverage, per-alias outcomes, and quality-gate breakdowns for tuning agents and validators. Patch 49C adds agent decision diagnostics that explain scanned/skipped/revisited documents, proposal decisions, validator reasons, and missing alias diagnostics. Patch 49E adds `python -m skeinrank_governance_api.pilot_integration` and `make pilot-*` for a repeatable first-company Elasticsearch pilot integration path.
 
 
 ## Headless dictionary facade
@@ -389,3 +391,8 @@ This keeps scheduled agents and CI jobs least-privileged: read-only jobs can lis
 runs and tracking records, validation-only jobs can call `validate-alias`, and
 proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 
+
+
+### Patch 49D — Live OpenRouter validated pilot
+
+Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.

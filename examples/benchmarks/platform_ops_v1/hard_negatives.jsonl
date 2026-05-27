@@ -1,0 +1,109 @@
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-product-group-001","reason":"pg has a non-PostgreSQL meaning in this document."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-page-generation-001","reason":"pg has a non-PostgreSQL meaning in this document."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-payment-gateway-001","reason":"pg has a non-PostgreSQL meaning in this document."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-product-goals-001","reason":"pg has a non-PostgreSQL meaning in this document."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-print-gateway-001","reason":"pg has a non-PostgreSQL meaning in this document."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-distractor-001","reason":"Generated pg distractor with non-database meaning."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-distractor-002","reason":"Generated pg distractor with non-database meaning."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-distractor-017","reason":"Generated pg distractor with non-database meaning."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-distractor-018","reason":"Generated pg distractor with non-database meaning."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-distractor-033","reason":"Generated pg distractor with non-database meaning."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-distractor-034","reason":"Generated pg distractor with non-database meaning."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-distractor-049","reason":"Generated pg distractor with non-database meaning."}
+{"query_id":"q_pg_export_ambiguous","doc_id":"hard-pg-distractor-050","reason":"Generated pg distractor with non-database meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-error-state-001","reason":"es has a non-Elasticsearch meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-escalation-status-001","reason":"es has a non-Elasticsearch meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-employee-survey-001","reason":"es has a non-Elasticsearch meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-event-stream-001","reason":"es has a non-Elasticsearch meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-error-summary-001","reason":"es has a non-Elasticsearch meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-distractor-003","reason":"Generated es distractor with non-search meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-distractor-004","reason":"Generated es distractor with non-search meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-distractor-019","reason":"Generated es distractor with non-search meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-distractor-020","reason":"Generated es distractor with non-search meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-distractor-035","reason":"Generated es distractor with non-search meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-distractor-036","reason":"Generated es distractor with non-search meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-distractor-051","reason":"Generated es distractor with non-search meaning."}
+{"query_id":"q_es_index_latency_hard","doc_id":"hard-es-distractor-052","reason":"Generated es distractor with non-search meaning."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-customer-service-001","reason":"svc/ns have non-Kubernetes meanings."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-service-desk-001","reason":"svc/ns have non-Kubernetes meanings."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-support-center-001","reason":"svc/ns have non-Kubernetes meanings."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-nameserver-001","reason":"svc/ns have non-Kubernetes meanings."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-network-segment-001","reason":"svc/ns have non-Kubernetes meanings."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-night-shift-001","reason":"svc/ns have non-Kubernetes meanings."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-distractor-005","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-distractor-006","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-distractor-021","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-distractor-022","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-distractor-037","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-distractor-038","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-distractor-053","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-svc-distractor-054","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-distractor-007","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-distractor-008","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-distractor-023","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-distractor-024","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-distractor-039","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-distractor-040","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-distractor-055","reason":"Generated svc/ns distractor."}
+{"query_id":"q_svc_ns_routing_hard","doc_id":"hard-ns-distractor-056","reason":"Generated svc/ns distractor."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-rmq-release-management-001","reason":"rmq/job has a non-RabbitMQ or blocked generic meaning."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-rmq-records-001","reason":"rmq/job has a non-RabbitMQ or blocked generic meaning."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-job-background-001","reason":"rmq/job has a non-RabbitMQ or blocked generic meaning."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-job-recruiting-001","reason":"rmq/job has a non-RabbitMQ or blocked generic meaning."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-job-ci-001","reason":"rmq/job has a non-RabbitMQ or blocked generic meaning."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-rmq-distractor-014","reason":"Generated rmq/job distractor."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-rmq-distractor-030","reason":"Generated rmq/job distractor."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-rmq-distractor-046","reason":"Generated rmq/job distractor."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-rmq-distractor-062","reason":"Generated rmq/job distractor."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-job-distractor-015","reason":"Generated rmq/job distractor."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-job-distractor-031","reason":"Generated rmq/job distractor."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-job-distractor-047","reason":"Generated rmq/job distractor."}
+{"query_id":"q_rmq_worker_jobs_hard","doc_id":"hard-job-distractor-063","reason":"Generated rmq/job distractor."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"hard-prom-promo-alert-001","reason":"prom means promotion rather than Prometheus."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"hard-prom-product-metrics-001","reason":"prom means promotion rather than Prometheus."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"hard-prom-distractor-011","reason":"Generated prom distractor."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"hard-prom-distractor-027","reason":"Generated prom distractor."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"hard-prom-distractor-043","reason":"Generated prom distractor."}
+{"query_id":"q_prom_metrics_alert_hard","doc_id":"hard-prom-distractor-059","reason":"Generated prom distractor."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-license-key-001","reason":"lk means license/link key rather than Loki."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-linker-001","reason":"lk means license/link key rather than Loki."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-distractor-009","reason":"Generated lk distractor."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-distractor-010","reason":"Generated lk distractor."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-distractor-025","reason":"Generated lk distractor."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-distractor-026","reason":"Generated lk distractor."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-distractor-041","reason":"Generated lk distractor."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-distractor-042","reason":"Generated lk distractor."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-distractor-057","reason":"Generated lk distractor."}
+{"query_id":"q_lk_gateway_logs_hard","doc_id":"hard-lk-distractor-058","reason":"Generated lk distractor."}
+{"query_id":"q_redis_cache_ops_hard","doc_id":"hard-redis-design-001","reason":"Redis words appear without sentinel/cluster operations."}
+{"query_id":"q_redis_cache_ops_hard","doc_id":"hard-redis-cache-copy-001","reason":"Redis words appear without sentinel/cluster operations."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-slo-slow-rollout-001","reason":"slo/otel have non-SRE or non-OpenTelemetry meanings."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-slo-slogan-001","reason":"slo/otel have non-SRE or non-OpenTelemetry meanings."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-otel-office-telemetry-001","reason":"slo/otel have non-SRE or non-OpenTelemetry meanings."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-otel-old-tracker-001","reason":"slo/otel have non-SRE or non-OpenTelemetry meanings."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-slo-distractor-012","reason":"Generated slo/otel distractor."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-slo-distractor-028","reason":"Generated slo/otel distractor."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-slo-distractor-044","reason":"Generated slo/otel distractor."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-slo-distractor-060","reason":"Generated slo/otel distractor."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-otel-distractor-013","reason":"Generated slo/otel distractor."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-otel-distractor-029","reason":"Generated slo/otel distractor."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-otel-distractor-045","reason":"Generated slo/otel distractor."}
+{"query_id":"q_slo_otel_regression","doc_id":"hard-otel-distractor-061","reason":"Generated slo/otel distractor."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-api-contract-001","reason":"Generic blocked aliases appear in noisy docs."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-api-partner-001","reason":"Generic blocked aliases appear in noisy docs."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-app-mobile-001","reason":"Generic blocked aliases appear in noisy docs."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-app-web-001","reason":"Generic blocked aliases appear in noisy docs."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-job-background-001","reason":"Generic blocked aliases appear in noisy docs."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-api-distractor-016","reason":"Generated api distractor."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-api-distractor-032","reason":"Generated api distractor."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-api-distractor-048","reason":"Generated api distractor."}
+{"query_id":"q_api_app_noise_blocked","doc_id":"hard-api-distractor-064","reason":"Generated api distractor."}
+{"query_id":"q_otel_trace_facility_hard","doc_id":"hard-otel-office-telemetry-001","reason":"otel is not OpenTelemetry here."}
+{"query_id":"q_otel_trace_facility_hard","doc_id":"hard-otel-old-tracker-001","reason":"otel is not OpenTelemetry here."}
+{"query_id":"q_k8s_rollout_namespace_service","doc_id":"hard-svc-customer-service-001","reason":"service/ns terms have non-Kubernetes meanings."}
+{"query_id":"q_k8s_rollout_namespace_service","doc_id":"hard-ns-nameserver-001","reason":"service/ns terms have non-Kubernetes meanings."}
+{"query_id":"q_k8s_rollout_namespace_service","doc_id":"hard-ns-network-segment-001","reason":"service/ns terms have non-Kubernetes meanings."}
+{"query_id":"q_elastic_search_timeout","doc_id":"hard-es-error-state-001","reason":"search/timeout or es terms are misleading here."}
+{"query_id":"q_elastic_search_timeout","doc_id":"hard-es-event-stream-001","reason":"search/timeout or es terms are misleading here."}
+{"query_id":"q_elastic_search_timeout","doc_id":"hard-es-error-summary-001","reason":"search/timeout or es terms are misleading here."}
+{"query_id":"q_elastic_search_timeout","doc_id":"hard-pg-page-generation-001","reason":"search/timeout or es terms are misleading here."}

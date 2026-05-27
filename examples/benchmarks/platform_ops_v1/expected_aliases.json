@@ -1,13 +1,107 @@
 {
-  "format_version": "skeinrank.benchmark.expected_aliases.v1",
+  "format_version": "skeinrank.benchmark.expected_aliases.v2",
   "benchmark_name": "platform_ops_v1",
   "expected_new_aliases": [
-    {"alias": "rmq", "canonical": "rabbitmq", "slot": "TECHNOLOGY"},
-    {"alias": "otel", "canonical": "opentelemetry", "slot": "TECHNOLOGY"},
-    {"alias": "pg", "canonical": "postgresql", "slot": "DATABASE"}
+    {
+      "alias": "rmq",
+      "canonical": "rabbitmq",
+      "slot": "TECHNOLOGY"
+    },
+    {
+      "alias": "otel",
+      "canonical": "opentelemetry",
+      "slot": "TECHNOLOGY"
+    },
+    {
+      "alias": "pg",
+      "canonical": "postgresql",
+      "slot": "DATABASE"
+    },
+    {
+      "alias": "prom",
+      "canonical": "prometheus",
+      "slot": "TECHNOLOGY"
+    },
+    {
+      "alias": "lk",
+      "canonical": "loki",
+      "slot": "TECHNOLOGY"
+    },
+    {
+      "alias": "ns",
+      "canonical": "namespace",
+      "slot": "KUBERNETES_OBJECT"
+    },
+    {
+      "alias": "svc",
+      "canonical": "service",
+      "slot": "KUBERNETES_OBJECT"
+    },
+    {
+      "alias": "redis-sentinel",
+      "canonical": "redis sentinel",
+      "slot": "TECHNOLOGY"
+    },
+    {
+      "alias": "redis-cluster",
+      "canonical": "redis cluster",
+      "slot": "TECHNOLOGY"
+    },
+    {
+      "alias": "slo",
+      "canonical": "service level objective",
+      "slot": "SRE_CONCEPT"
+    },
+    {
+      "alias": "es",
+      "canonical": "elasticsearch",
+      "slot": "TECHNOLOGY"
+    }
   ],
-  "expected_blocked_aliases": ["app"],
-  "expected_idempotent_aliases": ["kube"],
-  "expected_skipped_sources": ["inc-001"],
-  "expected_content_changed_sources": ["inc-kube-002"]
+  "expected_blocked_aliases": [
+    "app",
+    "error",
+    "job",
+    "api"
+  ],
+  "expected_idempotent_aliases": [
+    "kube",
+    "k8s",
+    "postgres",
+    "elastic"
+  ],
+  "expected_warning_aliases": [
+    "pg",
+    "kube",
+    "k8s",
+    "postgres"
+  ],
+  "expected_skipped_sources": [
+    "inc-001",
+    "runbook-elastic-unchanged"
+  ],
+  "expected_content_changed_sources": [
+    "inc-kube-002",
+    "ticket-postgres-changed"
+  ],
+  "quality_thresholds": {
+    "min_expected_alias_recall": 1.0,
+    "min_proposal_precision_like": 1.0,
+    "min_runtime_canonicalization_accuracy": 1.0,
+    "max_unexpected_proposals": 0,
+    "min_unchanged_skip_rate": 1.0,
+    "min_blocked_alias_recall": 1.0,
+    "min_snapshot_created": true,
+    "min_evidence_window_coverage": 1.0,
+    "min_proposal_attempt_coverage": 1.0
+  },
+  "retrieval_quality_thresholds": {
+    "min_ndcg_at_10_delta": 0.05,
+    "min_mrr_at_10_delta": 0.0,
+    "min_recall_at_10_delta": 0.01,
+    "min_skeinrank_ndcg_at_10": 0.45,
+    "max_skeinrank_hard_negative_leakage_at_10": 0.7,
+    "max_hard_negative_leakage_at_10_delta": 0.0,
+    "max_generic_token_noise_at_10_delta": 0.05
+  }
 }
