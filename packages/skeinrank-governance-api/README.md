@@ -1521,3 +1521,17 @@ The response uses schema `skeinrank.agent_run_progress.v1` and aggregates existi
 
 The progress endpoint is observational only: it does not run the agent, submit proposals, apply dictionary changes, publish snapshots, or call OpenRouter/Elasticsearch.
 
+### Agent run resume plan API
+
+Long-running agent runs can also ask for the next bounded resume/retry batch:
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/agents/runs/agent-run-001/resume-plan \
+  -H "Content-Type: application/json" \
+  -d '{"batch_limit":100,"retry_errors":true,"retry_skipped":false}'
+```
+
+The response uses schema `skeinrank.agent_run_resume_plan.v1`. It includes `limits`, `summary.by_kind`, and `work_items` for unfinished documents, document errors, candidate errors, LLM review errors, proposal errors, skipped documents when requested, and forced rescans when requested.
+
+The planner is read-only: it does not mutate the run, execute workers, call OpenRouter/Elasticsearch, submit proposals, apply dictionary changes, or publish snapshots.
+

@@ -845,3 +845,32 @@ The response schema is `skeinrank.agent_run_progress.v1` and includes:
 
 `summary.expected_documents_total` and `summary.phase` on the agent run are optional hints used for `percent_complete` and `phase`. The endpoint does not execute an agent, call external services, submit proposals, mutate dictionaries, or publish snapshots.
 
+## Agent run resume plan
+
+Patch 52B adds a read-only planner for resuming or retrying long-running runs.
+
+```http
+POST /v1/agents/runs/{run_id}/resume-plan
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "batch_limit": 100,
+  "retry_errors": true,
+  "retry_skipped": false,
+  "force_rescan": false,
+  "source_ids": ["doc-001", "doc-002"]
+}
+```
+
+The response schema is `skeinrank.agent_run_resume_plan.v1` and includes:
+
+- `limits`: effective batch limit, selected item count, available item count, and `has_more`.
+- `summary`: work item counters by kind and operator notes.
+- `work_items`: read-only units such as `resume_unfinished_document`, `retry_document_error`, `retry_candidate_error`, `retry_llm_review_error`, `retry_proposal_error`, `retry_skipped_document`, and `force_rescan`.
+
+The endpoint requires `agent:runs:read`. It intentionally does not mutate agent run status, retry external calls, submit proposals, apply dictionary changes, or publish snapshots.
+

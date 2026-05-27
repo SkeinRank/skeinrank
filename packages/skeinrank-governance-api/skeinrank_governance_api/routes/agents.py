@@ -40,6 +40,7 @@ from ..agent_run_registry import (
     list_agent_runs,
     update_agent_run,
 )
+from ..agent_run_resume import AgentRunResumePlanError, build_agent_run_resume_plan
 from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
 from ..schemas import (
@@ -55,6 +56,8 @@ from ..schemas import (
     AgentRunCreateRequest,
     AgentRunProgressResponse,
     AgentRunResponse,
+    AgentRunResumePlanRequest,
+    AgentRunResumePlanResponse,
     AgentRunUpdateRequest,
 )
 
@@ -153,6 +156,36 @@ def get_agent_run_progress_endpoint(
     try:
         return AgentRunProgressResponse(**get_agent_run_progress(session, run_id))
     except AgentRunProgressError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+
+@router.post("/runs/{run_id}/resume-plan", response_model=AgentRunResumePlanResponse)
+def build_agent_run_resume_plan_endpoint(
+    run_id: str,
+    request: AgentRunResumePlanRequest,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:read")),
+    session: Session = Depends(get_session),
+) -> AgentRunResumePlanResponse:
+    """Return a read-only resume/retry plan for one agent run."""
+
+    try:
+        return AgentRunResumePlanResponse(
+            **build_agent_run_resume_plan(
+                session,
+                run_id,
+                batch_limit=request.batch_limit,
+                retry_errors=request.retry_errors,
+                retry_skipped=request.retry_skipped,
+                force_rescan=request.force_rescan,
+                source_ids=request.source_ids,
+            )
+        )
+    except AgentRunResumePlanError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc

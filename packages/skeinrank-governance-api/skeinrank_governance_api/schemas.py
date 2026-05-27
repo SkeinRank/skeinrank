@@ -1867,6 +1867,64 @@ class AgentProposalAttemptResponse(BaseModel):
     updated_at: datetime
 
 
+class AgentRunResumePlanRequest(BaseModel):
+    """Read-only request for planning the next agent run resume batch."""
+
+    batch_limit: int = Field(default=100, ge=1, le=500)
+    retry_errors: bool = True
+    retry_skipped: bool = False
+    force_rescan: bool = False
+    source_ids: list[str] | None = Field(default=None, max_length=500)
+
+
+class AgentRunResumePlanLimits(BaseModel):
+    """Batch limit metadata for an agent run resume plan."""
+
+    batch_limit: int
+    requested_source_ids: int | None = None
+    available_work_items: int = 0
+    selected_work_items: int = 0
+    has_more: bool = False
+
+
+class AgentRunResumePlanSummary(BaseModel):
+    """Operator-facing counters for a resume plan."""
+
+    by_kind: dict[str, int] = Field(default_factory=dict)
+    selected_by_kind: dict[str, int] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
+class AgentRunResumePlanItem(BaseModel):
+    """One read-only unit of work that can be resumed or retried later."""
+
+    kind: str
+    reason: str
+    priority: int
+    tracking_table: str | None = None
+    tracking_id: int | None = None
+    source_id: str | None = None
+    candidate_alias: str | None = None
+    normalized_alias: str | None = None
+    status: str | None = None
+    error_message: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentRunResumePlanResponse(BaseModel):
+    """Read-only resume/retry plan for one persisted agent run."""
+
+    schema_version: str
+    run_id: str
+    status: str
+    is_terminal: bool
+    can_resume: bool
+    options: dict[str, Any] = Field(default_factory=dict)
+    limits: AgentRunResumePlanLimits
+    summary: AgentRunResumePlanSummary
+    work_items: list[AgentRunResumePlanItem] = Field(default_factory=list)
+
+
 class AgentRunDocumentProgress(BaseModel):
     """Document-level progress counters for one agent run."""
 

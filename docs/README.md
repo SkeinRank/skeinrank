@@ -403,3 +403,10 @@ Patch 52A adds `GET /v1/agents/runs/{run_id}/progress`, a read-only progress sna
 
 This is the backend foundation for future worker progress UI, resume/retry controls, and long-run operational reports.
 
+### Agent run resume plan API
+
+Patch 52B adds `POST /v1/agents/runs/{run_id}/resume-plan`, a read-only planner for continuing long-running agent workflows after partial completion or failures. The endpoint returns schema `skeinrank.agent_run_resume_plan.v1` with a bounded `work_items` list, `summary.by_kind` counters, and limit metadata.
+
+Supported request controls are `batch_limit`, `retry_errors`, `retry_skipped`, `force_rescan`, and optional `source_ids`. The planner only reads `agent_document_visits`, `agent_candidate_observations`, `agent_llm_reviews`, and `agent_proposal_attempts`; it does not execute a worker, call LLM/search providers, submit proposals, or mutate run state.
+
+
