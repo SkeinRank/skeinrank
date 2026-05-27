@@ -1508,3 +1508,16 @@ Patch 49C adds `agent_decision_diagnostics` with document decisions, candidate d
 ### Patch 49D — Live OpenRouter validated pilot
 
 Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.
+
+### Agent run progress API
+
+Long-running agent runs can now expose a safe, read-only progress snapshot:
+
+```bash
+curl http://127.0.0.1:8010/v1/agents/runs/agent-run-001/progress
+```
+
+The response uses schema `skeinrank.agent_run_progress.v1` and aggregates existing tracking rows for documents, candidates, evidence windows, LLM reviews, proposal attempts, and errors. If the run summary includes `expected_documents_total` and `phase`, the endpoint also returns `percent_complete` and a human-readable phase.
+
+The progress endpoint is observational only: it does not run the agent, submit proposals, apply dictionary changes, publish snapshots, or call OpenRouter/Elasticsearch.
+

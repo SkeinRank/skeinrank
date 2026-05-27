@@ -895,3 +895,16 @@ The stack benchmark connects to PostgreSQL from the local Poetry environment, so
 ### Patch 49D — Live OpenRouter validated pilot
 
 Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.
+
+### Patch 52A — Agent run progress API
+
+Patch 52A adds a read-only progress endpoint for long-running agent workflows. The endpoint computes progress from the existing DB-backed tracking tables (`agent_document_visits`, `agent_candidate_observations`, `agent_evidence_windows`, `agent_llm_reviews`, and `agent_proposal_attempts`) plus optional run `summary` hints such as `expected_documents_total` and `phase`.
+
+New endpoint:
+
+```text
+GET /v1/agents/runs/{run_id}/progress
+```
+
+The response is an operator-facing snapshot with document, candidate, evidence, LLM review, proposal, error, artifact, and timestamp counters. It is safe by design: it does not execute agents, call OpenRouter, submit proposals, mutate dictionaries, or publish snapshots.
+

@@ -826,3 +826,22 @@ This keeps scheduled agents and CI jobs least-privileged: read-only jobs can lis
 runs and tracking records, validation-only jobs can call `validate-alias`, and
 proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 
+## Agent run progress
+
+Patch 52A adds a read-only progress endpoint for persisted agent runs.
+
+```http
+GET /v1/agents/runs/{run_id}/progress
+```
+
+The response schema is `skeinrank.agent_run_progress.v1` and includes:
+
+- `documents`: expected, visited, processed, pending, scanned, skipped, unchanged, changed, error, and by-status counters.
+- `candidates`: observed, queued-for-review, reviewed, rejected, needs-evidence, error, and by-status counters.
+- `evidence`: persisted evidence-window counters.
+- `llm_reviews`: review totals by status.
+- `proposals`: validation, submitted, created, idempotent, manual-review, error, and by-status counters.
+- `errors`, `artifacts`, and `timestamps`: operator-facing run status context.
+
+`summary.expected_documents_total` and `summary.phase` on the agent run are optional hints used for `percent_complete` and `phase`. The endpoint does not execute an agent, call external services, submit proposals, mutate dictionaries, or publish snapshots.
+

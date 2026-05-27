@@ -32,6 +32,7 @@ from ..agent_llm_reviews import (
     record_llm_review,
     record_proposal_attempt,
 )
+from ..agent_run_progress import AgentRunProgressError, get_agent_run_progress
 from ..agent_run_registry import (
     AgentRunRegistryError,
     create_agent_run,
@@ -52,6 +53,7 @@ from ..schemas import (
     AgentProposalAttemptCreateRequest,
     AgentProposalAttemptResponse,
     AgentRunCreateRequest,
+    AgentRunProgressResponse,
     AgentRunResponse,
     AgentRunUpdateRequest,
 )
@@ -135,6 +137,25 @@ def list_agent_runs_endpoint(
     except AgentRunRegistryError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     return [_agent_run_response(agent_run) for agent_run in runs]
+
+
+@router.get("/runs/{run_id}/progress", response_model=AgentRunProgressResponse)
+def get_agent_run_progress_endpoint(
+    run_id: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:read")),
+    session: Session = Depends(get_session),
+) -> AgentRunProgressResponse:
+    """Return an operator-facing progress snapshot for one agent run."""
+
+    try:
+        return AgentRunProgressResponse(**get_agent_run_progress(session, run_id))
+    except AgentRunProgressError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
 
 @router.get("/runs/{run_id}", response_model=AgentRunResponse)

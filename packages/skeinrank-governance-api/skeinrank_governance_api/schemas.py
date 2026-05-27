@@ -1867,6 +1867,113 @@ class AgentProposalAttemptResponse(BaseModel):
     updated_at: datetime
 
 
+class AgentRunDocumentProgress(BaseModel):
+    """Document-level progress counters for one agent run."""
+
+    total_expected: int | None = None
+    visited: int = 0
+    processed: int = 0
+    pending: int | None = None
+    scanned: int = 0
+    skipped: int = 0
+    unchanged: int = 0
+    changed: int = 0
+    errors: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunCandidateProgress(BaseModel):
+    """Candidate observation progress counters for one agent run."""
+
+    observed: int = 0
+    queued_for_review: int = 0
+    reviewed: int = 0
+    rejected: int = 0
+    needs_evidence: int = 0
+    errors: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunEvidenceProgress(BaseModel):
+    """Evidence progress counters for one agent run."""
+
+    windows: int = 0
+    windows_reported_by_visits: int = 0
+
+
+class AgentRunLlmReviewProgress(BaseModel):
+    """LLM review progress counters for one agent run."""
+
+    total: int = 0
+    proposed: int = 0
+    rejected: int = 0
+    needs_evidence: int = 0
+    errors: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunProposalProgress(BaseModel):
+    """Proposal attempt progress counters for one agent run."""
+
+    total: int = 0
+    validation_passed: int = 0
+    validation_warning: int = 0
+    validation_blocked: int = 0
+    submitted: int = 0
+    created: int = 0
+    idempotent_existing_alias: int = 0
+    manual_review_required: int = 0
+    errors: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunErrorProgress(BaseModel):
+    """Error progress counters for one agent run."""
+
+    total: int = 0
+    run_error: bool = False
+    document_errors: int = 0
+    candidate_errors: int = 0
+    llm_review_errors: int = 0
+    proposal_errors: int = 0
+    message: str | None = None
+
+
+class AgentRunArtifactsProgress(BaseModel):
+    """Artifact pointers exposed with an agent run progress snapshot."""
+
+    artifacts_uri: str | None = None
+    report_uri: str | None = None
+
+
+class AgentRunTimestampProgress(BaseModel):
+    """Timestamp summary exposed with an agent run progress snapshot."""
+
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    updated_at: datetime
+
+
+class AgentRunProgressResponse(BaseModel):
+    """Operator-facing progress snapshot for one persisted agent run."""
+
+    schema_version: str
+    run_id: str
+    status: str
+    phase: str
+    is_terminal: bool
+    percent_complete: float | None = None
+    documents: AgentRunDocumentProgress
+    candidates: AgentRunCandidateProgress
+    evidence: AgentRunEvidenceProgress
+    llm_reviews: AgentRunLlmReviewProgress
+    proposals: AgentRunProposalProgress
+    errors: AgentRunErrorProgress
+    artifacts: AgentRunArtifactsProgress
+    timestamps: AgentRunTimestampProgress
+
+
 class AgentRunResponse(BaseModel):
     """Persisted agent run registry response."""
 

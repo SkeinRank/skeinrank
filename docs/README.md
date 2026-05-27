@@ -396,3 +396,10 @@ proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 ### Patch 49D — Live OpenRouter validated pilot
 
 Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.
+
+### Agent run progress API
+
+Patch 52A adds `GET /v1/agents/runs/{run_id}/progress`, a read-only progress snapshot for long-running agent workflows. It summarizes visited/scanned/skipped documents, candidate observations, evidence windows, LLM reviews, proposal attempts, and errors from the existing tracking tables. Optional `summary.expected_documents_total` and `summary.phase` values on the run help the endpoint calculate percent complete and display the current phase.
+
+This is the backend foundation for future worker progress UI, resume/retry controls, and long-run operational reports.
+
