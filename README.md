@@ -96,7 +96,7 @@ Populate the console with a live demo dataset:
 make demo-reset
 ```
 
-This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates review suggestions, checks evidence, and runs enrichment for the Dashboard, Terms, Integrations, Suggestions, Search Playground, and Snapshots screens.
+This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates review suggestions, checks evidence, and runs enrichment for the Dashboard, Terms, Integrations, AI Inbox, Suggestions, Search Playground, and Snapshots screens.
 
 Default local URLs:
 
@@ -411,6 +411,7 @@ Start here:
 - [`docs/adr/0001-headless-runtime-contracts.md`](docs/adr/0001-headless-runtime-contracts.md) — architecture decision for headless runtime boundaries.
 - [`docs/guides/core-sdk-and-cli.md`](docs/guides/core-sdk-and-cli.md) — local SDK/CLI workflows.
 - [`docs/guides/governance-console.md`](docs/guides/governance-console.md) — governance API and UI workflows.
+- `packages/skeinrank-ui/src/pages/ProposalInboxPage.tsx` — review-first AI proposal inbox for human-in-the-loop moderation.
 - [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — API examples for coverage review, policy, and before/after evaluation.
 - [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md) — enrichment, dry-runs, jobs, evidence, and cancellation.
 - [`docs/guides/development.md`](docs/guides/development.md) — development checks and package layout.

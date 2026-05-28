@@ -524,11 +524,25 @@ export type SuggestionSource = "manual" | "discovery" | "import";
 
 export type SuggestionType = "alias" | "canonical_term";
 
+export type ProposalApplyPolicy = {
+  schema_version: string;
+  risk_level: string;
+  decision: string;
+  can_batch_apply: boolean;
+  requires_reviewer: boolean;
+  requires_admin: boolean;
+  requires_warning_override: boolean;
+  auto_apply_allowed: boolean;
+  reasons: string[];
+  signals: Record<string, unknown>;
+};
+
 export type GovernanceSuggestion = {
   id: number;
   profile_id: number;
   term_id: number | null;
   alias_id: number | null;
+  binding_id?: number | null;
   suggestion_type: SuggestionType;
   canonical_value: string;
   normalized_canonical: string;
@@ -539,7 +553,19 @@ export type GovernanceSuggestion = {
   confidence: number;
   source: SuggestionSource;
   context: string | null;
+  proposal_source_type?: string;
+  proposal_source_name?: string | null;
+  idempotency_key?: string | null;
+  source_payload?: Record<string, unknown> | null;
+  validation_summary?: Record<string, unknown> | null;
   status: SuggestionStatus;
+  lifecycle_status?: string;
+  lifecycle_reason?: string;
+  validation_status?: string;
+  risk_level?: string;
+  apply_policy?: ProposalApplyPolicy | null;
+  can_approve?: boolean;
+  can_apply?: boolean;
   created_by: string | null;
   reviewed_by: string | null;
   review_comment: string | null;
@@ -560,10 +586,17 @@ export type SuggestionCreateRequest = {
   confidence?: number;
   source?: SuggestionSource;
   context?: string | null;
+  binding_id?: number | null;
+  proposal_source_type?: string;
+  proposal_source_name?: string | null;
+  idempotency_key?: string | null;
+  source_payload?: Record<string, unknown> | null;
+  validation_summary?: Record<string, unknown> | null;
 };
 
 export type SuggestionReviewRequest = {
   review_comment?: string | null;
+  allow_warnings?: boolean;
 };
 
 export type UserRole = "admin" | "moderator" | "contributor";

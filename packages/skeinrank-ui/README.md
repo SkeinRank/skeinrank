@@ -61,7 +61,8 @@ The governance console currently includes:
 - admin-only Users page for local user CRUD, role assignment, account status controls, and user token revocation
 - API Access page for personal API tokens and admin-managed service accounts
 - role-aware controls for Admin, Moderator, and Contributor users
-- Suggestions page for creating, filtering, approving, rejecting, and evidence-checking alias/canonical term proposals
+- AI Inbox page for human-in-the-loop review of agent proposals with risk, validation, apply-policy, and evidence summaries
+- Suggestions page for legacy/dev proposal creation, filtering, approving, rejecting, and evidence-checking alias/canonical term proposals
 - Guardrails page for global and profile-scoped stop-list management
 - Integrations page for manual Elasticsearch binding configs, shared-index validation, time-window filters, dry-run previews, and enrichment job status
 - searchable canonical term picker in manual suggestions with auto-filled slot and existing alias checks
@@ -76,13 +77,15 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
+The AI Inbox is the new review-first page for agent-submitted proposals. It uses the existing suggestions API, but it is intentionally not a manual CRUD editor: moderators/admins review pending cards, inspect risk/validation/evidence summaries, and call the existing approve/reject endpoints. Contributors can inspect the queue in read-only mode.
+
 Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, global stop-list guardrails, profile stop-list guardrails, Elasticsearch binding configs, dry-run previews, evidence checks, enrichment job status, personal API tokens, and service accounts through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, background workers, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 
 ## Evidence UI
 
 The Terms page includes an explicit Evidence check panel for the selected canonical term. Users can choose one of the profile's Elasticsearch bindings, search the canonical value or an alias, and inspect bounded snippets with highlighted matches. Alias rows also include a shortcut to check evidence for that alias.
 
-The Suggestions page shows saved evidence snapshots from the backend and lets authorized users refresh evidence for pending suggestions before approve/reject. Evidence checks are never run automatically for every suggestion row; each check is a bounded backend request through the configured binding.
+The AI Inbox shows saved evidence snapshots as review context. The Suggestions page still lets authorized users refresh evidence for pending suggestions before approve/reject. Evidence checks are never run automatically for every suggestion row; each check is a bounded backend request through the configured binding.
 
 ## API Access
 
@@ -172,6 +175,9 @@ POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
 GET /v1/governance/elasticsearch/jobs?binding_id=...
 GET /v1/governance/elasticsearch/jobs/{job_id}
 POST /v1/governance/elasticsearch/jobs/{job_id}/cancel
+GET /v1/governance/profiles/{profile_name}/suggestions?status=pending
+POST /v1/governance/profiles/{profile_name}/suggestions/{suggestion_id}/approve
+POST /v1/governance/profiles/{profile_name}/suggestions/{suggestion_id}/reject
 ```
 
 ## Elasticsearch enrichment time filters

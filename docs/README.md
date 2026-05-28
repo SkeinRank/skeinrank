@@ -377,6 +377,8 @@ Patch 44D adds the final DB-backed tracking tables for the initial agent audit t
 
 Suggestion responses include lifecycle fields that help headless clients and UI review flows distinguish reviewable, warning, blocked, approved/applied, and rejected proposals without guessing from raw validation summaries.
 
+The UI now includes a dedicated AI Proposals Inbox page for human-in-the-loop moderation. It is separate from the legacy Suggestions/dev workflow and focuses on pending proposal cards, risk level, validation status, apply-policy decision, saved evidence snapshots, and approve/reject actions.
+
 ### Proposal apply idempotency
 
 Batch apply now supports safe retries. If a caller retries the same suggestion ids after a successful apply, the API returns an idempotent result without creating duplicate terms or aliases.
