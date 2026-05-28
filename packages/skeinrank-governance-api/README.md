@@ -49,7 +49,7 @@ to Elasticsearch.
 
 ## Retrieval eval CLI
 
-Patch 50A adds a deterministic retrieval evaluator for the `platform_ops_v1` fixture. Patch 50B expands the fixture to 200 documents and adds hard-negative leakage checks. Patch 50B.1 adds query-hygiene scoring with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs. It reads `retrieval_queries.jsonl`, `qrels.jsonl`, and `hard_negatives.jsonl`, compares a literal baseline with a SkeinRank-expanded run, and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and `generic_token_noise@10` deltas.
+Patch 50A adds a deterministic retrieval evaluator for the `platform_ops_v1` fixture. Patch 50B expands the fixture to 200 documents and adds hard-negative leakage checks. Patch 50B.1 adds query-hygiene scoring with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs. Patch 53A expands the default fixture to a 500-document small-pilot corpus and records the corpus shape in `corpus_manifest.json`. The evaluator reads `retrieval_queries.jsonl`, `qrels.jsonl`, and `hard_negatives.jsonl`, compares a literal baseline with a SkeinRank-expanded run, and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and `generic_token_noise@10` deltas.
 
 ```bash
 poetry run skeinrank-governance-retrieval-eval plan
@@ -1548,3 +1548,6 @@ The response uses schema `skeinrank.agent_run_report.v1`. It embeds the `/progre
 
 The report endpoint is read-only: it does not mutate the run, execute workers, call OpenRouter/Elasticsearch, submit proposals, apply dictionary changes, or publish snapshots.
 
+### Patch 53A.1 — validated pilot preflight hotfix
+
+The OpenRouter validated pilot now checks the actual read-only `POST /v1/tools/validate-alias` tool before spending model budget. This catches missing profile/binding contexts early and points operators to seed the benchmark stack or pass an existing `--profile-name` / `--binding-id`.

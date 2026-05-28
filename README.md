@@ -166,7 +166,7 @@ See [`docs/benchmarks/containerized-benchmark-integration.md`](docs/benchmarks/c
 
 ## Retrieval eval baseline
 
-Patch 50A adds the first retrieval quality baseline for `platform_ops_v1`: qrels, retrieval queries, a literal baseline run, a SkeinRank-expanded run, and `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas. Patch 50B expands the fixture to 200 documents and adds `hard_negatives.jsonl` plus `hard_negative_leakage@10`; 50B.1 tightens query hygiene with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs, with query groups, regressions, leakage diagnostics, and operator recommendations.
+Patch 50A adds the first retrieval quality baseline for `platform_ops_v1`: qrels, retrieval queries, a literal baseline run, a SkeinRank-expanded run, and `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas. Patch 50B expands the fixture to 200 documents and adds `hard_negatives.jsonl` plus `hard_negative_leakage@10`; 50B.1 tightens query hygiene with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs, with query groups, regressions, leakage diagnostics, and operator recommendations. Patch 53A expands the default corpus to 500 documents and adds `corpus_manifest.json` so small-pilot scale quality checks have a stable fixture shape.
 
 ```bash
 make benchmark-retrieval-plan
@@ -944,4 +944,6 @@ GET /v1/agents/runs/{run_id}/report
 
 The response schema is `skeinrank.agent_run_report.v1`. The report is operator-facing and safe by design: it does not execute agents, retry work, call OpenRouter/Elasticsearch, submit proposals, apply dictionaries, or publish snapshots. Use it before `/resume-plan` to understand why a run stopped, which documents were skipped, where validation blocked candidates, and whether a configured cost budget was exceeded.
 
+### Patch 53A.1 — Validated pilot preflight hotfix
 
+Patch 53A.1 tightens the OpenRouter validated pilot guardrail. Before spending OpenRouter budget, the runner now verifies not only `/livez` and `/v1/tools/bindings`, but also the read-only `POST /v1/tools/validate-alias` tool with a synthetic preflight payload. If the selected profile or binding context is missing, the CLI fails before any live model call and explains that the benchmark stack must be seeded or an existing `--profile-name` / `--binding-id` must be provided.

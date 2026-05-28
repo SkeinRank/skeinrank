@@ -1367,7 +1367,13 @@ def run_openrouter_live_pilot_for_args(
     skeinrank_client = None
     if pilot_config.validate_with_skeinrank or pilot_config.submit_proposals:
         skeinrank_client = build_client(config)
-        _preflight_skeinrank_api_for_live_pilot(skeinrank_client, config)
+        _preflight_skeinrank_api_for_live_pilot(
+            skeinrank_client,
+            config,
+            profile_name=_effective_profile_name(config, args),
+            binding_id=_effective_binding_id(config, args),
+            proposal_source_name=config.proposal_source_name,
+        )
 
     return run_openrouter_live_pilot(
         failed_queries=failed_queries,
@@ -1389,7 +1395,12 @@ def run_openrouter_live_pilot_for_args(
 
 
 def _preflight_skeinrank_api_for_live_pilot(
-    client: SkeinRankAgentClient, config: AgentRunnerConfig
+    client: SkeinRankAgentClient,
+    config: AgentRunnerConfig,
+    *,
+    profile_name: str | None = None,
+    binding_id: int | None = None,
+    proposal_source_name: str | None = None,
 ) -> None:
     """Fail before OpenRouter calls when live validation/submission needs API.
 
@@ -1415,9 +1426,15 @@ def _preflight_skeinrank_api_for_live_pilot(
             f"pilot validation. Response: {response!r}"
         )
 
+    effective_profile_name = profile_name or config.default_profile_name
+    effective_binding_id = binding_id or config.default_binding_id
     try:
-        client.list_bindings(
-            profile_name=config.default_profile_name, enabled_only=True
+        client.list_bindings(profile_name=effective_profile_name, enabled_only=True)
+        _preflight_validate_alias_tool(
+            client,
+            profile_name=effective_profile_name,
+            binding_id=effective_binding_id,
+            proposal_source_name=proposal_source_name or config.proposal_source_name,
         )
     except SkeinRankAgentApiError as exc:
         if exc.status_code in {401, 403}:
@@ -1426,6 +1443,17 @@ def _preflight_skeinrank_api_for_live_pilot(
                 "OpenRouter call. Provide a valid bearer token via "
                 f"{config.api_token_env or 'SKEINRANK_AGENT_API_TOKEN'} or run the "
                 "benchmark stack target that bootstraps a temporary admin token. "
+                f"Configured URL: {config.skeinrank_api_url}. "
+                f"API response: {exc.detail!r}"
+            ) from exc
+        if exc.status_code == 404:
+            raise RuntimeError(
+                "SkeinRank Governance API validation preflight failed before the "
+                "OpenRouter call because the requested validation context was not "
+                "found. Seed the benchmark stack first or pass an existing "
+                "--profile-name/--binding-id. "
+                f"Profile: {effective_profile_name!r}. "
+                f"Binding id: {effective_binding_id!r}. "
                 f"Configured URL: {config.skeinrank_api_url}. "
                 f"API response: {exc.detail!r}"
             ) from exc
@@ -1439,6 +1467,33 @@ def _preflight_skeinrank_api_for_live_pilot(
             "before the OpenRouter call. "
             f"Configured URL: {config.skeinrank_api_url}. Error: {exc}"
         ) from exc
+
+
+def _preflight_validate_alias_tool(
+    client: SkeinRankAgentClient,
+    *,
+    profile_name: str | None,
+    binding_id: int | None,
+    proposal_source_name: str | None,
+) -> None:
+    """Verify the read-only alias validation tool before spending LLM budget."""
+
+    source_name = proposal_source_name or "openrouter-alias-scout"
+    client.validate_alias(
+        profile_name=profile_name,
+        binding_id=binding_id,
+        canonical_value="skeinrank_preflight_canonical",
+        alias_value="skeinrank_preflight_alias",
+        slot="preflight",
+        confidence=1.0,
+        proposal_source_name=f"{source_name}-preflight",
+        idempotency_key="openrouter-live-pilot:preflight:validate-alias",
+        source_payload={
+            "preflight": True,
+            "runtime_mutation_enabled": False,
+            "purpose": "verify_validate_alias_tool_before_openrouter_call",
+        },
+    )
 
 
 def _live_pilot_cli_summary(

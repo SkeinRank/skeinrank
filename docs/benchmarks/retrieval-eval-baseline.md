@@ -1,9 +1,11 @@
 # Retrieval eval baseline
 
 Patch 50A added the first retrieval-quality baseline for the `platform_ops_v1`
-benchmark. Patch 50B expands that same harness to a 200-document corpus with
-hard negatives, so SkeinRank changes can be evaluated with ranking metrics and
-noise/leakage checks instead of only proposal/runtime checks.
+benchmark. Patch 50B expanded that same harness to a 200-document corpus with
+hard negatives, and Patch 53A expands it again into a 500-document corpus for
+small-pilot scale validation. SkeinRank changes can now be evaluated with
+ranking metrics, noise/leakage checks, and a larger candidate-free background
+corpus instead of only proposal/runtime checks.
 
 This layer answers a different question than the agent workflow benchmark:
 
@@ -22,12 +24,16 @@ examples/benchmarks/platform_ops_v1/
   qrels.jsonl
   hard_negatives.jsonl
   expected_aliases.json
+  corpus_manifest.json
 ```
 
 `retrieval_queries.jsonl` contains query ids, user-facing queries, expected
 expansions, and descriptions. `qrels.jsonl` contains graded relevance labels for
 benchmark documents. `hard_negatives.jsonl` marks intentionally confusing
 documents that share alias-like terms but should not be treated as relevant.
+`corpus_manifest.json` records the 53A corpus shape: 500 documents total, 300
+added documents, 70 added labeled hard negatives, plus semantic-noise,
+near-duplicate, and weak platform-adjacent rows.
 
 The baseline run uses literal query terms. The SkeinRank run expands known
 aliases and canonicals from the benchmark dictionary and expected alias map, for
@@ -115,12 +121,13 @@ configured ceiling and should not materially regress versus baseline. With
 should expand observed aliases toward canonical values rather than expanding
 canonical terms back to ambiguous short aliases such as `service -> svc` or
 `namespace -> ns`. This is still a deterministic benchmark harness, not a
-production-scale search study; 500+ document and provider-backed retrieval
-evaluations can build on this layer.
+production-scale search study. Patch 53A makes the default corpus a
+500-document corpus suitable for a small controlled quality benchmark;
+provider-backed and 5k smoke evaluations can build on this layer.
 
 ## Safety
 
-50A/50B/50B.1 do not call OpenRouter, Elasticsearch, or the database. It does not submit
+50A/50B/50B.1/53A do not call OpenRouter, Elasticsearch, or the database. It does not submit
 proposals, approve/apply changes, publish snapshots, or mutate runtime state.
 
 ## Retrieval comparison report

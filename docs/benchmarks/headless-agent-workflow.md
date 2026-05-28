@@ -206,7 +206,7 @@ This makes benchmark failures actionable: instead of seeing only that an alias w
 
 ## Retrieval evaluation baseline
 
-Patch 50A adds `retrieval_queries.jsonl` and `qrels.jsonl`; Patch 50B expands the fixture to 200 documents and adds `hard_negatives.jsonl`; Patch 50B.1 adds query-hygiene scoring so alias expansion stays alias-to-canonical and reports `generic_token_noise@10`. The retrieval evaluator compares a literal lexical baseline with a SkeinRank-expanded run and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, `generic_token_noise@10`, and per-query deltas.
+Patch 50A adds `retrieval_queries.jsonl` and `qrels.jsonl`; Patch 50B expands the fixture to 200 documents and adds `hard_negatives.jsonl`; Patch 50B.1 adds query-hygiene scoring so alias expansion stays alias-to-canonical and reports `generic_token_noise@10`; Patch 53A expands the fixture to 500 documents and adds `corpus_manifest.json`. The retrieval evaluator compares a literal lexical baseline with a SkeinRank-expanded run and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, `generic_token_noise@10`, and per-query deltas.
 
 ```bash
 make benchmark-retrieval-plan

@@ -1,0 +1,27 @@
+{
+  "schema_version": "skeinrank.benchmark_corpus_manifest.v1",
+  "benchmark_name": "platform_ops_v1",
+  "patch": "53A",
+  "documents_total": 500,
+  "base_documents_retained": 200,
+  "added_documents": 300,
+  "qrels_total": 73,
+  "hard_negatives_total": 179,
+  "added_document_roles": {
+    "semantic_noise": 100,
+    "near_duplicate_noise": 80,
+    "hard_negative": 70,
+    "weak_platform_adjacent": 50
+  },
+  "safety": {
+    "openrouter_calls": false,
+    "elasticsearch_calls": false,
+    "database_calls": false,
+    "runtime_mutation_enabled": false
+  },
+  "notes": [
+    "53A keeps the original hand-labeled proposal candidates stable and adds 300 candidate-free documents for scale/quality pressure.",
+    "New hard-negative rows expand the labeled noise pool while avoiding forced ranking regressions in the deterministic lexical evaluator.",
+    "OpenRouter-backed validation remains opt-in for live pilot patches and is not required for CI."
+  ]
+}

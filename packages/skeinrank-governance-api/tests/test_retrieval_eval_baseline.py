@@ -21,20 +21,29 @@ def test_retrieval_fixture_files_exist_and_are_well_formed() -> None:
     queries = fixture_root / "retrieval_queries.jsonl"
     qrels = fixture_root / "qrels.jsonl"
     hard_negatives = fixture_root / "hard_negatives.jsonl"
+    manifest = fixture_root / "corpus_manifest.json"
 
     assert queries.exists()
     assert qrels.exists()
     assert hard_negatives.exists()
+    assert manifest.exists()
 
     query_rows = [json.loads(line) for line in queries.read_text().splitlines()]
     qrel_rows = [json.loads(line) for line in qrels.read_text().splitlines()]
     hard_negative_rows = [
         json.loads(line) for line in hard_negatives.read_text().splitlines()
     ]
+    manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
 
     assert len(query_rows) >= 18
     assert len(qrel_rows) >= 70
-    assert len(hard_negative_rows) >= 100
+    assert len(hard_negative_rows) >= 170
+    assert (
+        manifest_payload["schema_version"] == "skeinrank.benchmark_corpus_manifest.v1"
+    )
+    assert manifest_payload["documents_total"] == 500
+    assert manifest_payload["added_documents"] == 300
+    assert manifest_payload["added_document_roles"]["hard_negative"] == 70
     assert {"query_id", "query", "expected_expansions"}.issubset(query_rows[0])
     assert {"query_id", "doc_id", "relevance"}.issubset(qrel_rows[0])
     assert {"query_id", "doc_id", "reason"}.issubset(hard_negative_rows[0])
@@ -44,10 +53,10 @@ def test_retrieval_plan_is_offline_and_counts_fixtures() -> None:
     plan = build_retrieval_plan(paths=resolve_retrieval_paths())
 
     assert plan["schema_version"] == "skeinrank.retrieval_eval_plan.v1"
-    assert plan["documents_total"] == 200
+    assert plan["documents_total"] == 500
     assert plan["queries_total"] >= 18
     assert plan["qrels_total"] >= 70
-    assert plan["hard_negatives_total"] >= 100
+    assert plan["hard_negatives_total"] >= 170
     assert plan["runs"] == ["baseline", "skeinrank"]
     assert plan["safety"] == {
         "openrouter_calls": False,
@@ -64,9 +73,9 @@ def test_retrieval_eval_reports_positive_skeinrank_delta(tmp_path: Path) -> None
     assert report_path.exists()
     assert report["schema_version"] == "skeinrank.retrieval_eval_report.v1"
     assert report["status"] == "passed"
-    assert report["documents_total"] == 200
+    assert report["documents_total"] == 500
     assert report["queries_total"] >= 18
-    assert report["hard_negatives_total"] >= 100
+    assert report["hard_negatives_total"] >= 170
     assert report["delta"]["ndcg@10"] > 0
     assert report["delta"]["recall@10"] > 0
     assert report["delta"]["hard_negative_leakage@10"] <= 0
@@ -128,3 +137,5 @@ def test_retrieval_eval_docs_are_linked() -> None:
     assert "generic_token_noise@10" in guide
     assert "alias-to-canonical" in guide
     assert "skeinrank.retrieval_eval_report.v1" in guide
+    assert "500-document corpus" in guide
+    assert "corpus_manifest.json" in guide
