@@ -1867,6 +1867,284 @@ class AgentProposalAttemptResponse(BaseModel):
     updated_at: datetime
 
 
+class AgentRunResumePlanRequest(BaseModel):
+    """Read-only request for planning the next agent run resume batch."""
+
+    batch_limit: int = Field(default=100, ge=1, le=500)
+    retry_errors: bool = True
+    retry_skipped: bool = False
+    force_rescan: bool = False
+    source_ids: list[str] | None = Field(default=None, max_length=500)
+
+
+class AgentRunResumePlanLimits(BaseModel):
+    """Batch limit metadata for an agent run resume plan."""
+
+    batch_limit: int
+    requested_source_ids: int | None = None
+    available_work_items: int = 0
+    selected_work_items: int = 0
+    has_more: bool = False
+
+
+class AgentRunResumePlanSummary(BaseModel):
+    """Operator-facing counters for a resume plan."""
+
+    by_kind: dict[str, int] = Field(default_factory=dict)
+    selected_by_kind: dict[str, int] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
+class AgentRunResumePlanItem(BaseModel):
+    """One read-only unit of work that can be resumed or retried later."""
+
+    kind: str
+    reason: str
+    priority: int
+    tracking_table: str | None = None
+    tracking_id: int | None = None
+    source_id: str | None = None
+    candidate_alias: str | None = None
+    normalized_alias: str | None = None
+    status: str | None = None
+    error_message: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentRunResumePlanResponse(BaseModel):
+    """Read-only resume/retry plan for one persisted agent run."""
+
+    schema_version: str
+    run_id: str
+    status: str
+    is_terminal: bool
+    can_resume: bool
+    options: dict[str, Any] = Field(default_factory=dict)
+    limits: AgentRunResumePlanLimits
+    summary: AgentRunResumePlanSummary
+    work_items: list[AgentRunResumePlanItem] = Field(default_factory=list)
+
+
+class AgentRunDocumentProgress(BaseModel):
+    """Document-level progress counters for one agent run."""
+
+    total_expected: int | None = None
+    visited: int = 0
+    processed: int = 0
+    pending: int | None = None
+    scanned: int = 0
+    skipped: int = 0
+    unchanged: int = 0
+    changed: int = 0
+    errors: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunCandidateProgress(BaseModel):
+    """Candidate observation progress counters for one agent run."""
+
+    observed: int = 0
+    queued_for_review: int = 0
+    reviewed: int = 0
+    rejected: int = 0
+    needs_evidence: int = 0
+    errors: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunEvidenceProgress(BaseModel):
+    """Evidence progress counters for one agent run."""
+
+    windows: int = 0
+    windows_reported_by_visits: int = 0
+
+
+class AgentRunLlmReviewProgress(BaseModel):
+    """LLM review progress counters for one agent run."""
+
+    total: int = 0
+    proposed: int = 0
+    rejected: int = 0
+    needs_evidence: int = 0
+    errors: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunProposalProgress(BaseModel):
+    """Proposal attempt progress counters for one agent run."""
+
+    total: int = 0
+    validation_passed: int = 0
+    validation_warning: int = 0
+    validation_blocked: int = 0
+    submitted: int = 0
+    created: int = 0
+    idempotent_existing_alias: int = 0
+    manual_review_required: int = 0
+    errors: int = 0
+    by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunErrorProgress(BaseModel):
+    """Error progress counters for one agent run."""
+
+    total: int = 0
+    run_error: bool = False
+    document_errors: int = 0
+    candidate_errors: int = 0
+    llm_review_errors: int = 0
+    proposal_errors: int = 0
+    message: str | None = None
+
+
+class AgentRunArtifactsProgress(BaseModel):
+    """Artifact pointers exposed with an agent run progress snapshot."""
+
+    artifacts_uri: str | None = None
+    report_uri: str | None = None
+
+
+class AgentRunTimestampProgress(BaseModel):
+    """Timestamp summary exposed with an agent run progress snapshot."""
+
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    updated_at: datetime
+
+
+class AgentRunProgressResponse(BaseModel):
+    """Operator-facing progress snapshot for one persisted agent run."""
+
+    schema_version: str
+    run_id: str
+    status: str
+    phase: str
+    is_terminal: bool
+    percent_complete: float | None = None
+    documents: AgentRunDocumentProgress
+    candidates: AgentRunCandidateProgress
+    evidence: AgentRunEvidenceProgress
+    llm_reviews: AgentRunLlmReviewProgress
+    proposals: AgentRunProposalProgress
+    errors: AgentRunErrorProgress
+    artifacts: AgentRunArtifactsProgress
+    timestamps: AgentRunTimestampProgress
+
+
+class AgentRunReportRunMetadata(BaseModel):
+    """Immutable run metadata embedded in an operator report."""
+
+    id: int
+    agent_name: str
+    agent_version: str | None = None
+    trigger_type: str
+    profile_name: str | None = None
+    binding_id: int | None = None
+    openrouter_model: str | None = None
+    prompt_version: str | None = None
+    workflow_engine: str | None = None
+    config_hash: str | None = None
+    requested_by: str | None = None
+    error_message: str | None = None
+
+
+class AgentRunUsageReport(BaseModel):
+    """Token/cost hints collected from persisted LLM usage metadata."""
+
+    llm_reviews: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    estimated_cost_usd: float | None = None
+    budget_limit_usd: float | None = None
+    budget_exceeded: bool = False
+    by_model: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class AgentRunDiagnosticFinding(BaseModel):
+    """One operator-facing diagnostic finding for an agent run."""
+
+    severity: str = Field(..., examples=["info", "warning", "error"])
+    code: str
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentRunDiagnosticsSummary(BaseModel):
+    """Aggregated diagnostics and suggested operator actions."""
+
+    status: str = Field(..., examples=["ok", "needs_review", "degraded"])
+    findings: list[AgentRunDiagnosticFinding] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+
+
+class AgentRunReportItem(BaseModel):
+    """One sampled diagnostic row from agent tracking tables."""
+
+    kind: str
+    tracking_table: str | None = None
+    tracking_id: int | None = None
+    source_id: str | None = None
+    candidate_alias: str | None = None
+    normalized_alias: str | None = None
+    status: str | None = None
+    message: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentRunDocumentDiagnostics(BaseModel):
+    """Sampled document-level diagnostics for an agent run."""
+
+    skipped_samples: list[AgentRunReportItem] = Field(default_factory=list)
+    error_samples: list[AgentRunReportItem] = Field(default_factory=list)
+
+
+class AgentRunCandidateDiagnostics(BaseModel):
+    """Candidate and LLM-review status counters for an agent run."""
+
+    observed: int = 0
+    by_observation_status: dict[str, int] = Field(default_factory=dict)
+    by_review_status: dict[str, int] = Field(default_factory=dict)
+    needs_evidence: int = 0
+    rejected: int = 0
+    errors: int = 0
+
+
+class AgentRunProposalDiagnostics(BaseModel):
+    """Proposal attempt counters for an agent run report."""
+
+    total: int = 0
+    submitted: int = 0
+    blocked: int = 0
+    warnings: int = 0
+    manual_review_required: int = 0
+    errors: int = 0
+    by_attempt_status: dict[str, int] = Field(default_factory=dict)
+    by_validation_category: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunReportResponse(BaseModel):
+    """Operator-facing diagnostics/report for one persisted agent run."""
+
+    schema_version: str
+    run_id: str
+    status: str
+    phase: str
+    is_terminal: bool
+    run: AgentRunReportRunMetadata
+    progress: AgentRunProgressResponse
+    usage: AgentRunUsageReport
+    diagnostics: AgentRunDiagnosticsSummary
+    documents: AgentRunDocumentDiagnostics
+    candidates: AgentRunCandidateDiagnostics
+    proposals: AgentRunProposalDiagnostics
+    manual_review_items: list[AgentRunReportItem] = Field(default_factory=list)
+    errors: list[AgentRunReportItem] = Field(default_factory=list)
+    artifacts: AgentRunArtifactsProgress
+    timestamps: AgentRunTimestampProgress
+
+
 class AgentRunResponse(BaseModel):
     """Persisted agent run registry response."""
 

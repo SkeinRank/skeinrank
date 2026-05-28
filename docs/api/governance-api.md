@@ -826,3 +826,71 @@ This keeps scheduled agents and CI jobs least-privileged: read-only jobs can lis
 runs and tracking records, validation-only jobs can call `validate-alias`, and
 proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 
+## Agent run progress
+
+Patch 52A adds a read-only progress endpoint for persisted agent runs.
+
+```http
+GET /v1/agents/runs/{run_id}/progress
+```
+
+The response schema is `skeinrank.agent_run_progress.v1` and includes:
+
+- `documents`: expected, visited, processed, pending, scanned, skipped, unchanged, changed, error, and by-status counters.
+- `candidates`: observed, queued-for-review, reviewed, rejected, needs-evidence, error, and by-status counters.
+- `evidence`: persisted evidence-window counters.
+- `llm_reviews`: review totals by status.
+- `proposals`: validation, submitted, created, idempotent, manual-review, error, and by-status counters.
+- `errors`, `artifacts`, and `timestamps`: operator-facing run status context.
+
+`summary.expected_documents_total` and `summary.phase` on the agent run are optional hints used for `percent_complete` and `phase`. The endpoint does not execute an agent, call external services, submit proposals, mutate dictionaries, or publish snapshots.
+
+## Agent run resume plan
+
+Patch 52B adds a read-only planner for resuming or retrying long-running runs.
+
+```http
+POST /v1/agents/runs/{run_id}/resume-plan
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "batch_limit": 100,
+  "retry_errors": true,
+  "retry_skipped": false,
+  "force_rescan": false,
+  "source_ids": ["doc-001", "doc-002"]
+}
+```
+
+The response schema is `skeinrank.agent_run_resume_plan.v1` and includes:
+
+- `limits`: effective batch limit, selected item count, available item count, and `has_more`.
+- `summary`: work item counters by kind and operator notes.
+- `work_items`: read-only units such as `resume_unfinished_document`, `retry_document_error`, `retry_candidate_error`, `retry_llm_review_error`, `retry_proposal_error`, `retry_skipped_document`, and `force_rescan`.
+
+The endpoint requires `agent:runs:read`. It intentionally does not mutate agent run status, retry external calls, submit proposals, apply dictionary changes, or publish snapshots.
+
+## Agent run diagnostics/report
+
+Patch 52C adds a read-only operator report for persisted agent runs.
+
+```http
+GET /v1/agents/runs/{run_id}/report?item_limit=25
+```
+
+The response schema is `skeinrank.agent_run_report.v1` and includes:
+
+- `progress`: the same read-only progress snapshot returned by `/progress`.
+- `usage`: LLM review count, token totals, estimated cost hints, budget limit hints, and per-model usage counters from persisted `usage` metadata.
+- `diagnostics`: overall status, findings, and operator recommendations.
+- `documents`: sampled skipped/unchanged documents and document errors.
+- `candidates`: candidate and LLM-review outcome counters.
+- `proposals`: proposal attempt counters, blocked/warning/manual-review counts, and validation-category counters.
+- `manual_review_items` and `errors`: bounded samples from existing tracking tables.
+
+The endpoint requires `agent:runs:read`. It intentionally does not execute an agent, retry external calls, call LLM/search providers, submit proposals, apply dictionary changes, or publish snapshots.
+

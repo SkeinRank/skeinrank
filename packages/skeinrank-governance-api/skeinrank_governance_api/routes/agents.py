@@ -32,6 +32,7 @@ from ..agent_llm_reviews import (
     record_llm_review,
     record_proposal_attempt,
 )
+from ..agent_run_progress import AgentRunProgressError, get_agent_run_progress
 from ..agent_run_registry import (
     AgentRunRegistryError,
     create_agent_run,
@@ -39,6 +40,8 @@ from ..agent_run_registry import (
     list_agent_runs,
     update_agent_run,
 )
+from ..agent_run_report import AgentRunReportError, get_agent_run_report
+from ..agent_run_resume import AgentRunResumePlanError, build_agent_run_resume_plan
 from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
 from ..schemas import (
@@ -52,7 +55,11 @@ from ..schemas import (
     AgentProposalAttemptCreateRequest,
     AgentProposalAttemptResponse,
     AgentRunCreateRequest,
+    AgentRunProgressResponse,
+    AgentRunReportResponse,
     AgentRunResponse,
+    AgentRunResumePlanRequest,
+    AgentRunResumePlanResponse,
     AgentRunUpdateRequest,
 )
 
@@ -135,6 +142,77 @@ def list_agent_runs_endpoint(
     except AgentRunRegistryError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     return [_agent_run_response(agent_run) for agent_run in runs]
+
+
+@router.get("/runs/{run_id}/progress", response_model=AgentRunProgressResponse)
+def get_agent_run_progress_endpoint(
+    run_id: str,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:read")),
+    session: Session = Depends(get_session),
+) -> AgentRunProgressResponse:
+    """Return an operator-facing progress snapshot for one agent run."""
+
+    try:
+        return AgentRunProgressResponse(**get_agent_run_progress(session, run_id))
+    except AgentRunProgressError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+
+@router.post("/runs/{run_id}/resume-plan", response_model=AgentRunResumePlanResponse)
+def build_agent_run_resume_plan_endpoint(
+    run_id: str,
+    request: AgentRunResumePlanRequest,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:read")),
+    session: Session = Depends(get_session),
+) -> AgentRunResumePlanResponse:
+    """Return a read-only resume/retry plan for one agent run."""
+
+    try:
+        return AgentRunResumePlanResponse(
+            **build_agent_run_resume_plan(
+                session,
+                run_id,
+                batch_limit=request.batch_limit,
+                retry_errors=request.retry_errors,
+                retry_skipped=request.retry_skipped,
+                force_rescan=request.force_rescan,
+                source_ids=request.source_ids,
+            )
+        )
+    except AgentRunResumePlanError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+
+@router.get("/runs/{run_id}/report", response_model=AgentRunReportResponse)
+def get_agent_run_report_endpoint(
+    run_id: str,
+    item_limit: int = Query(default=25, ge=1, le=100),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:read")),
+    session: Session = Depends(get_session),
+) -> AgentRunReportResponse:
+    """Return a read-only diagnostics/report snapshot for one agent run."""
+
+    try:
+        return AgentRunReportResponse(
+            **get_agent_run_report(session, run_id, item_limit=item_limit)
+        )
+    except AgentRunReportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
 
 @router.get("/runs/{run_id}", response_model=AgentRunResponse)

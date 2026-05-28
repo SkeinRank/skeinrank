@@ -396,3 +396,23 @@ proposal-writing jobs must explicitly carry `agent:tools:suggest`.
 ### Patch 49D — Live OpenRouter validated pilot
 
 Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.
+
+### Agent run progress API
+
+Patch 52A adds `GET /v1/agents/runs/{run_id}/progress`, a read-only progress snapshot for long-running agent workflows. It summarizes visited/scanned/skipped documents, candidate observations, evidence windows, LLM reviews, proposal attempts, and errors from the existing tracking tables. Optional `summary.expected_documents_total` and `summary.phase` values on the run help the endpoint calculate percent complete and display the current phase.
+
+This is the backend foundation for future worker progress UI, resume/retry controls, and long-run operational reports.
+
+### Agent run resume plan API
+
+Patch 52B adds `POST /v1/agents/runs/{run_id}/resume-plan`, a read-only planner for continuing long-running agent workflows after partial completion or failures. The endpoint returns schema `skeinrank.agent_run_resume_plan.v1` with a bounded `work_items` list, `summary.by_kind` counters, and limit metadata.
+
+Supported request controls are `batch_limit`, `retry_errors`, `retry_skipped`, `force_rescan`, and optional `source_ids`. The planner only reads `agent_document_visits`, `agent_candidate_observations`, `agent_llm_reviews`, and `agent_proposal_attempts`; it does not execute a worker, call LLM/search providers, submit proposals, or mutate run state.
+
+### Agent run diagnostics/report API
+
+Patch 52C adds `GET /v1/agents/runs/{run_id}/report`, a read-only diagnostics report for operators. The endpoint returns schema `skeinrank.agent_run_report.v1` and combines the progress snapshot with sampled skipped/unchanged documents, sampled errors, manual-review items, proposal validation outcomes, recommendations, and token/cost hints from persisted LLM usage metadata.
+
+The report helps answer: why documents were skipped, where errors happened, which candidates/proposals require human review, which validation categories blocked proposals, and whether a cost budget hint was exceeded. It does not execute workers, call providers, submit proposals, apply dictionaries, or mutate run state.
+
+
