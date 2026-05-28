@@ -290,6 +290,50 @@ class SnapshotSummaryResponse(BaseModel):
     history: list[SnapshotHistoryItem] = Field(default_factory=list)
 
 
+class ProfileIsolationIssueResponse(BaseModel):
+    """One sampled profile/binding isolation issue."""
+
+    entity: str
+    entity_id: str
+    severity: str
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProfileIsolationCheckResponse(BaseModel):
+    """One read-only profile/binding isolation check result."""
+
+    name: str
+    status: str = Field(..., examples=["ok", "failed"])
+    message: str
+    issues_count: int
+    sampled_issues: list[ProfileIsolationIssueResponse] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProfileIsolationSummaryResponse(BaseModel):
+    """Aggregate profile/binding isolation counters."""
+
+    profiles_total: int
+    bindings_total: int
+    suggestions_total: int
+    agent_runs_total: int
+    checks_total: int
+    failed_checks: int
+    issues_total: int
+
+
+class ProfileIsolationResponse(BaseModel):
+    """Operator-facing profile/binding isolation report."""
+
+    schema_version: str = "skeinrank.profile_isolation.v1"
+    status: str = Field(..., examples=["ok", "degraded"])
+    summary: ProfileIsolationSummaryResponse
+    checks: list[ProfileIsolationCheckResponse] = Field(default_factory=list)
+    rules: dict[str, list[str]] = Field(default_factory=dict)
+    safety: dict[str, Any] = Field(default_factory=dict)
+
+
 class RoleBoundaryCapabilityResponse(BaseModel):
     """Operator-facing capability flags for a governance role boundary."""
 

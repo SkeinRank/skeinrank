@@ -83,6 +83,7 @@ from ..observability.metrics import (
     record_proposal_review,
     record_proposal_submission,
 )
+from ..profile_isolation import build_profile_isolation_report
 from ..proposal_idempotency import (
     ProposalIdempotencyConflict,
     normalize_idempotency_key,
@@ -142,6 +143,7 @@ from ..schemas import (
     GlobalStopListEntryResponse,
     GlobalStopListUpdateRequest,
     ProfileCreateRequest,
+    ProfileIsolationResponse,
     ProfileResponse,
     ProfileUpdateRequest,
     ProposalApplyPolicyResponse,
@@ -172,6 +174,21 @@ from ..worker_queue import (
 )
 
 router = APIRouter(prefix="/v1/governance", tags=["governance"])
+
+
+@router.get("/isolation-checks", response_model=ProfileIsolationResponse)
+def get_profile_isolation_checks(
+    sample_limit: int = Query(default=20, ge=0, le=100),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> ProfileIsolationResponse:
+    """Return read-only profile/binding isolation checks for operators."""
+
+    return ProfileIsolationResponse(
+        **build_profile_isolation_report(session, sample_limit=sample_limit)
+    )
 
 
 @router.get("/role-boundaries", response_model=RoleBoundariesResponse)

@@ -1667,3 +1667,9 @@ Recommended agent service accounts use role `contributor` with explicit scopes
 such as `agent:tools:validate`, `agent:tools:suggest`, `agent:runs:*`,
 `agent:tracking:*`, and `ops:reports:read`. These credentials do not allow
 approve/apply/publish behavior.
+
+### Patch 55D — Tenant/profile isolation checks
+
+`GET /v1/governance/isolation-checks` returns schema `skeinrank.profile_isolation.v1`. The report is read-only and checks that binding-scoped rows remain aligned with their profile/binding context across proposals, binding policies, enrichment jobs, agent runs, and agent tracking tables. It also records the existing request guards that reject mismatched `profile_name` / `binding_id` pairs.
+
+No tenant column, migration, provider call, or runtime mutation is introduced. Full multi-tenant isolation remains a later feature; this patch verifies the current profile/binding boundary.

@@ -978,3 +978,23 @@ inherits the old token scopes. The response returns the replacement plaintext
 The endpoint does not create admin-capable agent credentials by default. Use
 `contributor` service accounts and explicit `agent:*` scopes for scheduled
 agents.
+
+## Profile isolation checks
+
+Patch 55D adds a read-only isolation report for profile/binding safety:
+
+```http
+GET /v1/governance/isolation-checks
+```
+
+Response schema: `skeinrank.profile_isolation.v1`.
+
+The endpoint reports whether binding-scoped rows stay inside their profile context across bindings, suggestions, binding policies, enrichment jobs, agent runs, and agent tracking tables. It also reports the request-guard surface that rejects profile/binding mismatches. The endpoint does not mutate state or call external providers.
+
+Optional query parameter:
+
+```text
+sample_limit=20
+```
+
+Use a lower `sample_limit` when a degraded database may contain many issues.

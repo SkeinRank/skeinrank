@@ -1039,3 +1039,15 @@ pending proposals when scoped for it, but they still cannot approve, batch-apply
 publish snapshots, or mutate runtime state.
 
 See `docs/policies/token-rotation-scoped-agent-credentials.md`.
+
+### Patch 55D — Tenant/profile isolation checks
+
+Adds a read-only profile/binding isolation report for the current production safety model:
+
+```http
+GET /v1/governance/isolation-checks
+```
+
+The response schema is `skeinrank.profile_isolation.v1`. The check verifies that binding-scoped proposals, policies, enrichment jobs, agent runs, and agent tracking rows stay inside their profile/binding context. It also documents the runtime guards that reject mismatched `profile_name` / `binding_id` requests before provider calls or mutations.
+
+This patch does not add a tenant column or claim full multi-tenancy. The current isolation boundary remains the profile plus optional runtime binding. See `docs/policies/profile-isolation-checks.md`.
