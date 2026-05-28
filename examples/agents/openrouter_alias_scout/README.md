@@ -815,3 +815,21 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 
 The live LLM review and live-pilot commands continue to require explicit live flags. Provider plans never print token values.
 
+## Patch 57C — Company model integration
+
+Print the company-model integration plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-company-model-integration-plan
+```
+
+For a private model endpoint, configure:
+
+```bash
+export SKEINRANK_MODEL_PROVIDER_TYPE=local_endpoint
+export SKEINRANK_MODEL_PROVIDER_BASE_URL=http://127.0.0.1:8000/v1
+export SKEINRANK_MODEL_PROVIDER_MODEL=company-model
+```
+
+Then preview with `--print-model-provider-plan`. Live smoke and validated pilot still require explicit live flags and keep proposal submission disabled by default.

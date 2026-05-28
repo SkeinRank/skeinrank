@@ -109,3 +109,7 @@ mutation behavior.
 OpenRouter report fields remain for backward compatibility. New report metadata
 also includes `model_provider` entries so operators can see whether a run used
 OpenRouter, a local endpoint, or the mock provider.
+
+## Company integration
+
+Patch 57C adds a company-model integration plan and checklist for using the `local_endpoint` adapter with private model servers. See [`company-model-integration.md`](company-model-integration.md).

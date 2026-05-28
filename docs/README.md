@@ -468,3 +468,6 @@ Patch 57A introduces `examples/agents/openrouter_alias_scout/model_provider.py`,
 
 Patch 57B adds concrete provider adapters for the alias scout: `openrouter` and `local_endpoint`. The local endpoint adapter is intended for private/self-hosted chat-completion servers and can be previewed with `--print-model-provider-plan` without network calls. See [`deployment/model-provider-adapters.md`](deployment/model-provider-adapters.md).
 
+### Company model integration
+
+Patch 57C adds a safe company-model integration plan for private/local chat-completion endpoints. Use `--print-company-model-integration-plan` to inspect the workflow without network calls or secrets. See [`deployment/company-model-integration.md`](deployment/company-model-integration.md).

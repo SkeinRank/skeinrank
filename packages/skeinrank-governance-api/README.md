@@ -1713,3 +1713,6 @@ Patch 57A adds a model-provider seam to the alias scout example. `--print-model-
 
 Patch 57B keeps OpenRouter as the default model provider and adds a `local_endpoint` adapter for self-hosted `/chat/completions` endpoints. Tests use local transports and do not call external providers. Provider config can be inspected with `--print-model-provider-plan` without exposing secrets.
 
+### Patch 57C — Company model integration
+
+The OpenRouter alias scout now includes an offline company-model integration plan. It documents how to configure `local_endpoint`, preview provider settings, run a one-call smoke, and then run a validated pilot without exposing secrets.

@@ -1071,3 +1071,6 @@ Patch 57A adds the first model provider abstraction for the OpenRouter alias sco
 
 Patch 57B extends the model-provider abstraction with concrete `openrouter` and `local_endpoint` adapters for the alias scout. OpenRouter remains the default hosted provider, while `local_endpoint` targets self-hosted OpenAI-compatible `/chat/completions` servers such as vLLM, LM Studio, or an Ollama-compatible gateway. Provider plans remain offline and secret-redacted. See [`docs/deployment/model-provider-adapters.md`](docs/deployment/model-provider-adapters.md).
 
+### Patch 57C — Company model integration docs and tests
+
+Patch 57C adds an offline company-model integration plan for connecting private/local model endpoints to the alias scout. It documents the `local_endpoint` flow, verifies redacted provider plans, and keeps live calls behind explicit pilot flags. See [`docs/deployment/company-model-integration.md`](docs/deployment/company-model-integration.md).

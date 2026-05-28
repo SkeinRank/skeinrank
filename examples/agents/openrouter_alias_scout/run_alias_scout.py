@@ -61,6 +61,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_canonical_hints_report,
         enrich_candidate_pack_with_canonical_hints,
     )
+    from .company_model_integration import build_company_model_integration_plan
     from .demo_report import (
         DemoReportConfig,
         build_alias_scout_demo_report,
@@ -200,6 +201,7 @@ except ImportError:  # pragma: no cover
         build_canonical_hints_report,
         enrich_candidate_pack_with_canonical_hints,
     )
+    from company_model_integration import build_company_model_integration_plan
     from demo_report import (
         DemoReportConfig,
         build_alias_scout_demo_report,
@@ -807,6 +809,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--print-model-provider-plan",
         action="store_true",
         help="Print the 57A model-provider plan without network calls.",
+    )
+    parser.add_argument(
+        "--print-company-model-integration-plan",
+        action="store_true",
+        help=(
+            "Print the 57C company model integration plan without network "
+            "calls or secret values."
+        ),
     )
     parser.add_argument(
         "--run-openrouter-live-pilot",
@@ -2477,6 +2487,21 @@ def main(argv: list[str] | None = None) -> int:
         print(
             json.dumps(
                 build_model_provider_plan(config.model_provider),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.print_company_model_integration_plan:
+        print(
+            json.dumps(
+                build_company_model_integration_plan(
+                    config.model_provider,
+                    skeinrank_api_url=config.skeinrank_api_url,
+                    profile_name=config.default_profile_name,
+                    binding_id=config.default_binding_id,
+                ),
                 indent=2,
                 sort_keys=True,
             )
