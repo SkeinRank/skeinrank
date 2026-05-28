@@ -1062,3 +1062,7 @@ GET /v1/ops/alerts/report
 ```
 
 It combines troubleshooting checks with profile/binding isolation state and returns `skeinrank.alerting_report.v1` plus a sanitized webhook-style payload preview. The endpoint does not deliver webhooks and does not call OpenRouter, Elasticsearch, proposal apply, or snapshot publish paths. CLI and Makefile helpers are available through `python -m skeinrank_governance_api.alerting` / `skeinrank-governance-alerting` and `make alerts-report-*`. See `docs/deployment/alerting-hooks-degraded-state-reports.md`.
+
+## Patch 57A — Model provider abstraction
+
+Patch 57A adds the first model provider abstraction for the OpenRouter alias scout. The agent workflow now accepts a minimal chat-completion provider interface while keeping OpenRouter as the default adapter. Use `--print-model-provider-plan` to inspect provider config without network calls or secret output. See [`docs/deployment/model-provider-abstraction.md`](docs/deployment/model-provider-abstraction.md).

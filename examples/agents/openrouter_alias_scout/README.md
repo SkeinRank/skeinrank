@@ -777,3 +777,16 @@ you to provide your own token when Governance API auth is enabled.
 ### Patch 53A.1 — validated pilot preflight hotfix
 
 Validated live pilots now verify the `validate-alias` tool before any OpenRouter call. The preflight is read-only and uses a synthetic alias validation payload to confirm that the selected profile/binding context is available. If the Governance API returns 404, the runner fails before spending LLM budget and suggests seeding the benchmark stack or passing an existing `--profile-name` / `--binding-id`.
+
+## Patch 57A — Model provider abstraction
+
+Patch 57A adds `model_provider.py`, a small provider abstraction for chat-completion backends. OpenRouter remains the default production adapter, but the workflow can now accept a provider object through the same `create_chat_completion(...)` interface.
+
+Preview the configured provider without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-model-provider-plan
+```
+
+The response schema is `skeinrank.model_provider_plan.v1`. It redacts secrets and keeps live execution behind the existing explicit `--llm-review` / live-pilot flags.

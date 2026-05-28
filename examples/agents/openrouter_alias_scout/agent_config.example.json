@@ -325,6 +325,13 @@
   "openrouter_base_url": "https://openrouter.ai/api/v1",
   "openrouter_http_referer": null,
   "openrouter_model": "openai/gpt-4o-mini",
+  "model_provider": {
+    "provider_type": "openrouter",
+    "provider_name": "openrouter",
+    "model": "openai/gpt-4o-mini",
+    "api_key_env": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1"
+  },
   "proposal_inbox": {
     "evidence_preview_chars": 240,
     "include_source_payload": false,

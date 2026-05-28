@@ -459,3 +459,7 @@ This is not full multi-tenancy yet: no tenant column or data model migration is 
 ## Patch 56A — Alerting hooks and degraded-state reports
 
 Patch 56A adds `GET /v1/ops/alerts/report`, `python -m skeinrank_governance_api.alerting`, the `skeinrank-governance-alerting` Poetry script, and `make alerts-report-*` helpers. The report converts troubleshooting and profile-isolation state into `skeinrank.alerting_report.v1` plus a sanitized `skeinrank.alerting_hook_payload.v1` preview. It does not send webhooks, call OpenRouter/Elasticsearch, mutate runtime state, apply proposals, or publish snapshots. See [`deployment/alerting-hooks-degraded-state-reports.md`](deployment/alerting-hooks-degraded-state-reports.md).
+
+## Patch 57A — Model provider abstraction
+
+Patch 57A introduces `examples/agents/openrouter_alias_scout/model_provider.py`, a minimal provider interface for chat-completion backends. The existing OpenRouter path is preserved through `OpenRouterChatProvider`, and tests use `MockChatProvider` with no external calls. See [`deployment/model-provider-abstraction.md`](deployment/model-provider-abstraction.md).

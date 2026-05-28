@@ -1704,3 +1704,7 @@ make alerts-report-show
 ```
 
 The report is safe for pilot operations: no OpenRouter calls, no Elasticsearch calls, no database mutation, no runtime mutation, no proposal apply, and no snapshot publish.
+
+## Patch 57A — Model provider abstraction
+
+Patch 57A adds a model-provider seam to the alias scout example. `--print-model-provider-plan` returns `skeinrank.model_provider_plan.v1` without network calls, and live flows can use the provider interface while preserving OpenRouter compatibility. Tests use a deterministic mock provider.
