@@ -179,6 +179,17 @@ make benchmark-retrieval-clean
 
 See [`docs/benchmarks/retrieval-eval-baseline.md`](docs/benchmarks/retrieval-eval-baseline.md).
 
+Patch 53B adds a deterministic 5k synthetic smoke generator for scale checks without OpenRouter, Elasticsearch, database calls, or runtime mutation. It writes generated JSONL/manifest artifacts under ignored `examples/benchmarks/platform_ops_v1/reports/synthetic/` paths.
+
+```bash
+make benchmark-smoke-plan
+make benchmark-smoke-generate
+make benchmark-smoke-report
+make benchmark-smoke-clean
+```
+
+See [`docs/benchmarks/synthetic-smoke-generator.md`](docs/benchmarks/synthetic-smoke-generator.md).
+
 ```bash
 make agent-openrouter-pilot-plan
 OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
@@ -947,3 +958,7 @@ The response schema is `skeinrank.agent_run_report.v1`. The report is operator-f
 ### Patch 53A.1 — Validated pilot preflight hotfix
 
 Patch 53A.1 tightens the OpenRouter validated pilot guardrail. Before spending OpenRouter budget, the runner now verifies not only `/livez` and `/v1/tools/bindings`, but also the read-only `POST /v1/tools/validate-alias` tool with a synthetic preflight payload. If the selected profile or binding context is missing, the CLI fails before any live model call and explains that the benchmark stack must be seeded or an existing `--profile-name` / `--binding-id` must be provided.
+
+### Patch 53B — 5k synthetic smoke generator
+
+Adds an offline deterministic 5,000-document synthetic smoke generator for `platform_ops_v1`. Use `make benchmark-smoke-plan`, `make benchmark-smoke-generate`, and `make benchmark-smoke-report` to create and inspect local generated artifacts. The generator records batch counts, role counts, aliases, unchanged-skip candidates, and corpus hash while keeping OpenRouter, Elasticsearch, database calls, and runtime mutation disabled.

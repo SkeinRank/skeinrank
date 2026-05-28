@@ -62,6 +62,19 @@ poetry run skeinrank-governance-retrieval-compare compare \
   --out ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-comparison-report.json
 ```
 
+
+## 5k synthetic smoke generator
+
+Patch 53B adds an offline deterministic synthetic smoke generator for scale checks above the 500-document quality corpus. It generates a local 5,000-document JSONL corpus plus a manifest with batch counts, role counts, aliases, unchanged-skip candidates, and a corpus hash.
+
+```bash
+poetry run skeinrank-governance-synthetic-smoke plan
+poetry run skeinrank-governance-synthetic-smoke generate
+poetry run skeinrank-governance-synthetic-smoke report
+```
+
+The generator writes local artifacts under `examples/benchmarks/platform_ops_v1/reports/synthetic/` by default and does not call OpenRouter, Elasticsearch, the database, or runtime mutation endpoints.
+
 ## Containerized benchmark stack
 
 Patch 48C adds a stack integration harness for the `platform_ops_v1` benchmark. It uses Docker Compose services for PostgreSQL, the Governance API, and Elasticsearch while keeping OpenRouter out of the loop.
@@ -1551,3 +1564,7 @@ The report endpoint is read-only: it does not mutate the run, execute workers, c
 ### Patch 53A.1 — validated pilot preflight hotfix
 
 The OpenRouter validated pilot now checks the actual read-only `POST /v1/tools/validate-alias` tool before spending model budget. This catches missing profile/binding contexts early and points operators to seed the benchmark stack or pass an existing `--profile-name` / `--binding-id`.
+
+### Patch 53B — 5k synthetic smoke generator
+
+Adds `skeinrank_governance_api.synthetic_smoke` and the `skeinrank-governance-synthetic-smoke` Poetry script for deterministic 5k JSONL corpus generation. The generated artifacts are intended for local scale smoke runs and are not committed by default.

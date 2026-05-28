@@ -1,6 +1,6 @@
 # Platform Ops Benchmark v1
 
-Synthetic headless benchmark for the governed agent proposal workflow. Patch 49A expands it into a 50-document quality fixture; Patch 49B adds proposal-level quality metrics and per-alias outcome breakdowns; Patch 53A expands the default fixture to a 500-document small-pilot corpus.
+Synthetic headless benchmark for the governed agent proposal workflow. Patch 49A expands it into a 50-document quality fixture; Patch 49B adds proposal-level quality metrics and per-alias outcome breakdowns; Patch 53A expands the default fixture to a 500-document small-pilot corpus; Patch 53B adds a deterministic 5k synthetic smoke generator that writes local artifacts under `reports/synthetic/`.
 
 It intentionally includes:
 
@@ -54,3 +54,22 @@ The retrieval report compares a literal baseline against a SkeinRank-expanded ru
 
 
 The comparison report uses schema `skeinrank.retrieval_comparison_report.v1` and summarizes largest improvements, regressions, high hard-negative leakage, generic-token noise, zero-recall queries, and operator-facing recommendations.
+
+
+## 5k synthetic smoke generator
+
+Patch 53B adds an offline generator for larger scale-smoke artifacts. It does not replace the committed 500-document quality corpus and does not label all 5,000 generated rows. Use it to test batch/report plumbing and larger-corpus handling before cost/latency/throughput reporting.
+
+```bash
+make benchmark-smoke-plan
+make benchmark-smoke-generate
+make benchmark-smoke-report
+make benchmark-smoke-clean
+```
+
+Default generated files are ignored local artifacts:
+
+```text
+examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-corpus.jsonl
+examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-manifest.json
+```
