@@ -10,11 +10,14 @@ OpenAI-compatible, or local endpoint adapters without rewriting the workflow.
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 try:  # pragma: no cover - import style depends on how the example is executed.
     from .openrouter_client import OpenRouterClient
@@ -67,6 +70,7 @@ class ModelProviderConfig:
     app_title: str = "SkeinRank OpenRouter Alias Scout"
     http_referer: str | None = None
     timeout_seconds: float = 30.0
+    require_api_key: bool | None = None
 
     @classmethod
     def from_mapping(
@@ -82,23 +86,79 @@ class ModelProviderConfig:
         """Create provider config from optional JSON config values."""
 
         data = dict(raw or {})
-        provider_type = str(data.get("provider_type", data.get("type", "openrouter")))
-        provider_name = str(data.get("provider_name", data.get("name", provider_type)))
-        return cls(
-            provider_type=provider_type,
-            provider_name=provider_name,
-            model=str(
+        provider_type_env = os.getenv("SKEINRANK_MODEL_PROVIDER_TYPE")
+        provider_type = str(
+            provider_type_env
+            or data.get("provider_type", data.get("type", "openrouter"))
+        )
+        normalized_provider_type = provider_type.lower().strip().replace("-", "_")
+        if provider_type_env and normalized_provider_type in {
+            "local",
+            "local_endpoint",
+        }:
+            provider_name = "local-endpoint"
+        else:
+            provider_name = str(
+                data.get("provider_name", data.get("name", provider_type))
+            )
+        if normalized_provider_type == "local":
+            normalized_provider_type = "local_endpoint"
+        local_default_base_url = "http://127.0.0.1:8000/v1"
+        local_default_model = "local-model"
+        local_default_api_key_env = "SKEINRANK_LOCAL_MODEL_API_KEY"
+        base_url_default = (
+            local_default_base_url
+            if normalized_provider_type == "local_endpoint"
+            else default_base_url
+        )
+        model_default = (
+            local_default_model
+            if normalized_provider_type == "local_endpoint"
+            else default_model
+        )
+        api_key_env_default = (
+            local_default_api_key_env
+            if normalized_provider_type == "local_endpoint"
+            else default_api_key_env
+        )
+        require_api_key_raw = None if provider_type_env else data.get("require_api_key")
+        require_api_key: bool | None
+        if require_api_key_raw is None:
+            require_api_key = None
+        else:
+            require_api_key = bool(require_api_key_raw)
+        if normalized_provider_type == "local_endpoint":
+            model_value = (
                 os.getenv("SKEINRANK_MODEL_PROVIDER_MODEL")
-                or data.get("model", default_model)
-            ),
-            api_key_env=str(data.get("api_key_env", default_api_key_env)),
-            base_url=str(
+                or os.getenv("SKEINRANK_LOCAL_MODEL")
+                or data.get("model", model_default)
+            )
+            base_url_value = (
                 os.getenv("SKEINRANK_MODEL_PROVIDER_BASE_URL")
-                or data.get("base_url", default_base_url)
+                or os.getenv("SKEINRANK_LOCAL_MODEL_BASE_URL")
+                or data.get("base_url", base_url_default)
+            )
+        else:
+            model_value = os.getenv("SKEINRANK_MODEL_PROVIDER_MODEL") or data.get(
+                "model", model_default
+            )
+            base_url_value = os.getenv("SKEINRANK_MODEL_PROVIDER_BASE_URL") or data.get(
+                "base_url", base_url_default
+            )
+        return cls(
+            provider_type=normalized_provider_type,
+            provider_name=provider_name,
+            model=str(model_value),
+            api_key_env=str(
+                api_key_env_default
+                if provider_type_env
+                else data.get("api_key_env", api_key_env_default)
             ),
+            base_url=str(base_url_value),
             app_title=str(data.get("app_title", default_app_title)),
             http_referer=data.get("http_referer", default_http_referer),
             timeout_seconds=float(data.get("timeout_seconds", cls.timeout_seconds)),
+            require_api_key=require_api_key,
         )
 
     def to_dict(self, *, include_secret_values: bool = False) -> JsonDict:
@@ -118,7 +178,16 @@ class ModelProviderConfig:
             "app_title": self.app_title,
             "http_referer_configured": bool(self.http_referer),
             "timeout_seconds": self.timeout_seconds,
+            "requires_api_key": self.requires_api_key,
         }
+
+    @property
+    def requires_api_key(self) -> bool:
+        """Return whether this provider needs an API key before live calls."""
+
+        if self.require_api_key is not None:
+            return self.require_api_key
+        return self.provider_type.lower().strip() != "local_endpoint"
 
 
 @dataclass(frozen=True)
@@ -150,6 +219,99 @@ class OpenRouterChatProvider:
             tools=tools,
             response_format=response_format,
         )
+
+
+@dataclass(frozen=True)
+class LocalEndpointChatProvider:
+    """Local OpenAI-compatible `/chat/completions` endpoint adapter.
+
+    This adapter is intentionally named `local_endpoint` in operator-facing
+    config because the practical use case is a self-hosted vLLM/LM Studio/Ollama
+    compatible gateway. It does not require an API key by default, but it can
+    pass a Bearer token when `api_key_env` is configured.
+    """
+
+    base_url: str = "http://127.0.0.1:8000/v1"
+    model: str = "local-model"
+    provider_name: str = "local-endpoint"
+    provider_type: str = "local_endpoint"
+    api_key: str | None = None
+    timeout_seconds: float = 30.0
+    transport: Callable[[str, str, Mapping[str, Any] | None], Any] | None = None
+
+    def create_chat_completion(
+        self,
+        *,
+        model: str,
+        messages: Sequence[Mapping[str, Any]],
+        temperature: float = 0.0,
+        max_tokens: int = 700,
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        response_format: Mapping[str, Any] | None = None,
+    ) -> JsonDict:
+        """Create one local endpoint chat completion and return decoded JSON."""
+
+        payload: JsonDict = {
+            "model": model or self.model,
+            "messages": [dict(message) for message in messages],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if tools:
+            payload["tools"] = [dict(tool) for tool in tools]
+            payload["tool_choice"] = "auto"
+        if response_format:
+            payload["response_format"] = dict(response_format)
+        return self._request("POST", "/chat/completions", payload)
+
+    def _request(
+        self, method: str, path: str, payload: Mapping[str, Any] | None = None
+    ) -> JsonDict:
+        if self.transport is not None:
+            result = self.transport(method.upper(), path, payload)
+            if not isinstance(result, Mapping):
+                raise ModelProviderError(
+                    "Local endpoint transport must return a mapping."
+                )
+            return dict(result)
+
+        url = f"{self.base_url.rstrip('/')}{path}"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Title": self.provider_name,
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        data = json.dumps(dict(payload or {})).encode("utf-8")
+        request = Request(url, data=data, headers=headers, method=method.upper())
+        try:
+            with urlopen(  # noqa: S310
+                request, timeout=self.timeout_seconds
+            ) as response:
+                body = response.read().decode("utf-8")
+                if not body.strip():
+                    return {}
+                parsed = json.loads(body)
+                if not isinstance(parsed, dict):
+                    raise ModelProviderError(
+                        "Local endpoint response must be a JSON object."
+                    )
+                return parsed
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8")
+            try:
+                detail: Any = json.loads(body)
+            except json.JSONDecodeError:
+                detail = body or exc.reason
+            raise ModelProviderError(
+                f"Local endpoint returned {exc.code}: {detail}"
+            ) from exc
+        except URLError as exc:
+            raise ModelProviderError(
+                f"Could not reach local model endpoint: {exc}"
+            ) from exc
 
 
 @dataclass
@@ -230,8 +392,10 @@ def build_model_provider_plan(config: ModelProviderConfig) -> JsonDict:
             "chat_completions": True,
             "json_response_format": True,
             "tool_schemas_passthrough": True,
-            "cost_estimation_from_usage": True,
+            "cost_estimation_from_usage": config.provider_type != "local_endpoint",
+            "local_endpoint_supported": True,
         },
+        "supported_provider_types": ["openrouter", "local_endpoint", "mock"],
         "safety": {
             "network_calls": False,
             "requires_explicit_live_run": True,
@@ -249,12 +413,30 @@ def create_model_provider(config: ModelProviderConfig) -> ChatCompletionProvider
     can plug into the same interface in later patches.
     """
 
-    provider_type = config.provider_type.lower().strip()
+    provider_type = config.provider_type.lower().strip().replace("-", "_")
+    if provider_type == "local":
+        provider_type = "local_endpoint"
     if provider_type == "mock":
         return MockChatProvider(model=config.model, provider_name=config.provider_name)
-    if provider_type not in {"openrouter", "openai-compatible"}:
+    if provider_type == "local_endpoint":
+        api_key = os.getenv(config.api_key_env) if config.api_key_env else None
+        if config.requires_api_key and not api_key:
+            raise ModelProviderError(
+                f"Local model endpoint API key is required. Set {config.api_key_env} "
+                "or set require_api_key=false for unauthenticated local endpoints."
+            )
+        return LocalEndpointChatProvider(
+            base_url=config.base_url,
+            model=config.model,
+            provider_name=config.provider_name or "local-endpoint",
+            provider_type="local_endpoint",
+            api_key=api_key,
+            timeout_seconds=config.timeout_seconds,
+        )
+    if provider_type != "openrouter":
         raise ModelProviderError(
-            f"Unsupported model provider type: {config.provider_type}"
+            f"Unsupported model provider type: {config.provider_type}. "
+            "Supported provider types are: openrouter, local_endpoint, mock."
         )
     api_key = os.getenv(config.api_key_env)
     if not api_key:
@@ -273,7 +455,7 @@ def create_model_provider(config: ModelProviderConfig) -> ChatCompletionProvider
         client=client,
         model=config.model,
         provider_name=config.provider_name,
-        provider_type=config.provider_type,
+        provider_type="openrouter",
     )
 
 

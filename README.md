@@ -1066,3 +1066,8 @@ It combines troubleshooting checks with profile/binding isolation state and retu
 ## Patch 57A — Model provider abstraction
 
 Patch 57A adds the first model provider abstraction for the OpenRouter alias scout. The agent workflow now accepts a minimal chat-completion provider interface while keeping OpenRouter as the default adapter. Use `--print-model-provider-plan` to inspect provider config without network calls or secret output. See [`docs/deployment/model-provider-abstraction.md`](docs/deployment/model-provider-abstraction.md).
+
+## Patch 57B — OpenRouter and local endpoint adapters
+
+Patch 57B extends the model-provider abstraction with concrete `openrouter` and `local_endpoint` adapters for the alias scout. OpenRouter remains the default hosted provider, while `local_endpoint` targets self-hosted OpenAI-compatible `/chat/completions` servers such as vLLM, LM Studio, or an Ollama-compatible gateway. Provider plans remain offline and secret-redacted. See [`docs/deployment/model-provider-adapters.md`](docs/deployment/model-provider-adapters.md).
+

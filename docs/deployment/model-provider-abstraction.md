@@ -80,17 +80,16 @@ The alias scout example config now includes a provider block:
 }
 ```
 
-For Patch 57A, supported runtime provider types are:
+For Patch 57A, the initial runtime provider types were:
 
 ```text
 openrouter
-openai-compatible
 mock
 ```
 
-`openai-compatible` currently uses the same OpenAI-compatible adapter surface as
-OpenRouter. Dedicated OpenAI-compatible and local endpoint adapters can be added
-in the next patch without changing the alias-scout workflow.
+Patch 57B adds the production-facing `local_endpoint` adapter for private
+self-hosted `/chat/completions` servers. See
+[`model-provider-adapters.md`](model-provider-adapters.md).
 
 ## Safety
 
@@ -105,8 +104,8 @@ Patch 57A is intentionally behavior-preserving:
 ## Why this matters
 
 This prepares SkeinRank for company environments where OpenRouter may not be the
-final provider. Later adapters can target an OpenAI-compatible endpoint or a local
-model server while keeping the same governed agent workflow:
+final provider. The local endpoint adapter can target a self-hosted OpenAI-compatible model
+server while keeping the same governed agent workflow:
 
 ```text
 candidate evidence → model provider → structured judgment → validation → review

@@ -790,3 +790,28 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 ```
 
 The response schema is `skeinrank.model_provider_plan.v1`. It redacts secrets and keeps live execution behind the existing explicit `--llm-review` / live-pilot flags.
+
+## Patch 57B — OpenRouter and local endpoint adapters
+
+Patch 57B adds concrete provider adapters on top of the 57A abstraction. The supported operator-facing provider types are:
+
+```text
+openrouter
+local_endpoint
+mock
+```
+
+OpenRouter remains the default. `local_endpoint` targets a private OpenAI-compatible `/chat/completions` server such as vLLM, LM Studio, or an Ollama-compatible gateway. It does not require an API key by default.
+
+Preview a local endpoint configuration without network calls:
+
+```bash
+SKEINRANK_MODEL_PROVIDER_TYPE=local_endpoint \
+SKEINRANK_MODEL_PROVIDER_BASE_URL=http://127.0.0.1:8000/v1 \
+SKEINRANK_MODEL_PROVIDER_MODEL=local-model \
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-model-provider-plan
+```
+
+The live LLM review and live-pilot commands continue to require explicit live flags. Provider plans never print token values.
+

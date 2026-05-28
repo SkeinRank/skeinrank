@@ -1708,3 +1708,8 @@ The report is safe for pilot operations: no OpenRouter calls, no Elasticsearch c
 ## Patch 57A — Model provider abstraction
 
 Patch 57A adds a model-provider seam to the alias scout example. `--print-model-provider-plan` returns `skeinrank.model_provider_plan.v1` without network calls, and live flows can use the provider interface while preserving OpenRouter compatibility. Tests use a deterministic mock provider.
+
+## Patch 57B — OpenRouter and local endpoint adapters
+
+Patch 57B keeps OpenRouter as the default model provider and adds a `local_endpoint` adapter for self-hosted `/chat/completions` endpoints. Tests use local transports and do not call external providers. Provider config can be inspected with `--print-model-provider-plan` without exposing secrets.
+

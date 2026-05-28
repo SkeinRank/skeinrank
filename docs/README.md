@@ -463,3 +463,8 @@ Patch 56A adds `GET /v1/ops/alerts/report`, `python -m skeinrank_governance_api.
 ## Patch 57A — Model provider abstraction
 
 Patch 57A introduces `examples/agents/openrouter_alias_scout/model_provider.py`, a minimal provider interface for chat-completion backends. The existing OpenRouter path is preserved through `OpenRouterChatProvider`, and tests use `MockChatProvider` with no external calls. See [`deployment/model-provider-abstraction.md`](deployment/model-provider-abstraction.md).
+
+## Patch 57B — OpenRouter and local endpoint adapters
+
+Patch 57B adds concrete provider adapters for the alias scout: `openrouter` and `local_endpoint`. The local endpoint adapter is intended for private/self-hosted chat-completion servers and can be previewed with `--print-model-provider-plan` without network calls. See [`deployment/model-provider-adapters.md`](deployment/model-provider-adapters.md).
+
