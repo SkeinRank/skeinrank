@@ -423,3 +423,7 @@ The report helps answer: why documents were skipped, where errors happened, whic
 ### Validated pilot preflight hotfix
 
 Patch 53A.1 makes the OpenRouter validated pilot fail fast before LLM calls when the Governance API validation context is not ready. The preflight now checks `/livez`, `/v1/tools/bindings`, and the read-only `POST /v1/tools/validate-alias` endpoint with a synthetic validation payload. Missing profiles or bindings are reported before OpenRouter budget is spent.
+
+### Backup/restore verified scenario
+
+- [Backup/restore verified scenario](deployment/backup-restore-verified-scenario.md) — disposable local drill for `make backup-restore-drill-plan`, `make backup-restore-drill-run`, and `make backup-restore-drill-inspect`.

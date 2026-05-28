@@ -210,3 +210,20 @@ make prod-upgrade
 ```
 
 The full sequence is documented in `docs/deployment/upgrade-guide.md` and schema-specific safety notes are in `docs/deployment/migration-safety.md`.
+
+## Verified restore drill helper
+
+Patch 54C adds a disposable verified scenario that exercises the portable JSON
+backup path end-to-end without touching a live database:
+
+```bash
+make backup-restore-drill-plan
+make backup-restore-drill-run
+make backup-restore-drill-inspect
+```
+
+The drill creates local SQLite source/target databases, seeds representative
+profile/term/alias/binding/proposal/snapshot/agent-run data, exports a backup,
+runs restore dry-run validation, restores into the target database, and verifies
+that row counts and representative values match. See
+`docs/deployment/backup-restore-verified-scenario.md`.

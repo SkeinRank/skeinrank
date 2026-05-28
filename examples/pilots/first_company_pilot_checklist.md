@@ -64,3 +64,11 @@ Next action:
 - [ ] Inspect the bundle with `make support-bundle-inspect`.
 - [ ] Keep the generated ZIP out of public commits.
 - [ ] Share the ZIP only through the approved private channel.
+
+## Backup/restore drill
+
+- [ ] Ran `make backup-restore-drill-plan`.
+- [ ] Ran `make backup-restore-drill-run`.
+- [ ] Confirmed drill report `status = verified`.
+- [ ] Confirmed restored profile/term/alias/binding/proposal/snapshot/agent-run values match source.
+- [ ] Kept generated drill artifacts out of git.

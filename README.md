@@ -985,3 +985,18 @@ Adds `skeinrank_governance_api.benchmark_performance`, the `skeinrank-governance
 Adds an operator-facing runbook and checklist for the first company pilot. The runbook connects the existing benchmark, pilot integration, and validated-agent pieces into a safe sequence: local rehearsal, company config intake, API/Elasticsearch preflight, dictionary/binding seed, read-only evidence/runtime report, optional validated OpenRouter smoke, and explicit exit criteria.
 
 Patch 54B adds `make support-bundle-plan`, `make support-bundle-export`, and `make support-bundle-inspect` for first-company pilot troubleshooting bundles.
+
+### Backup/restore verified drill
+
+Patch 54C adds a disposable backup/restore drill for first-company pilots:
+
+```bash
+make backup-restore-drill-plan
+make backup-restore-drill-run
+make backup-restore-drill-inspect
+```
+
+It uses local SQLite source/target databases under `examples/pilots/reports/`,
+exports a portable governance JSON backup, restores it into a migrated target DB,
+and verifies representative profile, term, alias, binding, proposal, snapshot,
+and agent-run data. See `docs/deployment/backup-restore-verified-scenario.md`.
