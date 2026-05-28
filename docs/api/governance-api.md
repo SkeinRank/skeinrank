@@ -874,3 +874,23 @@ The response schema is `skeinrank.agent_run_resume_plan.v1` and includes:
 
 The endpoint requires `agent:runs:read`. It intentionally does not mutate agent run status, retry external calls, submit proposals, apply dictionary changes, or publish snapshots.
 
+## Agent run diagnostics/report
+
+Patch 52C adds a read-only operator report for persisted agent runs.
+
+```http
+GET /v1/agents/runs/{run_id}/report?item_limit=25
+```
+
+The response schema is `skeinrank.agent_run_report.v1` and includes:
+
+- `progress`: the same read-only progress snapshot returned by `/progress`.
+- `usage`: LLM review count, token totals, estimated cost hints, budget limit hints, and per-model usage counters from persisted `usage` metadata.
+- `diagnostics`: overall status, findings, and operator recommendations.
+- `documents`: sampled skipped/unchanged documents and document errors.
+- `candidates`: candidate and LLM-review outcome counters.
+- `proposals`: proposal attempt counters, blocked/warning/manual-review counts, and validation-category counters.
+- `manual_review_items` and `errors`: bounded samples from existing tracking tables.
+
+The endpoint requires `agent:runs:read`. It intentionally does not execute an agent, retry external calls, call LLM/search providers, submit proposals, apply dictionary changes, or publish snapshots.
+

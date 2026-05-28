@@ -2032,6 +2032,119 @@ class AgentRunProgressResponse(BaseModel):
     timestamps: AgentRunTimestampProgress
 
 
+class AgentRunReportRunMetadata(BaseModel):
+    """Immutable run metadata embedded in an operator report."""
+
+    id: int
+    agent_name: str
+    agent_version: str | None = None
+    trigger_type: str
+    profile_name: str | None = None
+    binding_id: int | None = None
+    openrouter_model: str | None = None
+    prompt_version: str | None = None
+    workflow_engine: str | None = None
+    config_hash: str | None = None
+    requested_by: str | None = None
+    error_message: str | None = None
+
+
+class AgentRunUsageReport(BaseModel):
+    """Token/cost hints collected from persisted LLM usage metadata."""
+
+    llm_reviews: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    estimated_cost_usd: float | None = None
+    budget_limit_usd: float | None = None
+    budget_exceeded: bool = False
+    by_model: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class AgentRunDiagnosticFinding(BaseModel):
+    """One operator-facing diagnostic finding for an agent run."""
+
+    severity: str = Field(..., examples=["info", "warning", "error"])
+    code: str
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentRunDiagnosticsSummary(BaseModel):
+    """Aggregated diagnostics and suggested operator actions."""
+
+    status: str = Field(..., examples=["ok", "needs_review", "degraded"])
+    findings: list[AgentRunDiagnosticFinding] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+
+
+class AgentRunReportItem(BaseModel):
+    """One sampled diagnostic row from agent tracking tables."""
+
+    kind: str
+    tracking_table: str | None = None
+    tracking_id: int | None = None
+    source_id: str | None = None
+    candidate_alias: str | None = None
+    normalized_alias: str | None = None
+    status: str | None = None
+    message: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentRunDocumentDiagnostics(BaseModel):
+    """Sampled document-level diagnostics for an agent run."""
+
+    skipped_samples: list[AgentRunReportItem] = Field(default_factory=list)
+    error_samples: list[AgentRunReportItem] = Field(default_factory=list)
+
+
+class AgentRunCandidateDiagnostics(BaseModel):
+    """Candidate and LLM-review status counters for an agent run."""
+
+    observed: int = 0
+    by_observation_status: dict[str, int] = Field(default_factory=dict)
+    by_review_status: dict[str, int] = Field(default_factory=dict)
+    needs_evidence: int = 0
+    rejected: int = 0
+    errors: int = 0
+
+
+class AgentRunProposalDiagnostics(BaseModel):
+    """Proposal attempt counters for an agent run report."""
+
+    total: int = 0
+    submitted: int = 0
+    blocked: int = 0
+    warnings: int = 0
+    manual_review_required: int = 0
+    errors: int = 0
+    by_attempt_status: dict[str, int] = Field(default_factory=dict)
+    by_validation_category: dict[str, int] = Field(default_factory=dict)
+
+
+class AgentRunReportResponse(BaseModel):
+    """Operator-facing diagnostics/report for one persisted agent run."""
+
+    schema_version: str
+    run_id: str
+    status: str
+    phase: str
+    is_terminal: bool
+    run: AgentRunReportRunMetadata
+    progress: AgentRunProgressResponse
+    usage: AgentRunUsageReport
+    diagnostics: AgentRunDiagnosticsSummary
+    documents: AgentRunDocumentDiagnostics
+    candidates: AgentRunCandidateDiagnostics
+    proposals: AgentRunProposalDiagnostics
+    manual_review_items: list[AgentRunReportItem] = Field(default_factory=list)
+    errors: list[AgentRunReportItem] = Field(default_factory=list)
+    artifacts: AgentRunArtifactsProgress
+    timestamps: AgentRunTimestampProgress
+
+
 class AgentRunResponse(BaseModel):
     """Persisted agent run registry response."""
 

@@ -932,4 +932,16 @@ Request options:
 
 The response schema is `skeinrank.agent_run_resume_plan.v1`. Work item kinds include `resume_unfinished_document`, `retry_document_error`, `retry_candidate_error`, `retry_llm_review_error`, `retry_proposal_error`, `retry_skipped_document`, and `force_rescan`. `batch_limit` caps the returned next batch, while `has_more` shows that more work remains.
 
+### Patch 52C — Agent run diagnostics/report
+
+Patch 52C adds a read-only diagnostics report for long-running agent runs. It combines progress counters with sampled skipped/unchanged documents, errors, manual-review items, proposal validation outcomes, and token/cost hints from persisted LLM usage metadata.
+
+New endpoint:
+
+```text
+GET /v1/agents/runs/{run_id}/report
+```
+
+The response schema is `skeinrank.agent_run_report.v1`. The report is operator-facing and safe by design: it does not execute agents, retry work, call OpenRouter/Elasticsearch, submit proposals, apply dictionaries, or publish snapshots. Use it before `/resume-plan` to understand why a run stopped, which documents were skipped, where validation blocked candidates, and whether a configured cost budget was exceeded.
+
 

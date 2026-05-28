@@ -409,4 +409,10 @@ Patch 52B adds `POST /v1/agents/runs/{run_id}/resume-plan`, a read-only planner 
 
 Supported request controls are `batch_limit`, `retry_errors`, `retry_skipped`, `force_rescan`, and optional `source_ids`. The planner only reads `agent_document_visits`, `agent_candidate_observations`, `agent_llm_reviews`, and `agent_proposal_attempts`; it does not execute a worker, call LLM/search providers, submit proposals, or mutate run state.
 
+### Agent run diagnostics/report API
+
+Patch 52C adds `GET /v1/agents/runs/{run_id}/report`, a read-only diagnostics report for operators. The endpoint returns schema `skeinrank.agent_run_report.v1` and combines the progress snapshot with sampled skipped/unchanged documents, sampled errors, manual-review items, proposal validation outcomes, recommendations, and token/cost hints from persisted LLM usage metadata.
+
+The report helps answer: why documents were skipped, where errors happened, which candidates/proposals require human review, which validation categories blocked proposals, and whether a cost budget hint was exceeded. It does not execute workers, call providers, submit proposals, apply dictionaries, or mutate run state.
+
 

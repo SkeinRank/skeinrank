@@ -40,6 +40,7 @@ from ..agent_run_registry import (
     list_agent_runs,
     update_agent_run,
 )
+from ..agent_run_report import AgentRunReportError, get_agent_run_report
 from ..agent_run_resume import AgentRunResumePlanError, build_agent_run_resume_plan
 from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
@@ -55,6 +56,7 @@ from ..schemas import (
     AgentProposalAttemptResponse,
     AgentRunCreateRequest,
     AgentRunProgressResponse,
+    AgentRunReportResponse,
     AgentRunResponse,
     AgentRunResumePlanRequest,
     AgentRunResumePlanResponse,
@@ -186,6 +188,28 @@ def build_agent_run_resume_plan_endpoint(
             )
         )
     except AgentRunResumePlanError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+
+@router.get("/runs/{run_id}/report", response_model=AgentRunReportResponse)
+def get_agent_run_report_endpoint(
+    run_id: str,
+    item_limit: int = Query(default=25, ge=1, le=100),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("agent:runs:read")),
+    session: Session = Depends(get_session),
+) -> AgentRunReportResponse:
+    """Return a read-only diagnostics/report snapshot for one agent run."""
+
+    try:
+        return AgentRunReportResponse(
+            **get_agent_run_report(session, run_id, item_limit=item_limit)
+        )
+    except AgentRunReportError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc

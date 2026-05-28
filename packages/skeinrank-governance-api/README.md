@@ -1535,3 +1535,16 @@ The response uses schema `skeinrank.agent_run_resume_plan.v1`. It includes `limi
 
 The planner is read-only: it does not mutate the run, execute workers, call OpenRouter/Elasticsearch, submit proposals, apply dictionary changes, or publish snapshots.
 
+### Agent run diagnostics/report API
+
+Operators can inspect a run-level diagnostics report before deciding whether to resume, retry, or stop a long-running agent job:
+
+```bash
+curl http://127.0.0.1:8010/v1/agents/runs/agent-run-001/report \
+  | python -m json.tool
+```
+
+The response uses schema `skeinrank.agent_run_report.v1`. It embeds the `/progress` snapshot and adds sampled skipped/unchanged documents, sampled errors, manual-review items, proposal validation outcomes, recommendations, and LLM usage/cost hints from persisted review metadata.
+
+The report endpoint is read-only: it does not mutate the run, execute workers, call OpenRouter/Elasticsearch, submit proposals, apply dictionary changes, or publish snapshots.
+
