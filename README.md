@@ -230,7 +230,7 @@ approve/apply changes, publish snapshots, or write to Elasticsearch. For local
 smoke testing against the benchmark stack, run `make pilot-stack-run`.
 See [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md).
 
-Patch 54A adds a complete first-company operator runbook and checklist: [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md) and [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md). Use them to plan intake, local rehearsal, company config, preflight/seed/eval/report, optional validated-agent smoke, and exit criteria.
+Patch 54A adds a complete first-company operator runbook and checklist: [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md) and [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md). Patch 54B adds [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md) for sanitized support bundles. Use them to plan intake, local rehearsal, company config, preflight/seed/eval/report, optional validated-agent smoke, troubleshooting, and exit criteria.
 
 ## Quickstart: headless runtime
 
@@ -983,3 +983,5 @@ Adds `skeinrank_governance_api.benchmark_performance`, the `skeinrank-governance
 ### Patch 54A — First company pilot runbook
 
 Adds an operator-facing runbook and checklist for the first company pilot. The runbook connects the existing benchmark, pilot integration, and validated-agent pieces into a safe sequence: local rehearsal, company config intake, API/Elasticsearch preflight, dictionary/binding seed, read-only evidence/runtime report, optional validated OpenRouter smoke, and explicit exit criteria.
+
+Patch 54B adds `make support-bundle-plan`, `make support-bundle-export`, and `make support-bundle-inspect` for first-company pilot troubleshooting bundles.

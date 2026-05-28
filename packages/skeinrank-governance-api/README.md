@@ -1586,3 +1586,16 @@ Adds `skeinrank_governance_api.synthetic_smoke` and the `skeinrank-governance-sy
 ### Patch 53C — Cost, latency, throughput report
 
 Adds `skeinrank_governance_api.benchmark_performance` and the `skeinrank-governance-benchmark-performance` Poetry script for offline performance reporting. The report reads the 5k synthetic manifest plus optional live-pilot usage JSON and outputs documents/minute, seconds/document, batch latency, token/cost rates, skip/cache/idempotency savings, and a simple 100k-document projection without provider, Elasticsearch, database, or runtime mutation calls.
+
+
+### First-company troubleshooting bundle
+
+Patch 54B adds a read-only support bundle exporter for pilot diagnostics:
+
+```bash
+poetry run python -m skeinrank_governance_api.support_bundle plan --project-root ../..
+poetry run python -m skeinrank_governance_api.support_bundle export --project-root ../..
+poetry run python -m skeinrank_governance_api.support_bundle inspect --file ../../examples/pilots/reports/skeinrank-troubleshooting-bundle.zip
+```
+
+From the repository root, use `make support-bundle-plan`, `make support-bundle-export`, and `make support-bundle-inspect`. The bundle excludes raw `.env` files, redacts secret-looking values, and does not call OpenRouter, Elasticsearch, or the database unless an optional read-only API URL is explicitly provided for health snapshots. See `docs/pilots/troubleshooting-bundle-export.md`.

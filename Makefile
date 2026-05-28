@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run support-bundle-plan support-bundle-export support-bundle-inspect support-bundle-clean agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -57,6 +57,14 @@ PILOT_AUTH_ARGS ?=
 PILOT_CONFIG_PATH := $(abspath $(PILOT_CONFIG))
 PILOT_REPORT_PATH := $(abspath $(PILOT_REPORT))
 PILOT_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.pilot_integration --api-url "$(PILOT_API_URL)" --config "$(PILOT_CONFIG_PATH)" --out "$(PILOT_REPORT_PATH)" $(PILOT_AUTH_ARGS)
+
+SUPPORT_BUNDLE_OUT ?= examples/pilots/reports/skeinrank-troubleshooting-bundle.zip
+SUPPORT_BUNDLE_API_URL ?=
+SUPPORT_BUNDLE_API_TOKEN ?=
+SUPPORT_BUNDLE_API_URL_ARG := $(if $(SUPPORT_BUNDLE_API_URL),--api-url $(SUPPORT_BUNDLE_API_URL),)
+SUPPORT_BUNDLE_API_TOKEN_ARG := $(if $(SUPPORT_BUNDLE_API_TOKEN),--api-token $(SUPPORT_BUNDLE_API_TOKEN),)
+SUPPORT_BUNDLE_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.support_bundle
+SUPPORT_BUNDLE_COMMON_ARGS := --project-root ../.. --out $(SUPPORT_BUNDLE_OUT) $(SUPPORT_BUNDLE_API_URL_ARG) $(SUPPORT_BUNDLE_API_TOKEN_ARG)
 
 demo-seed:
 	$(PYTHON) $(DEMO_SEED) $(DEMO_ARGS)
@@ -263,6 +271,19 @@ pilot-run:
 
 pilot-stack-run: benchmark-stack-up benchmark-stack-wait benchmark-stack-seed
 	$(MAKE) --no-print-directory pilot-run PILOT_API_URL="$(BENCHMARK_STACK_API_URL)" PILOT_AUTH_ARGS='--username "$(BENCHMARK_STACK_ADMIN_USERNAME)" --password "$(BENCHMARK_STACK_ADMIN_PASSWORD)"'
+
+support-bundle-plan:
+	$(SUPPORT_BUNDLE_CLI) plan $(SUPPORT_BUNDLE_COMMON_ARGS)
+
+support-bundle-export:
+	mkdir -p $(dir $(SUPPORT_BUNDLE_OUT))
+	$(SUPPORT_BUNDLE_CLI) export $(SUPPORT_BUNDLE_COMMON_ARGS)
+
+support-bundle-inspect:
+	$(SUPPORT_BUNDLE_CLI) inspect --file ../../$(SUPPORT_BUNDLE_OUT)
+
+support-bundle-clean:
+	rm -f $(SUPPORT_BUNDLE_OUT)
 
 agent-openrouter-pilot-plan:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-openrouter-live-pilot-plan

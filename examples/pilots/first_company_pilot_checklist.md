@@ -56,3 +56,11 @@ Evidence examples worth showing:
 Runtime query examples worth showing:
 Next action:
 ```
+
+
+## Troubleshooting bundle
+
+- [ ] If the pilot needs support review, run `make support-bundle-export`.
+- [ ] Inspect the bundle with `make support-bundle-inspect`.
+- [ ] Keep the generated ZIP out of public commits.
+- [ ] Share the ZIP only through the approved private channel.

@@ -35,6 +35,7 @@ skeinrank-governance-retrieval-compare = "skeinrank_governance_api.retrieval_com
 skeinrank-governance-synthetic-smoke = "skeinrank_governance_api.synthetic_smoke:main"
 skeinrank-governance-benchmark-performance = "skeinrank_governance_api.benchmark_performance:main"
 skeinrank-governance-pilot = "skeinrank_governance_api.pilot_integration:main"
+skeinrank-governance-support-bundle = "skeinrank_governance_api.support_bundle:main"
 skeinrank-mcp = "skeinrank_governance_api.mcp:main"
 
 [tool.poetry.group.dev.dependencies]
