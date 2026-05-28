@@ -773,3 +773,7 @@ stack, logs in with the benchmark admin credentials from
 `deploy/docker/benchmark.env.example`, and passes the temporary token to the
 agent through `SKEINRANK_AGENT_API_TOKEN`. Manual validated runs still require
 you to provide your own token when Governance API auth is enabled.
+
+### Patch 53A.1 — validated pilot preflight hotfix
+
+Validated live pilots now verify the `validate-alias` tool before any OpenRouter call. The preflight is read-only and uses a synthetic alias validation payload to confirm that the selected profile/binding context is available. If the Governance API returns 404, the runner fails before spending LLM budget and suggests seeding the benchmark stack or passing an existing `--profile-name` / `--binding-id`.

@@ -69,3 +69,6 @@ examples/agents/openrouter_alias_scout/reports/
 # Generated real Elasticsearch validation fixture artifacts
 examples/agents/openrouter_alias_scout/real_es_validation/documents.bulk.ndjson
 examples/agents/openrouter_alias_scout/real_es_validation/index_mapping.json
+
+# Generated benchmark reports and synthetic smoke corpora
+examples/benchmarks/platform_ops_v1/reports/

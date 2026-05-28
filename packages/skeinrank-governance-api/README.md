@@ -49,7 +49,7 @@ to Elasticsearch.
 
 ## Retrieval eval CLI
 
-Patch 50A adds a deterministic retrieval evaluator for the `platform_ops_v1` fixture. Patch 50B expands the fixture to 200 documents and adds hard-negative leakage checks. Patch 50B.1 adds query-hygiene scoring with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs. It reads `retrieval_queries.jsonl`, `qrels.jsonl`, and `hard_negatives.jsonl`, compares a literal baseline with a SkeinRank-expanded run, and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and `generic_token_noise@10` deltas.
+Patch 50A adds a deterministic retrieval evaluator for the `platform_ops_v1` fixture. Patch 50B expands the fixture to 200 documents and adds hard-negative leakage checks. Patch 50B.1 adds query-hygiene scoring with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs. Patch 53A expands the default fixture to a 500-document small-pilot corpus and records the corpus shape in `corpus_manifest.json`. The evaluator reads `retrieval_queries.jsonl`, `qrels.jsonl`, and `hard_negatives.jsonl`, compares a literal baseline with a SkeinRank-expanded run, and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, and `generic_token_noise@10` deltas.
 
 ```bash
 poetry run skeinrank-governance-retrieval-eval plan
@@ -61,6 +61,31 @@ poetry run skeinrank-governance-retrieval-compare compare \
   --input ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-report.json \
   --out ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-retrieval-comparison-report.json
 ```
+
+
+## 5k synthetic smoke generator
+
+Patch 53B adds an offline deterministic synthetic smoke generator for scale checks above the 500-document quality corpus. It generates a local 5,000-document JSONL corpus plus a manifest with batch counts, role counts, aliases, unchanged-skip candidates, and a corpus hash.
+
+```bash
+poetry run skeinrank-governance-synthetic-smoke plan
+poetry run skeinrank-governance-synthetic-smoke generate
+poetry run skeinrank-governance-synthetic-smoke report
+```
+
+The generator writes local artifacts under `examples/benchmarks/platform_ops_v1/reports/synthetic/` by default and does not call OpenRouter, Elasticsearch, the database, or runtime mutation endpoints.
+
+## Benchmark performance report
+
+Patch 53C adds an offline cost, latency, and throughput report for the 5k smoke manifest. It can also read an ignored OpenRouter live-pilot report for token/cost hints.
+
+```bash
+poetry run skeinrank-governance-benchmark-performance plan   --synthetic-manifest ../../examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-manifest.json
+poetry run skeinrank-governance-benchmark-performance report   --synthetic-manifest ../../examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-manifest.json   --elapsed-seconds 300
+poetry run skeinrank-governance-benchmark-performance show   --file ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-cost-latency-throughput-report.json
+```
+
+The report uses schema `skeinrank.benchmark_performance_report.v1` and keeps OpenRouter, Elasticsearch, database calls, and runtime mutation disabled.
 
 ## Containerized benchmark stack
 
@@ -1548,3 +1573,14 @@ The response uses schema `skeinrank.agent_run_report.v1`. It embeds the `/progre
 
 The report endpoint is read-only: it does not mutate the run, execute workers, call OpenRouter/Elasticsearch, submit proposals, apply dictionary changes, or publish snapshots.
 
+### Patch 53A.1 — validated pilot preflight hotfix
+
+The OpenRouter validated pilot now checks the actual read-only `POST /v1/tools/validate-alias` tool before spending model budget. This catches missing profile/binding contexts early and points operators to seed the benchmark stack or pass an existing `--profile-name` / `--binding-id`.
+
+### Patch 53B — 5k synthetic smoke generator
+
+Adds `skeinrank_governance_api.synthetic_smoke` and the `skeinrank-governance-synthetic-smoke` Poetry script for deterministic 5k JSONL corpus generation. The generated artifacts are intended for local scale smoke runs and are not committed by default.
+
+### Patch 53C — Cost, latency, throughput report
+
+Adds `skeinrank_governance_api.benchmark_performance` and the `skeinrank-governance-benchmark-performance` Poetry script for offline performance reporting. The report reads the 5k synthetic manifest plus optional live-pilot usage JSON and outputs documents/minute, seconds/document, batch latency, token/cost rates, skip/cache/idempotency savings, and a simple 100k-document projection without provider, Elasticsearch, database, or runtime mutation calls.

@@ -215,7 +215,11 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
 
 ## Auth preflight
 
-The validated pilot preflight checks an authenticated tools call before spending
-OpenRouter budget. If the Governance API is running with auth enabled and no
-valid `SKEINRANK_AGENT_API_TOKEN` is provided, the CLI fails before calling
-OpenRouter.
+The validated pilot preflight checks authenticated tools before spending
+OpenRouter budget. It verifies `/livez`, `GET /v1/tools/bindings`, and the
+read-only `POST /v1/tools/validate-alias` tool with a synthetic validation
+payload. If the selected profile or binding context is missing, the CLI fails
+before calling OpenRouter and tells the operator to seed the benchmark stack or
+pass an existing `--profile-name` / `--binding-id`. If the Governance API is
+running with auth enabled and no valid `SKEINRANK_AGENT_API_TOKEN` is provided,
+the CLI also fails before calling OpenRouter.

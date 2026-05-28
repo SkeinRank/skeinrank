@@ -476,3 +476,106 @@ def test_49d_validation_preflight_checks_auth_tools_before_openrouter() -> None:
         "/livez",
         "/v1/tools/bindings?enabled_only=true&profile_name=infra_incidents",
     ]
+
+
+def test_53a1_validation_preflight_checks_validate_alias_context_before_openrouter() -> (
+    None
+):
+    runner = _load_module(
+        "agent_run_alias_scout_53a1_validate_alias_preflight",
+        AGENT_DIR / "run_alias_scout.py",
+    )
+    config = runner.AgentRunnerConfig.from_file(AGENT_DIR / "agent_config.example.json")
+
+    calls: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    def transport(method: str, path: str, payload: dict[str, Any] | None) -> Any:
+        calls.append((method, path, payload))
+        if path == "/livez":
+            return {"status": "ok"}
+        if path.startswith("/v1/tools/bindings"):
+            return []
+        if path == "/v1/tools/validate-alias":
+            return {
+                "validation_summary": {
+                    "status": "warning",
+                    "checks": {"canonical_state": {"status": "warning"}},
+                }
+            }
+        raise AssertionError(f"unexpected path: {path}")
+
+    client = runner.SkeinRankAgentClient(
+        base_url="http://127.0.0.1:8010",
+        api_token=None,
+        transport=transport,
+    )
+
+    runner._preflight_skeinrank_api_for_live_pilot(
+        client,
+        config,
+        profile_name="infra_incidents",
+        binding_id=None,
+        proposal_source_name="openrouter-alias-scout",
+    )
+
+    assert [call[1] for call in calls] == [
+        "/livez",
+        "/v1/tools/bindings?enabled_only=true&profile_name=infra_incidents",
+        "/v1/tools/validate-alias",
+    ]
+    validate_payload = calls[2][2]
+    assert validate_payload is not None
+    assert validate_payload["profile_name"] == "infra_incidents"
+    assert validate_payload["canonical_value"] == "skeinrank_preflight_canonical"
+    assert validate_payload["alias_value"] == "skeinrank_preflight_alias"
+    assert validate_payload["source_payload"]["preflight"] is True
+
+
+def test_53a1_validation_preflight_reports_missing_profile_before_openrouter() -> None:
+    runner = _load_module(
+        "agent_run_alias_scout_53a1_missing_profile_preflight",
+        AGENT_DIR / "run_alias_scout.py",
+    )
+    config = runner.AgentRunnerConfig.from_file(AGENT_DIR / "agent_config.example.json")
+
+    calls: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    def transport(method: str, path: str, payload: dict[str, Any] | None) -> Any:
+        calls.append((method, path, payload))
+        if path == "/livez":
+            return {"status": "ok"}
+        if path.startswith("/v1/tools/bindings"):
+            return []
+        if path == "/v1/tools/validate-alias":
+            raise runner.SkeinRankAgentApiError(
+                404, {"detail": "Profile not found: infra_incidents"}
+            )
+        raise AssertionError(f"unexpected path: {path}")
+
+    client = runner.SkeinRankAgentClient(
+        base_url="http://127.0.0.1:8010",
+        api_token=None,
+        transport=transport,
+    )
+
+    try:
+        runner._preflight_skeinrank_api_for_live_pilot(
+            client,
+            config,
+            profile_name="infra_incidents",
+            binding_id=None,
+            proposal_source_name="openrouter-alias-scout",
+        )
+    except RuntimeError as exc:
+        message = str(exc)
+    else:  # pragma: no cover - assertion guard.
+        raise AssertionError("preflight should fail when profile context is missing")
+
+    assert "validation context was not found" in message
+    assert "Seed the benchmark stack first" in message
+    assert "Profile: 'infra_incidents'" in message
+    assert [call[1] for call in calls] == [
+        "/livez",
+        "/v1/tools/bindings?enabled_only=true&profile_name=infra_incidents",
+        "/v1/tools/validate-alias",
+    ]

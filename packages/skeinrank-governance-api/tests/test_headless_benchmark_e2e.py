@@ -27,7 +27,7 @@ from skeinrank_governance_api.benchmark import (
 )
 from sqlalchemy import select
 
-EXPECTED_PLATFORM_OPS_CORPUS_DOCS = 200
+EXPECTED_PLATFORM_OPS_CORPUS_DOCS = 500
 
 
 def _session_factory(tmp_path):
