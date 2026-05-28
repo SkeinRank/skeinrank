@@ -874,6 +874,21 @@ class SuggestionReviewRequest(BaseModel):
     allow_warnings: bool = False
 
 
+class ProposalApplyPolicyResponse(BaseModel):
+    """Apply policy and risk-level decision for a proposal."""
+
+    schema_version: str = "skeinrank.apply_policy.v1"
+    risk_level: str = "unknown"
+    decision: str = "unknown"
+    can_batch_apply: bool = False
+    requires_reviewer: bool = True
+    requires_admin: bool = False
+    requires_warning_override: bool = False
+    auto_apply_allowed: bool = False
+    reasons: list[str] = Field(default_factory=list)
+    signals: dict[str, Any] = Field(default_factory=dict)
+
+
 class SuggestionResponse(BaseModel):
     """Suggestion response used by approval workflow clients."""
 
@@ -901,6 +916,8 @@ class SuggestionResponse(BaseModel):
     lifecycle_status: str
     lifecycle_reason: str
     validation_status: str
+    risk_level: str = "unknown"
+    apply_policy: ProposalApplyPolicyResponse | None = None
     can_approve: bool
     can_apply: bool
     created_by: str | None = None
@@ -961,6 +978,11 @@ class ProposalBatchPreviewItemResponse(BaseModel):
     status: str
     validation_status: str = "unknown"
     validation_counts: dict[str, int] = Field(default_factory=dict)
+    risk_level: str = "unknown"
+    apply_policy: ProposalApplyPolicyResponse | None = None
+    policy_can_batch_apply: bool = False
+    policy_requires_admin: bool = False
+    policy_reasons: list[str] = Field(default_factory=list)
     applyable: bool = False
     apply_action: str = "apply"
     idempotent_reason: str | None = None
@@ -1064,6 +1086,8 @@ class AgentToolValidateAliasResponse(BaseModel):
     proposal_source_name: str | None = None
     idempotency_key: str | None = None
     validation_summary: dict[str, Any]
+    risk_level: str = "unknown"
+    apply_policy: ProposalApplyPolicyResponse | None = None
 
 
 class AgentToolSuggestAliasRequest(BaseModel):

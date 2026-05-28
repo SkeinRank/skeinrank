@@ -1622,3 +1622,20 @@ From the repository root, the same workflow is exposed through
 `make backup-restore-drill-plan`, `make backup-restore-drill-run`, and
 `make backup-restore-drill-inspect`. The drill does not call OpenRouter,
 Elasticsearch, or a live database.
+
+### Patch 55A — Apply policy and risk levels
+
+Proposal validation now enriches `validation_summary` with `risk_level`,
+`apply_policy_decision`, and `apply_policy` using schema
+`skeinrank.apply_policy.v1`. `SuggestionResponse`, agent tool validation, and
+batch preview responses expose these fields for operator/UI review.
+
+Risk levels are additive and side-effect free:
+
+- `low` → `batch_approve_allowed`
+- `medium` → `review_required`
+- `high` → `admin_or_reject`
+
+This patch does not change apply semantics, publish snapshots, call OpenRouter,
+or call Elasticsearch. It prepares the policy surface for the following
+production safety patches. See `docs/policies/apply-policy-risk-levels.md`.

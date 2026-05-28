@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ambiguous_proposals import sync_ambiguous_alias_candidates_for_suggestion
+from ..apply_policy import apply_policy_for_suggestion
 from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
 from ..observability.metrics import record_proposal_submission
@@ -35,6 +36,7 @@ from ..schemas import (
     AgentToolSuggestAliasResponse,
     AgentToolValidateAliasRequest,
     AgentToolValidateAliasResponse,
+    ProposalApplyPolicyResponse,
     QueryPlanResponse,
     SuggestionResponse,
 )
@@ -105,6 +107,7 @@ def validate_alias_tool(
         idempotency_key=idempotency_key,
         source_payload=request.source_payload,
     )
+    apply_policy = validation_summary.get("apply_policy", {})
     return AgentToolValidateAliasResponse(
         profile_name=profile.name,
         normalized_profile_name=profile.normalized_name,
@@ -117,6 +120,10 @@ def validate_alias_tool(
         proposal_source_name=request.proposal_source_name,
         idempotency_key=idempotency_key,
         validation_summary=validation_summary,
+        risk_level=str(validation_summary.get("risk_level") or "unknown"),
+        apply_policy=ProposalApplyPolicyResponse(**apply_policy)
+        if isinstance(apply_policy, dict)
+        else None,
     )
 
 
@@ -407,6 +414,7 @@ def _tool_binding_response(
 
 def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse:
     lifecycle_decision = classify_proposal_lifecycle(suggestion)
+    apply_policy = apply_policy_for_suggestion(suggestion)
     return SuggestionResponse(
         id=suggestion.id,
         profile_id=suggestion.profile_id,
@@ -432,6 +440,8 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         lifecycle_status=lifecycle_decision.lifecycle_status,
         lifecycle_reason=lifecycle_decision.lifecycle_reason,
         validation_status=lifecycle_decision.validation_status,
+        risk_level=str(apply_policy.get("risk_level") or "unknown"),
+        apply_policy=ProposalApplyPolicyResponse(**apply_policy),
         can_approve=lifecycle_decision.can_approve,
         can_apply=lifecycle_decision.can_apply,
         created_by=suggestion.created_by,

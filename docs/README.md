@@ -29,6 +29,10 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/development.md`](guides/development.md) — local development checks and package workflow.
 - [`api/governance-api.md`](api/governance-api.md) — important HTTP surfaces and runtime endpoints.
 
+## Production safety
+
+- [Apply policy and risk levels](policies/apply-policy-risk-levels.md) — proposal risk classification for safe apply workflows.
+
 ## Deployment
 
 - [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.

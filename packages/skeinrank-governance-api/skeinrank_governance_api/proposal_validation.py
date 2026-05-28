@@ -24,6 +24,8 @@ from skeinrank_governance.models import (
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .apply_policy import ensure_apply_policy_summary
+
 PROPOSAL_VALIDATION_SCHEMA_VERSION = "skeinrank.proposal_validation.v1"
 PROPOSAL_CHECK_STATUSES = ("passed", "warning", "blocked", "skipped")
 PROPOSAL_CHECK_SEVERITIES = ("info", "warning", "error")
@@ -125,12 +127,23 @@ def build_proposal_validation_summary(
     else:
         overall_status = "passed"
 
-    return {
+    summary = {
         "schema_version": PROPOSAL_VALIDATION_SCHEMA_VERSION,
         "status": overall_status,
         "checks": {result.name: result.to_dict() for result in results},
         "counts": counts,
     }
+    return ensure_apply_policy_summary(
+        summary,
+        suggestion_type=context.suggestion_type,
+        canonical_value=context.canonical_value,
+        alias_value=context.alias_value,
+        slot=context.slot,
+        confidence=context.confidence,
+        proposal_source_type=context.proposal_source_type,
+        proposal_source_name=context.proposal_source_name,
+        source_payload=context.source_payload,
+    )
 
 
 def _check_shape(context: ProposalValidationContext) -> ProposalCheckResult:

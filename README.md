@@ -1000,3 +1000,15 @@ It uses local SQLite source/target databases under `examples/pilots/reports/`,
 exports a portable governance JSON backup, restores it into a migrated target DB,
 and verifies representative profile, term, alias, binding, proposal, snapshot,
 and agent-run data. See `docs/deployment/backup-restore-verified-scenario.md`.
+
+### Patch 55A — Apply policy and risk levels
+
+Adds an additive proposal apply-policy layer with schema `skeinrank.apply_policy.v1`.
+New and existing proposal responses now expose `risk_level` plus an `apply_policy`
+payload derived from validation status, confidence, alias shape, risk flags, and
+validation checks. Batch preview items also expose policy fields so reviewers can
+separate low-risk batch-approve candidates from medium/high-risk proposals.
+
+No migrations or runtime apply behavior changes are introduced. `auto_apply_allowed`
+remains `false`; blocked proposals still cannot apply, and warning proposals still
+require explicit `allow_warnings: true`. See `docs/policies/apply-policy-risk-levels.md`.

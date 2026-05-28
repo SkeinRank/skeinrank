@@ -894,3 +894,33 @@ The response schema is `skeinrank.agent_run_report.v1` and includes:
 
 The endpoint requires `agent:runs:read`. It intentionally does not execute an agent, retry external calls, call LLM/search providers, submit proposals, apply dictionary changes, or publish snapshots.
 
+
+### Patch 55A — Apply policy and risk levels
+
+Proposal responses now include additive risk-policy metadata. The canonical
+payload is stored in `validation_summary.apply_policy` and exposed on response
+objects as `risk_level` and `apply_policy`.
+
+```json
+{
+  "risk_level": "low",
+  "apply_policy": {
+    "schema_version": "skeinrank.apply_policy.v1",
+    "risk_level": "low",
+    "decision": "batch_approve_allowed",
+    "can_batch_apply": true,
+    "requires_reviewer": true,
+    "requires_admin": false,
+    "requires_warning_override": false,
+    "auto_apply_allowed": false,
+    "reasons": ["validation_passed_low_risk_thresholds"],
+    "signals": {}
+  }
+}
+```
+
+Batch preview items additionally include `policy_can_batch_apply`,
+`policy_requires_admin`, and `policy_reasons`. The policy is side-effect free and
+does not change apply behavior in 55A: blocked validation summaries still block
+apply, warning summaries still require explicit `allow_warnings: true`, and
+automatic apply remains disabled.

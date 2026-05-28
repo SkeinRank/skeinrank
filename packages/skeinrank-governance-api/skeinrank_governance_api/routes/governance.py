@@ -62,6 +62,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ambiguous_proposals import sync_ambiguous_alias_candidates_for_suggestion
+from ..apply_policy import apply_policy_for_suggestion, ensure_apply_policy_summary
 from ..auth import AuthContext, require_roles
 from ..conflict_detection import (
     build_conflict_report,
@@ -142,6 +143,7 @@ from ..schemas import (
     ProfileCreateRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    ProposalApplyPolicyResponse,
     ProposalBatchApplyRequest,
     ProposalBatchApplyResponse,
     ProposalBatchPreviewItemResponse,
@@ -2159,6 +2161,18 @@ def create_profile_suggestion(
             )
             return _suggestion_response(existing_suggestion)
 
+    validation_summary = ensure_apply_policy_summary(
+        validation_summary,
+        suggestion_type=request.suggestion_type,
+        canonical_value=request.canonical_value,
+        alias_value=request.alias_value,
+        slot=request.slot,
+        confidence=request.confidence,
+        proposal_source_type=request.proposal_source_type,
+        proposal_source_name=request.proposal_source_name,
+        source_payload=request.source_payload,
+    )
+
     suggestion = GovernanceSuggestion(
         profile=profile,
         suggestion_type=request.suggestion_type,
@@ -3714,6 +3728,7 @@ def _proposal_batch_preview_item(
 ) -> ProposalBatchPreviewItemResponse:
     summary = suggestion.validation_summary_json or {}
     validation_status_value = _proposal_validation_status(summary)
+    apply_policy = apply_policy_for_suggestion(suggestion)
     apply_action = "apply"
     idempotent_reason = None
     if suggestion.status == "approved":
@@ -3733,6 +3748,11 @@ def _proposal_batch_preview_item(
         status=suggestion.status,
         validation_status=validation_status_value,
         validation_counts=_proposal_validation_counts(summary),
+        risk_level=str(apply_policy.get("risk_level") or "unknown"),
+        apply_policy=ProposalApplyPolicyResponse(**apply_policy),
+        policy_can_batch_apply=bool(apply_policy.get("can_batch_apply")),
+        policy_requires_admin=bool(apply_policy.get("requires_admin")),
+        policy_reasons=list(apply_policy.get("reasons") or []),
         applyable=applyable,
         apply_action=apply_action,
         idempotent_reason=idempotent_reason,
@@ -4282,6 +4302,7 @@ def _ambiguous_alias_candidate_response(
 
 def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse:
     lifecycle_decision = classify_proposal_lifecycle(suggestion)
+    apply_policy = apply_policy_for_suggestion(suggestion)
     return SuggestionResponse(
         id=suggestion.id,
         profile_id=suggestion.profile_id,
@@ -4307,6 +4328,8 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         lifecycle_status=lifecycle_decision.lifecycle_status,
         lifecycle_reason=lifecycle_decision.lifecycle_reason,
         validation_status=lifecycle_decision.validation_status,
+        risk_level=str(apply_policy.get("risk_level") or "unknown"),
+        apply_policy=ProposalApplyPolicyResponse(**apply_policy),
         can_approve=lifecycle_decision.can_approve,
         can_apply=lifecycle_decision.can_apply,
         created_by=suggestion.created_by,
