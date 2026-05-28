@@ -22,6 +22,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
     from .canonical_hints import CanonicalHintsConfig
     from .demo_report import DemoReportConfig
     from .evidence_sampler import EvidenceSamplerConfig, load_jsonl_records
+    from .model_provider import ChatCompletionProvider, provider_metadata
     from .openrouter_client import OpenRouterClient
     from .openrouter_tools import get_openrouter_tool_schemas
     from .proposal_submission import (
@@ -40,6 +41,7 @@ except ImportError:  # pragma: no cover
     from canonical_hints import CanonicalHintsConfig
     from demo_report import DemoReportConfig
     from evidence_sampler import EvidenceSamplerConfig, load_jsonl_records
+    from model_provider import ChatCompletionProvider, provider_metadata
     from openrouter_client import OpenRouterClient
     from openrouter_tools import get_openrouter_tool_schemas
     from proposal_submission import (
@@ -165,6 +167,13 @@ def build_openrouter_live_pilot_plan(
         "openrouter_calls": False,
         "skeinrank_api_calls": False,
         "openrouter_model": openrouter_model,
+        "model_provider": {
+            "schema_version": "skeinrank.model_provider_metadata.v1",
+            "provider_name": "openrouter",
+            "provider_type": "openrouter",
+            "model": openrouter_model,
+            "chat_completion_interface": True,
+        },
         "openrouter_api_key_env": openrouter_api_key_env,
         "skeinrank_api_url": skeinrank_api_url,
         "profile_name": profile_name,
@@ -194,7 +203,8 @@ def run_openrouter_live_pilot(
     *,
     failed_queries: Sequence[Mapping[str, Any]],
     evidence_records_path: Path,
-    openrouter_client: OpenRouterClient,
+    openrouter_client: OpenRouterClient | None = None,
+    model_provider: ChatCompletionProvider | None = None,
     pilot_config: OpenRouterLivePilotConfig | None = None,
     candidate_config: CandidateDiscoveryConfig | None = None,
     evidence_config: EvidenceSamplerConfig | None = None,
@@ -211,6 +221,11 @@ def run_openrouter_live_pilot(
     """Run the live OpenRouter pilot with hard limits and optional API validation."""
 
     cfg = pilot_config or OpenRouterLivePilotConfig()
+    provider = model_provider or openrouter_client
+    if provider is None:
+        raise RuntimeError(
+            "A model provider or OpenRouter client is required for live pilot runs."
+        )
     evidence_records = load_jsonl_records(
         evidence_records_path,
         limit=evidence_config.max_records if evidence_config else None,
@@ -235,7 +250,7 @@ def run_openrouter_live_pilot(
     llm_report = run_openrouter_llm_review_workflow(
         failed_queries,
         evidence_records,
-        openrouter_client=openrouter_client,
+        model_provider=provider,
         candidate_config=candidate_config,
         evidence_config=evidence_config,
         demo_config=demo_config,
@@ -282,6 +297,7 @@ def run_openrouter_live_pilot(
         "openrouter_calls": True,
         "skeinrank_api_calls": bool(submission_report is not None),
         "openrouter_model": openrouter_model,
+        "model_provider": provider_metadata(provider),
         "profile_name": profile_name,
         "binding_id": binding_id,
         "proposal_source_name": proposal_source_name,

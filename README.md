@@ -230,7 +230,7 @@ approve/apply changes, publish snapshots, or write to Elasticsearch. For local
 smoke testing against the benchmark stack, run `make pilot-stack-run`.
 See [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md).
 
-Patch 54A adds a complete first-company operator runbook and checklist: [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md) and [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md). Patch 54B adds [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md) for sanitized support bundles. Use them to plan intake, local rehearsal, company config, preflight/seed/eval/report, optional validated-agent smoke, troubleshooting, and exit criteria.
+Patch 54A adds a complete first-company operator runbook and checklist: [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md) and [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md). Patch 54B adds [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md) for sanitized support bundles, and Patch 56B extends it with [`docs/pilots/support-bundle-production.md`](docs/pilots/support-bundle-production.md) for logs, config inventory, health snapshots, alert/degraded-state snapshots, and last agent runs. Use them to plan intake, local rehearsal, company config, preflight/seed/eval/report, optional validated-agent smoke, troubleshooting, and exit criteria.
 
 ## Quickstart: headless runtime
 
@@ -1051,3 +1051,26 @@ GET /v1/governance/isolation-checks
 The response schema is `skeinrank.profile_isolation.v1`. The check verifies that binding-scoped proposals, policies, enrichment jobs, agent runs, and agent tracking rows stay inside their profile/binding context. It also documents the runtime guards that reject mismatched `profile_name` / `binding_id` requests before provider calls or mutations.
 
 This patch does not add a tenant column or claim full multi-tenancy. The current isolation boundary remains the profile plus optional runtime binding. See `docs/policies/profile-isolation-checks.md`.
+
+
+### Patch 56A — Alerting hooks and degraded-state reports
+
+Patch 56A adds a read-only degraded-state alert report for production support workflows:
+
+```http
+GET /v1/ops/alerts/report
+```
+
+It combines troubleshooting checks with profile/binding isolation state and returns `skeinrank.alerting_report.v1` plus a sanitized webhook-style payload preview. The endpoint does not deliver webhooks and does not call OpenRouter, Elasticsearch, proposal apply, or snapshot publish paths. CLI and Makefile helpers are available through `python -m skeinrank_governance_api.alerting` / `skeinrank-governance-alerting` and `make alerts-report-*`. See `docs/deployment/alerting-hooks-degraded-state-reports.md`.
+
+## Patch 57A — Model provider abstraction
+
+Patch 57A adds the first model provider abstraction for the OpenRouter alias scout. The agent workflow now accepts a minimal chat-completion provider interface while keeping OpenRouter as the default adapter. Use `--print-model-provider-plan` to inspect provider config without network calls or secret output. See [`docs/deployment/model-provider-abstraction.md`](docs/deployment/model-provider-abstraction.md).
+
+## Patch 57B — OpenRouter and local endpoint adapters
+
+Patch 57B extends the model-provider abstraction with concrete `openrouter` and `local_endpoint` adapters for the alias scout. OpenRouter remains the default hosted provider, while `local_endpoint` targets self-hosted OpenAI-compatible `/chat/completions` servers such as vLLM, LM Studio, or an Ollama-compatible gateway. Provider plans remain offline and secret-redacted. See [`docs/deployment/model-provider-adapters.md`](docs/deployment/model-provider-adapters.md).
+
+### Patch 57C — Company model integration docs and tests
+
+Patch 57C adds an offline company-model integration plan for connecting private/local model endpoints to the alias scout. It documents the `local_endpoint` flow, verifies redacted provider plans, and keeps live calls behind explicit pilot flags. See [`docs/deployment/company-model-integration.md`](docs/deployment/company-model-integration.md).

@@ -325,6 +325,22 @@
   "openrouter_base_url": "https://openrouter.ai/api/v1",
   "openrouter_http_referer": null,
   "openrouter_model": "openai/gpt-4o-mini",
+  "model_provider": {
+    "provider_type": "openrouter",
+    "provider_name": "openrouter",
+    "model": "openai/gpt-4o-mini",
+    "api_key_env": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "require_api_key": true
+  },
+  "local_model_provider_example": {
+    "provider_type": "local_endpoint",
+    "provider_name": "local-vllm",
+    "model": "local-model",
+    "api_key_env": "SKEINRANK_LOCAL_MODEL_API_KEY",
+    "base_url": "http://127.0.0.1:8000/v1",
+    "require_api_key": false
+  },
   "proposal_inbox": {
     "evidence_preview_chars": 240,
     "include_source_payload": false,

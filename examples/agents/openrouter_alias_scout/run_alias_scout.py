@@ -61,6 +61,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         build_canonical_hints_report,
         enrich_candidate_pack_with_canonical_hints,
     )
+    from .company_model_integration import build_company_model_integration_plan
     from .demo_report import (
         DemoReportConfig,
         build_alias_scout_demo_report,
@@ -101,6 +102,11 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         OpenRouterLivePilotConfig,
         build_openrouter_live_pilot_plan,
         run_openrouter_live_pilot,
+    )
+    from .model_provider import (
+        ModelProviderConfig,
+        build_model_provider_plan,
+        create_model_provider,
     )
     from .new_alias_smoke import (
         NewAliasSmokeConfig,
@@ -195,6 +201,7 @@ except ImportError:  # pragma: no cover
         build_canonical_hints_report,
         enrich_candidate_pack_with_canonical_hints,
     )
+    from company_model_integration import build_company_model_integration_plan
     from demo_report import (
         DemoReportConfig,
         build_alias_scout_demo_report,
@@ -235,6 +242,11 @@ except ImportError:  # pragma: no cover
         OpenRouterLivePilotConfig,
         build_openrouter_live_pilot_plan,
         run_openrouter_live_pilot,
+    )
+    from model_provider import (
+        ModelProviderConfig,
+        build_model_provider_plan,
+        create_model_provider,
     )
     from new_alias_smoke import (
         NewAliasSmokeConfig,
@@ -329,6 +341,7 @@ class AgentRunnerConfig:
     openrouter_base_url: str
     openrouter_app_title: str
     openrouter_http_referer: str | None
+    model_provider: ModelProviderConfig
     dry_run: bool = True
 
     @classmethod
@@ -457,6 +470,26 @@ class AgentRunnerConfig:
                 raw.get("openrouter_app_title", "SkeinRank OpenRouter Alias Scout")
             ),
             openrouter_http_referer=raw.get("openrouter_http_referer"),
+            model_provider=ModelProviderConfig.from_mapping(
+                raw.get("model_provider"),
+                default_model=os.getenv(
+                    "OPENROUTER_MODEL",
+                    raw.get("openrouter_model", "openai/gpt-4o-mini"),
+                ),
+                default_api_key_env=str(
+                    raw.get("openrouter_api_key_env", "OPENROUTER_API_KEY")
+                ),
+                default_base_url=str(
+                    os.getenv(
+                        "OPENROUTER_BASE_URL",
+                        raw.get("openrouter_base_url", "https://openrouter.ai/api/v1"),
+                    )
+                ),
+                default_app_title=str(
+                    raw.get("openrouter_app_title", "SkeinRank OpenRouter Alias Scout")
+                ),
+                default_http_referer=raw.get("openrouter_http_referer"),
+            ),
             dry_run=bool(raw.get("dry_run", True)),
         )
 
@@ -589,6 +622,17 @@ def build_openrouter_client(config: AgentRunnerConfig) -> OpenRouterClient:
         app_title=config.openrouter_app_title,
         http_referer=config.openrouter_http_referer,
     )
+
+
+def build_model_provider(config: AgentRunnerConfig):
+    """Create the configured model provider used by live LLM review."""
+
+    try:
+        return create_model_provider(config.model_provider)
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -760,6 +804,19 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--print-openrouter-live-pilot-plan",
         action="store_true",
         help="Print the 48B live OpenRouter pilot plan without network calls.",
+    )
+    parser.add_argument(
+        "--print-model-provider-plan",
+        action="store_true",
+        help="Print the 57A model-provider plan without network calls.",
+    )
+    parser.add_argument(
+        "--print-company-model-integration-plan",
+        action="store_true",
+        help=(
+            "Print the 57C company model integration plan without network "
+            "calls or secret values."
+        ),
     )
     parser.add_argument(
         "--run-openrouter-live-pilot",
@@ -1378,7 +1435,7 @@ def run_openrouter_live_pilot_for_args(
     return run_openrouter_live_pilot(
         failed_queries=failed_queries,
         evidence_records_path=config.evidence_records_path,
-        openrouter_client=build_openrouter_client(config),
+        model_provider=build_model_provider(config),
         pilot_config=pilot_config,
         candidate_config=config.candidate_discovery,
         evidence_config=config.evidence_sampler,
@@ -1876,7 +1933,7 @@ def run_scheduled_agent_cycle_for_config(
         llm_report = run_openrouter_llm_review_workflow(
             failed_queries,
             evidence_records,
-            openrouter_client=build_openrouter_client(config),
+            model_provider=build_model_provider(config),
             candidate_config=config.candidate_discovery,
             evidence_config=config.evidence_sampler,
             demo_config=config.demo_report,
@@ -2426,6 +2483,31 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     config = AgentRunnerConfig.from_file(args.config)
 
+    if args.print_model_provider_plan:
+        print(
+            json.dumps(
+                build_model_provider_plan(config.model_provider),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.print_company_model_integration_plan:
+        print(
+            json.dumps(
+                build_company_model_integration_plan(
+                    config.model_provider,
+                    skeinrank_api_url=config.skeinrank_api_url,
+                    profile_name=config.default_profile_name,
+                    binding_id=config.default_binding_id,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
     if args.print_elasticsearch_evidence_plan:
         report = build_elasticsearch_evidence_plan_for_config(config, args)
         print(json.dumps(report, indent=2, sort_keys=True))
@@ -2974,11 +3056,11 @@ def main(argv: list[str] | None = None) -> int:
             api_token_env=config.api_token_env,
             llm_submit_proposals=llm_config.submit_proposals,
         )
-        client = build_openrouter_client(config)
+        provider = build_model_provider(config)
         report = run_openrouter_llm_review_workflow(
             failed_queries,
             evidence_records,
-            openrouter_client=client,
+            model_provider=provider,
             candidate_config=config.candidate_discovery,
             evidence_config=config.evidence_sampler,
             demo_config=config.demo_report,

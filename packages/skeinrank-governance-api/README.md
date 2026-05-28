@@ -1600,6 +1600,8 @@ poetry run python -m skeinrank_governance_api.support_bundle inspect --file ../.
 
 From the repository root, use `make support-bundle-plan`, `make support-bundle-export`, and `make support-bundle-inspect`. The bundle excludes raw `.env` files, redacts secret-looking values, and does not call OpenRouter, Elasticsearch, or the database unless an optional read-only API URL is explicitly provided for health snapshots. See `docs/pilots/troubleshooting-bundle-export.md`.
 
+Patch 56B extends the same exporter into a production-style support handoff. The ZIP now includes `health/health_summary.json`, `runs/last_agent_runs.json`, `logs/log_inventory.json`, and `config/config_inventory.json`. When `SUPPORT_BUNDLE_API_URL` is provided, the exporter also captures read-only snapshots for `/v1/ops/alerts/report`, `/v1/governance/isolation-checks`, and `/v1/agents/runs?limit=10`. Webhooks are not sent, provider calls are not made, and runtime state is not mutated. See `docs/pilots/support-bundle-production.md`.
+
 ## Backup/restore verified drill
 
 Patch 54C adds `skeinrank-governance-backup-drill`, a disposable backup/restore
@@ -1673,3 +1675,44 @@ approve/apply/publish behavior.
 `GET /v1/governance/isolation-checks` returns schema `skeinrank.profile_isolation.v1`. The report is read-only and checks that binding-scoped rows remain aligned with their profile/binding context across proposals, binding policies, enrichment jobs, agent runs, and agent tracking tables. It also records the existing request guards that reject mismatched `profile_name` / `binding_id` pairs.
 
 No tenant column, migration, provider call, or runtime mutation is introduced. Full multi-tenant isolation remains a later feature; this patch verifies the current profile/binding boundary.
+
+
+## Patch 56A — Alerting hooks and degraded-state reports
+
+The governance API now exposes a read-only alerting report:
+
+```http
+GET /v1/ops/alerts/report
+```
+
+The response schema is `skeinrank.alerting_report.v1`. It converts troubleshooting and profile-isolation degraded state into alert events and a sanitized `webhook_json` payload preview. No webhook delivery is performed by the API or CLI.
+
+CLI helpers:
+
+```bash
+poetry run python -m skeinrank_governance_api.alerting plan
+poetry run python -m skeinrank_governance_api.alerting report --out /tmp/skeinrank-alerting-report.json
+poetry run python -m skeinrank_governance_api.alerting show --file /tmp/skeinrank-alerting-report.json
+```
+
+Repository helpers:
+
+```bash
+make alerts-report-plan
+make alerts-report-generate
+make alerts-report-show
+```
+
+The report is safe for pilot operations: no OpenRouter calls, no Elasticsearch calls, no database mutation, no runtime mutation, no proposal apply, and no snapshot publish.
+
+## Patch 57A — Model provider abstraction
+
+Patch 57A adds a model-provider seam to the alias scout example. `--print-model-provider-plan` returns `skeinrank.model_provider_plan.v1` without network calls, and live flows can use the provider interface while preserving OpenRouter compatibility. Tests use a deterministic mock provider.
+
+## Patch 57B — OpenRouter and local endpoint adapters
+
+Patch 57B keeps OpenRouter as the default model provider and adds a `local_endpoint` adapter for self-hosted `/chat/completions` endpoints. Tests use local transports and do not call external providers. Provider config can be inspected with `--print-model-provider-plan` without exposing secrets.
+
+### Patch 57C — Company model integration
+
+The OpenRouter alias scout now includes an offline company-model integration plan. It documents how to configure `local_endpoint`, preview provider settings, run a one-call smoke, and then run a validated pilot without exposing secrets.

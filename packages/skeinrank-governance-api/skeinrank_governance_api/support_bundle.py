@@ -26,6 +26,10 @@ from urllib.request import Request, urlopen
 
 SUPPORT_BUNDLE_PLAN_VERSION = "skeinrank.support_bundle_plan.v1"
 SUPPORT_BUNDLE_MANIFEST_VERSION = "skeinrank.support_bundle_manifest.v1"
+SUPPORT_BUNDLE_HEALTH_SUMMARY_VERSION = "skeinrank.support_bundle_health_summary.v1"
+SUPPORT_BUNDLE_CONFIG_INVENTORY_VERSION = "skeinrank.support_bundle_config_inventory.v1"
+SUPPORT_BUNDLE_LOG_INVENTORY_VERSION = "skeinrank.support_bundle_log_inventory.v1"
+SUPPORT_BUNDLE_LAST_RUNS_VERSION = "skeinrank.support_bundle_last_runs.v1"
 
 DEFAULT_OUTPUT = Path("examples/pilots/reports/skeinrank-troubleshooting-bundle.zip")
 
@@ -34,9 +38,11 @@ DEFAULT_INCLUDE_GLOBS = (
     "docs/README.md",
     "docs/pilots/first-company-pilot-runbook.md",
     "docs/pilots/troubleshooting-bundle-export.md",
+    "docs/pilots/support-bundle-production.md",
     "docs/deployment/dev-stack-troubleshooting.md",
     "docs/deployment/backup-restore.md",
     "docs/deployment/env-and-secrets.md",
+    "docs/deployment/alerting-hooks-degraded-state-reports.md",
     "docs/benchmarks/retrieval-eval-baseline.md",
     "docs/benchmarks/synthetic-smoke-generator.md",
     "docs/benchmarks/cost-latency-throughput-report.md",
@@ -58,6 +64,36 @@ DEFAULT_INCLUDE_GLOBS = (
     "docker-compose.headless.yml",
     "Makefile",
 )
+
+
+DEFAULT_LOG_GLOBS = (
+    "logs/**/*.log",
+    "*.log",
+    "packages/skeinrank-governance-api/*.log",
+    "packages/skeinrank-governance-api/logs/**/*.log",
+    "examples/pilots/reports/**/*.log",
+    "examples/benchmarks/platform_ops_v1/reports/**/*.log",
+    "examples/agents/openrouter_alias_scout/reports/**/*.log",
+)
+
+DEFAULT_CONFIG_GLOBS = (
+    "deploy/docker/*.env.example",
+    "docker-compose*.yml",
+    "packages/skeinrank-governance-api/pyproject.toml",
+    "Makefile",
+)
+
+DEFAULT_API_SNAPSHOT_ENDPOINTS = (
+    "/livez",
+    "/readyz",
+    "/schema/health",
+    "/v1/ops/troubleshooting/report",
+    "/v1/ops/alerts/report",
+    "/v1/governance/isolation-checks",
+    "/v1/agents/runs?limit=10",
+)
+
+MAX_LOG_FILE_BYTES = 200_000
 
 GENERATED_REPORT_PATTERNS = (
     "examples/pilots/reports/*",
@@ -103,6 +139,8 @@ def build_support_bundle_plan(
     candidate_files = _collect_candidate_files(
         root, include_generated_reports=include_generated_reports
     )
+    log_files = _collect_log_files(root)
+    config_files = _collect_config_files(root)
     return {
         "schema_version": SUPPORT_BUNDLE_PLAN_VERSION,
         "status": "planned",
@@ -111,11 +149,16 @@ def build_support_bundle_plan(
         "include_generated_reports": include_generated_reports,
         "candidate_files_total": len(candidate_files),
         "candidate_files": [_relative_to_root(root, path) for path in candidate_files],
+        "log_files_total": len(log_files),
+        "log_files": [_relative_to_root(root, path) for path in log_files],
+        "config_files_total": len(config_files),
+        "config_files": [_relative_to_root(root, path) for path in config_files],
         "api_snapshot": {
             "enabled": bool(api_url),
             "url": _safe_url(api_url) if api_url else None,
-            "endpoints": ["/livez", "/readyz", "/schema/health"],
-            "ops_report_endpoint": "/v1/ops/troubleshooting/report",
+            "endpoints": list(DEFAULT_API_SNAPSHOT_ENDPOINTS),
+            "health_summary": "health/health_summary.json",
+            "last_runs_summary": "runs/last_agent_runs.json",
         },
         "redaction": {
             "enabled": True,
@@ -145,6 +188,10 @@ def export_support_bundle(
     files = _collect_candidate_files(
         root, include_generated_reports=include_generated_reports
     )
+    log_files = _collect_log_files(root)
+    config_files = _collect_config_files(root)
+    files.extend(log_files)
+    files.extend(config_files)
     for extra in extra_files or []:
         path = (
             (root / extra).resolve() if not Path(extra).is_absolute() else Path(extra)
@@ -162,6 +209,10 @@ def export_support_bundle(
         "bundle_path": str(output),
         "files": [],
         "api_snapshots": [],
+        "health_summary": {},
+        "last_runs_summary": {},
+        "config_inventory": {},
+        "log_inventory": {},
         "missing_optional_files": _missing_optional_files(root),
         "redactions": {
             "enabled": True,
@@ -179,12 +230,28 @@ def export_support_bundle(
 
         api_snapshots = _collect_api_snapshots(api_url=api_url, api_token=api_token)
         manifest["api_snapshots"] = api_snapshots
+        health_summary = _build_health_summary(api_snapshots)
+        last_runs_summary = _build_last_runs_summary(api_snapshots)
+        config_inventory = _build_config_inventory(root, config_files)
+        log_inventory = _build_log_inventory(root, log_files)
+        manifest["health_summary"] = health_summary
+        manifest["last_runs_summary"] = last_runs_summary
+        manifest["config_inventory"] = config_inventory
+        manifest["log_inventory"] = log_inventory
         _write_json(bundle, "api/api_snapshots.json", api_snapshots)
+        _write_json(bundle, "health/health_summary.json", health_summary)
+        _write_json(bundle, "runs/last_agent_runs.json", last_runs_summary)
+        _write_json(bundle, "config/config_inventory.json", config_inventory)
+        _write_json(bundle, "logs/log_inventory.json", log_inventory)
 
         for path in files:
             rel = _relative_to_root(root, path)
             bundle_path = f"files/{rel}"
             raw = path.read_bytes()
+            truncated = False
+            if _is_log_file(root, path) and len(raw) > MAX_LOG_FILE_BYTES:
+                raw = raw[-MAX_LOG_FILE_BYTES:]
+                truncated = True
             sanitized = _sanitize_bytes(raw, path)
             bundle.writestr(bundle_path, sanitized)
             manifest["files"].append(
@@ -194,6 +261,7 @@ def export_support_bundle(
                     "sha256": hashlib.sha256(sanitized).hexdigest(),
                     "size_bytes": len(sanitized),
                     "redacted": sanitized != raw,
+                    "truncated": truncated,
                     "category": _classify_path(rel),
                 }
             )
@@ -320,6 +388,146 @@ def _collect_candidate_files(
     return sorted(set(files))
 
 
+def _collect_log_files(project_root: Path) -> list[Path]:
+    files: list[Path] = []
+    for pattern in DEFAULT_LOG_GLOBS:
+        files.extend(
+            path
+            for path in project_root.glob(pattern)
+            if path.is_file() and _is_safe_project_file(project_root, path)
+        )
+    return sorted(set(files))
+
+
+def _collect_config_files(project_root: Path) -> list[Path]:
+    files: list[Path] = []
+    for pattern in DEFAULT_CONFIG_GLOBS:
+        files.extend(
+            path
+            for path in project_root.glob(pattern)
+            if path.is_file() and _is_safe_project_file(project_root, path)
+        )
+    return sorted(set(files))
+
+
+def _is_log_file(project_root: Path, path: Path) -> bool:
+    try:
+        rel = _relative_to_root(project_root, path)
+    except ValueError:
+        return False
+    return rel.endswith(".log") or "/logs/" in rel
+
+
+def _build_config_inventory(
+    project_root: Path, config_files: list[Path]
+) -> dict[str, Any]:
+    return {
+        "schema_version": SUPPORT_BUNDLE_CONFIG_INVENTORY_VERSION,
+        "files_total": len(config_files),
+        "files": [
+            {
+                "path": _relative_to_root(project_root, path),
+                "size_bytes": path.stat().st_size,
+                "sha256": hashlib.sha256(
+                    _sanitize_bytes(path.read_bytes(), path)
+                ).hexdigest(),
+                "redacted_in_bundle": True,
+            }
+            for path in config_files
+        ],
+        "raw_env_files_included": False,
+    }
+
+
+def _build_log_inventory(project_root: Path, log_files: list[Path]) -> dict[str, Any]:
+    files: list[dict[str, Any]] = []
+    for path in log_files:
+        size_bytes = path.stat().st_size
+        files.append(
+            {
+                "path": _relative_to_root(project_root, path),
+                "size_bytes": size_bytes,
+                "truncated_in_bundle": size_bytes > MAX_LOG_FILE_BYTES,
+                "tail_bytes_included": min(size_bytes, MAX_LOG_FILE_BYTES),
+                "redacted_in_bundle": True,
+            }
+        )
+    return {
+        "schema_version": SUPPORT_BUNDLE_LOG_INVENTORY_VERSION,
+        "files_total": len(files),
+        "max_log_file_bytes": MAX_LOG_FILE_BYTES,
+        "files": files,
+    }
+
+
+def _build_health_summary(api_snapshots: list[dict[str, Any]]) -> dict[str, Any]:
+    endpoints: list[dict[str, Any]] = []
+    degraded: list[str] = []
+    for snapshot in api_snapshots:
+        endpoint = snapshot.get("endpoint")
+        status = snapshot.get("status")
+        payload = snapshot.get("payload")
+        payload_status = payload.get("status") if isinstance(payload, dict) else None
+        http_status = snapshot.get("http_status")
+        ok = status == "ok" and http_status and int(http_status) < 400
+        if payload_status in {"degraded", "failed"}:
+            ok = False
+        if not ok and endpoint:
+            degraded.append(str(endpoint))
+        endpoints.append(
+            {
+                "endpoint": endpoint,
+                "snapshot_status": status,
+                "http_status": http_status,
+                "payload_status": payload_status,
+                "ok": ok,
+            }
+        )
+    return {
+        "schema_version": SUPPORT_BUNDLE_HEALTH_SUMMARY_VERSION,
+        "status": "ok" if not degraded else "degraded",
+        "snapshots_total": len(api_snapshots),
+        "degraded_endpoints": degraded,
+        "endpoints": endpoints,
+    }
+
+
+def _build_last_runs_summary(api_snapshots: list[dict[str, Any]]) -> dict[str, Any]:
+    runs_payload: Any = None
+    for snapshot in api_snapshots:
+        if snapshot.get("endpoint") == "/v1/agents/runs?limit=10":
+            runs_payload = snapshot.get("payload")
+            break
+    runs: list[dict[str, Any]] = []
+    if isinstance(runs_payload, list):
+        for run in runs_payload[:10]:
+            if isinstance(run, dict):
+                runs.append(
+                    {
+                        "run_id": run.get("run_id"),
+                        "agent_name": run.get("agent_name"),
+                        "status": run.get("status"),
+                        "profile_name": run.get("profile_name"),
+                        "binding_id": run.get("binding_id"),
+                        "created_at": run.get("created_at"),
+                        "updated_at": run.get("updated_at"),
+                        "artifacts_uri": run.get("artifacts_uri"),
+                        "report_uri": run.get("report_uri"),
+                    }
+                )
+    by_status: dict[str, int] = {}
+    for run in runs:
+        status = str(run.get("status") or "unknown")
+        by_status[status] = by_status.get(status, 0) + 1
+    return {
+        "schema_version": SUPPORT_BUNDLE_LAST_RUNS_VERSION,
+        "source": "GET /v1/agents/runs?limit=10",
+        "runs_total": len(runs),
+        "by_status": by_status,
+        "runs": runs,
+    }
+
+
 def _missing_optional_files(project_root: Path) -> list[str]:
     missing: list[str] = []
     for pattern in DEFAULT_INCLUDE_GLOBS:
@@ -346,7 +554,17 @@ def _is_safe_project_file(project_root: Path, path: Path) -> bool:
 
 
 def _sanitize_bytes(raw: bytes, path: Path) -> bytes:
-    text_suffixes = {".json", ".jsonl", ".md", ".txt", ".yml", ".yaml", ".env", ""}
+    text_suffixes = {
+        ".json",
+        ".jsonl",
+        ".md",
+        ".txt",
+        ".log",
+        ".yml",
+        ".yaml",
+        ".env",
+        "",
+    }
     if path.suffix.lower() not in text_suffixes:
         return raw
     try:
@@ -417,16 +635,11 @@ def _collect_api_snapshots(
     if not api_url:
         return []
     base = api_url.rstrip("/")
-    endpoints = [
-        "/livez",
-        "/readyz",
-        "/schema/health",
-        "/v1/ops/troubleshooting/report",
-    ]
+    endpoints = list(DEFAULT_API_SNAPSHOT_ENDPOINTS)
     snapshots: list[dict[str, Any]] = []
     for endpoint in endpoints:
         headers = {"Accept": "application/json"}
-        if api_token and endpoint.startswith("/v1/ops"):
+        if api_token and endpoint.startswith("/v1/"):
             headers["Authorization"] = f"Bearer {api_token}"
         url = f"{base}{endpoint}"
         try:
@@ -532,6 +745,8 @@ def _safe_url(url: str | None) -> str | None:
 
 
 def _classify_path(relative_path: str) -> str:
+    if relative_path.endswith(".log") or "/logs/" in relative_path:
+        return "log"
     if "/reports/" in relative_path:
         return "generated_report"
     if relative_path.startswith("docs/"):

@@ -124,6 +124,44 @@ class TroubleshootingReportResponse(BaseModel):
     recommendations: list[str] = Field(default_factory=list)
 
 
+class AlertingEvent(BaseModel):
+    """One degraded-state alert event."""
+
+    id: str
+    severity: str = Field(..., examples=["critical", "warning", "info"])
+    source: str
+    signal: str
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    recommended_action: str | None = None
+
+
+class AlertingHookPreview(BaseModel):
+    """Sanitized alert hook payload preview; no delivery is performed."""
+
+    configured: bool = False
+    delivery_enabled: bool = False
+    payload: dict[str, Any] = Field(default_factory=dict)
+    note: str | None = None
+
+
+class AlertingReportResponse(BaseModel):
+    """Operator-facing degraded-state alerting report."""
+
+    schema_version: str = Field("skeinrank.alerting_report.v1")
+    status: str = Field(..., examples=["ok", "degraded"])
+    severity: str = Field(..., examples=["critical", "warning", "info"])
+    generated_at: datetime
+    service: ServiceInfo
+    environment: str
+    request_id: str | None = None
+    summary: dict[str, Any] = Field(default_factory=dict)
+    events: list[AlertingEvent] = Field(default_factory=list)
+    hooks: dict[str, AlertingHookPreview] = Field(default_factory=dict)
+    recommendations: list[str] = Field(default_factory=list)
+    safety: dict[str, Any] = Field(default_factory=dict)
+
+
 class DashboardReadinessItem(BaseModel):
     """One product dashboard readiness item."""
 

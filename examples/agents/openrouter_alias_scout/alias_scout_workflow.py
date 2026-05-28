@@ -27,6 +27,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
     from .canonical_hints import CanonicalHintsConfig
     from .demo_report import DemoReportConfig, build_alias_scout_demo_report
     from .evidence_sampler import EvidenceSamplerConfig
+    from .model_provider import ChatCompletionProvider, provider_metadata
     from .openrouter_client import (
         OpenRouterClient,
         extract_first_message_content,
@@ -53,6 +54,7 @@ except ImportError:  # pragma: no cover
     from canonical_hints import CanonicalHintsConfig
     from demo_report import DemoReportConfig, build_alias_scout_demo_report
     from evidence_sampler import EvidenceSamplerConfig
+    from model_provider import ChatCompletionProvider, provider_metadata
     from openrouter_client import OpenRouterClient, extract_first_message_content
     from prompts import SYSTEM_PROMPT, build_alias_review_prompt
     from structured_output import (
@@ -152,6 +154,14 @@ def build_llm_review_plan(
         "llm_enabled": True,
         "openrouter_calls": False,
         "openrouter_model": openrouter_model,
+        "model_provider": {
+            "schema_version": "skeinrank.model_provider_metadata.v1",
+            "provider_name": "openrouter",
+            "provider_type": "openrouter",
+            "model": openrouter_model,
+            "chat_completion_interface": True,
+        },
+        "provider_calls": False,
         "proposal_submission_enabled": cfg.submit_proposals,
         "workflow_engine": "dependency_light_state_machine",
         "langgraph_ready": True,
@@ -172,7 +182,8 @@ def run_openrouter_llm_review_workflow(
     failed_queries: Sequence[Mapping[str, Any]],
     evidence_records: Sequence[Mapping[str, Any]],
     *,
-    openrouter_client: OpenRouterClient,
+    openrouter_client: OpenRouterClient | None = None,
+    model_provider: ChatCompletionProvider | None = None,
     candidate_config: CandidateDiscoveryConfig | None = None,
     evidence_config: EvidenceSamplerConfig | None = None,
     demo_config: DemoReportConfig | None = None,
@@ -193,6 +204,11 @@ def run_openrouter_llm_review_workflow(
     """
 
     cfg = llm_config or LlmReviewConfig()
+    provider = model_provider or openrouter_client
+    if provider is None:
+        raise RuntimeError(
+            "A model provider or OpenRouter client is required for live LLM review."
+        )
     budget_cfg = budget_cache_config or AgentBudgetCacheConfig()
     budget_tracker = LlmRunBudgetTracker(budget_cfg)
     review_cache = JsonLlmReviewCache(budget_cfg)
@@ -219,7 +235,7 @@ def run_openrouter_llm_review_workflow(
     for item in ready_queue:
         reviewed = _review_one_item(
             item,
-            client=openrouter_client,
+            client=provider,
             cfg=cfg,
             openrouter_model=openrouter_model,
             proposal_source_name=proposal_source_name,
@@ -249,6 +265,8 @@ def run_openrouter_llm_review_workflow(
         "proposal_submission_enabled": cfg.submit_proposals,
         "proposals_submitted": 0,
         "openrouter_model": openrouter_model,
+        "model_provider": provider_metadata(provider),
+        "provider_calls": True,
         "workflow_engine": "dependency_light_state_machine",
         "langgraph_ready": True,
         "workflow_nodes": list(WORKFLOW_NODES),
@@ -282,7 +300,7 @@ def run_openrouter_llm_review_workflow(
 def _review_one_item(
     item: Mapping[str, Any],
     *,
-    client: OpenRouterClient,
+    client: ChatCompletionProvider,
     cfg: LlmReviewConfig,
     openrouter_model: str,
     proposal_source_name: str,
@@ -386,6 +404,9 @@ def _review_one_item(
         "proposal_payload": proposal_payload,
         "openrouter_response_id": response.get("id"),
         "openrouter_usage": response.get("usage"),
+        "model_provider": provider_metadata(client),
+        "model_response_id": response.get("id"),
+        "model_usage": response.get("usage"),
         "cache": {
             "enabled": review_cache.enabled,
             "hit": cache_hit,

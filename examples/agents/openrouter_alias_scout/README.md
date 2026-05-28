@@ -777,3 +777,59 @@ you to provide your own token when Governance API auth is enabled.
 ### Patch 53A.1 — validated pilot preflight hotfix
 
 Validated live pilots now verify the `validate-alias` tool before any OpenRouter call. The preflight is read-only and uses a synthetic alias validation payload to confirm that the selected profile/binding context is available. If the Governance API returns 404, the runner fails before spending LLM budget and suggests seeding the benchmark stack or passing an existing `--profile-name` / `--binding-id`.
+
+## Patch 57A — Model provider abstraction
+
+Patch 57A adds `model_provider.py`, a small provider abstraction for chat-completion backends. OpenRouter remains the default production adapter, but the workflow can now accept a provider object through the same `create_chat_completion(...)` interface.
+
+Preview the configured provider without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-model-provider-plan
+```
+
+The response schema is `skeinrank.model_provider_plan.v1`. It redacts secrets and keeps live execution behind the existing explicit `--llm-review` / live-pilot flags.
+
+## Patch 57B — OpenRouter and local endpoint adapters
+
+Patch 57B adds concrete provider adapters on top of the 57A abstraction. The supported operator-facing provider types are:
+
+```text
+openrouter
+local_endpoint
+mock
+```
+
+OpenRouter remains the default. `local_endpoint` targets a private OpenAI-compatible `/chat/completions` server such as vLLM, LM Studio, or an Ollama-compatible gateway. It does not require an API key by default.
+
+Preview a local endpoint configuration without network calls:
+
+```bash
+SKEINRANK_MODEL_PROVIDER_TYPE=local_endpoint \
+SKEINRANK_MODEL_PROVIDER_BASE_URL=http://127.0.0.1:8000/v1 \
+SKEINRANK_MODEL_PROVIDER_MODEL=local-model \
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-model-provider-plan
+```
+
+The live LLM review and live-pilot commands continue to require explicit live flags. Provider plans never print token values.
+
+## Patch 57C — Company model integration
+
+Print the company-model integration plan without network calls:
+
+```bash
+python examples/agents/openrouter_alias_scout/run_alias_scout.py \
+  --print-company-model-integration-plan
+```
+
+For a private model endpoint, configure:
+
+```bash
+export SKEINRANK_MODEL_PROVIDER_TYPE=local_endpoint
+export SKEINRANK_MODEL_PROVIDER_BASE_URL=http://127.0.0.1:8000/v1
+export SKEINRANK_MODEL_PROVIDER_MODEL=company-model
+```
+
+Then preview with `--print-model-provider-plan`. Live smoke and validated pilot still require explicit live flags and keep proposal submission disabled by default.
