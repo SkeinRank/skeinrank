@@ -97,6 +97,7 @@ from ..proposal_lifecycle import (
 )
 from ..proposal_quality import build_proposal_source_quality, validation_status
 from ..proposal_validation import build_proposal_validation_summary
+from ..role_boundaries import role_boundaries_document, role_boundary_for_auth_context
 from ..runtime_snapshots import (
     alias_tuples_from_snapshot,
     binding_snapshot_status,
@@ -150,6 +151,8 @@ from ..schemas import (
     ProposalBatchPreviewResponse,
     ProposalBatchSnapshotResponse,
     ProposalSourceQualityResponse,
+    RoleBoundariesResponse,
+    RoleBoundaryCurrentUserResponse,
     RuntimeSnapshotResponse,
     SnapshotExportRequest,
     StopListCreateRequest,
@@ -169,6 +172,23 @@ from ..worker_queue import (
 )
 
 router = APIRouter(prefix="/v1/governance", tags=["governance"])
+
+
+@router.get("/role-boundaries", response_model=RoleBoundariesResponse)
+def get_role_boundaries(
+    current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+) -> RoleBoundariesResponse:
+    """Return operator-facing agent/reviewer/admin role boundaries."""
+
+    document = role_boundaries_document()
+    return RoleBoundariesResponse(
+        **document,
+        current_user=RoleBoundaryCurrentUserResponse(
+            **role_boundary_for_auth_context(current_user)
+        ),
+    )
 
 
 @router.get("/profiles", response_model=list[ProfileResponse])
@@ -1045,7 +1065,7 @@ def start_elasticsearch_enrichment_job(
     binding_id: int,
     request: Request,
     request_body: ElasticsearchEnrichmentJobCreateRequest | None = Body(default=None),
-    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    current_user: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> ElasticsearchEnrichmentJobResponse:
     """Start an enrichment job for one Elasticsearch binding."""
@@ -1279,7 +1299,7 @@ def rollback_elasticsearch_enrichment_job(
     job_id: int,
     request: Request,
     request_body: ElasticsearchEnrichmentJobRollbackRequest | None = Body(default=None),
-    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    current_user: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> ElasticsearchEnrichmentJobResponse:
     """Safely roll back a completed reindex+alias-swap enrichment job."""
@@ -2427,7 +2447,7 @@ def preview_profile_suggestion_batch(
 def apply_profile_suggestion_batch(
     profile_name: str,
     request: ProposalBatchApplyRequest | None = Body(default=None),
-    reviewer: AuthContext = Depends(require_roles("admin", "moderator")),
+    reviewer: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> ProposalBatchApplyResponse:
     """Apply pending proposals as one atomic batch and optionally publish a snapshot.

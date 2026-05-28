@@ -290,6 +290,43 @@ class SnapshotSummaryResponse(BaseModel):
     history: list[SnapshotHistoryItem] = Field(default_factory=list)
 
 
+class RoleBoundaryCapabilityResponse(BaseModel):
+    """Operator-facing capability flags for a governance role boundary."""
+
+    boundary: str
+    governance_roles: list[str] = Field(default_factory=list)
+    may_read: bool = False
+    may_validate: bool = False
+    may_propose: bool = False
+    may_approve_reject: bool = False
+    may_batch_apply: bool = False
+    may_publish_snapshot: bool = False
+    may_manage_users_tokens: bool = False
+    description: str
+
+
+class RoleBoundaryCurrentUserResponse(BaseModel):
+    """Current caller boundary summary."""
+
+    schema_version: str = "skeinrank.role_boundaries.v1"
+    username: str
+    role: str
+    auth_type: str
+    boundary: str
+    scopes: list[str] = Field(default_factory=list)
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+
+
+class RoleBoundariesResponse(BaseModel):
+    """Stable role-boundaries document for production agent workflows."""
+
+    schema_version: str = "skeinrank.role_boundaries.v1"
+    boundaries: list[RoleBoundaryCapabilityResponse] = Field(default_factory=list)
+    rules: dict[str, list[str]] = Field(default_factory=dict)
+    service_token_note: str
+    current_user: RoleBoundaryCurrentUserResponse
+
+
 class ProfileCreateRequest(BaseModel):
     """Request body for creating a terminology profile."""
 

@@ -32,6 +32,7 @@ This directory keeps repository-level documentation for developers, operators, a
 ## Production safety
 
 - [Apply policy and risk levels](policies/apply-policy-risk-levels.md) — proposal risk classification for safe apply workflows.
+- [Role boundaries](policies/role-boundaries.md) — explicit agent/reviewer/admin boundaries for production human-in-the-loop workflows.
 
 ## Deployment
 

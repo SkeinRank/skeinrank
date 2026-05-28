@@ -1012,3 +1012,7 @@ separate low-risk batch-approve candidates from medium/high-risk proposals.
 No migrations or runtime apply behavior changes are introduced. `auto_apply_allowed`
 remains `false`; blocked proposals still cannot apply, and warning proposals still
 require explicit `allow_warnings: true`. See `docs/policies/apply-policy-risk-levels.md`.
+
+### Patch 55B — Role boundaries for agent/reviewer/admin
+
+Adds an explicit operational boundary document with schema `skeinrank.role_boundaries.v1`. Existing governance roles remain unchanged: `contributor` maps to the agent boundary, `moderator` maps to the reviewer boundary, and `admin` remains the only boundary that can apply proposal batches or publish runtime snapshots. See `docs/policies/role-boundaries.md`.

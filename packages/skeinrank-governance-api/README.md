@@ -1639,3 +1639,7 @@ Risk levels are additive and side-effect free:
 This patch does not change apply semantics, publish snapshots, call OpenRouter,
 or call Elasticsearch. It prepares the policy surface for the following
 production safety patches. See `docs/policies/apply-policy-risk-levels.md`.
+
+### Patch 55B — Role boundaries for agent/reviewer/admin
+
+The API now exposes `GET /v1/governance/role-boundaries` and enforces the production boundary that reviewers can approve/reject proposals but only admins can apply batches or publish runtime snapshots. Agent/service-token workflows remain proposal-only and still require explicit `agent:tools:*` scopes.

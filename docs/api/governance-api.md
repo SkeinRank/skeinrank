@@ -924,3 +924,18 @@ Batch preview items additionally include `policy_can_batch_apply`,
 does not change apply behavior in 55A: blocked validation summaries still block
 apply, warning summaries still require explicit `allow_warnings: true`, and
 automatic apply remains disabled.
+
+
+## Role boundaries
+
+`GET /v1/governance/role-boundaries` returns the current operator-facing role-boundary policy and current caller boundary.
+
+Schema: `skeinrank.role_boundaries.v1`
+
+Boundary mapping:
+
+- `contributor` -> `agent`: read/validate/propose only.
+- `moderator` -> `reviewer`: approve/reject and preview batches, but no apply/publish.
+- `admin` -> `admin`: apply batches, publish snapshots, and manage users/tokens.
+
+This endpoint is read-only and does not mutate governance state.
