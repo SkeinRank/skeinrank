@@ -290,6 +290,87 @@ class SnapshotSummaryResponse(BaseModel):
     history: list[SnapshotHistoryItem] = Field(default_factory=list)
 
 
+class ProfileIsolationIssueResponse(BaseModel):
+    """One sampled profile/binding isolation issue."""
+
+    entity: str
+    entity_id: str
+    severity: str
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProfileIsolationCheckResponse(BaseModel):
+    """One read-only profile/binding isolation check result."""
+
+    name: str
+    status: str = Field(..., examples=["ok", "failed"])
+    message: str
+    issues_count: int
+    sampled_issues: list[ProfileIsolationIssueResponse] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProfileIsolationSummaryResponse(BaseModel):
+    """Aggregate profile/binding isolation counters."""
+
+    profiles_total: int
+    bindings_total: int
+    suggestions_total: int
+    agent_runs_total: int
+    checks_total: int
+    failed_checks: int
+    issues_total: int
+
+
+class ProfileIsolationResponse(BaseModel):
+    """Operator-facing profile/binding isolation report."""
+
+    schema_version: str = "skeinrank.profile_isolation.v1"
+    status: str = Field(..., examples=["ok", "degraded"])
+    summary: ProfileIsolationSummaryResponse
+    checks: list[ProfileIsolationCheckResponse] = Field(default_factory=list)
+    rules: dict[str, list[str]] = Field(default_factory=dict)
+    safety: dict[str, Any] = Field(default_factory=dict)
+
+
+class RoleBoundaryCapabilityResponse(BaseModel):
+    """Operator-facing capability flags for a governance role boundary."""
+
+    boundary: str
+    governance_roles: list[str] = Field(default_factory=list)
+    may_read: bool = False
+    may_validate: bool = False
+    may_propose: bool = False
+    may_approve_reject: bool = False
+    may_batch_apply: bool = False
+    may_publish_snapshot: bool = False
+    may_manage_users_tokens: bool = False
+    description: str
+
+
+class RoleBoundaryCurrentUserResponse(BaseModel):
+    """Current caller boundary summary."""
+
+    schema_version: str = "skeinrank.role_boundaries.v1"
+    username: str
+    role: str
+    auth_type: str
+    boundary: str
+    scopes: list[str] = Field(default_factory=list)
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+
+
+class RoleBoundariesResponse(BaseModel):
+    """Stable role-boundaries document for production agent workflows."""
+
+    schema_version: str = "skeinrank.role_boundaries.v1"
+    boundaries: list[RoleBoundaryCapabilityResponse] = Field(default_factory=list)
+    rules: dict[str, list[str]] = Field(default_factory=dict)
+    service_token_note: str
+    current_user: RoleBoundaryCurrentUserResponse
+
+
 class ProfileCreateRequest(BaseModel):
     """Request body for creating a terminology profile."""
 
@@ -874,6 +955,21 @@ class SuggestionReviewRequest(BaseModel):
     allow_warnings: bool = False
 
 
+class ProposalApplyPolicyResponse(BaseModel):
+    """Apply policy and risk-level decision for a proposal."""
+
+    schema_version: str = "skeinrank.apply_policy.v1"
+    risk_level: str = "unknown"
+    decision: str = "unknown"
+    can_batch_apply: bool = False
+    requires_reviewer: bool = True
+    requires_admin: bool = False
+    requires_warning_override: bool = False
+    auto_apply_allowed: bool = False
+    reasons: list[str] = Field(default_factory=list)
+    signals: dict[str, Any] = Field(default_factory=dict)
+
+
 class SuggestionResponse(BaseModel):
     """Suggestion response used by approval workflow clients."""
 
@@ -901,6 +997,8 @@ class SuggestionResponse(BaseModel):
     lifecycle_status: str
     lifecycle_reason: str
     validation_status: str
+    risk_level: str = "unknown"
+    apply_policy: ProposalApplyPolicyResponse | None = None
     can_approve: bool
     can_apply: bool
     created_by: str | None = None
@@ -961,6 +1059,11 @@ class ProposalBatchPreviewItemResponse(BaseModel):
     status: str
     validation_status: str = "unknown"
     validation_counts: dict[str, int] = Field(default_factory=dict)
+    risk_level: str = "unknown"
+    apply_policy: ProposalApplyPolicyResponse | None = None
+    policy_can_batch_apply: bool = False
+    policy_requires_admin: bool = False
+    policy_reasons: list[str] = Field(default_factory=list)
     applyable: bool = False
     apply_action: str = "apply"
     idempotent_reason: str | None = None
@@ -1064,6 +1167,8 @@ class AgentToolValidateAliasResponse(BaseModel):
     proposal_source_name: str | None = None
     idempotency_key: str | None = None
     validation_summary: dict[str, Any]
+    risk_level: str = "unknown"
+    apply_policy: ProposalApplyPolicyResponse | None = None
 
 
 class AgentToolSuggestAliasRequest(BaseModel):
@@ -1540,6 +1645,14 @@ class ApiTokenCreateRequest(BaseModel):
     expires_in_days: int | None = Field(default=90, ge=1, le=3650)
 
 
+class ApiTokenRotateRequest(BaseModel):
+    """Request body for rotating a service-account API token."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    scopes: list[str] | None = None
+    expires_in_days: int | None = Field(default=90, ge=1, le=3650)
+
+
 class ApiTokenResponse(BaseModel):
     """Masked personal or service-account API token metadata."""
 
@@ -1562,6 +1675,36 @@ class ApiTokenCreateResponse(ApiTokenResponse):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class ApiTokenRotateResponse(ApiTokenCreateResponse):
+    """Rotate response that returns the replacement plaintext token once."""
+
+    rotated_from_token_id: int
+    revoked_token_id: int
+    revoked_old_token: bool = True
+
+
+class ScopedAgentCredentialProfileResponse(BaseModel):
+    """One recommended scoped service credential profile for agents."""
+
+    name: str
+    role: str
+    scopes: list[str]
+    description: str
+    can_submit_proposals: bool
+    can_mutate_runtime: bool
+    rotation_note: str
+
+
+class ScopedAgentCredentialsResponse(BaseModel):
+    """Stable least-privilege service-token policy for agent credentials."""
+
+    schema_version: str = "skeinrank.scoped_agent_credentials.v1"
+    current_user: str | None = None
+    recommended_credentials: list[ScopedAgentCredentialProfileResponse]
+    rotation: dict[str, Any]
+    safety: dict[str, bool]
 
 
 class ServiceAccountCreateRequest(BaseModel):

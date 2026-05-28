@@ -1622,3 +1622,54 @@ From the repository root, the same workflow is exposed through
 `make backup-restore-drill-plan`, `make backup-restore-drill-run`, and
 `make backup-restore-drill-inspect`. The drill does not call OpenRouter,
 Elasticsearch, or a live database.
+
+### Patch 55A — Apply policy and risk levels
+
+Proposal validation now enriches `validation_summary` with `risk_level`,
+`apply_policy_decision`, and `apply_policy` using schema
+`skeinrank.apply_policy.v1`. `SuggestionResponse`, agent tool validation, and
+batch preview responses expose these fields for operator/UI review.
+
+Risk levels are additive and side-effect free:
+
+- `low` → `batch_approve_allowed`
+- `medium` → `review_required`
+- `high` → `admin_or_reject`
+
+This patch does not change apply semantics, publish snapshots, call OpenRouter,
+or call Elasticsearch. It prepares the policy surface for the following
+production safety patches. See `docs/policies/apply-policy-risk-levels.md`.
+
+### Patch 55B — Role boundaries for agent/reviewer/admin
+
+The API now exposes `GET /v1/governance/role-boundaries` and enforces the production boundary that reviewers can approve/reject proposals but only admins can apply batches or publish runtime snapshots. Agent/service-token workflows remain proposal-only and still require explicit `agent:tools:*` scopes.
+
+### Patch 55C — Token rotation / scoped agent credentials
+
+Admins can rotate service-account tokens without exposing the previous plaintext
+secret:
+
+```http
+POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
+```
+
+The response returns the replacement token once and revokes the old token in the
+same transaction. If `scopes` is omitted, the replacement token inherits the old
+token scopes.
+
+Admins can inspect recommended least-privilege agent credential profiles:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+```
+
+Recommended agent service accounts use role `contributor` with explicit scopes
+such as `agent:tools:validate`, `agent:tools:suggest`, `agent:runs:*`,
+`agent:tracking:*`, and `ops:reports:read`. These credentials do not allow
+approve/apply/publish behavior.
+
+### Patch 55D — Tenant/profile isolation checks
+
+`GET /v1/governance/isolation-checks` returns schema `skeinrank.profile_isolation.v1`. The report is read-only and checks that binding-scoped rows remain aligned with their profile/binding context across proposals, binding policies, enrichment jobs, agent runs, and agent tracking tables. It also records the existing request guards that reject mismatched `profile_name` / `binding_id` pairs.
+
+No tenant column, migration, provider call, or runtime mutation is introduced. Full multi-tenant isolation remains a later feature; this patch verifies the current profile/binding boundary.

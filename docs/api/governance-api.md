@@ -894,3 +894,107 @@ The response schema is `skeinrank.agent_run_report.v1` and includes:
 
 The endpoint requires `agent:runs:read`. It intentionally does not execute an agent, retry external calls, call LLM/search providers, submit proposals, apply dictionary changes, or publish snapshots.
 
+
+### Patch 55A — Apply policy and risk levels
+
+Proposal responses now include additive risk-policy metadata. The canonical
+payload is stored in `validation_summary.apply_policy` and exposed on response
+objects as `risk_level` and `apply_policy`.
+
+```json
+{
+  "risk_level": "low",
+  "apply_policy": {
+    "schema_version": "skeinrank.apply_policy.v1",
+    "risk_level": "low",
+    "decision": "batch_approve_allowed",
+    "can_batch_apply": true,
+    "requires_reviewer": true,
+    "requires_admin": false,
+    "requires_warning_override": false,
+    "auto_apply_allowed": false,
+    "reasons": ["validation_passed_low_risk_thresholds"],
+    "signals": {}
+  }
+}
+```
+
+Batch preview items additionally include `policy_can_batch_apply`,
+`policy_requires_admin`, and `policy_reasons`. The policy is side-effect free and
+does not change apply behavior in 55A: blocked validation summaries still block
+apply, warning summaries still require explicit `allow_warnings: true`, and
+automatic apply remains disabled.
+
+
+## Role boundaries
+
+`GET /v1/governance/role-boundaries` returns the current operator-facing role-boundary policy and current caller boundary.
+
+Schema: `skeinrank.role_boundaries.v1`
+
+Boundary mapping:
+
+- `contributor` -> `agent`: read/validate/propose only.
+- `moderator` -> `reviewer`: approve/reject and preview batches, but no apply/publish.
+- `admin` -> `admin`: apply batches, publish snapshots, and manage users/tokens.
+
+This endpoint is read-only and does not mutate governance state.
+
+### Patch 55C — Token rotation / scoped agent credentials
+
+Admins can inspect the recommended service-account credentials for agent
+workflows:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+```
+
+Response schema:
+
+```text
+skeinrank.scoped_agent_credentials.v1
+```
+
+Admins can rotate service-account tokens:
+
+```http
+POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
+```
+
+Request body:
+
+```json
+{
+  "name": "agent token v2",
+  "scopes": ["agent:tools:validate", "agent:tools:suggest"],
+  "expires_in_days": 90
+}
+```
+
+`name` and `scopes` are optional. When `scopes` is omitted, the replacement token
+inherits the old token scopes. The response returns the replacement plaintext
+`access_token` once and marks the old token as revoked.
+
+The endpoint does not create admin-capable agent credentials by default. Use
+`contributor` service accounts and explicit `agent:*` scopes for scheduled
+agents.
+
+## Profile isolation checks
+
+Patch 55D adds a read-only isolation report for profile/binding safety:
+
+```http
+GET /v1/governance/isolation-checks
+```
+
+Response schema: `skeinrank.profile_isolation.v1`.
+
+The endpoint reports whether binding-scoped rows stay inside their profile context across bindings, suggestions, binding policies, enrichment jobs, agent runs, and agent tracking tables. It also reports the request-guard surface that rejects profile/binding mismatches. The endpoint does not mutate state or call external providers.
+
+Optional query parameter:
+
+```text
+sample_limit=20
+```
+
+Use a lower `sample_limit` when a degraded database may contain many issues.

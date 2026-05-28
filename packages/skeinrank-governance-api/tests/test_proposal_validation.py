@@ -72,6 +72,8 @@ def test_proposal_validation_summary_is_stored_when_not_provided(tmp_path):
     assert summary["checks"]["alias_state"]["status"] == "passed"
     assert summary["checks"]["idempotency_key"]["status"] == "passed"
     assert summary["checks"]["agent_payload"]["status"] == "passed"
+    assert summary["apply_policy"]["schema_version"] == "skeinrank.apply_policy.v1"
+    assert summary["risk_level"] == "medium"
 
 
 def test_proposal_validation_flags_duplicate_alias_without_blocking_creation(tmp_path):
@@ -125,7 +127,11 @@ def test_proposal_validation_preserves_external_validation_summary(tmp_path):
     )
 
     assert response.status_code == 201
-    assert response.json()["validation_summary"] == external_summary
+    summary = response.json()["validation_summary"]
+    assert summary["checks"] == external_summary["checks"]
+    assert summary["risk_level"] == "medium"
+    assert summary["apply_policy"]["schema_version"] == "skeinrank.apply_policy.v1"
+    assert response.json()["risk_level"] == "medium"
 
 
 def test_proposal_validation_summary_can_report_stop_list_blocks():

@@ -29,6 +29,12 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/development.md`](guides/development.md) — local development checks and package workflow.
 - [`api/governance-api.md`](api/governance-api.md) — important HTTP surfaces and runtime endpoints.
 
+## Production safety
+
+- [Apply policy and risk levels](policies/apply-policy-risk-levels.md) — proposal risk classification for safe apply workflows.
+- [Role boundaries](policies/role-boundaries.md) — explicit agent/reviewer/admin boundaries for production human-in-the-loop workflows.
+- [Profile isolation checks](policies/profile-isolation-checks.md) — read-only profile/binding alignment checks for production safety.
+
 ## Deployment
 
 - [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.
@@ -427,3 +433,22 @@ Patch 53A.1 makes the OpenRouter validated pilot fail fast before LLM calls when
 ### Backup/restore verified scenario
 
 - [Backup/restore verified scenario](deployment/backup-restore-verified-scenario.md) — disposable local drill for `make backup-restore-drill-plan`, `make backup-restore-drill-run`, and `make backup-restore-drill-inspect`.
+
+## Patch 55C — Token rotation and scoped agent credentials
+
+Patch 55C documents and verifies service-account token rotation for agent
+workflows. It adds the read-only scoped credential policy endpoint and the
+service-account token rotation endpoint:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
+```
+
+See [`policies/token-rotation-scoped-agent-credentials.md`](policies/token-rotation-scoped-agent-credentials.md).
+
+## Patch 55D — Tenant/profile isolation checks
+
+Patch 55D adds `GET /v1/governance/isolation-checks`, a read-only operator report with schema `skeinrank.profile_isolation.v1`. It verifies that binding-scoped proposals, policies, enrichment jobs, agent runs, and agent tracking rows stay inside their profile/binding context. It also documents request guards for profile/binding mismatches in runtime planning, agent tools, proposal creation, and agent run registration.
+
+This is not full multi-tenancy yet: no tenant column or data model migration is introduced. The current safety boundary remains profile plus optional binding. See [`policies/profile-isolation-checks.md`](policies/profile-isolation-checks.md).

@@ -62,6 +62,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ambiguous_proposals import sync_ambiguous_alias_candidates_for_suggestion
+from ..apply_policy import apply_policy_for_suggestion, ensure_apply_policy_summary
 from ..auth import AuthContext, require_roles
 from ..conflict_detection import (
     build_conflict_report,
@@ -82,6 +83,7 @@ from ..observability.metrics import (
     record_proposal_review,
     record_proposal_submission,
 )
+from ..profile_isolation import build_profile_isolation_report
 from ..proposal_idempotency import (
     ProposalIdempotencyConflict,
     normalize_idempotency_key,
@@ -96,6 +98,7 @@ from ..proposal_lifecycle import (
 )
 from ..proposal_quality import build_proposal_source_quality, validation_status
 from ..proposal_validation import build_proposal_validation_summary
+from ..role_boundaries import role_boundaries_document, role_boundary_for_auth_context
 from ..runtime_snapshots import (
     alias_tuples_from_snapshot,
     binding_snapshot_status,
@@ -140,14 +143,18 @@ from ..schemas import (
     GlobalStopListEntryResponse,
     GlobalStopListUpdateRequest,
     ProfileCreateRequest,
+    ProfileIsolationResponse,
     ProfileResponse,
     ProfileUpdateRequest,
+    ProposalApplyPolicyResponse,
     ProposalBatchApplyRequest,
     ProposalBatchApplyResponse,
     ProposalBatchPreviewItemResponse,
     ProposalBatchPreviewResponse,
     ProposalBatchSnapshotResponse,
     ProposalSourceQualityResponse,
+    RoleBoundariesResponse,
+    RoleBoundaryCurrentUserResponse,
     RuntimeSnapshotResponse,
     SnapshotExportRequest,
     StopListCreateRequest,
@@ -167,6 +174,38 @@ from ..worker_queue import (
 )
 
 router = APIRouter(prefix="/v1/governance", tags=["governance"])
+
+
+@router.get("/isolation-checks", response_model=ProfileIsolationResponse)
+def get_profile_isolation_checks(
+    sample_limit: int = Query(default=20, ge=0, le=100),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> ProfileIsolationResponse:
+    """Return read-only profile/binding isolation checks for operators."""
+
+    return ProfileIsolationResponse(
+        **build_profile_isolation_report(session, sample_limit=sample_limit)
+    )
+
+
+@router.get("/role-boundaries", response_model=RoleBoundariesResponse)
+def get_role_boundaries(
+    current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+) -> RoleBoundariesResponse:
+    """Return operator-facing agent/reviewer/admin role boundaries."""
+
+    document = role_boundaries_document()
+    return RoleBoundariesResponse(
+        **document,
+        current_user=RoleBoundaryCurrentUserResponse(
+            **role_boundary_for_auth_context(current_user)
+        ),
+    )
 
 
 @router.get("/profiles", response_model=list[ProfileResponse])
@@ -1043,7 +1082,7 @@ def start_elasticsearch_enrichment_job(
     binding_id: int,
     request: Request,
     request_body: ElasticsearchEnrichmentJobCreateRequest | None = Body(default=None),
-    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    current_user: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> ElasticsearchEnrichmentJobResponse:
     """Start an enrichment job for one Elasticsearch binding."""
@@ -1277,7 +1316,7 @@ def rollback_elasticsearch_enrichment_job(
     job_id: int,
     request: Request,
     request_body: ElasticsearchEnrichmentJobRollbackRequest | None = Body(default=None),
-    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    current_user: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> ElasticsearchEnrichmentJobResponse:
     """Safely roll back a completed reindex+alias-swap enrichment job."""
@@ -2159,6 +2198,18 @@ def create_profile_suggestion(
             )
             return _suggestion_response(existing_suggestion)
 
+    validation_summary = ensure_apply_policy_summary(
+        validation_summary,
+        suggestion_type=request.suggestion_type,
+        canonical_value=request.canonical_value,
+        alias_value=request.alias_value,
+        slot=request.slot,
+        confidence=request.confidence,
+        proposal_source_type=request.proposal_source_type,
+        proposal_source_name=request.proposal_source_name,
+        source_payload=request.source_payload,
+    )
+
     suggestion = GovernanceSuggestion(
         profile=profile,
         suggestion_type=request.suggestion_type,
@@ -2413,7 +2464,7 @@ def preview_profile_suggestion_batch(
 def apply_profile_suggestion_batch(
     profile_name: str,
     request: ProposalBatchApplyRequest | None = Body(default=None),
-    reviewer: AuthContext = Depends(require_roles("admin", "moderator")),
+    reviewer: AuthContext = Depends(require_roles("admin")),
     session: Session = Depends(get_session),
 ) -> ProposalBatchApplyResponse:
     """Apply pending proposals as one atomic batch and optionally publish a snapshot.
@@ -3714,6 +3765,7 @@ def _proposal_batch_preview_item(
 ) -> ProposalBatchPreviewItemResponse:
     summary = suggestion.validation_summary_json or {}
     validation_status_value = _proposal_validation_status(summary)
+    apply_policy = apply_policy_for_suggestion(suggestion)
     apply_action = "apply"
     idempotent_reason = None
     if suggestion.status == "approved":
@@ -3733,6 +3785,11 @@ def _proposal_batch_preview_item(
         status=suggestion.status,
         validation_status=validation_status_value,
         validation_counts=_proposal_validation_counts(summary),
+        risk_level=str(apply_policy.get("risk_level") or "unknown"),
+        apply_policy=ProposalApplyPolicyResponse(**apply_policy),
+        policy_can_batch_apply=bool(apply_policy.get("can_batch_apply")),
+        policy_requires_admin=bool(apply_policy.get("requires_admin")),
+        policy_reasons=list(apply_policy.get("reasons") or []),
         applyable=applyable,
         apply_action=apply_action,
         idempotent_reason=idempotent_reason,
@@ -4282,6 +4339,7 @@ def _ambiguous_alias_candidate_response(
 
 def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse:
     lifecycle_decision = classify_proposal_lifecycle(suggestion)
+    apply_policy = apply_policy_for_suggestion(suggestion)
     return SuggestionResponse(
         id=suggestion.id,
         profile_id=suggestion.profile_id,
@@ -4307,6 +4365,8 @@ def _suggestion_response(suggestion: GovernanceSuggestion) -> SuggestionResponse
         lifecycle_status=lifecycle_decision.lifecycle_status,
         lifecycle_reason=lifecycle_decision.lifecycle_reason,
         validation_status=lifecycle_decision.validation_status,
+        risk_level=str(apply_policy.get("risk_level") or "unknown"),
+        apply_policy=ProposalApplyPolicyResponse(**apply_policy),
         can_approve=lifecycle_decision.can_approve,
         can_apply=lifecycle_decision.can_apply,
         created_by=suggestion.created_by,

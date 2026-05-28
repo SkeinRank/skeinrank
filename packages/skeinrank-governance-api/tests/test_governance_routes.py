@@ -610,7 +610,9 @@ def test_agent_proposal_metadata_is_persisted_with_suggestion(tmp_path):
     assert suggestion["proposal_source_name"] == "search-log-scout"
     assert suggestion["idempotency_key"] == "search-log-scout:infra:pg"
     assert suggestion["source_payload"] == {"query_count": 42}
-    assert suggestion["validation_summary"] == {"checks": {"duplicate_alias": "passed"}}
+    assert suggestion["validation_summary"]["checks"] == {"duplicate_alias": "passed"}
+    assert suggestion["validation_summary"]["risk_level"] == "medium"
+    assert suggestion["apply_policy"]["schema_version"] == "skeinrank.apply_policy.v1"
 
     list_response = client.get(
         "/v1/governance/profiles/infra_incidents/suggestions?status=pending"

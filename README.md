@@ -1000,3 +1000,54 @@ It uses local SQLite source/target databases under `examples/pilots/reports/`,
 exports a portable governance JSON backup, restores it into a migrated target DB,
 and verifies representative profile, term, alias, binding, proposal, snapshot,
 and agent-run data. See `docs/deployment/backup-restore-verified-scenario.md`.
+
+### Patch 55A — Apply policy and risk levels
+
+Adds an additive proposal apply-policy layer with schema `skeinrank.apply_policy.v1`.
+New and existing proposal responses now expose `risk_level` plus an `apply_policy`
+payload derived from validation status, confidence, alias shape, risk flags, and
+validation checks. Batch preview items also expose policy fields so reviewers can
+separate low-risk batch-approve candidates from medium/high-risk proposals.
+
+No migrations or runtime apply behavior changes are introduced. `auto_apply_allowed`
+remains `false`; blocked proposals still cannot apply, and warning proposals still
+require explicit `allow_warnings: true`. See `docs/policies/apply-policy-risk-levels.md`.
+
+### Patch 55B — Role boundaries for agent/reviewer/admin
+
+Adds an explicit operational boundary document with schema `skeinrank.role_boundaries.v1`. Existing governance roles remain unchanged: `contributor` maps to the agent boundary, `moderator` maps to the reviewer boundary, and `admin` remains the only boundary that can apply proposal batches or publish runtime snapshots. See `docs/policies/role-boundaries.md`.
+
+### Patch 55C — Token rotation / scoped agent credentials
+
+Service-account tokens can now be rotated without returning or reusing the old
+plaintext secret. Admins can create a replacement token and revoke the previous
+one in a single operation:
+
+```http
+POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
+```
+
+Admins can also inspect the recommended least-privilege agent credential shapes:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+```
+
+The policy keeps agent credentials on the `contributor` role with explicit
+`agent:*` and `ops:reports:read` scopes. Agents can validate, track, and submit
+pending proposals when scoped for it, but they still cannot approve, batch-apply,
+publish snapshots, or mutate runtime state.
+
+See `docs/policies/token-rotation-scoped-agent-credentials.md`.
+
+### Patch 55D — Tenant/profile isolation checks
+
+Adds a read-only profile/binding isolation report for the current production safety model:
+
+```http
+GET /v1/governance/isolation-checks
+```
+
+The response schema is `skeinrank.profile_isolation.v1`. The check verifies that binding-scoped proposals, policies, enrichment jobs, agent runs, and agent tracking rows stay inside their profile/binding context. It also documents the runtime guards that reject mismatched `profile_name` / `binding_id` requests before provider calls or mutations.
+
+This patch does not add a tenant column or claim full multi-tenancy. The current isolation boundary remains the profile plus optional runtime binding. See `docs/policies/profile-isolation-checks.md`.
