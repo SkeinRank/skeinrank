@@ -34,9 +34,10 @@ GET /readyz
 GET /schema/health
 GET /metrics
 GET /v1/ops/troubleshooting/report
+GET /v1/ops/alerts/report
 ```
 
-`/healthz` reports process/database health and includes a schema-health block. `/readyz` also requires the migrated governance schema to be at the current Alembic head, then checks configured Elasticsearch readiness. `/schema/health` is a read-only schema check for operators and CI. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration and refreshes best-effort operational gauges for database/schema health, Elasticsearch reachability, and DB-backed agent tracking counts. `/v1/ops/troubleshooting/report` returns a sanitized operator report with config, health checks, table counts, and recommendations.
+`/healthz` reports process/database health and includes a schema-health block. `/readyz` also requires the migrated governance schema to be at the current Alembic head, then checks configured Elasticsearch readiness. `/schema/health` is a read-only schema check for operators and CI. `/metrics` exposes Prometheus-compatible metrics when enabled by configuration and refreshes best-effort operational gauges for database/schema health, Elasticsearch reachability, and DB-backed agent tracking counts. `/v1/ops/troubleshooting/report` returns a sanitized operator report with config, health checks, table counts, and recommendations. `/v1/ops/alerts/report` converts troubleshooting and profile-isolation degraded state into alert events and a sanitized hook payload preview without sending webhooks.
 
 Patch 45A metrics to watch first:
 
@@ -86,6 +87,34 @@ poetry run python -m skeinrank_governance_api.backup_restore restore --file back
 ```
 
 `--strict` returns a non-zero exit code when the generated report status is degraded.
+
+## Alerting degraded-state report
+
+```text
+GET /v1/ops/alerts/report
+```
+
+The alerting report is read-only and returns schema `skeinrank.alerting_report.v1`. It combines the troubleshooting report with profile/binding isolation checks, emits alert events for degraded database/schema/search/observability/profile-isolation state, and renders a sanitized `webhook_json` payload preview.
+
+The endpoint does **not** deliver webhooks. It also does not call OpenRouter, call Elasticsearch, apply proposals, publish snapshots, or mutate runtime state.
+
+When authentication is enabled, the endpoint requires the `admin` role and the `ops:reports:read` token scope.
+
+CLI equivalent:
+
+```bash
+poetry run python -m skeinrank_governance_api.alerting plan
+poetry run python -m skeinrank_governance_api.alerting report --out /tmp/skeinrank-alerting-report.json
+poetry run python -m skeinrank_governance_api.alerting show --file /tmp/skeinrank-alerting-report.json
+```
+
+Repository helpers:
+
+```bash
+make alerts-report-plan
+make alerts-report-generate
+make alerts-report-show
+```
 
 ## Headless dictionary workflows
 

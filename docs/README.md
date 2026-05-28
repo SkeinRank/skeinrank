@@ -13,6 +13,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`pilots/elasticsearch-pilot-integration.md`](pilots/elasticsearch-pilot-integration.md) — 49E first-company pilot path for connecting an existing Elasticsearch index, seeding a dictionary/binding, and producing a read-only integration report.
 - [`pilots/first-company-pilot-runbook.md`](pilots/first-company-pilot-runbook.md) — 54A operator runbook for planning, rehearsing, running, reviewing, and exiting the first company pilot safely.
 - [`pilots/troubleshooting-bundle-export.md`](pilots/troubleshooting-bundle-export.md) — 54B sanitized support bundle export for pilot troubleshooting.
+- [`deployment/alerting-hooks-degraded-state-reports.md`](deployment/alerting-hooks-degraded-state-reports.md) — 56A read-only alerting hook payload previews and degraded-state reports.
 
 - [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
 - [`concepts/terminology-control-plane.md`](concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.
@@ -34,6 +35,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [Apply policy and risk levels](policies/apply-policy-risk-levels.md) — proposal risk classification for safe apply workflows.
 - [Role boundaries](policies/role-boundaries.md) — explicit agent/reviewer/admin boundaries for production human-in-the-loop workflows.
 - [Profile isolation checks](policies/profile-isolation-checks.md) — read-only profile/binding alignment checks for production safety.
+- [Alerting hooks and degraded-state reports](deployment/alerting-hooks-degraded-state-reports.md) — read-only operator alerts from troubleshooting and isolation state.
 
 ## Deployment
 
@@ -452,3 +454,7 @@ See [`policies/token-rotation-scoped-agent-credentials.md`](policies/token-rotat
 Patch 55D adds `GET /v1/governance/isolation-checks`, a read-only operator report with schema `skeinrank.profile_isolation.v1`. It verifies that binding-scoped proposals, policies, enrichment jobs, agent runs, and agent tracking rows stay inside their profile/binding context. It also documents request guards for profile/binding mismatches in runtime planning, agent tools, proposal creation, and agent run registration.
 
 This is not full multi-tenancy yet: no tenant column or data model migration is introduced. The current safety boundary remains profile plus optional binding. See [`policies/profile-isolation-checks.md`](policies/profile-isolation-checks.md).
+
+## Patch 56A — Alerting hooks and degraded-state reports
+
+Patch 56A adds `GET /v1/ops/alerts/report`, `python -m skeinrank_governance_api.alerting`, the `skeinrank-governance-alerting` Poetry script, and `make alerts-report-*` helpers. The report converts troubleshooting and profile-isolation state into `skeinrank.alerting_report.v1` plus a sanitized `skeinrank.alerting_hook_payload.v1` preview. It does not send webhooks, call OpenRouter/Elasticsearch, mutate runtime state, apply proposals, or publish snapshots. See [`deployment/alerting-hooks-degraded-state-reports.md`](deployment/alerting-hooks-degraded-state-reports.md).

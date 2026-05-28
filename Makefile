@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run support-bundle-plan support-bundle-export support-bundle-inspect support-bundle-clean backup-restore-drill-plan backup-restore-drill-run backup-restore-drill-inspect backup-restore-drill-clean agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run support-bundle-plan support-bundle-export support-bundle-inspect support-bundle-clean backup-restore-drill-plan backup-restore-drill-run backup-restore-drill-inspect backup-restore-drill-clean alerts-report-plan alerts-report-generate alerts-report-show alerts-report-clean agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -71,6 +71,15 @@ BACKUP_RESTORE_DRILL_PROFILE ?= backup_restore_drill
 BACKUP_RESTORE_DRILL_REPORT ?= $(BACKUP_RESTORE_DRILL_DIR)/backup-restore-drill-report.json
 BACKUP_RESTORE_DRILL_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.backup_restore_drill
 BACKUP_RESTORE_DRILL_COMMON_ARGS := --work-dir ../../$(BACKUP_RESTORE_DRILL_DIR) --profile-name $(BACKUP_RESTORE_DRILL_PROFILE)
+
+ALERTING_REPORT ?= examples/pilots/reports/skeinrank-alerting-report.json
+ALERTING_TROUBLESHOOTING_REPORT ?=
+ALERTING_ISOLATION_REPORT ?=
+ALERTING_ENVIRONMENT ?= offline
+ALERTING_TROUBLESHOOTING_ARG := $(if $(ALERTING_TROUBLESHOOTING_REPORT),--troubleshooting-report ../../$(ALERTING_TROUBLESHOOTING_REPORT),)
+ALERTING_ISOLATION_ARG := $(if $(ALERTING_ISOLATION_REPORT),--isolation-report ../../$(ALERTING_ISOLATION_REPORT),)
+ALERTING_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.alerting
+ALERTING_COMMON_ARGS := --environment $(ALERTING_ENVIRONMENT) $(ALERTING_TROUBLESHOOTING_ARG) $(ALERTING_ISOLATION_ARG)
 
 demo-seed:
 	$(PYTHON) $(DEMO_SEED) $(DEMO_ARGS)
@@ -302,6 +311,19 @@ backup-restore-drill-inspect:
 
 backup-restore-drill-clean:
 	rm -rf $(BACKUP_RESTORE_DRILL_DIR)
+
+alerts-report-plan:
+	$(ALERTING_CLI) plan
+
+alerts-report-generate:
+	mkdir -p $(dir $(ALERTING_REPORT))
+	$(ALERTING_CLI) report $(ALERTING_COMMON_ARGS) --out ../../$(ALERTING_REPORT)
+
+alerts-report-show:
+	$(ALERTING_CLI) show --file ../../$(ALERTING_REPORT)
+
+alerts-report-clean:
+	rm -f $(ALERTING_REPORT)
 
 agent-openrouter-pilot-plan:
 	$(PYTHON) examples/agents/openrouter_alias_scout/run_alias_scout.py --print-openrouter-live-pilot-plan

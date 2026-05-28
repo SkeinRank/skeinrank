@@ -1051,3 +1051,14 @@ GET /v1/governance/isolation-checks
 The response schema is `skeinrank.profile_isolation.v1`. The check verifies that binding-scoped proposals, policies, enrichment jobs, agent runs, and agent tracking rows stay inside their profile/binding context. It also documents the runtime guards that reject mismatched `profile_name` / `binding_id` requests before provider calls or mutations.
 
 This patch does not add a tenant column or claim full multi-tenancy. The current isolation boundary remains the profile plus optional runtime binding. See `docs/policies/profile-isolation-checks.md`.
+
+
+### Patch 56A — Alerting hooks and degraded-state reports
+
+Patch 56A adds a read-only degraded-state alert report for production support workflows:
+
+```http
+GET /v1/ops/alerts/report
+```
+
+It combines troubleshooting checks with profile/binding isolation state and returns `skeinrank.alerting_report.v1` plus a sanitized webhook-style payload preview. The endpoint does not deliver webhooks and does not call OpenRouter, Elasticsearch, proposal apply, or snapshot publish paths. CLI and Makefile helpers are available through `python -m skeinrank_governance_api.alerting` / `skeinrank-governance-alerting` and `make alerts-report-*`. See `docs/deployment/alerting-hooks-degraded-state-reports.md`.

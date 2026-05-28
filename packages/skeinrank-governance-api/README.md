@@ -1673,3 +1673,32 @@ approve/apply/publish behavior.
 `GET /v1/governance/isolation-checks` returns schema `skeinrank.profile_isolation.v1`. The report is read-only and checks that binding-scoped rows remain aligned with their profile/binding context across proposals, binding policies, enrichment jobs, agent runs, and agent tracking tables. It also records the existing request guards that reject mismatched `profile_name` / `binding_id` pairs.
 
 No tenant column, migration, provider call, or runtime mutation is introduced. Full multi-tenant isolation remains a later feature; this patch verifies the current profile/binding boundary.
+
+
+## Patch 56A — Alerting hooks and degraded-state reports
+
+The governance API now exposes a read-only alerting report:
+
+```http
+GET /v1/ops/alerts/report
+```
+
+The response schema is `skeinrank.alerting_report.v1`. It converts troubleshooting and profile-isolation degraded state into alert events and a sanitized `webhook_json` payload preview. No webhook delivery is performed by the API or CLI.
+
+CLI helpers:
+
+```bash
+poetry run python -m skeinrank_governance_api.alerting plan
+poetry run python -m skeinrank_governance_api.alerting report --out /tmp/skeinrank-alerting-report.json
+poetry run python -m skeinrank_governance_api.alerting show --file /tmp/skeinrank-alerting-report.json
+```
+
+Repository helpers:
+
+```bash
+make alerts-report-plan
+make alerts-report-generate
+make alerts-report-show
+```
+
+The report is safe for pilot operations: no OpenRouter calls, no Elasticsearch calls, no database mutation, no runtime mutation, no proposal apply, and no snapshot publish.
