@@ -1643,3 +1643,27 @@ production safety patches. See `docs/policies/apply-policy-risk-levels.md`.
 ### Patch 55B — Role boundaries for agent/reviewer/admin
 
 The API now exposes `GET /v1/governance/role-boundaries` and enforces the production boundary that reviewers can approve/reject proposals but only admins can apply batches or publish runtime snapshots. Agent/service-token workflows remain proposal-only and still require explicit `agent:tools:*` scopes.
+
+### Patch 55C — Token rotation / scoped agent credentials
+
+Admins can rotate service-account tokens without exposing the previous plaintext
+secret:
+
+```http
+POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
+```
+
+The response returns the replacement token once and revokes the old token in the
+same transaction. If `scopes` is omitted, the replacement token inherits the old
+token scopes.
+
+Admins can inspect recommended least-privilege agent credential profiles:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+```
+
+Recommended agent service accounts use role `contributor` with explicit scopes
+such as `agent:tools:validate`, `agent:tools:suggest`, `agent:runs:*`,
+`agent:tracking:*`, and `ops:reports:read`. These credentials do not allow
+approve/apply/publish behavior.

@@ -1016,3 +1016,26 @@ require explicit `allow_warnings: true`. See `docs/policies/apply-policy-risk-le
 ### Patch 55B — Role boundaries for agent/reviewer/admin
 
 Adds an explicit operational boundary document with schema `skeinrank.role_boundaries.v1`. Existing governance roles remain unchanged: `contributor` maps to the agent boundary, `moderator` maps to the reviewer boundary, and `admin` remains the only boundary that can apply proposal batches or publish runtime snapshots. See `docs/policies/role-boundaries.md`.
+
+### Patch 55C — Token rotation / scoped agent credentials
+
+Service-account tokens can now be rotated without returning or reusing the old
+plaintext secret. Admins can create a replacement token and revoke the previous
+one in a single operation:
+
+```http
+POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
+```
+
+Admins can also inspect the recommended least-privilege agent credential shapes:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+```
+
+The policy keeps agent credentials on the `contributor` role with explicit
+`agent:*` and `ops:reports:read` scopes. Agents can validate, track, and submit
+pending proposals when scoped for it, but they still cannot approve, batch-apply,
+publish snapshots, or mutate runtime state.
+
+See `docs/policies/token-rotation-scoped-agent-credentials.md`.

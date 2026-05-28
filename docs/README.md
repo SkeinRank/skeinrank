@@ -432,3 +432,16 @@ Patch 53A.1 makes the OpenRouter validated pilot fail fast before LLM calls when
 ### Backup/restore verified scenario
 
 - [Backup/restore verified scenario](deployment/backup-restore-verified-scenario.md) — disposable local drill for `make backup-restore-drill-plan`, `make backup-restore-drill-run`, and `make backup-restore-drill-inspect`.
+
+## Patch 55C — Token rotation and scoped agent credentials
+
+Patch 55C documents and verifies service-account token rotation for agent
+workflows. It adds the read-only scoped credential policy endpoint and the
+service-account token rotation endpoint:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
+```
+
+See [`policies/token-rotation-scoped-agent-credentials.md`](policies/token-rotation-scoped-agent-credentials.md).

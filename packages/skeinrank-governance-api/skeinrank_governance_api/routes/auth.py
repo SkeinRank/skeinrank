@@ -37,8 +37,11 @@ from ..schemas import (
     ApiTokenCreateRequest,
     ApiTokenCreateResponse,
     ApiTokenResponse,
+    ApiTokenRotateRequest,
+    ApiTokenRotateResponse,
     AuthTokenResponse,
     LoginRequest,
+    ScopedAgentCredentialsResponse,
     ServiceAccountCreateRequest,
     ServiceAccountResponse,
     ServiceAccountUpdateRequest,
@@ -48,6 +51,7 @@ from ..schemas import (
     UserTokenRevokeResponse,
     UserUpdateRequest,
 )
+from ..scoped_agent_credentials import build_scoped_agent_credentials_policy
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -120,6 +124,20 @@ def read_me(current_user: AuthContext = Depends(get_current_user)) -> UserRespon
         role=current_user.role,
         status=current_user.status,
         is_active=current_user.is_active,
+    )
+
+
+@router.get(
+    "/scoped-agent-credentials",
+    response_model=ScopedAgentCredentialsResponse,
+)
+def read_scoped_agent_credentials_policy(
+    current_user: AuthContext = Depends(require_roles("admin")),
+) -> ScopedAgentCredentialsResponse:
+    """Return least-privilege scoped service-token guidance for agents."""
+
+    return ScopedAgentCredentialsResponse(
+        **build_scoped_agent_credentials_policy(current_user=current_user.username)
     )
 
 
@@ -531,6 +549,63 @@ def create_service_account_token(
     session.commit()
     session.refresh(token)
     return _api_token_create_response(token, plain_token)
+
+
+@router.post(
+    "/service-accounts/{account_name}/tokens/{token_id}/rotate",
+    response_model=ApiTokenRotateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def rotate_service_account_token(
+    account_name: str,
+    token_id: int,
+    request: ApiTokenRotateRequest,
+    current_user: AuthContext = Depends(require_roles("admin")),
+    session: Session = Depends(get_session),
+) -> ApiTokenRotateResponse:
+    """Create a replacement service-account token and revoke the old token."""
+
+    service_account = _get_service_account_or_404(session, account_name)
+    if not service_account.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Service account is disabled: {account_name}",
+        )
+    old_token = session.get(GovernanceApiToken, token_id)
+    if old_token is None or old_token.service_account_id != service_account.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"API token not found: {token_id}",
+        )
+    if old_token.revoked_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"API token is already revoked: {token_id}",
+        )
+
+    replacement_name = request.name or f"{old_token.name} rotated"
+    if request.scopes is not None:
+        replacement_scopes = list(request.scopes)
+    else:
+        replacement_scopes = list(old_token.scopes or [])
+    plain_token, replacement = create_service_account_api_token(
+        session,
+        service_account,
+        name=replacement_name,
+        scopes=replacement_scopes,
+        expires_at=_expires_at_from_days(request.expires_in_days),
+        created_by=current_user.username,
+    )
+    old_token.revoked_at = utc_now()
+    session.commit()
+    session.refresh(replacement)
+    base = _api_token_create_response(replacement, plain_token).model_dump()
+    return ApiTokenRotateResponse(
+        **base,
+        rotated_from_token_id=token_id,
+        revoked_token_id=token_id,
+        revoked_old_token=True,
+    )
 
 
 @router.delete(

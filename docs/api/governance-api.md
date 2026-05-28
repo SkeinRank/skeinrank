@@ -939,3 +939,42 @@ Boundary mapping:
 - `admin` -> `admin`: apply batches, publish snapshots, and manage users/tokens.
 
 This endpoint is read-only and does not mutate governance state.
+
+### Patch 55C — Token rotation / scoped agent credentials
+
+Admins can inspect the recommended service-account credentials for agent
+workflows:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+```
+
+Response schema:
+
+```text
+skeinrank.scoped_agent_credentials.v1
+```
+
+Admins can rotate service-account tokens:
+
+```http
+POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
+```
+
+Request body:
+
+```json
+{
+  "name": "agent token v2",
+  "scopes": ["agent:tools:validate", "agent:tools:suggest"],
+  "expires_in_days": 90
+}
+```
+
+`name` and `scopes` are optional. When `scopes` is omitted, the replacement token
+inherits the old token scopes. The response returns the replacement plaintext
+`access_token` once and marks the old token as revoked.
+
+The endpoint does not create admin-capable agent credentials by default. Use
+`contributor` service accounts and explicit `agent:*` scopes for scheduled
+agents.

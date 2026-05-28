@@ -1601,6 +1601,14 @@ class ApiTokenCreateRequest(BaseModel):
     expires_in_days: int | None = Field(default=90, ge=1, le=3650)
 
 
+class ApiTokenRotateRequest(BaseModel):
+    """Request body for rotating a service-account API token."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    scopes: list[str] | None = None
+    expires_in_days: int | None = Field(default=90, ge=1, le=3650)
+
+
 class ApiTokenResponse(BaseModel):
     """Masked personal or service-account API token metadata."""
 
@@ -1623,6 +1631,36 @@ class ApiTokenCreateResponse(ApiTokenResponse):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class ApiTokenRotateResponse(ApiTokenCreateResponse):
+    """Rotate response that returns the replacement plaintext token once."""
+
+    rotated_from_token_id: int
+    revoked_token_id: int
+    revoked_old_token: bool = True
+
+
+class ScopedAgentCredentialProfileResponse(BaseModel):
+    """One recommended scoped service credential profile for agents."""
+
+    name: str
+    role: str
+    scopes: list[str]
+    description: str
+    can_submit_proposals: bool
+    can_mutate_runtime: bool
+    rotation_note: str
+
+
+class ScopedAgentCredentialsResponse(BaseModel):
+    """Stable least-privilege service-token policy for agent credentials."""
+
+    schema_version: str = "skeinrank.scoped_agent_credentials.v1"
+    current_user: str | None = None
+    recommended_credentials: list[ScopedAgentCredentialProfileResponse]
+    rotation: dict[str, Any]
+    safety: dict[str, bool]
 
 
 class ServiceAccountCreateRequest(BaseModel):
