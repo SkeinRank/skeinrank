@@ -27,6 +27,7 @@ skeinrank-governance-api = "skeinrank_governance_api.cli:main"
 skeinrank-migrate = "skeinrank_governance_api.migration_tool:main"
 skeinrank-governance-worker = "skeinrank_governance_api.worker_cli:main"
 skeinrank-governance-backup = "skeinrank_governance_api.backup_restore:main"
+skeinrank-governance-backup-drill = "skeinrank_governance_api.backup_restore_drill:main"
 skeinrank-governance-env = "skeinrank_governance_api.env_validation:main"
 skeinrank-governance-benchmark = "skeinrank_governance_api.benchmark:main"
 skeinrank-governance-benchmark-stack = "skeinrank_governance_api.benchmark_stack:main"
@@ -35,6 +36,7 @@ skeinrank-governance-retrieval-compare = "skeinrank_governance_api.retrieval_com
 skeinrank-governance-synthetic-smoke = "skeinrank_governance_api.synthetic_smoke:main"
 skeinrank-governance-benchmark-performance = "skeinrank_governance_api.benchmark_performance:main"
 skeinrank-governance-pilot = "skeinrank_governance_api.pilot_integration:main"
+skeinrank-governance-support-bundle = "skeinrank_governance_api.support_bundle:main"
 skeinrank-mcp = "skeinrank_governance_api.mcp:main"
 
 [tool.poetry.group.dev.dependencies]

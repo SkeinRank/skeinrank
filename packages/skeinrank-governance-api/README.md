@@ -46,6 +46,8 @@ Use `--token ...` or `--username ... --password ...` when auth is enabled. The
 CLI does not call OpenRouter, submit proposals, approve/apply changes, or write
 to Elasticsearch.
 
+Patch 54A adds `docs/pilots/first-company-pilot-runbook.md` and `examples/pilots/first_company_pilot_checklist.md` for the full operator workflow around this CLI: intake, benchmark rehearsal, company config preparation, preflight/seed/eval/report, optional validated OpenRouter smoke, and exit criteria.
+
 
 ## Retrieval eval CLI
 
@@ -1584,3 +1586,39 @@ Adds `skeinrank_governance_api.synthetic_smoke` and the `skeinrank-governance-sy
 ### Patch 53C — Cost, latency, throughput report
 
 Adds `skeinrank_governance_api.benchmark_performance` and the `skeinrank-governance-benchmark-performance` Poetry script for offline performance reporting. The report reads the 5k synthetic manifest plus optional live-pilot usage JSON and outputs documents/minute, seconds/document, batch latency, token/cost rates, skip/cache/idempotency savings, and a simple 100k-document projection without provider, Elasticsearch, database, or runtime mutation calls.
+
+
+### First-company troubleshooting bundle
+
+Patch 54B adds a read-only support bundle exporter for pilot diagnostics:
+
+```bash
+poetry run python -m skeinrank_governance_api.support_bundle plan --project-root ../..
+poetry run python -m skeinrank_governance_api.support_bundle export --project-root ../..
+poetry run python -m skeinrank_governance_api.support_bundle inspect --file ../../examples/pilots/reports/skeinrank-troubleshooting-bundle.zip
+```
+
+From the repository root, use `make support-bundle-plan`, `make support-bundle-export`, and `make support-bundle-inspect`. The bundle excludes raw `.env` files, redacts secret-looking values, and does not call OpenRouter, Elasticsearch, or the database unless an optional read-only API URL is explicitly provided for health snapshots. See `docs/pilots/troubleshooting-bundle-export.md`.
+
+## Backup/restore verified drill
+
+Patch 54C adds `skeinrank-governance-backup-drill`, a disposable backup/restore
+verification scenario for pilot operators. It creates migrated local SQLite
+source/target databases, seeds representative governance data, exports the
+portable JSON backup, restores it, and verifies the restored profile, term,
+alias, binding, proposal, snapshot, and agent-run rows.
+
+```bash
+poetry run skeinrank-governance-backup-drill plan \
+  --work-dir ../../examples/pilots/reports/backup-restore-drill
+poetry run skeinrank-governance-backup-drill run \
+  --work-dir ../../examples/pilots/reports/backup-restore-drill \
+  --reset
+poetry run skeinrank-governance-backup-drill inspect \
+  --file ../../examples/pilots/reports/backup-restore-drill/backup-restore-drill-report.json
+```
+
+From the repository root, the same workflow is exposed through
+`make backup-restore-drill-plan`, `make backup-restore-drill-run`, and
+`make backup-restore-drill-inspect`. The drill does not call OpenRouter,
+Elasticsearch, or a live database.
