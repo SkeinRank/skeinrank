@@ -46,6 +46,8 @@ Use `--token ...` or `--username ... --password ...` when auth is enabled. The
 CLI does not call OpenRouter, submit proposals, approve/apply changes, or write
 to Elasticsearch.
 
+Patch 54A adds `docs/pilots/first-company-pilot-runbook.md` and `examples/pilots/first_company_pilot_checklist.md` for the full operator workflow around this CLI: intake, benchmark rehearsal, company config preparation, preflight/seed/eval/report, optional validated OpenRouter smoke, and exit criteria.
+
 
 ## Retrieval eval CLI
 
