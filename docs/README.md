@@ -25,6 +25,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`adr/0001-headless-runtime-contracts.md`](adr/0001-headless-runtime-contracts.md) — accepted architecture decision for headless runtime boundaries.
 - [`guides/core-sdk-and-cli.md`](guides/core-sdk-and-cli.md) — local dictionary validation, extraction, canonicalization, and document extraction.
 - [`guides/governance-console.md`](guides/governance-console.md) — governance API/UI workflow.
+- [`guides/proposal-inbox-ui.md`](guides/proposal-inbox-ui.md) — review-first AI Inbox detail panel for evidence, risk, validation findings, and approve/reject actions.
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.
@@ -377,7 +378,7 @@ Patch 44D adds the final DB-backed tracking tables for the initial agent audit t
 
 Suggestion responses include lifecycle fields that help headless clients and UI review flows distinguish reviewable, warning, blocked, approved/applied, and rejected proposals without guessing from raw validation summaries.
 
-The UI now includes a dedicated AI Proposals Inbox page for human-in-the-loop moderation. It is separate from the legacy Suggestions/dev workflow and focuses on pending proposal cards, risk level, validation status, apply-policy decision, saved evidence snapshots, and approve/reject actions.
+The UI now includes a dedicated AI Proposals Inbox page for human-in-the-loop moderation. It is separate from the legacy Suggestions/dev workflow and focuses on pending proposal cards plus a detail panel for risk level, apply-policy decision, validation findings, saved evidence snippets, source payload metadata, and approve/reject actions.
 
 ### Proposal apply idempotency
 

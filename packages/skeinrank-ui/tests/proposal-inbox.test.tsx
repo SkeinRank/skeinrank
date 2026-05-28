@@ -80,9 +80,16 @@ function makeSuggestion(overrides: Partial<GovernanceSuggestion> = {}): Governan
     proposal_source_type: "agent",
     proposal_source_name: "openrouter-alias-scout",
     idempotency_key: "agent:pg:postgresql",
-    source_payload: null,
+    source_payload: {
+      candidate_alias: "pg",
+      canonical_hint: {
+        reason: "single_configured_alias_match",
+      },
+    },
     validation_summary: {
       status: "passed",
+      validation_reasons: ["evidence_snapshot_available"],
+      warnings: [],
       apply_policy: {
         schema_version: "skeinrank.apply_policy.v1",
         risk_level: "low",
@@ -93,7 +100,10 @@ function makeSuggestion(overrides: Partial<GovernanceSuggestion> = {}): Governan
         requires_warning_override: false,
         auto_apply_allowed: false,
         reasons: ["validation_passed_low_risk_thresholds"],
-        signals: {},
+        signals: {
+          evidence_documents: 1,
+          duplicate_alias: false,
+        },
       },
     },
     status: "pending",
@@ -111,7 +121,7 @@ function makeSuggestion(overrides: Partial<GovernanceSuggestion> = {}): Governan
       requires_warning_override: false,
       auto_apply_allowed: false,
       reasons: ["validation_passed_low_risk_thresholds"],
-      signals: {},
+      signals: { evidence_documents: 1, duplicate_alias: false },
     },
     can_approve: true,
     can_apply: false,
@@ -228,8 +238,14 @@ describe("ProposalInboxPage", () => {
     expect(screen.getAllByText("Risk: low").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Validation: passed").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Evidence ready").length).toBeGreaterThan(0);
-    expect(screen.getByText("batch_approve_allowed")).toBeInTheDocument();
-    expect(screen.getByText("pg timeout after failover")).toBeInTheDocument();
+    expect(screen.getAllByText("batch_approve_allowed").length).toBeGreaterThan(0);
+    expect(screen.getByText("Risk and apply policy")).toBeInTheDocument();
+    expect(screen.getByText("Validation findings")).toBeInTheDocument();
+    expect(screen.getByText("validation passed low risk thresholds")).toBeInTheDocument();
+    expect(screen.getByText("evidence snapshot available")).toBeInTheDocument();
+    expect(screen.getByText("evidence_documents: 1")).toBeInTheDocument();
+    expect(screen.getByText("Source payload JSON")).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === "pg timeout after failover")).toBeInTheDocument();
   });
 
   it("lets reviewers approve a pending proposal through the existing governance endpoint", async () => {

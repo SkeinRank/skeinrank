@@ -61,7 +61,7 @@ The governance console currently includes:
 - admin-only Users page for local user CRUD, role assignment, account status controls, and user token revocation
 - API Access page for personal API tokens and admin-managed service accounts
 - role-aware controls for Admin, Moderator, and Contributor users
-- AI Inbox page for human-in-the-loop review of agent proposals with risk, validation, apply-policy, and evidence summaries
+- AI Inbox page for human-in-the-loop review of agent proposals with cards plus a detail panel for risk, validation findings, apply-policy, evidence snippets, source payload, and approve/reject actions
 - Suggestions page for legacy/dev proposal creation, filtering, approving, rejecting, and evidence-checking alias/canonical term proposals
 - Guardrails page for global and profile-scoped stop-list management
 - Integrations page for manual Elasticsearch binding configs, shared-index validation, time-window filters, dry-run previews, and enrichment job status
@@ -77,7 +77,7 @@ The governance console currently includes:
 - light/dark/system theme toggle with local persistence
 - API state management through TanStack Query
 
-The AI Inbox is the new review-first page for agent-submitted proposals. It uses the existing suggestions API, but it is intentionally not a manual CRUD editor: moderators/admins review pending cards, inspect risk/validation/evidence summaries, and call the existing approve/reject endpoints. Contributors can inspect the queue in read-only mode.
+The AI Inbox is the new review-first page for agent-submitted proposals. It uses the existing suggestions API, but it is intentionally not a manual CRUD editor: moderators/admins review pending cards, inspect risk/apply-policy/validation findings, evidence snapshot snippets, source/audit metadata, and call the existing approve/reject endpoints. Contributors can inspect the queue in read-only mode.
 
 Manual aliases are sent as approved entries with `confidence = 1.0`. Manual alias suggestions hide technical confidence/source fields, use existing canonical terms, auto-fill the slot, show existing aliases, keep reviewers on the current queue filter after approve/reject, and submit `source = manual` with `confidence = 1.0` internally. The Suggestions UI now also supports new canonical term proposals: contributors can switch the form to `New canonical term`, enter the term, slot, description, and context, and moderators/admins can approve it into an active canonical term. Discovery/import workflows can still use confidence and source metadata later. The UI now supports CRUD for users, profiles, canonical terms, aliases, suggestions, global stop-list guardrails, profile stop-list guardrails, Elasticsearch binding configs, dry-run previews, evidence checks, enrichment job status, personal API tokens, and service accounts through the governance API, including UI validation for shared-index bindings. Auth can be disabled for local development; when enabled, the UI sends bearer tokens and applies role-aware controls. Publish/rollback, background workers, advanced guardrail policies, model-based discovery, and realtime collaboration are intentionally left for follow-up patches.
 

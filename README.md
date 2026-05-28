@@ -411,6 +411,7 @@ Start here:
 - [`docs/adr/0001-headless-runtime-contracts.md`](docs/adr/0001-headless-runtime-contracts.md) — architecture decision for headless runtime boundaries.
 - [`docs/guides/core-sdk-and-cli.md`](docs/guides/core-sdk-and-cli.md) — local SDK/CLI workflows.
 - [`docs/guides/governance-console.md`](docs/guides/governance-console.md) — governance API and UI workflows.
+- [`docs/guides/proposal-inbox-ui.md`](docs/guides/proposal-inbox-ui.md) — AI Inbox review details for evidence, risk, validation findings, and source audit metadata.
 - `packages/skeinrank-ui/src/pages/ProposalInboxPage.tsx` — review-first AI proposal inbox for human-in-the-loop moderation.
 - [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — API examples for coverage review, policy, and before/after evaluation.
 - [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md) — enrichment, dry-runs, jobs, evidence, and cancellation.
