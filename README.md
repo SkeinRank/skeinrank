@@ -230,7 +230,7 @@ approve/apply changes, publish snapshots, or write to Elasticsearch. For local
 smoke testing against the benchmark stack, run `make pilot-stack-run`.
 See [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md).
 
-Patch 54A adds a complete first-company operator runbook and checklist: [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md) and [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md). Patch 54B adds [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md) for sanitized support bundles. Use them to plan intake, local rehearsal, company config, preflight/seed/eval/report, optional validated-agent smoke, troubleshooting, and exit criteria.
+Patch 54A adds a complete first-company operator runbook and checklist: [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md) and [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md). Patch 54B adds [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md) for sanitized support bundles, and Patch 56B extends it with [`docs/pilots/support-bundle-production.md`](docs/pilots/support-bundle-production.md) for logs, config inventory, health snapshots, alert/degraded-state snapshots, and last agent runs. Use them to plan intake, local rehearsal, company config, preflight/seed/eval/report, optional validated-agent smoke, troubleshooting, and exit criteria.
 
 ## Quickstart: headless runtime
 

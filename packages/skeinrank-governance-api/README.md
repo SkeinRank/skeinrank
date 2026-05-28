@@ -1600,6 +1600,8 @@ poetry run python -m skeinrank_governance_api.support_bundle inspect --file ../.
 
 From the repository root, use `make support-bundle-plan`, `make support-bundle-export`, and `make support-bundle-inspect`. The bundle excludes raw `.env` files, redacts secret-looking values, and does not call OpenRouter, Elasticsearch, or the database unless an optional read-only API URL is explicitly provided for health snapshots. See `docs/pilots/troubleshooting-bundle-export.md`.
 
+Patch 56B extends the same exporter into a production-style support handoff. The ZIP now includes `health/health_summary.json`, `runs/last_agent_runs.json`, `logs/log_inventory.json`, and `config/config_inventory.json`. When `SUPPORT_BUNDLE_API_URL` is provided, the exporter also captures read-only snapshots for `/v1/ops/alerts/report`, `/v1/governance/isolation-checks`, and `/v1/agents/runs?limit=10`. Webhooks are not sent, provider calls are not made, and runtime state is not mutated. See `docs/pilots/support-bundle-production.md`.
+
 ## Backup/restore verified drill
 
 Patch 54C adds `skeinrank-governance-backup-drill`, a disposable backup/restore
