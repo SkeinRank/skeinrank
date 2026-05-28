@@ -1,4 +1,4 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
+.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
@@ -19,11 +19,17 @@ BENCHMARK_SYNTHETIC_SMOKE_CORPUS ?= examples/benchmarks/platform_ops_v1/reports/
 BENCHMARK_SYNTHETIC_SMOKE_MANIFEST ?= examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-manifest.json
 BENCHMARK_SYNTHETIC_SMOKE_DOCUMENTS ?= 5000
 BENCHMARK_SYNTHETIC_SMOKE_BATCH_SIZE ?= 500
+BENCHMARK_PERFORMANCE_REPORT ?= examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-cost-latency-throughput-report.json
+BENCHMARK_PERFORMANCE_ELAPSED_SECONDS ?= 300
+BENCHMARK_PERFORMANCE_PROJECTION_DOCUMENTS ?= 100000
+BENCHMARK_PERFORMANCE_LIVE_REPORT ?=
 BENCHMARK_RETRIEVAL_TOP_K ?= 10
 BENCHMARK_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.benchmark --database-url "$(BENCHMARK_DATABASE_URL)"
 BENCHMARK_RETRIEVAL_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.retrieval_eval
 BENCHMARK_RETRIEVAL_COMPARE_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.retrieval_compare
 BENCHMARK_SYNTHETIC_SMOKE_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.synthetic_smoke
+BENCHMARK_PERFORMANCE_CLI := cd packages/skeinrank-governance-api && poetry run python -m skeinrank_governance_api.benchmark_performance
+BENCHMARK_PERFORMANCE_LIVE_REPORT_ARG := $(if $(BENCHMARK_PERFORMANCE_LIVE_REPORT),--live-report ../../$(BENCHMARK_PERFORMANCE_LIVE_REPORT),)
 
 BENCHMARK_STACK_COMPOSE_FILE ?= docker-compose.dev.yml
 BENCHMARK_STACK_ENV_FILE ?= deploy/docker/benchmark.env.example
@@ -163,6 +169,18 @@ benchmark-smoke-report:
 benchmark-smoke-clean:
 	rm -f $(BENCHMARK_SYNTHETIC_SMOKE_CORPUS)
 	rm -f $(BENCHMARK_SYNTHETIC_SMOKE_MANIFEST)
+
+benchmark-performance-plan:
+	$(BENCHMARK_PERFORMANCE_CLI) plan --synthetic-manifest ../../$(BENCHMARK_SYNTHETIC_SMOKE_MANIFEST) --elapsed-seconds $(BENCHMARK_PERFORMANCE_ELAPSED_SECONDS) --projection-documents $(BENCHMARK_PERFORMANCE_PROJECTION_DOCUMENTS) $(BENCHMARK_PERFORMANCE_LIVE_REPORT_ARG)
+
+benchmark-performance-report:
+	$(BENCHMARK_PERFORMANCE_CLI) report --synthetic-manifest ../../$(BENCHMARK_SYNTHETIC_SMOKE_MANIFEST) --elapsed-seconds $(BENCHMARK_PERFORMANCE_ELAPSED_SECONDS) --projection-documents $(BENCHMARK_PERFORMANCE_PROJECTION_DOCUMENTS) $(BENCHMARK_PERFORMANCE_LIVE_REPORT_ARG) --out ../../$(BENCHMARK_PERFORMANCE_REPORT)
+
+benchmark-performance-show:
+	$(BENCHMARK_PERFORMANCE_CLI) show --file ../../$(BENCHMARK_PERFORMANCE_REPORT)
+
+benchmark-performance-clean:
+	rm -f $(BENCHMARK_PERFORMANCE_REPORT)
 
 benchmark-stack-prune-containers:
 	@$(BENCHMARK_STACK_COMPOSE) down -v --remove-orphans >/dev/null 2>&1 || true

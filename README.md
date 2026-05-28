@@ -190,6 +190,17 @@ make benchmark-smoke-clean
 
 See [`docs/benchmarks/synthetic-smoke-generator.md`](docs/benchmarks/synthetic-smoke-generator.md).
 
+Patch 53C adds an offline cost, latency, and throughput report for the 5k smoke manifest. It can also read an ignored OpenRouter live-pilot report to include token/cost hints while keeping provider calls disabled inside the report command.
+
+```bash
+make benchmark-performance-plan
+make benchmark-performance-report
+make benchmark-performance-show
+make benchmark-performance-clean
+```
+
+See [`docs/benchmarks/cost-latency-throughput-report.md`](docs/benchmarks/cost-latency-throughput-report.md).
+
 ```bash
 make agent-openrouter-pilot-plan
 OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
@@ -962,3 +973,7 @@ Patch 53A.1 tightens the OpenRouter validated pilot guardrail. Before spending O
 ### Patch 53B — 5k synthetic smoke generator
 
 Adds an offline deterministic 5,000-document synthetic smoke generator for `platform_ops_v1`. Use `make benchmark-smoke-plan`, `make benchmark-smoke-generate`, and `make benchmark-smoke-report` to create and inspect local generated artifacts. The generator records batch counts, role counts, aliases, unchanged-skip candidates, and corpus hash while keeping OpenRouter, Elasticsearch, database calls, and runtime mutation disabled.
+
+### Patch 53C — Cost, latency, throughput report
+
+Adds `skeinrank_governance_api.benchmark_performance`, the `skeinrank-governance-benchmark-performance` Poetry script, and `make benchmark-performance-*` targets. The report reads the 5k synthetic manifest plus optional live-pilot usage JSON and produces offline estimates for documents/minute, seconds/document, batch latency, token/cost rates, skip/cache/idempotency savings, and simple 100k-document projection. It does not call OpenRouter, Elasticsearch, the database, or runtime mutation APIs.

@@ -1,6 +1,6 @@
 # Platform Ops Benchmark v1
 
-Synthetic headless benchmark for the governed agent proposal workflow. Patch 49A expands it into a 50-document quality fixture; Patch 49B adds proposal-level quality metrics and per-alias outcome breakdowns; Patch 53A expands the default fixture to a 500-document small-pilot corpus; Patch 53B adds a deterministic 5k synthetic smoke generator that writes local artifacts under `reports/synthetic/`.
+Synthetic headless benchmark for the governed agent proposal workflow. Patch 49A expands it into a 50-document quality fixture; Patch 49B adds proposal-level quality metrics and per-alias outcome breakdowns; Patch 53A expands the default fixture to a 500-document small-pilot corpus; Patch 53B adds a deterministic 5k synthetic smoke generator that writes local artifacts under `reports/synthetic/`; Patch 53C adds an offline cost, latency, and throughput report for those smoke artifacts.
 
 It intentionally includes:
 
@@ -73,3 +73,16 @@ Default generated files are ignored local artifacts:
 examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-corpus.jsonl
 examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-manifest.json
 ```
+
+## Cost, latency, and throughput report
+
+Patch 53C adds a provider-independent performance report that reads the 5k synthetic manifest, optional live-pilot usage JSON, and an explicit elapsed-time value.
+
+```bash
+make benchmark-performance-plan
+make benchmark-performance-report
+make benchmark-performance-show
+make benchmark-performance-clean
+```
+
+The report uses schema `skeinrank.benchmark_performance_report.v1` and summarizes documents/minute, seconds/document, batch latency, tokens, cost, skipped/unchanged documents, cache/idempotency savings, and a simple 100k-document projection. It is an offline estimate and does not call OpenRouter, Elasticsearch, the database, or runtime mutation APIs.

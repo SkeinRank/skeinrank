@@ -75,6 +75,18 @@ poetry run skeinrank-governance-synthetic-smoke report
 
 The generator writes local artifacts under `examples/benchmarks/platform_ops_v1/reports/synthetic/` by default and does not call OpenRouter, Elasticsearch, the database, or runtime mutation endpoints.
 
+## Benchmark performance report
+
+Patch 53C adds an offline cost, latency, and throughput report for the 5k smoke manifest. It can also read an ignored OpenRouter live-pilot report for token/cost hints.
+
+```bash
+poetry run skeinrank-governance-benchmark-performance plan   --synthetic-manifest ../../examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-manifest.json
+poetry run skeinrank-governance-benchmark-performance report   --synthetic-manifest ../../examples/benchmarks/platform_ops_v1/reports/synthetic/platform_ops_v1-5k-manifest.json   --elapsed-seconds 300
+poetry run skeinrank-governance-benchmark-performance show   --file ../../examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-cost-latency-throughput-report.json
+```
+
+The report uses schema `skeinrank.benchmark_performance_report.v1` and keeps OpenRouter, Elasticsearch, database calls, and runtime mutation disabled.
+
 ## Containerized benchmark stack
 
 Patch 48C adds a stack integration harness for the `platform_ops_v1` benchmark. It uses Docker Compose services for PostgreSQL, the Governance API, and Elasticsearch while keeping OpenRouter out of the loop.
@@ -1568,3 +1580,7 @@ The OpenRouter validated pilot now checks the actual read-only `POST /v1/tools/v
 ### Patch 53B — 5k synthetic smoke generator
 
 Adds `skeinrank_governance_api.synthetic_smoke` and the `skeinrank-governance-synthetic-smoke` Poetry script for deterministic 5k JSONL corpus generation. The generated artifacts are intended for local scale smoke runs and are not committed by default.
+
+### Patch 53C — Cost, latency, throughput report
+
+Adds `skeinrank_governance_api.benchmark_performance` and the `skeinrank-governance-benchmark-performance` Poetry script for offline performance reporting. The report reads the 5k synthetic manifest plus optional live-pilot usage JSON and outputs documents/minute, seconds/document, batch latency, token/cost rates, skip/cache/idempotency savings, and a simple 100k-document projection without provider, Elasticsearch, database, or runtime mutation calls.
