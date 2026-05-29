@@ -480,6 +480,7 @@ Start here:
 - `packages/skeinrank-ui/src/pages/ProposalInboxPage.tsx` — review-first AI proposal inbox for human-in-the-loop moderation.
 - [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — API examples for coverage review, policy, and before/after evaluation.
 - [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md) — enrichment, dry-runs, jobs, evidence, and cancellation.
+- [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md) — 61A preflight, concurrency guard, and beta safety rules for enrichment jobs.
 - [`docs/guides/development.md`](docs/guides/development.md) — development checks and package layout.
 - [`docs/api/governance-api.md`](docs/api/governance-api.md) — important governance/runtime API surfaces.
 
@@ -1163,3 +1164,17 @@ The UI navigation now follows the 3-tab Control Plane model: Playground, AI Inbo
 
 Legacy and admin cockpit pages are now read-only by default to prevent direct production mutations that bypass proposals, validation, snapshots, and GitOps rollout. The UI keeps old routes available for inspection and local debugging, but disables or replaces unsafe write CTAs such as manual term edits, binding creation, guardrail edits, and enrichment job launches unless `VITE_SKEINRANK_ENABLE_LEGACY_WRITE_TOOLS=true` is set explicitly for local development. See [`docs/guides/read-only-legacy-admin-cockpit.md`](docs/guides/read-only-legacy-admin-cockpit.md).
 
+
+### Patch 61A — Enrichment Beta hardening
+
+Elasticsearch enrichment jobs now have a read-only preflight endpoint:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
+```
+
+The preflight reports `ready`, `blocking_issues`, `warnings`,
+`recommended_request`, and safety metadata before any job is created. The
+start-job endpoint runs the same checks and blocks unsafe starts, including
+concurrent active jobs for the same binding and unsafe `reindex_alias_swap`
+targets. See [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md).

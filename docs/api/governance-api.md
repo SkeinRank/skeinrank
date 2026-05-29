@@ -348,6 +348,15 @@ POST /v1/governance/elasticsearch/bindings/{binding_id}/evidence
 Enrichment jobs:
 
 ```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
+```
+
+Read-only preflight for write-mode enrichment. It returns `ready`,
+`blocking_issues`, `warnings`, `recommended_request`, and safety metadata. It
+does not create jobs, write documents, reindex, or swap aliases.
+
+
+```text
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
 GET  /v1/governance/elasticsearch/jobs?binding_id=...
 GET  /v1/governance/elasticsearch/jobs/{job_id}

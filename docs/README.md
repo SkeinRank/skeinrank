@@ -41,6 +41,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.
+- [`guides/enrichment-beta-hardening.md`](guides/enrichment-beta-hardening.md) — preflight, concurrency guard, and beta safety rules for enrichment jobs.
 - [`guides/development.md`](guides/development.md) — local development checks and package workflow.
 - [`api/governance-api.md`](api/governance-api.md) — important HTTP surfaces and runtime endpoints.
 
@@ -491,3 +492,12 @@ Patch 57B adds concrete provider adapters for the alias scout: `openrouter` and 
 ### Company model integration
 
 Patch 57C adds a safe company-model integration plan for private/local chat-completion endpoints. Use `--print-company-model-integration-plan` to inspect the workflow without network calls or secrets. See [`deployment/company-model-integration.md`](deployment/company-model-integration.md).
+
+## Patch 61A — Enrichment Beta hardening
+
+`POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight` is a
+read-only operator check for enrichment jobs. It returns `ready`,
+`blocking_issues`, `warnings`, `recommended_request`, and safety metadata. The
+start-job endpoint uses the same guard and blocks concurrent active jobs for the
+same binding plus unsafe `reindex_alias_swap` target-index choices. See
+[`guides/enrichment-beta-hardening.md`](guides/enrichment-beta-hardening.md).

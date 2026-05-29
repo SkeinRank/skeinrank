@@ -928,6 +928,17 @@ class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
     chunk_size: int | None = Field(default=None, ge=1, le=1000)
 
 
+class ElasticsearchEnrichmentPreflightResponse(BaseModel):
+    """Read-only safety plan for starting one enrichment job."""
+
+    binding: ElasticsearchBindingResponse
+    ready: bool
+    blocking_issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    recommended_request: dict[str, Any] = Field(default_factory=dict)
+    safety: dict[str, Any] = Field(default_factory=dict)
+
+
 class ElasticsearchEnrichmentJobCancelRequest(BaseModel):
     """Request body for safely cancelling an Elasticsearch enrichment job."""
 

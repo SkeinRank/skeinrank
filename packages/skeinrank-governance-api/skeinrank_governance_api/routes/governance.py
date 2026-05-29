@@ -133,6 +133,7 @@ from ..schemas import (
     ElasticsearchEnrichmentJobCreateRequest,
     ElasticsearchEnrichmentJobResponse,
     ElasticsearchEnrichmentJobRollbackRequest,
+    ElasticsearchEnrichmentPreflightResponse,
     ElasticsearchEvidenceDocument,
     ElasticsearchEvidenceRequest,
     ElasticsearchEvidenceResponse,
@@ -1074,6 +1075,37 @@ def find_elasticsearch_evidence(
 
 
 @router.post(
+    "/elasticsearch/bindings/{binding_id}/jobs/preflight",
+    response_model=ElasticsearchEnrichmentPreflightResponse,
+)
+def preflight_elasticsearch_enrichment_job(
+    binding_id: int,
+    request: Request,
+    request_body: ElasticsearchEnrichmentJobCreateRequest | None = Body(default=None),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> ElasticsearchEnrichmentPreflightResponse:
+    """Return a read-only safety plan before starting an enrichment job."""
+
+    request_body = request_body or ElasticsearchEnrichmentJobCreateRequest()
+    binding = _get_elasticsearch_binding_or_404(session, binding_id)
+    snapshot_payload = build_runtime_snapshot_payload(
+        session,
+        binding.profile,
+        snapshot_version=request_body.snapshot_version,
+    )
+    return _build_elasticsearch_enrichment_preflight_response(
+        request=request,
+        session=session,
+        binding=binding,
+        request_body=request_body,
+        snapshot_payload=snapshot_payload,
+    )
+
+
+@router.post(
     "/elasticsearch/bindings/{binding_id}/jobs",
     response_model=ElasticsearchEnrichmentJobResponse,
     status_code=status.HTTP_201_CREATED,
@@ -1112,6 +1144,22 @@ def start_elasticsearch_enrichment_job(
         binding.profile,
         snapshot_version=request_body.snapshot_version,
     )
+    preflight = _build_elasticsearch_enrichment_preflight_response(
+        request=request,
+        session=session,
+        binding=binding,
+        request_body=request_body,
+        snapshot_payload=snapshot_payload,
+        elasticsearch_configured=True,
+    )
+    if not preflight.ready:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "Elasticsearch enrichment preflight failed.",
+                "blocking_issues": preflight.blocking_issues,
+            },
+        )
     previous_successful_job_id = binding.last_successful_job_id
     job = ElasticsearchEnrichmentJob(
         binding=binding,
@@ -2952,6 +3000,160 @@ def _dry_run_payload(
             for value, aliases in sorted(matched_aliases_by_value.items())
         },
     }
+
+
+ACTIVE_ENRICHMENT_JOB_STATUSES = {"queued", "running", "cancel_requested"}
+
+
+def _active_elasticsearch_enrichment_job_for_binding(
+    session: Session, *, binding_id: int
+) -> ElasticsearchEnrichmentJob | None:
+    """Return the newest active enrichment job for a binding, if one exists."""
+
+    return session.scalar(
+        select(ElasticsearchEnrichmentJob)
+        .where(
+            ElasticsearchEnrichmentJob.binding_id == binding_id,
+            ElasticsearchEnrichmentJob.status.in_(
+                tuple(ACTIVE_ENRICHMENT_JOB_STATUSES)
+            ),
+        )
+        .order_by(
+            ElasticsearchEnrichmentJob.created_at.desc(),
+            ElasticsearchEnrichmentJob.id.desc(),
+        )
+    )
+
+
+def _build_elasticsearch_enrichment_preflight_response(
+    *,
+    request: Request,
+    session: Session,
+    binding: ElasticsearchBinding,
+    request_body: ElasticsearchEnrichmentJobCreateRequest,
+    snapshot_payload: dict[str, object],
+    elasticsearch_configured: bool | None = None,
+) -> ElasticsearchEnrichmentPreflightResponse:
+    """Build a read-only enrichment safety plan for operators and CI checks."""
+
+    blocking_issues: list[str] = []
+    warnings: list[str] = []
+    config = request.app.state.config
+    if elasticsearch_configured is None:
+        elasticsearch_configured = ElasticsearchDiscoveryClient(config).is_configured
+    if not elasticsearch_configured:
+        blocking_issues.append("Elasticsearch URL is not configured.")
+
+    if not binding.is_enabled:
+        blocking_issues.append("Elasticsearch binding is disabled.")
+    if binding.mode != "write":
+        blocking_issues.append(
+            "Elasticsearch binding must be in write mode before starting an enrichment job."
+        )
+
+    active_job = _active_elasticsearch_enrichment_job_for_binding(
+        session, binding_id=binding.id
+    )
+    if active_job is not None:
+        blocking_issues.append(
+            "Another enrichment job is already active for this binding: "
+            f"#{active_job.id} ({active_job.status})."
+        )
+
+    requested_target_index = _job_target_index(binding, request_body.target_index_name)
+    target_index = requested_target_index
+    target_index_generated = False
+    if binding.write_strategy == "reindex_alias_swap" and not target_index:
+        safe_source_index = binding.index_name.strip().lower().replace(" ", "_")
+        target_index = f"{safe_source_index}__skeinrank_job_<job_id>"
+        target_index_generated = True
+    alias_name = _job_alias_name(binding, request_body.alias_name)
+
+    if binding.write_strategy == "reindex_alias_swap":
+        if not alias_name:
+            blocking_issues.append("Alias name is required for alias-swap jobs.")
+        if requested_target_index:
+            if requested_target_index == binding.index_name:
+                blocking_issues.append(
+                    "Target index for reindex_alias_swap must differ from the source index."
+                )
+            if alias_name and requested_target_index == alias_name:
+                blocking_issues.append(
+                    "Target index for reindex_alias_swap must differ from the serving alias."
+                )
+        warnings.append(
+            "reindex_alias_swap creates a fresh target index and swaps the serving alias only after enrichment completes."
+        )
+    elif binding.write_strategy == "in_place":
+        warnings.append(
+            "in_place writes directly to the configured source index; prefer reindex_alias_swap for production."
+        )
+    else:
+        blocking_issues.append(f"Unsupported write strategy: {binding.write_strategy}")
+
+    if binding.time_window_days and not binding.timestamp_field:
+        blocking_issues.append(
+            "time_window_days requires timestamp_field before enrichment can run safely."
+        )
+    if not binding.time_window_days:
+        warnings.append(
+            "No time window is configured; enrichment may scan the full binding scope."
+        )
+    if request_body.max_documents >= 10000:
+        warnings.append(
+            "max_documents is at the API limit; use smaller chunks or a narrower binding filter for first beta runs."
+        )
+
+    configured_chunk_size = request_body.chunk_size or min(
+        config.enrichment_chunk_size,
+        request_body.max_documents,
+    )
+    if configured_chunk_size > request_body.max_documents:
+        blocking_issues.append("chunk_size cannot exceed max_documents.")
+
+    snapshot_aliases_total = len((snapshot_payload or {}).get("alias_entries") or [])
+    if snapshot_aliases_total == 0:
+        warnings.append(
+            "Selected snapshot has no active aliases; enrichment will not add canonical matches."
+        )
+
+    recommended_request = {
+        "snapshot_version": str(snapshot_payload.get("version")),
+        "max_documents": request_body.max_documents,
+        "chunk_size": configured_chunk_size,
+    }
+    if binding.write_strategy == "reindex_alias_swap":
+        recommended_request["alias_name"] = alias_name
+        if request_body.target_index_name:
+            recommended_request["target_index_name"] = requested_target_index
+    if binding.write_strategy == "in_place":
+        recommended_request["target_index_name"] = binding.index_name
+
+    safety = {
+        "job_backend": config.enrichment_jobs_backend,
+        "write_strategy": binding.write_strategy,
+        "source_index": binding.index_name,
+        "target_index": target_index,
+        "target_index_generated_after_job_creation": target_index_generated,
+        "alias_name": alias_name,
+        "snapshot_version": str(snapshot_payload.get("version")),
+        "snapshot_aliases_total": snapshot_aliases_total,
+        "max_documents": request_body.max_documents,
+        "chunk_size": configured_chunk_size,
+        "timestamp_field": binding.timestamp_field,
+        "time_window_days": binding.time_window_days,
+        "active_job_id": active_job.id if active_job is not None else None,
+        "active_job_status": active_job.status if active_job is not None else None,
+    }
+
+    return ElasticsearchEnrichmentPreflightResponse(
+        binding=_elasticsearch_binding_response(binding),
+        ready=not blocking_issues,
+        blocking_issues=blocking_issues,
+        warnings=warnings,
+        recommended_request=recommended_request,
+        safety=safety,
+    )
 
 
 def _job_target_index(

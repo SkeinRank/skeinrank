@@ -1605,3 +1605,157 @@ def test_running_chunked_enrichment_job_can_be_cancelled_safely(monkeypatch, tmp
         "operator requested stop"
     )
     assert "alias_result" not in payload["result_json"]
+
+
+def test_elasticsearch_enrichment_preflight_reports_blocking_issues(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "mode": "dry_run",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    assert binding_response.status_code == 201
+
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs/preflight",
+        json={"max_documents": 10},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is False
+    assert any("write mode" in issue for issue in payload["blocking_issues"])
+    assert payload["safety"]["source_index"] == "docs"
+    assert payload["safety"]["target_index"] == "docs__skeinrank_job_<job_id>"
+    assert payload["safety"]["target_index_generated_after_job_creation"] is True
+    assert payload["recommended_request"]["alias_name"] == "docs"
+
+
+def test_elasticsearch_enrichment_preflight_blocks_unsafe_target_index(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    assert binding_response.status_code == 201
+
+    preflight_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs/preflight",
+        json={"target_index_name": "docs", "alias_name": "docs"},
+    )
+
+    assert preflight_response.status_code == 200
+    preflight = preflight_response.json()
+    assert preflight["ready"] is False
+    assert any("source index" in issue for issue in preflight["blocking_issues"])
+    assert any("serving alias" in issue for issue in preflight["blocking_issues"])
+
+    start_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"target_index_name": "docs", "alias_name": "docs"},
+    )
+
+    assert start_response.status_code == 409
+    detail = start_response.json()["detail"]
+    assert detail["message"] == "Elasticsearch enrichment preflight failed."
+    assert any("source index" in issue for issue in detail["blocking_issues"])
+
+
+def test_elasticsearch_enrichment_preflight_blocks_concurrent_active_job(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+    from skeinrank_governance_api.worker_queue import EnqueuedTask
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+
+    def fake_enqueue_elasticsearch_enrichment_job(*, config, job_id):
+        return EnqueuedTask(task_id="coordinator-task", queue=config.celery_task_queue)
+
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_job",
+        fake_enqueue_elasticsearch_enrichment_job,
+    )
+    client = _client(
+        tmp_path,
+        elasticsearch_url="http://es:9200",
+        enrichment_jobs_backend="celery",
+    )
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    assert binding_response.status_code == 201
+    binding_id = binding_response.json()["id"]
+
+    first_job_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json={"max_documents": 2},
+    )
+    assert first_job_response.status_code == 201
+    first_job = first_job_response.json()
+    assert first_job["status"] == "queued"
+
+    preflight_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight",
+        json={"max_documents": 2},
+    )
+    assert preflight_response.status_code == 200
+    preflight = preflight_response.json()
+    assert preflight["ready"] is False
+    assert preflight["safety"]["active_job_id"] == first_job["id"]
+    assert preflight["safety"]["active_job_status"] == "queued"
+    assert any("already active" in issue for issue in preflight["blocking_issues"])
+
+    second_job_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json={"max_documents": 2},
+    )
+    assert second_job_response.status_code == 409
+    assert any(
+        "already active" in issue
+        for issue in second_job_response.json()["detail"]["blocking_issues"]
+    )
