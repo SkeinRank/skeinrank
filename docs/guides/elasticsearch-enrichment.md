@@ -104,7 +104,9 @@ The preflight returns `ready`, `blocking_issues`, `warnings`,
 `recommended_request`, and safety metadata. It does not create jobs, write
 documents, reindex, or swap aliases. See
 [`enrichment-beta-hardening.md`](enrichment-beta-hardening.md) for the 61A beta
-hardening contract.
+hardening contract and
+[`../deployment/blue-green-alias-swap-runbook.md`](../deployment/blue-green-alias-swap-runbook.md)
+for the 61B operator rollout path.
 
 Start a write-mode enrichment job after preflight passes:
 
@@ -117,6 +119,13 @@ Inspect jobs:
 ```text
 GET /v1/governance/elasticsearch/jobs?binding_id=...
 GET /v1/governance/elasticsearch/jobs/{job_id}
+```
+
+Roll back a completed reindex alias-swap job when conservative rollout metadata
+is available:
+
+```text
+POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
 ```
 
 Supported job statuses include:

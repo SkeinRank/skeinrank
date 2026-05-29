@@ -127,6 +127,6 @@ POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
 ## What this patch does not do
 
 Patch 61A does not add a new worker backend, a scheduler, a new Elasticsearch
-provider, or a new production deployment mechanism. Blue/green alias-swap
-operator runbooks and deeper pause/resume/checkpointing polish remain separate
-follow-up patches.
+provider, or a new production deployment mechanism. Blue/green alias-swap operator details are documented in
+[`../deployment/blue-green-alias-swap-runbook.md`](../deployment/blue-green-alias-swap-runbook.md).
+Deeper pause/resume/checkpointing polish remains a separate follow-up patch.

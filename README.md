@@ -481,6 +481,7 @@ Start here:
 - [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — API examples for coverage review, policy, and before/after evaluation.
 - [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md) — enrichment, dry-runs, jobs, evidence, and cancellation.
 - [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md) — 61A preflight, concurrency guard, and beta safety rules for enrichment jobs.
+- [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md) — 61B blue/green operator runbook for `reindex_alias_swap`, alias publish, cancellation, and rollback.
 - [`docs/guides/development.md`](docs/guides/development.md) — development checks and package layout.
 - [`docs/api/governance-api.md`](docs/api/governance-api.md) — important governance/runtime API surfaces.
 
@@ -492,6 +493,7 @@ Deployment docs:
 - [`docs/deployment/observability.md`](docs/deployment/observability.md)
 - [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md)
+- [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md)
 
 ## Repository layout
 
@@ -1178,3 +1180,7 @@ The preflight reports `ready`, `blocking_issues`, `warnings`,
 start-job endpoint runs the same checks and blocks unsafe starts, including
 concurrent active jobs for the same binding and unsafe `reindex_alias_swap`
 targets. See [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md).
+
+### Patch 61B — Blue/green alias-swap runbook
+
+Patch 61B documents the operator rollout path for `reindex_alias_swap` jobs: run dry-run, run preflight, start one binding-scoped job, monitor `result_json.rollout`, cancel before publish when needed, and use the conservative rollback endpoint after a completed alias swap. It does not add a new alias-swap endpoint or index cleanup command. See [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md) and [`examples/blue-green-alias-swap`](examples/blue-green-alias-swap).

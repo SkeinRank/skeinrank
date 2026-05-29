@@ -808,6 +808,9 @@ found. It also prevents multiple active jobs for the same binding while a job is
 
 See [`docs/guides/enrichment-beta-hardening.md`](../../docs/guides/enrichment-beta-hardening.md).
 
+Patch 61B adds the operator runbook for the safer blue/green path:
+[`docs/deployment/blue-green-alias-swap-runbook.md`](../../docs/deployment/blue-green-alias-swap-runbook.md) and [`examples/blue-green-alias-swap`](../../examples/blue-green-alias-swap). The runbook uses the existing preflight, start-job, job status, cancel, and rollback APIs; it does not introduce a standalone alias-swap endpoint.
+
 ## Elasticsearch enrichment write strategy
 
 Elasticsearch bindings include `write_strategy` metadata for future write jobs:

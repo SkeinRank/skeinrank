@@ -361,7 +361,12 @@ POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
 GET  /v1/governance/elasticsearch/jobs?binding_id=...
 GET  /v1/governance/elasticsearch/jobs/{job_id}
 POST /v1/governance/elasticsearch/jobs/{job_id}/cancel
+POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
 ```
+
+Rollback is conservative and only applies to succeeded `reindex_alias_swap` jobs
+with completed alias swaps and valid rollout metadata. See
+[`../deployment/blue-green-alias-swap-runbook.md`](../deployment/blue-green-alias-swap-runbook.md).
 
 ## Runtime search and canonicalization
 
