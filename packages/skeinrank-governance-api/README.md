@@ -273,6 +273,16 @@ workers without querying PostgreSQL on every request. Patch 36E adds a local
 artifact loader/cache that validates the artifact checksum and reloads the file
 when it changes.
 
+Patch 60A documents the Terminology-as-Code import/export loop in
+`docs/guides/terminology-as-code.md`. Patch 60B adds CLI planning in
+`docs/guides/dictionary-cli-planning.md`. Patch 60C adds the GitOps delivery
+runbook in `docs/deployment/gitops-delivery-runbook.md` and examples in
+`examples/gitops-delivery`. Use YAML or JSON files in Git, run local `lint`,
+build a server-backed `plan`, apply with `--plan-output`, export the governed
+dictionary back to JSON, then export a binding-scoped runtime artifact for
+GitLab CI, ArgoCD, Flux, or another delivery tool to move into headless runtime
+workers.
+
 
 ## Headless benchmark CLI
 
@@ -390,17 +400,31 @@ poetry run skeinrank-migrate --help
 
 The API URL defaults to `http://127.0.0.1:8010` and can be overridden with `--api-url` or `SKEINRANK_CONSOLE_API_URL`. When API auth is enabled, pass a bearer token with `--token` or `SKEINRANK_API_TOKEN`.
 
-Validate a dictionary JSON/YAML file without writing changes:
+Run local JSON/YAML lint before contacting the API:
+
+```bash
+poetry run skeinrank-migrate lint ../../examples/migration/console_dictionary.example.yaml
+```
+
+Validate a dictionary JSON/YAML file against the running API without writing changes:
 
 ```bash
 poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.json
 poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.yaml
 ```
 
-Apply the dictionary after validation:
+Build a server-backed apply plan without writing changes:
 
 ```bash
-poetry run skeinrank-migrate apply ../../examples/migration/console_dictionary.example.json
+poetry run skeinrank-migrate plan ../../examples/migration/console_dictionary.example.yaml \
+  --output console_dictionary.plan.json
+```
+
+Apply the dictionary after validation and write the reviewed plan first:
+
+```bash
+poetry run skeinrank-migrate apply ../../examples/migration/console_dictionary.example.json \
+  --plan-output console_dictionary.apply-plan.json
 ```
 
 Export a profile back to the same stable migration JSON shape. Exports include `schema_version`:

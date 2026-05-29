@@ -450,3 +450,208 @@ def test_migration_tool_snapshot_eval_command_writes_report(tmp_path):
     assert report["schema_version"] == "skeinrank.snapshot_evaluation.v1"
     assert report["aliases"]["changed_total"] == 1
     assert report["queries"]["total"] == 0
+
+
+def test_migration_tool_lint_command_detects_local_collisions(tmp_path, capsys):
+    input_path = tmp_path / "dictionary.json"
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "skeinrank.dictionary.v1",
+                "profile_name": "Infra Ops",
+                "mode": "upsert",
+                "terms": [
+                    {
+                        "canonical_value": "postgresql",
+                        "slot": "database",
+                        "aliases": ["pg", "postgresql"],
+                    },
+                    {
+                        "canonical_value": "page",
+                        "slot": "document_component",
+                        "aliases": ["pg"],
+                    },
+                ],
+                "profile_stop_list": [
+                    {"value": "tmp", "target": "alias"},
+                    {"value": "tmp", "target": "alias"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["lint", str(input_path), "--compact"])
+
+    assert exit_code == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["schema_version"] == "skeinrank.dictionary_lint.v1"
+    assert report["status"] == "invalid"
+    assert report["normalized_profile_name"] == "infra_ops"
+    assert report["checks"] == {
+        "local_only": True,
+        "server_state_checked": False,
+        "safe_for_apply_decision": False,
+    }
+    assert report["summary"]["terms_total"] == 2
+    assert report["summary"]["aliases_total"] == 3
+    assert {issue["code"] for issue in report["errors"]} == {"alias_payload_collision"}
+    assert {issue["code"] for issue in report["warnings"]} == {
+        "alias_matches_canonical",
+        "duplicate_stop_list_entry",
+    }
+
+
+def test_migration_tool_plan_command_writes_server_backed_apply_plan(
+    tmp_path, monkeypatch, capsys
+):
+    input_path = tmp_path / "dictionary.json"
+    output_path = tmp_path / "plan.json"
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "skeinrank.dictionary.v1",
+                "profile_name": "infra",
+                "create_profile": True,
+                "terms": [{"canonical_value": "kubernetes", "slot": "tool"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_validate(self, payload):
+        assert payload["profile_name"] == "infra"
+        return {
+            "status": "valid",
+            "schema_version": "skeinrank.dictionary.v1",
+            "profile_name": "infra",
+            "normalized_profile_name": "infra",
+            "profile_exists": False,
+            "mode": "upsert",
+            "summary": {
+                "would_create_terms": 1,
+                "would_update_terms": 0,
+                "would_create_aliases": 0,
+                "would_update_aliases": 0,
+            },
+            "errors": [],
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(DictionaryMigrationClient, "validate_dictionary", fake_validate)
+    monkeypatch.setattr(
+        DictionaryMigrationClient,
+        "import_dictionary",
+        lambda self, payload: pytest.fail("plan must not call import"),
+    )
+
+    exit_code = main(["plan", str(input_path), "--output", str(output_path)])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == ""
+    plan = json.loads(output_path.read_text(encoding="utf-8"))
+    assert plan["schema_version"] == "skeinrank.dictionary_apply_plan.v1"
+    assert plan["status"] == "ready"
+    assert plan["safe_to_apply"] is True
+    assert plan["profile_exists"] is False
+    assert plan["operations"] == [
+        {
+            "action": "create_profile",
+            "count": 1,
+            "description": "Create the target terminology profile before importing terms.",
+        },
+        {
+            "action": "create_terms",
+            "count": 1,
+            "description": "Create canonical terms.",
+        },
+    ]
+    assert plan["validation"]["status"] == "valid"
+
+
+def test_migration_tool_apply_plan_output_validates_before_import(
+    tmp_path, monkeypatch, capsys
+):
+    input_path = tmp_path / "dictionary.json"
+    plan_path = tmp_path / "plan.json"
+    input_path.write_text('{"profile_name":"infra","terms":[]}', encoding="utf-8")
+    calls = []
+
+    def fake_validate(self, payload):
+        calls.append("validate")
+        return {
+            "status": "valid",
+            "profile_name": "infra",
+            "normalized_profile_name": "infra",
+            "profile_exists": True,
+            "mode": "upsert",
+            "summary": {"would_update_terms": 1},
+            "errors": [],
+            "warnings": [],
+        }
+
+    def fake_import(self, payload):
+        calls.append("import")
+        return {"status": "applied", "summary": {"updated_terms": 1}}
+
+    monkeypatch.setattr(DictionaryMigrationClient, "validate_dictionary", fake_validate)
+    monkeypatch.setattr(DictionaryMigrationClient, "import_dictionary", fake_import)
+
+    exit_code = main(
+        [
+            "apply",
+            str(input_path),
+            "--plan-output",
+            str(plan_path),
+            "--compact",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls == ["validate", "import"]
+    assert json.loads(plan_path.read_text(encoding="utf-8"))["operations"] == [
+        {
+            "action": "update_terms",
+            "count": 1,
+            "description": "Update existing canonical terms.",
+        }
+    ]
+    assert capsys.readouterr().out == (
+        '{"status":"applied","summary":{"updated_terms":1}}\n'
+    )
+
+
+def test_migration_tool_apply_plan_output_blocks_import_when_plan_invalid(
+    tmp_path, monkeypatch, capsys
+):
+    input_path = tmp_path / "dictionary.json"
+    plan_path = tmp_path / "plan.json"
+    input_path.write_text('{"profile_name":"infra","terms":[]}', encoding="utf-8")
+
+    def fake_validate(self, payload):
+        return {
+            "status": "invalid",
+            "profile_name": "infra",
+            "normalized_profile_name": "infra",
+            "profile_exists": True,
+            "mode": "upsert",
+            "summary": {"errors": 1},
+            "errors": [{"code": "alias_existing_collision"}],
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(DictionaryMigrationClient, "validate_dictionary", fake_validate)
+    monkeypatch.setattr(
+        DictionaryMigrationClient,
+        "import_dictionary",
+        lambda self, payload: pytest.fail("blocked apply must not call import"),
+    )
+
+    exit_code = main(["apply", str(input_path), "--plan-output", str(plan_path)])
+
+    assert exit_code == 2
+    assert capsys.readouterr().out == ""
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert plan["status"] == "blocked"
+    assert plan["safe_to_apply"] is False
+    assert plan["validation"]["errors"] == [{"code": "alias_existing_collision"}]

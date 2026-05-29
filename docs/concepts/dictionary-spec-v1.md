@@ -5,7 +5,8 @@ imported, exported, and used by the local SDK/CLI.
 
 The canonical interchange format is JSON. YAML is accepted by the CLI as a
 human-editable convenience for GitOps-style repositories when PyYAML is available, but HTTP APIs continue
-to receive and return JSON.
+to receive and return JSON. For the complete Terminology-as-Code import/export
+workflow, see [`../guides/terminology-as-code.md`](../guides/terminology-as-code.md).
 
 ## Schema version
 

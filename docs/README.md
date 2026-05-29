@@ -22,6 +22,10 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`concepts/profiles-bindings-snapshots.md`](concepts/profiles-bindings-snapshots.md) — the production runtime model.
 - [`concepts/headless-runtime-contracts.md`](concepts/headless-runtime-contracts.md) — headless-first contract map for runtime, agents, snapshots, and UI scope.
 - [`concepts/dictionary-spec-v1.md`](concepts/dictionary-spec-v1.md) — stable dictionary import/export contract with `schema_version`.
+- [`guides/terminology-as-code.md`](guides/terminology-as-code.md) — 60A Terminology-as-Code import/export workflow: YAML/JSON in Git, JSON APIs, PostgreSQL control-plane state, and binding-scoped runtime snapshot artifacts.
+- [`guides/dictionary-cli-planning.md`](guides/dictionary-cli-planning.md) — 60B CLI `lint`, server-backed `plan`, and `apply --plan-output` workflow for JSON/YAML dictionaries.
+- [`deployment/gitops-delivery-runbook.md`](deployment/gitops-delivery-runbook.md) — 60C GitOps delivery runbook for GitLab CI, ArgoCD, Flux, and binding-scoped runtime artifacts.
+- [`../examples/gitops-delivery`](../examples/gitops-delivery) — reference GitLab CI, ArgoCD, Flux, and Kustomize examples for runtime artifact delivery.
 - [`concepts/coverage-framework.md`](concepts/coverage-framework.md) — slots, tags, ambiguous aliases, binding policies, and evaluation guardrails.
 - [`adr/0001-headless-runtime-contracts.md`](adr/0001-headless-runtime-contracts.md) — accepted architecture decision for headless runtime boundaries.
 - [`guides/core-sdk-and-cli.md`](guides/core-sdk-and-cli.md) — local dictionary validation, extraction, canonicalization, and document extraction.
@@ -51,6 +55,7 @@ This directory keeps repository-level documentation for developers, operators, a
 
 - [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.
 - [`deployment/headless-quickstart.md`](deployment/headless-quickstart.md) — API/PostgreSQL-only golden path for headless integrations.
+- [`deployment/gitops-delivery-runbook.md`](deployment/gitops-delivery-runbook.md) — GitLab CI / ArgoCD / Flux delivery runbook for Terminology-as-Code runtime artifacts.
 - [`deployment/security.md`](deployment/security.md) — production-oriented security baseline.
 - [`deployment/env-and-secrets.md`](deployment/env-and-secrets.md) — `.env` validation, required settings, and secrets handling.
 - [`deployment/production-compose.md`](deployment/production-compose.md) — production-ish Compose profile, ops services, and smoke checks.

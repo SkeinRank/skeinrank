@@ -293,6 +293,42 @@ GET  /v1/headless/dictionaries/export?profile_name=...
 The legacy `/v1/console/dictionary/*` routes remain available for the governance
 console and older scripts. Both surfaces share the same validation/apply logic.
 
+## Terminology-as-Code export/import
+
+Patch 60A documents the safe file-based workflow for teams that want to manage
+SkeinRank terminology through Git and CI/CD. The model is **YAML outside, JSON
+inside**: people review YAML or JSON dictionaries in Git, HTTP APIs receive and
+return JSON, PostgreSQL remains the control-plane source of truth, and runtime
+workers consume binding-scoped immutable snapshot artifacts.
+
+Existing commands and endpoints are used; no new mutation path is introduced.
+Patch 60B adds explicit CLI planning around the same apply API:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-migrate lint \
+  ../../examples/terminology-as-code/platform_ops.dictionary.yaml
+poetry run skeinrank-migrate plan \
+  ../../examples/terminology-as-code/platform_ops.dictionary.yaml \
+  --output ../../examples/terminology-as-code/platform_ops.plan.json
+poetry run skeinrank-migrate apply \
+  ../../examples/terminology-as-code/platform_ops.dictionary.yaml \
+  --plan-output ../../examples/terminology-as-code/platform_ops.apply-plan.json
+poetry run skeinrank-migrate export \
+  --profile-name platform_ops \
+  --output ../../examples/terminology-as-code/platform_ops.dictionary.json
+poetry run skeinrank-migrate snapshot-export \
+  --binding-id 1 \
+  --source latest \
+  --output ../../snapshots/platform_ops.binding-1.json
+```
+
+See [`docs/guides/terminology-as-code.md`](docs/guides/terminology-as-code.md),
+[`docs/guides/dictionary-cli-planning.md`](docs/guides/dictionary-cli-planning.md),
+[`docs/deployment/gitops-delivery-runbook.md`](docs/deployment/gitops-delivery-runbook.md),
+[`examples/terminology-as-code`](examples/terminology-as-code), and
+[`examples/gitops-delivery`](examples/gitops-delivery).
+
 ## Agent-ready proposals and validation
 
 Phase B extends the existing suggestions review queue into an agent-safe proposal

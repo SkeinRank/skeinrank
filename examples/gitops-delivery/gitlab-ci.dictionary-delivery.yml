@@ -1,0 +1,105 @@
+# Example GitLab CI pipeline for Terminology-as-Code delivery.
+# It assumes the job runs from a repository that contains the SkeinRank package
+# or uses an internal image where skeinrank-migrate is already installed.
+# Keep apply/deploy jobs restricted to protected branches.
+
+stages:
+  - lint
+  - plan
+  - apply
+  - export
+  - snapshot
+
+variables:
+  SKEINRANK_DICTIONARY_FILE: "examples/terminology-as-code/platform_ops.dictionary.yaml"
+  SKEINRANK_PROFILE_NAME: "platform_ops"
+  SKEINRANK_BINDING_ID: "1"
+  SKEINRANK_SNAPSHOT_VERSION: "platform_ops@${CI_COMMIT_SHORT_SHA}"
+
+.default_python_job:
+  image: python:3.11-slim
+  before_script:
+    - python -m pip install --upgrade pip poetry
+    - cd packages/skeinrank-governance-api
+    - poetry install --no-interaction
+    - cd ../..
+
+lint_dictionary:
+  extends: .default_python_job
+  stage: lint
+  script:
+    - mkdir -p reports
+    - cd packages/skeinrank-governance-api
+    - poetry run skeinrank-migrate lint "../../${SKEINRANK_DICTIONARY_FILE}" --output ../../reports/lint-report.json
+  artifacts:
+    when: always
+    paths:
+      - reports/lint-report.json
+
+plan_dictionary:
+  extends: .default_python_job
+  stage: plan
+  needs:
+    - lint_dictionary
+  script:
+    - mkdir -p reports
+    - cd packages/skeinrank-governance-api
+    - poetry run skeinrank-migrate plan "../../${SKEINRANK_DICTIONARY_FILE}" --output ../../reports/apply-plan.json
+  artifacts:
+    when: always
+    paths:
+      - reports/apply-plan.json
+  rules:
+    - if: $SKEINRANK_CONSOLE_API_URL && $SKEINRANK_API_TOKEN
+
+apply_dictionary:
+  extends: .default_python_job
+  stage: apply
+  needs:
+    - plan_dictionary
+  script:
+    - mkdir -p reports
+    - cd packages/skeinrank-governance-api
+    - poetry run skeinrank-migrate apply "../../${SKEINRANK_DICTIONARY_FILE}" --plan-output ../../reports/applied-plan.json --output ../../reports/apply-response.json
+  artifacts:
+    when: always
+    paths:
+      - reports/applied-plan.json
+      - reports/apply-response.json
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $SKEINRANK_CONSOLE_API_URL && $SKEINRANK_API_TOKEN'
+      when: manual
+
+export_dictionary:
+  extends: .default_python_job
+  stage: export
+  needs:
+    - apply_dictionary
+  script:
+    - mkdir -p reports
+    - cd packages/skeinrank-governance-api
+    - poetry run skeinrank-migrate export --profile-name "${SKEINRANK_PROFILE_NAME}" --output ../../reports/governed-dictionary.json
+  artifacts:
+    when: always
+    paths:
+      - reports/governed-dictionary.json
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $SKEINRANK_CONSOLE_API_URL && $SKEINRANK_API_TOKEN'
+
+export_runtime_snapshot:
+  extends: .default_python_job
+  stage: snapshot
+  needs:
+    - export_dictionary
+  script:
+    - mkdir -p runtime
+    - cd packages/skeinrank-governance-api
+    - poetry run skeinrank-migrate snapshot-export --binding-id "${SKEINRANK_BINDING_ID}" --source latest --snapshot-version "${SKEINRANK_SNAPSHOT_VERSION}" --output ../../runtime/runtime-snapshot.json
+    - poetry run skeinrank-migrate snapshot-inspect ../../runtime/runtime-snapshot.json --output ../../runtime/runtime-snapshot.summary.json
+  artifacts:
+    when: always
+    paths:
+      - runtime/runtime-snapshot.json
+      - runtime/runtime-snapshot.summary.json
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $SKEINRANK_CONSOLE_API_URL && $SKEINRANK_API_TOKEN'

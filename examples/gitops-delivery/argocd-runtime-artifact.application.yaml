@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: skeinrank-runtime-artifact
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://git.example.com/search-platform/skeinrank-runtime-artifacts.git
+    targetRevision: main
+    path: examples/gitops-delivery/runtime-artifact
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: search-runtime
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

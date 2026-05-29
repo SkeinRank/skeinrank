@@ -179,6 +179,26 @@ Headless workers can also load artifacts directly through
 `RuntimeSnapshotArtifactCache`, which validates the manifest checksum and reloads
 the file when it changes.
 
+## Terminology-as-Code import/export map
+
+The 60A file workflow uses the existing API and CLI surfaces rather than adding a
+new endpoint family:
+
+```text
+Git dictionary file
+  -> POST /v1/headless/dictionaries/validate
+  -> POST /v1/headless/dictionaries/apply
+  -> GET  /v1/headless/dictionaries/export?profile_name=...
+  -> GET  /v1/headless/snapshots/export?binding_id=...
+  -> runtime artifact delivery through GitOps or object storage
+```
+
+Use `skeinrank-migrate validate`, `skeinrank-migrate apply`,
+`skeinrank-migrate export`, and `skeinrank-migrate snapshot-export` for the same
+workflow from CI scripts. YAML input is a CLI convenience; HTTP requests and
+responses remain JSON. See `docs/guides/terminology-as-code.md` for the full
+runbook and examples.
+
 ## Console dictionary workflows
 
 The console endpoints remain available for the existing governance UI and legacy
