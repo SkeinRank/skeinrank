@@ -951,6 +951,18 @@ class ElasticsearchEnrichmentJobRollbackRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=512)
 
 
+class ElasticsearchEnrichmentJobPauseRequest(BaseModel):
+    """Request body for pausing a chunked Elasticsearch enrichment job."""
+
+    reason: str | None = Field(default=None, max_length=512)
+
+
+class ElasticsearchEnrichmentJobResumeRequest(BaseModel):
+    """Request body for resuming a paused Elasticsearch enrichment job."""
+
+    reason: str | None = Field(default=None, max_length=512)
+
+
 class ElasticsearchEnrichmentJobResponse(BaseModel):
     """Elasticsearch enrichment job status response."""
 

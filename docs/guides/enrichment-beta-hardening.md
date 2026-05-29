@@ -55,8 +55,8 @@ The preflight blocks unsafe starts when:
 - Elasticsearch is not configured;
 - the binding is disabled;
 - the binding is not in `write` mode;
-- another job for the same binding is already `queued`, `running`, or
-  `cancel_requested`;
+- another job for the same binding is already `queued`, `running`,
+  `pause_requested`, `paused`, or `cancel_requested`;
 - `reindex_alias_swap` is configured with a target index equal to the source
   index;
 - `reindex_alias_swap` is configured with a target index equal to the serving
@@ -83,6 +83,8 @@ the same binding is blocked while an earlier job is:
 ```text
 queued
 running
+pause_requested
+paused
 cancel_requested
 ```
 
@@ -129,4 +131,4 @@ POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
 Patch 61A does not add a new worker backend, a scheduler, a new Elasticsearch
 provider, or a new production deployment mechanism. Blue/green alias-swap operator details are documented in
 [`../deployment/blue-green-alias-swap-runbook.md`](../deployment/blue-green-alias-swap-runbook.md).
-Deeper pause/resume/checkpointing polish remains a separate follow-up patch.
+Pause/resume/checkpointing is covered by [`enrichment-pause-resume-checkpointing.md`](enrichment-pause-resume-checkpointing.md).

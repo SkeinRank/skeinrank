@@ -281,3 +281,8 @@ Patch 61B does not add:
 
 Those remain separate operator or future-product concerns. Patch 61C is reserved
 for pause/resume/checkpointing polish.
+
+
+## Pause/resume during long runs
+
+For Celery-backed enrichment jobs, operators can pause at chunk boundaries and resume from the remaining checkpoint before the alias swap finalization step. See [`../guides/enrichment-pause-resume-checkpointing.md`](../guides/enrichment-pause-resume-checkpointing.md).

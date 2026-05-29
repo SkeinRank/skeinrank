@@ -81,6 +81,7 @@ See [`docs/product-positioning.md`](docs/product-positioning.md) for the full pr
 | Runtime bindings | Bind a profile to a concrete index/search context and pin the safe snapshot used at runtime. |
 | Evidence-assisted review | Check aliases against Elasticsearch documents before accepting terminology changes. |
 | Enrichment jobs | Write canonical values, slots, matched aliases, and snapshot metadata back into indexed documents. |
+| Pause/resume checkpoints | Pause Celery-backed enrichment jobs at chunk boundaries and resume from the remaining checkpoint. |
 | Search Playground | Preview how raw queries become governed runtime context before integrating downstream search/RAG. |
 
 ## Why SkeinRank
@@ -137,7 +138,7 @@ Default local URLs:
 | RabbitMQ Management | `http://127.0.0.1:15672` |
 | PostgreSQL | `127.0.0.1:15432` |
 
-Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md).
+Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md). Enrichment pause/resume and chunk checkpointing are documented in [`docs/guides/enrichment-pause-resume-checkpointing.md`](docs/guides/enrichment-pause-resume-checkpointing.md).
 
 Operational schema check after migrations:
 

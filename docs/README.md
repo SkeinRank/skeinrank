@@ -25,6 +25,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/terminology-as-code.md`](guides/terminology-as-code.md) — 60A Terminology-as-Code import/export workflow: YAML/JSON in Git, JSON APIs, PostgreSQL control-plane state, and binding-scoped runtime snapshot artifacts.
 - [`guides/dictionary-cli-planning.md`](guides/dictionary-cli-planning.md) — 60B CLI `lint`, server-backed `plan`, and `apply --plan-output` workflow for JSON/YAML dictionaries.
 - [`deployment/gitops-delivery-runbook.md`](deployment/gitops-delivery-runbook.md) — 60C GitOps delivery runbook for GitLab CI, ArgoCD, Flux, and binding-scoped runtime artifacts.
+- [`guides/enrichment-pause-resume-checkpointing.md`](guides/enrichment-pause-resume-checkpointing.md) — 61C pause/resume controls and chunk checkpoint metadata for Celery-backed enrichment jobs.
 - [`../examples/gitops-delivery`](../examples/gitops-delivery) — reference GitLab CI, ArgoCD, Flux, and Kustomize examples for runtime artifact delivery.
 - [`concepts/coverage-framework.md`](concepts/coverage-framework.md) — slots, tags, ambiguous aliases, binding policies, and evaluation guardrails.
 - [`adr/0001-headless-runtime-contracts.md`](adr/0001-headless-runtime-contracts.md) — accepted architecture decision for headless runtime boundaries.

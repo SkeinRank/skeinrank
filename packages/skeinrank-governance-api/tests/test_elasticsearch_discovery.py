@@ -1759,3 +1759,241 @@ def test_elasticsearch_enrichment_preflight_blocks_concurrent_active_job(
         "already active" in issue
         for issue in second_job_response.json()["detail"]["blocking_issues"]
     )
+
+
+def test_queued_enrichment_job_can_be_paused_and_resumed(monkeypatch, tmp_path):
+    from skeinrank_governance_api.routes import governance
+    from skeinrank_governance_api.worker_queue import EnqueuedTask
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    enqueued_jobs: list[int] = []
+
+    def fake_enqueue_elasticsearch_enrichment_job(*, config, job_id):
+        enqueued_jobs.append(job_id)
+        return EnqueuedTask(
+            task_id=f"coordinator-task-{len(enqueued_jobs)}",
+            queue=config.celery_task_queue,
+        )
+
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_job",
+        fake_enqueue_elasticsearch_enrichment_job,
+    )
+    client = _client(
+        tmp_path,
+        elasticsearch_url="http://es:9200",
+        enrichment_jobs_backend="celery",
+    )
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    job_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 2},
+    )
+    assert job_response.status_code == 201
+    job_id = job_response.json()["id"]
+    assert enqueued_jobs == [job_id]
+
+    pause_response = client.post(
+        f"/v1/governance/elasticsearch/jobs/{job_id}/pause",
+        json={"reason": "maintenance window closed"},
+    )
+    assert pause_response.status_code == 200
+    paused = pause_response.json()
+    assert paused["status"] == "paused"
+    assert paused["result_json"]["pause"]["reason"] == "maintenance window closed"
+    assert paused["finished_at"] is None
+
+    resume_response = client.post(
+        f"/v1/governance/elasticsearch/jobs/{job_id}/resume",
+        json={"reason": "maintenance window reopened"},
+    )
+    assert resume_response.status_code == 200
+    resumed = resume_response.json()
+    assert resumed["status"] == "queued"
+    assert resumed["result_json"]["resume_coordinator_task_id"] == "coordinator-task-2"
+    assert resumed["result_json"]["resume_history"][0]["reason"] == (
+        "maintenance window reopened"
+    )
+    assert enqueued_jobs == [job_id, job_id]
+
+
+def test_running_chunked_enrichment_job_pauses_at_checkpoint_and_resumes(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api import job_runner
+    from skeinrank_governance_api.routes import governance
+    from skeinrank_governance_api.worker_queue import EnqueuedTask
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    monkeypatch.setattr(
+        job_runner, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+
+    def fake_enqueue_elasticsearch_enrichment_job(*, config, job_id):
+        return EnqueuedTask(task_id="coordinator-task", queue=config.celery_task_queue)
+
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_job",
+        fake_enqueue_elasticsearch_enrichment_job,
+    )
+
+    enqueued_chunks: list[dict[str, int]] = []
+
+    def fake_enqueue_elasticsearch_enrichment_chunk(
+        *, config, job_id, chunk_index, offset, limit
+    ):
+        enqueued_chunks.append(
+            {
+                "job_id": job_id,
+                "chunk_index": chunk_index,
+                "offset": offset,
+                "limit": limit,
+            }
+        )
+        return EnqueuedTask(
+            task_id=f"chunk-task-{chunk_index}-{len(enqueued_chunks)}",
+            queue=config.celery_task_queue,
+        )
+
+    import skeinrank_governance_api.worker_queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue,
+        "enqueue_elasticsearch_enrichment_chunk",
+        fake_enqueue_elasticsearch_enrichment_chunk,
+    )
+    monkeypatch.setattr(
+        governance,
+        "enqueue_elasticsearch_enrichment_chunk",
+        fake_enqueue_elasticsearch_enrichment_chunk,
+    )
+
+    client = _client(
+        tmp_path,
+        elasticsearch_url="http://es:9200",
+        enrichment_jobs_backend="celery",
+    )
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    client.post(
+        "/v1/governance/profiles/default_it/terms",
+        json={"canonical_value": "kubernetes", "slot": "TOOL"},
+    )
+    client.post(
+        "/v1/governance/profiles/default_it/terms/kubernetes/aliases",
+        json={"alias_value": "k8s", "confidence": 0.97},
+    )
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    job_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
+        json={"max_documents": 3, "chunk_size": 2},
+    )
+    job_id = job_response.json()["id"]
+
+    coordinator_result = job_runner.run_elasticsearch_enrichment_job(
+        job_id=job_id,
+        config=client.app.state.config,
+    )
+    assert coordinator_result["chunks_queued"] == 2
+    assert [item["chunk_index"] for item in enqueued_chunks] == [0, 1]
+
+    first_chunk = job_runner.run_elasticsearch_enrichment_chunk(
+        job_id=job_id,
+        chunk_index=0,
+        offset=0,
+        limit=2,
+        config=client.app.state.config,
+    )
+    assert first_chunk["status"] == "running"
+
+    pause_response = client.post(
+        f"/v1/governance/elasticsearch/jobs/{job_id}/pause",
+        json={"reason": "operator checkpoint"},
+    )
+    assert pause_response.status_code == 200
+    assert pause_response.json()["status"] == "pause_requested"
+
+    paused_chunk = job_runner.run_elasticsearch_enrichment_chunk(
+        job_id=job_id,
+        chunk_index=1,
+        offset=2,
+        limit=1,
+        config=client.app.state.config,
+    )
+    assert paused_chunk["status"] == "paused"
+    assert paused_chunk["paused"] is True
+
+    detail_response = client.get(f"/v1/governance/elasticsearch/jobs/{job_id}")
+    assert detail_response.status_code == 200
+    paused_payload = detail_response.json()
+    assert paused_payload["status"] == "paused"
+    checkpoint = paused_payload["result_json"]["chunked_enrichment"]["checkpoint"]
+    assert checkpoint["completed_chunk_indices"] == [0]
+    assert checkpoint["remaining_chunk_indices"] == [1]
+    assert checkpoint["last_completed_chunk_index"] == 0
+    assert checkpoint["documents_seen"] == 2
+    assert checkpoint["documents_enriched"] == 1
+
+    resume_response = client.post(
+        f"/v1/governance/elasticsearch/jobs/{job_id}/resume",
+        json={"reason": "continue from checkpoint"},
+    )
+    assert resume_response.status_code == 200
+    resumed_payload = resume_response.json()
+    assert resumed_payload["status"] == "running"
+    resumed_chunks = resumed_payload["result_json"]["chunked_enrichment"][
+        "resumed_chunks"
+    ]
+    assert [item["chunk_index"] for item in resumed_chunks] == [1]
+    assert [item["chunk_index"] for item in enqueued_chunks] == [0, 1, 1]
+
+    second_chunk = job_runner.run_elasticsearch_enrichment_chunk(
+        job_id=job_id,
+        chunk_index=1,
+        offset=2,
+        limit=1,
+        config=client.app.state.config,
+    )
+    assert second_chunk["status"] == "succeeded"
+
+    final_response = client.get(f"/v1/governance/elasticsearch/jobs/{job_id}")
+    assert final_response.status_code == 200
+    final_payload = final_response.json()
+    assert final_payload["status"] == "succeeded"
+    final_checkpoint = final_payload["result_json"]["chunked_enrichment"]["checkpoint"]
+    assert final_checkpoint["completed_chunk_indices"] == [0, 1]
+    assert final_checkpoint["remaining_chunk_indices"] == []
+    assert final_payload["documents_seen"] == 3
+    assert final_payload["documents_enriched"] == 2

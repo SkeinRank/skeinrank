@@ -360,9 +360,13 @@ does not create jobs, write documents, reindex, or swap aliases.
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
 GET  /v1/governance/elasticsearch/jobs?binding_id=...
 GET  /v1/governance/elasticsearch/jobs/{job_id}
+POST /v1/governance/elasticsearch/jobs/{job_id}/pause
+POST /v1/governance/elasticsearch/jobs/{job_id}/resume
 POST /v1/governance/elasticsearch/jobs/{job_id}/cancel
 POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
 ```
+
+Pause/resume is intended for Celery-backed chunked jobs. It records checkpoint metadata under `result_json.chunked_enrichment.checkpoint` and requeues only remaining chunks when a paused job resumes. See [`../guides/enrichment-pause-resume-checkpointing.md`](../guides/enrichment-pause-resume-checkpointing.md).
 
 Rollback is conservative and only applies to succeeded `reindex_alias_swap` jobs
 with completed alias swaps and valid rollout metadata. See

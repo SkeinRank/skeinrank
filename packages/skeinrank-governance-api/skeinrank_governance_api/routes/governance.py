@@ -131,7 +131,9 @@ from ..schemas import (
     ElasticsearchDryRunMatchedAlias,
     ElasticsearchEnrichmentJobCancelRequest,
     ElasticsearchEnrichmentJobCreateRequest,
+    ElasticsearchEnrichmentJobPauseRequest,
     ElasticsearchEnrichmentJobResponse,
+    ElasticsearchEnrichmentJobResumeRequest,
     ElasticsearchEnrichmentJobRollbackRequest,
     ElasticsearchEnrichmentPreflightResponse,
     ElasticsearchEvidenceDocument,
@@ -171,6 +173,7 @@ from ..schemas import (
 )
 from ..worker_queue import (
     EnrichmentJobQueueError,
+    enqueue_elasticsearch_enrichment_chunk,
     enqueue_elasticsearch_enrichment_job,
 )
 
@@ -1332,12 +1335,12 @@ def cancel_elasticsearch_enrichment_job(
     if request_body.reason:
         cancellation["reason"] = request_body.reason
 
-    if job.status == "queued":
+    if job.status in {"queued", "paused"}:
         job.status = "cancelled"
         job.finished_at = now
         job.error_message = None
         cancellation["cancelled_at"] = now.isoformat()
-    elif job.status == "running":
+    elif job.status in {"running", "pause_requested"}:
         job.status = "cancel_requested"
     elif job.status == "cancel_requested":
         pass
@@ -1351,6 +1354,177 @@ def cancel_elasticsearch_enrichment_job(
         **(job.result_json or {}),
         "cancellation": cancellation,
     }
+    session.commit()
+    session.refresh(job)
+    return _elasticsearch_enrichment_job_response(job)
+
+
+@router.post(
+    "/elasticsearch/jobs/{job_id}/pause",
+    response_model=ElasticsearchEnrichmentJobResponse,
+)
+def pause_elasticsearch_enrichment_job(
+    job_id: int,
+    request_body: ElasticsearchEnrichmentJobPauseRequest | None = Body(default=None),
+    current_user: AuthContext = Depends(require_roles("admin", "moderator")),
+    session: Session = Depends(get_session),
+) -> ElasticsearchEnrichmentJobResponse:
+    """Request a checkpointed pause for a queued or running enrichment job."""
+
+    job = _get_elasticsearch_enrichment_job_or_404(session, job_id)
+    request_body = request_body or ElasticsearchEnrichmentJobPauseRequest()
+    now = utc_now()
+    pause = {
+        "requested_by": current_user.username,
+        "requested_at": now.isoformat(),
+    }
+    if request_body.reason:
+        pause["reason"] = request_body.reason
+
+    result_json = dict(job.result_json or {})
+    result_json["pause"] = {**dict(result_json.get("pause") or {}), **pause}
+
+    if job.status == "queued":
+        job.status = "paused"
+        result_json["pause"]["paused_at"] = now.isoformat()
+    elif job.status == "running":
+        job.status = "pause_requested"
+    elif job.status in {"pause_requested", "paused"}:
+        pass
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot pause enrichment job with status: {job.status}",
+        )
+
+    job.result_json = _refresh_enrichment_checkpoint(result_json)
+    session.commit()
+    session.refresh(job)
+    return _elasticsearch_enrichment_job_response(job)
+
+
+@router.post(
+    "/elasticsearch/jobs/{job_id}/resume",
+    response_model=ElasticsearchEnrichmentJobResponse,
+)
+def resume_elasticsearch_enrichment_job(
+    job_id: int,
+    request: Request,
+    request_body: ElasticsearchEnrichmentJobResumeRequest | None = Body(default=None),
+    current_user: AuthContext = Depends(require_roles("admin")),
+    session: Session = Depends(get_session),
+) -> ElasticsearchEnrichmentJobResponse:
+    """Resume a paused enrichment job from its last chunk checkpoint."""
+
+    job = _get_elasticsearch_enrichment_job_or_404(session, job_id)
+    request_body = request_body or ElasticsearchEnrichmentJobResumeRequest()
+    if job.status != "paused":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot resume enrichment job with status: {job.status}",
+        )
+    if request.app.state.config.enrichment_jobs_backend != "celery":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Pause/resume is only supported for the celery enrichment backend.",
+        )
+
+    now = utc_now()
+    result_json = dict(job.result_json or {})
+    resume_event = {
+        "requested_by": current_user.username,
+        "requested_at": now.isoformat(),
+    }
+    if request_body.reason:
+        resume_event["reason"] = request_body.reason
+    resume_history = list(result_json.get("resume_history") or [])
+    resume_history.append(resume_event)
+    result_json["resume_history"] = resume_history
+    result_json.pop("pause", None)
+
+    chunked = dict(result_json.get("chunked_enrichment") or {})
+    if not chunked:
+        job.status = "queued"
+        job.error_message = None
+        job.finished_at = None
+        job.result_json = _refresh_enrichment_checkpoint(result_json)
+        session.commit()
+        session.refresh(job)
+        try:
+            queued_task = enqueue_elasticsearch_enrichment_job(
+                config=request.app.state.config,
+                job_id=job.id,
+            )
+        except EnrichmentJobQueueError as exc:
+            job.status = "failed"
+            job.error_message = str(exc)
+            job.finished_at = utc_now()
+            clear_binding_pending_snapshot(job.binding)
+            session.commit()
+            session.refresh(job)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+        result_json = dict(job.result_json or {})
+        result_json["resume_coordinator_task_id"] = queued_task.task_id
+        result_json["resume_queue"] = queued_task.queue
+        job.result_json = result_json
+        session.commit()
+        session.refresh(job)
+        return _elasticsearch_enrichment_job_response(job)
+
+    pending_specs = _pending_enrichment_chunk_specs(result_json)
+    if not pending_specs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No pending enrichment chunks are available to resume.",
+        )
+
+    job.status = "running"
+    job.error_message = None
+    job.finished_at = None
+    job.result_json = _refresh_enrichment_checkpoint(result_json)
+    session.commit()
+    session.refresh(job)
+
+    resumed_chunks: list[dict[str, object]] = []
+    try:
+        for spec in pending_specs:
+            queued_task = enqueue_elasticsearch_enrichment_chunk(
+                config=request.app.state.config,
+                job_id=job.id,
+                chunk_index=int(spec["chunk_index"]),
+                offset=int(spec["offset"]),
+                limit=int(spec["limit"]),
+            )
+            resumed_chunks.append(
+                {
+                    "chunk_index": int(spec["chunk_index"]),
+                    "task_id": queued_task.task_id,
+                    "queue": queued_task.queue,
+                }
+            )
+    except EnrichmentJobQueueError as exc:
+        job.status = "paused"
+        result_json = dict(job.result_json or {})
+        result_json["resume_error"] = str(exc)
+        job.result_json = _refresh_enrichment_checkpoint(result_json)
+        session.commit()
+        session.refresh(job)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    result_json = dict(job.result_json or {})
+    chunked = dict(result_json.get("chunked_enrichment") or {})
+    resumed_history = list(chunked.get("resumed_chunks") or [])
+    resumed_history.extend(resumed_chunks)
+    chunked["resumed_chunks"] = resumed_history
+    chunked["last_resumed_at"] = now.isoformat()
+    result_json["chunked_enrichment"] = chunked
+    job.result_json = _refresh_enrichment_checkpoint(result_json)
     session.commit()
     session.refresh(job)
     return _elasticsearch_enrichment_job_response(job)
@@ -3002,7 +3176,13 @@ def _dry_run_payload(
     }
 
 
-ACTIVE_ENRICHMENT_JOB_STATUSES = {"queued", "running", "cancel_requested"}
+ACTIVE_ENRICHMENT_JOB_STATUSES = {
+    "queued",
+    "running",
+    "pause_requested",
+    "paused",
+    "cancel_requested",
+}
 
 
 def _active_elasticsearch_enrichment_job_for_binding(
@@ -3458,6 +3638,99 @@ def _rollout_expected_current_indices(
         status_code=status.HTTP_409_CONFLICT,
         detail="Expected post-rollout alias state is missing.",
     )
+
+
+def _refresh_enrichment_checkpoint(result_json: dict[str, object]) -> dict[str, object]:
+    """Return result JSON with operator-facing enrichment checkpoint metadata."""
+
+    chunked_raw = result_json.get("chunked_enrichment")
+    if not isinstance(chunked_raw, dict):
+        return result_json
+    chunked = dict(chunked_raw)
+    chunk_specs = [
+        dict(item)
+        for item in chunked.get("chunk_specs") or []
+        if isinstance(item, dict)
+    ]
+    chunks = [
+        dict(item) for item in chunked.get("chunks") or [] if isinstance(item, dict)
+    ]
+
+    completed_indices = _chunk_indices_with_status(chunks, "succeeded")
+    failed_indices = _chunk_indices_with_status(chunks, "failed")
+    cancelled_indices = _chunk_indices_with_status(chunks, "cancelled")
+    processed_indices = (
+        set(completed_indices) | set(failed_indices) | set(cancelled_indices)
+    )
+    all_indices = [
+        int(spec.get("chunk_index"))
+        for spec in chunk_specs
+        if spec.get("chunk_index") is not None
+    ]
+    remaining_indices = [
+        index for index in all_indices if index not in processed_indices
+    ]
+
+    chunked["chunks_completed"] = len(completed_indices)
+    chunked["chunks_failed"] = len(failed_indices)
+    chunked["chunks_cancelled"] = len(cancelled_indices)
+    chunked["checkpoint"] = {
+        "chunks_total": int(chunked.get("chunks_total") or len(all_indices)),
+        "completed_chunk_indices": completed_indices,
+        "failed_chunk_indices": failed_indices,
+        "cancelled_chunk_indices": cancelled_indices,
+        "remaining_chunk_indices": remaining_indices,
+        "last_completed_chunk_index": completed_indices[-1]
+        if completed_indices
+        else None,
+        "documents_seen": sum(
+            int(chunk.get("documents_seen") or 0) for chunk in chunks
+        ),
+        "documents_enriched": sum(
+            int(chunk.get("documents_enriched") or 0) for chunk in chunks
+        ),
+        "documents_failed": sum(
+            int(chunk.get("documents_failed") or 0) for chunk in chunks
+        ),
+        "updated_at": utc_now().isoformat(),
+    }
+    return {**result_json, "chunked_enrichment": chunked}
+
+
+def _chunk_indices_with_status(
+    chunks: list[dict[str, object]], status_value: str
+) -> list[int]:
+    return sorted(
+        int(chunk.get("chunk_index"))
+        for chunk in chunks
+        if chunk.get("status") == status_value and chunk.get("chunk_index") is not None
+    )
+
+
+def _pending_enrichment_chunk_specs(
+    result_json: dict[str, object],
+) -> list[dict[str, int]]:
+    refreshed = _refresh_enrichment_checkpoint(result_json)
+    chunked = dict(refreshed.get("chunked_enrichment") or {})
+    checkpoint = dict(chunked.get("checkpoint") or {})
+    remaining_indices = {
+        int(index) for index in checkpoint.get("remaining_chunk_indices") or []
+    }
+    pending: list[dict[str, int]] = []
+    for item in chunked.get("chunk_specs") or []:
+        if not isinstance(item, dict) or item.get("chunk_index") is None:
+            continue
+        chunk_index = int(item["chunk_index"])
+        if chunk_index not in remaining_indices:
+            continue
+        pending.append(
+            {
+                "chunk_index": chunk_index,
+                "offset": int(item.get("offset") or 0),
+                "limit": int(item.get("limit") or 0),
+            }
+        )
+    return pending
 
 
 def _get_elasticsearch_enrichment_job_or_404(
