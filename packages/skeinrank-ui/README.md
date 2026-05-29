@@ -62,6 +62,7 @@ The governance console currently includes:
 - API Access page for personal API tokens and admin-managed service accounts
 - role-aware controls for Admin, Moderator, and Contributor users
 - AI Inbox page for human-in-the-loop review of agent proposals with cards plus a detail panel for risk, validation findings, apply-policy, evidence snippets, source payload, and approve/reject actions
+- Search Playground page with single-query preview, explicit search, and split-screen snapshot compare across two binding-backed runtime contexts
 - Suggestions page for legacy/dev proposal creation, filtering, approving, rejecting, and evidence-checking alias/canonical term proposals
 - Guardrails page for global and profile-scoped stop-list management
 - Integrations page for manual Elasticsearch binding configs, shared-index validation, time-window filters, dry-run previews, and enrichment job status
@@ -213,3 +214,9 @@ The panel shows:
 Patch 40 adds a `Rollback alias` action for admins/moderators when rollback is
 available. The UI shows a confirmation prompt, calls the safe rollback endpoint,
 and updates the rollout panel with completed rollback metadata.
+
+## Search Playground snapshot compare
+
+The Search Playground supports a safe split-screen compare mode. Users pick two existing Elasticsearch bindings, enter one query, and the UI calls `POST /v1/query/plan` for each binding. This compares active/staging or prod/draft runtime behavior without introducing a new backend endpoint or mutating snapshots.
+
+Compare mode is intentionally read-only: it does not run enrichment jobs, publish snapshots, apply proposals, or write to Elasticsearch. The separate `Run search` button remains the only path that calls runtime search.

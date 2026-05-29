@@ -1076,3 +1076,8 @@ Patch 57B extends the model-provider abstraction with concrete `openrouter` and 
 ### Patch 57C — Company model integration docs and tests
 
 Patch 57C adds an offline company-model integration plan for connecting private/local model endpoints to the alias scout. It documents the `local_endpoint` flow, verifies redacted provider plans, and keeps live calls behind explicit pilot flags. See [`docs/deployment/company-model-integration.md`](docs/deployment/company-model-integration.md).
+
+
+### Patch 58C — Playground Snapshot Compare UI
+
+Search Playground now includes a split-screen compare mode for binding-backed runtime snapshots. The UI compares two existing bindings by calling the existing `POST /v1/query/plan` endpoint twice, then highlights canonical query, matched alias, canonical value, replacement, and snapshot differences. No new backend endpoint or runtime mutation is introduced.

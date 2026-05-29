@@ -26,6 +26,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/core-sdk-and-cli.md`](guides/core-sdk-and-cli.md) — local dictionary validation, extraction, canonicalization, and document extraction.
 - [`guides/governance-console.md`](guides/governance-console.md) — governance API/UI workflow.
 - [`guides/proposal-inbox-ui.md`](guides/proposal-inbox-ui.md) — review-first AI Inbox detail panel for evidence, risk, validation findings, and approve/reject actions.
+- [`guides/playground-snapshot-compare-ui.md`](guides/playground-snapshot-compare-ui.md) — Search Playground split-screen compare mode for binding-backed runtime snapshots.
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.
