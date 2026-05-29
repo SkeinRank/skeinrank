@@ -50,6 +50,47 @@ make demo-status
 ```
 
 
+## One-command product tour
+
+Patch 59B adds a demo tour smoke command that verifies the seeded Control Plane story after the stack is running.
+
+Plan the tour without making service calls:
+
+```bash
+make demo-tour-plan
+```
+
+Run the read-oriented smoke check against an already seeded stack:
+
+```bash
+make demo-tour-smoke
+```
+
+Run the one-command tour from a running local stack:
+
+```bash
+make demo-tour
+```
+
+`make demo-tour` calls `make demo-reset`, then checks Playground, AI Inbox, Schema & Snapshots, and the committed walkthrough contract. It writes:
+
+```text
+examples/platform_ops_demo/reports/platform_ops_demo_tour_report.json
+```
+
+Inspect the report with:
+
+```bash
+make demo-tour-show
+```
+
+The underlying stdlib-only script is:
+
+```text
+examples/platform_ops_demo/demo_product_tour.py
+```
+
+
 ## Guided Control Plane walkthrough
 
 Patch 59A turns this seed into a screenshot-ready product walkthrough for the focused three-tab UI:

@@ -32,6 +32,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/control-plane-navigation-slim-down.md`](guides/control-plane-navigation-slim-down.md) — 58F primary navigation contract with Playground, AI Inbox, and Schema & Snapshots plus utility/legacy tools.
 - [`guides/read-only-legacy-admin-cockpit.md`](guides/read-only-legacy-admin-cockpit.md) — 58G lockdown for legacy/admin write controls with an explicit local-development bypass.
 - [`guides/seeded-demo-walkthrough.md`](guides/seeded-demo-walkthrough.md) — 59A seeded product walkthrough for Playground, AI Inbox, Schema & Snapshots, and read-only legacy cockpit.
+- [`guides/demo-product-tour.md`](guides/demo-product-tour.md) — 59B one-command demo tour and smoke report (`make demo-tour`, `make demo-tour-smoke`, `platform_ops_demo_tour_report.json`).
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.

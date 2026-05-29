@@ -98,6 +98,14 @@ make demo-reset
 
 This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates evidence-backed AI Inbox proposals, checks query planning evidence, and runs enrichment for the focused Control Plane demo: Playground, AI Inbox, and Schema & Snapshots. The guided tour is documented in [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md).
 
+For a one-command seeded product tour and smoke report, run:
+
+```bash
+make demo-tour
+```
+
+This resets the local demo, verifies the three-tab walkthrough, and writes `examples/platform_ops_demo/reports/platform_ops_demo_tour_report.json`. Use `make demo-tour-smoke` for the read-oriented smoke check against an already seeded stack, and see [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md).
+
 Default local URLs:
 
 | Service | URL |
