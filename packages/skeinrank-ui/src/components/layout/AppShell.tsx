@@ -7,6 +7,7 @@ import { useTheme } from "../../theme";
 import type { AuthUser } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { ControlPlaneStatusBanner } from "./ControlPlaneStatusBanner";
 
 export type AppSection = "dashboard" | "terms" | "proposal-inbox" | "suggestions" | "guardrails" | "integrations" | "search-playground" | "snapshots" | "api-access" | "users";
 
@@ -219,6 +220,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
               <Badge>MVP</Badge>
             </div>
           </div>
+          <ControlPlaneStatusBanner />
         </header>
         <div className="p-6">{children}</div>
       </main>

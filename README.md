@@ -1085,3 +1085,7 @@ Search Playground now includes a split-screen compare mode for binding-backed ru
 ### Patch 58D — Schema & Snapshots Tree UI
 
 The Snapshots section now includes a read-heavy Schema & Snapshots workspace with a tree + detail layout for `binding → profile → category/slot → canonical term → aliases` and a snapshot timeline mode. The UI uses existing profile, binding, terms, and snapshot-summary endpoints; it does not add manual CRUD, enrichment triggers, snapshot publishing, or rollback actions. See [`docs/guides/schema-snapshots-tree-ui.md`](docs/guides/schema-snapshots-tree-ui.md).
+
+### Patch 58E — UI polish / empty states / degraded banners
+
+The 3-tab Control Plane UI now surfaces degraded operational state from `GET /v1/ops/alerts/report` as a non-mutating banner and improves empty states for AI Inbox and Search Playground. This keeps the UI focused on review, debugging, and audit without adding manual CRUD, custom monitoring dashboards, enrichment triggers, or new backend endpoints. See [`docs/guides/ui-polish-empty-states-degraded-banners.md`](docs/guides/ui-polish-empty-states-degraded-banners.md).

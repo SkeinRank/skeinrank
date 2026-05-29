@@ -255,9 +255,12 @@ function InboxToolbar({
           </div>
         </div>
       ) : (
-        <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-          No profiles found. Seed a profile before reviewing agent proposals.
-        </p>
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4 text-sm dark:border-slate-800 dark:bg-slate-900/35">
+          <div className="font-semibold text-slate-800 dark:text-slate-100">No profiles are ready for AI Inbox</div>
+          <p className="mt-1 leading-6 text-slate-500 dark:text-slate-400">
+            Seed a profile through the headless API, dictionary import, or GitOps workflow before reviewers triage agent proposals.
+          </p>
+        </div>
       )}
 
       <label className="block space-y-1.5">
@@ -689,12 +692,15 @@ function StatusBadge({ status }: { status: SuggestionStatus }) {
 }
 
 function EmptyInbox({ statusFilter }: { statusFilter: SuggestionStatus | "all" }) {
+  const scope = statusFilter === "all" ? "proposals" : `${statusFilter} proposals`;
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-8 text-center dark:border-slate-800 dark:bg-slate-900/35">
       <Inbox className="mx-auto h-8 w-8 text-slate-400" />
-      <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">No proposals match this filter.</h3>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        {statusFilter === "pending" ? "The human review queue is empty." : "Switch back to pending to see active moderation work."}
+      <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">No {scope} in this inbox view</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+        {statusFilter === "pending"
+          ? "The human review queue is empty. New agent proposals will appear here after scout workers submit candidates."
+          : "Switch back to pending to see active moderation work, or keep this filter to audit already processed proposals."}
       </p>
     </div>
   );

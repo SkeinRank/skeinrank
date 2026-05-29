@@ -254,7 +254,7 @@ describe("ProposalInboxPage", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "AI Inbox" }));
-    await screen.findByText("pg → postgresql");
+    expect((await screen.findAllByText("pg → postgresql")).length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText("Review comment"), {
       target: { value: "Evidence and risk look safe." },
@@ -271,7 +271,7 @@ describe("ProposalInboxPage", () => {
       );
     });
 
-    expect(await screen.findByText("No proposals match this filter.")).toBeInTheDocument();
+    expect(await screen.findByText("No pending proposals in this inbox view")).toBeInTheDocument();
   });
 
   it("keeps contributor users in read-only inbox mode", async () => {
@@ -280,7 +280,7 @@ describe("ProposalInboxPage", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "AI Inbox" }));
-    await screen.findByText("pg → postgresql");
+    expect((await screen.findAllByText("pg → postgresql")).length).toBeGreaterThan(0);
 
     expect(screen.getByText("Read-only mode")).toBeInTheDocument();
     expect(screen.getByText("Your role can inspect proposals but cannot approve or reject them.")).toBeInTheDocument();

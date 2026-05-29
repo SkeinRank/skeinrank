@@ -1,3 +1,48 @@
+
+export type AlertingEventSeverity = "info" | "warning" | "critical" | string;
+
+export type AlertingEvent = {
+  id: string;
+  severity: AlertingEventSeverity;
+  source: string;
+  signal: string;
+  message: string;
+  details: Record<string, unknown>;
+  recommended_action: string | null;
+};
+
+export type AlertingReport = {
+  schema_version: string;
+  status: "ok" | "degraded" | string;
+  severity: AlertingEventSeverity;
+  generated_at: string;
+  service: {
+    name: string;
+    version: string | null;
+  };
+  environment: string;
+  request_id: string | null;
+  summary: {
+    events_total: number;
+    critical_events: number;
+    warning_events: number;
+    info_events: number;
+    degraded_sources: string[];
+  };
+  events: AlertingEvent[];
+  hooks: Record<string, unknown>;
+  recommendations: string[];
+  safety: {
+    read_only: boolean;
+    database_mutation_enabled: boolean;
+    runtime_mutation_enabled: boolean;
+    openrouter_calls: boolean;
+    elasticsearch_calls: boolean;
+    webhook_delivery_enabled: boolean;
+    secrets_included: boolean;
+  };
+};
+
 export type DashboardReadinessItem = {
   status: string;
   configured: boolean;

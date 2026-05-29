@@ -28,6 +28,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/proposal-inbox-ui.md`](guides/proposal-inbox-ui.md) — review-first AI Inbox detail panel for evidence, risk, validation findings, and approve/reject actions.
 - [`guides/playground-snapshot-compare-ui.md`](guides/playground-snapshot-compare-ui.md) — Search Playground split-screen compare mode for binding-backed runtime snapshots.
 - [`guides/schema-snapshots-tree-ui.md`](guides/schema-snapshots-tree-ui.md) — read-heavy Schema & Snapshots tree + detail view for bindings, profiles, canonical terms, aliases, and snapshot drift.
+- [`guides/ui-polish-empty-states-degraded-banners.md`](guides/ui-polish-empty-states-degraded-banners.md) — global degraded-state banner and actionable empty states for the 3-tab Control Plane UI.
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.

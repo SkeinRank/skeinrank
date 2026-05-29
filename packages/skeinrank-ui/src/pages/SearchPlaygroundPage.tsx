@@ -303,8 +303,11 @@ export function SearchPlaygroundPage() {
               {selectedBinding ? <SelectedBindingChips binding={selectedBinding} /> : null}
 
               {bindings.length === 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-                  Create an Elasticsearch binding first. Search Playground needs a binding to resolve profile, fields, index, and runtime snapshot.
+                <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/70 px-4 py-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+                  <div className="font-semibold">No runtime bindings available for Playground</div>
+                  <p className="mt-1 leading-6">
+                    Create or seed a binding before running query-plan or snapshot compare. The Playground intentionally tests binding-backed runtime snapshots instead of loose profile edits.
+                  </p>
                 </div>
               ) : null}
 
