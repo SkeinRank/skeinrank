@@ -17,9 +17,9 @@ def test_runtime_routing_guide_documents_existing_runtime_endpoints() -> None:
 
     assert "POST /v1/text/canonicalize" in guide
     assert "POST /v1/query/plan" in guide
+    assert "POST /v1/query/route-plan" in guide
     assert "POST /v1/search" in guide
     assert "/v1/search/router" not in guide
-    assert "/v1/query/route-plan" not in guide
     assert "binding_id" in guide
     assert "binding_name" in guide
     assert "application_scope" in guide
@@ -34,6 +34,7 @@ def test_runtime_routing_examples_are_valid_json_payloads() -> None:
         "canonicalize-binding-id.request.json",
         "canonicalize-binding-name.request.json",
         "query-plan-binding-name.request.json",
+        "route-plan.request.json",
         "search-binding-id.request.json",
     }
     assert expected_files <= {path.name for path in EXAMPLES.glob("*.json")}
@@ -44,9 +45,17 @@ def test_runtime_routing_examples_are_valid_json_payloads() -> None:
         assert "skn_" not in _read(path)
         if "canonicalize" in path.name:
             assert "text" in payload
-        if "query-plan" in path.name or "search" in path.name:
+        if (
+            "query-plan" in path.name
+            or "search" in path.name
+            or "route-plan" in path.name
+        ):
             assert "query" in payload
-        assert "binding_id" in payload or "binding_name" in payload
+        assert (
+            "binding_id" in payload
+            or "binding_name" in payload
+            or "candidate_binding_ids" in payload
+        )
 
 
 def test_runtime_routing_docs_are_discoverable() -> None:
@@ -57,6 +66,7 @@ def test_runtime_routing_docs_are_discoverable() -> None:
 
     for content in (docs_index, root_readme, api_docs, package_readme):
         assert "Patch 63A" in content
+        assert "Patch 63C" in content
         assert "binding-aware" in content.lower()
 
     assert "guides/runtime-routing-api.md" in docs_index

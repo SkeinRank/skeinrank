@@ -417,6 +417,35 @@ Example binding-aware canonicalization request:
 The response includes `runtime_context` with resolved profile, binding, index,
 fields, target field, filters, snapshot source, and sanitized application scope.
 
+
+Patch 63C adds a read-only multi-binding route planner:
+
+```text
+POST /v1/query/route-plan
+```
+
+Use it when an application has a global search box and wants SkeinRank to rank a
+set of `candidate_binding_ids` before the application decides whether to call
+`/v1/search` or `/v1/search/multi`. The response has
+`mode = "route_plan_only"`, `selected_bindings`, `rejected_bindings`, and
+`failed_bindings`. It builds per-binding query plans but does not execute
+Elasticsearch search and does not mutate runtime state.
+
+Example request:
+
+```json
+{
+  "candidate_binding_ids": [1, 2, 3],
+  "query": "k8s pg timeout",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "all"
+  },
+  "max_selected_bindings": 2,
+  "include_rejected": true
+}
+```
+
 ## Auth and API access
 
 The governance API supports local auth, users, roles, personal API tokens, service accounts, and token revocation.

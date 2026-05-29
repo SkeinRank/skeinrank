@@ -1831,3 +1831,14 @@ trigger-gated for noisy surfaces such as `pg`. Dictionary import/export preserve
 `context_triggers`, runtime snapshots include them, and explanation payloads expose
 `context_triggers` plus `matched_context_triggers`. See
 [`docs/guides/context-trigger-disambiguation.md`](../../docs/guides/context-trigger-disambiguation.md).
+
+
+## Patch 63C — Multi-binding route plan API
+
+The runtime API now includes `POST /v1/query/route-plan`, a read-only
+multi-binding planner. It accepts `candidate_binding_ids`, builds the same
+binding-aware plan used by `/v1/query/plan` for each candidate, scores candidates
+with explainable `score_reasons`, and returns `selected_bindings`,
+`rejected_bindings`, and `failed_bindings` without executing Elasticsearch
+search. See `docs/guides/runtime-routing-api.md` and
+`examples/runtime-routing-api/route-plan.request.json`.

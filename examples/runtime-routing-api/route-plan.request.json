@@ -1,0 +1,12 @@
+{
+  "candidate_binding_ids": [1, 2, 3],
+  "query": "k8s pg timeout",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "all"
+  },
+  "max_selected_bindings": 2,
+  "min_score": 0.01,
+  "include_rejected": true,
+  "include_evidence": true
+}

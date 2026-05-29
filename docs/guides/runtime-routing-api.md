@@ -142,8 +142,95 @@ a warning. Do not rely on either preview shape for production search paths.
 
 Patch 63A made the binding-aware contract explicit. Patch 63B adds deterministic
 `context_triggers` for aliases so noisy surfaces can be gated by nearby query
-terms without introducing an LLM router. Multi-binding route planning remains a
-later runtime-routing patch.
+terms without introducing an LLM router. Patch 63C adds a read-only multi-binding
+route planner for global-search and fan-out scenarios.
 
 See also: [`context-trigger-disambiguation.md`](context-trigger-disambiguation.md).
 
+
+## Patch 63C — Multi-binding route plan API
+
+Patch 63C adds a read-only route planner for callers that already know a set of
+candidate runtime contexts but need SkeinRank to rank which binding should handle
+a query.
+
+```text
+POST /v1/query/route-plan
+```
+
+This endpoint is intentionally not a search router. The route planner does not execute Elasticsearch search, does not call `/v1/search/multi`, and does not mutate
+profiles, aliases, bindings, snapshots, or proposals. It builds the same
+binding-aware query plan that `/v1/query/plan` would build for each candidate
+binding, scores the binding contexts, and returns selected/rejected/failed
+planning results.
+
+Request shape:
+
+```json
+{
+  "candidate_binding_ids": [1, 2, 3],
+  "query": "k8s pg timeout",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "all"
+  },
+  "max_selected_bindings": 2,
+  "min_score": 0.01,
+  "include_rejected": true,
+  "include_evidence": true
+}
+```
+
+Response shape:
+
+```json
+{
+  "query": "k8s pg timeout",
+  "mode": "route_plan_only",
+  "candidate_binding_ids": [1, 2, 3],
+  "selected_binding_ids": [1],
+  "total_bindings": 3,
+  "selected_count": 1,
+  "rejected_count": 1,
+  "failed_count": 1,
+  "selected_bindings": [
+    {
+      "binding_id": 1,
+      "binding_name": "infra incidents prod",
+      "profile_name": "infra_incidents",
+      "index_name": "incidents-prod",
+      "score": 0.75,
+      "score_reasons": ["matched_aliases:2", "application_scope:workspace"],
+      "reason": "matched_aliases:2",
+      "canonical_query": "kubernetes postgresql timeout",
+      "canonical_values": ["kubernetes", "postgresql"],
+      "matched_aliases": ["k8s", "pg"],
+      "runtime_context": {
+        "mode": "binding_latest_profile",
+        "binding_id": 1,
+        "profile_name": "infra_incidents"
+      }
+    }
+  ],
+  "rejected_bindings": [],
+  "failed_bindings": [
+    {
+      "binding_id": 3,
+      "error": "Elasticsearch binding not found: 3"
+    }
+  ],
+  "warnings": []
+}
+```
+
+Scoring is deterministic and explainable. It favors candidate bindings with
+matched aliases, matched canonical values, matched `context_triggers`, matching
+`application_scope` metadata, and binding-pinned runtime snapshots. The score is
+only a route-planning hint; application backends should still decide whether to
+run `/v1/search` for one selected binding or `/v1/search/multi` for several
+selected bindings.
+
+Use this endpoint when the application has a global search box such as `All docs`
+and wants a safe plan before fan-out. For simple production surfaces, prefer
+passing a single `binding_id` directly to `/v1/text/canonicalize`,
+`/v1/query/plan`, or `/v1/search`.

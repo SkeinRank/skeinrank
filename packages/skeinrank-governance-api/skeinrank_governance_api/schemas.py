@@ -1443,6 +1443,80 @@ class QueryPlanResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class RoutePlanRequest(BaseModel):
+    """Request body for planning canonicalization across candidate bindings.
+
+    This is a read-only route planner. It builds per-binding query plans and
+    ranks candidate runtime contexts, but it does not execute Elasticsearch
+    search or mutate runtime state.
+    """
+
+    candidate_binding_ids: list[int] = Field(..., min_length=1, max_length=20)
+    query: str = Field(..., min_length=1, max_length=2000)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
+    max_selected_bindings: int = Field(default=5, ge=1, le=20)
+    min_score: float = Field(default=0.01, ge=0.0, le=1.0)
+    canonical_boost: float = Field(default=3.0, ge=0.0, le=100.0)
+    include_rejected: bool = True
+    include_evidence: bool = True
+    max_matches: int = Field(default=100, ge=1, le=1000)
+
+
+class RoutePlanBindingResponse(BaseModel):
+    """Per-binding route planning result.
+
+    Selected and rejected bindings share the same shape so callers can inspect
+    why a binding was chosen or excluded without running a search.
+    """
+
+    binding_id: int
+    binding_name: str | None = None
+    profile_name: str | None = None
+    normalized_profile_name: str | None = None
+    index_name: str | None = None
+    score: float
+    score_reasons: list[str] = Field(default_factory=list)
+    reason: str
+    canonical_query: str
+    changed: bool
+    snapshot_version: str | None = None
+    snapshot_source: str = "latest_profile"
+    runtime_context: RuntimeContextResponse | None = None
+    canonical_values: list[str] = Field(default_factory=list)
+    slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
+    matched_aliases: list[str] = Field(default_factory=list)
+    replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
+    evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
+    elasticsearch: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class RoutePlanBindingFailure(BaseModel):
+    """Binding that could not be planned."""
+
+    binding_id: int
+    error: str
+
+
+class RoutePlanResponse(BaseModel):
+    """Read-only multi-binding route plan response."""
+
+    query: str
+    mode: str = "route_plan_only"
+    candidate_binding_ids: list[int]
+    selected_binding_ids: list[int] = Field(default_factory=list)
+    total_bindings: int
+    selected_count: int
+    rejected_count: int
+    failed_count: int
+    selected_bindings: list[RoutePlanBindingResponse] = Field(default_factory=list)
+    rejected_bindings: list[RoutePlanBindingResponse] = Field(default_factory=list)
+    failed_bindings: list[RoutePlanBindingFailure] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class SearchRequest(BaseModel):
     """Request body for executing runtime search against Elasticsearch."""
 

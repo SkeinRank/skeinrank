@@ -23,3 +23,16 @@ Patch 63B adds trigger-gated alias examples:
 - `context-trigger-canonicalize.request.json` — binding-aware canonicalization request where `pg` expands only because the query also contains incident/database trigger words.
 
 Aliases without `context_triggers` keep the existing always-active behavior.
+
+## Patch 63C — route-plan payload
+
+`route-plan.request.json` demonstrates the read-only multi-binding route planner:
+
+```text
+POST /v1/query/route-plan
+```
+
+Use it when an application has a global search box and already knows a bounded
+set of candidate bindings. The endpoint ranks candidates and returns
+`selected_bindings`, `rejected_bindings`, and `failed_bindings` with
+`mode = "route_plan_only"`; it does not execute Elasticsearch search.

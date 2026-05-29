@@ -110,3 +110,12 @@ query -> binding 3 canonicalization -> search index C
 ```
 
 The results can then be merged. This is safer than assuming one global dictionary, because the same alias can have different meaning across domains.
+
+## Patch 63C — route before fan-out
+
+For `All docs` search, applications can ask SkeinRank for a read-only
+multi-binding route plan via `POST /v1/query/route-plan`. The request supplies
+candidate bindings, and the response ranks them using alias matches,
+context-trigger matches, application-scope hints, and snapshot context. The
+application still owns the final decision to call `/v1/search` or
+`/v1/search/multi`.

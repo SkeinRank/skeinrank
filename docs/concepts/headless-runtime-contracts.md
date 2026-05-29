@@ -320,3 +320,11 @@ LangGraph-style agents use the same stdio adapter and tool boundary. See
 The output schema is `skeinrank.mcp_smoke_report.v1`. The helper does not call
 the Governance API, create proposals, approve suggestions, publish snapshots, or
 reload runtime state.
+
+## Patch 63C — read-only route planning
+
+Global search surfaces can call `POST /v1/query/route-plan` with
+`candidate_binding_ids` before deciding whether to execute `/v1/search` for one
+binding or `/v1/search/multi` for several bindings. The route planner returns
+`mode = "route_plan_only"` and never executes Elasticsearch search or mutates
+runtime state.

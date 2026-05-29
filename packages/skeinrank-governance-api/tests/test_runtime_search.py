@@ -708,3 +708,89 @@ def test_query_plan_accepts_binding_name_and_application_scope(tmp_path):
         "workspace": "infra",
         "selected_scope": "incidents",
     }
+
+
+def test_route_plan_ranks_candidate_bindings_without_search(tmp_path):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    infra_binding = _create_binding(
+        client, name="infra incidents prod", index_name="incidents-prod"
+    )
+    assert (
+        client.post(
+            "/v1/governance/profiles",
+            json={"name": "product_docs"},
+        ).status_code
+        == 201
+    )
+    product_binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "product docs prod",
+            "profile_name": "product_docs",
+            "index_name": "product-docs-prod",
+            "text_fields": ["title", "text"],
+            "target_field": "skeinrank",
+            "mode": "write",
+            "write_strategy": "in_place",
+        },
+    )
+    assert product_binding_response.status_code == 201, product_binding_response.text
+    product_binding = int(product_binding_response.json()["id"])
+
+    response = client.post(
+        "/v1/query/route-plan",
+        json={
+            "candidate_binding_ids": [infra_binding, product_binding],
+            "query": "k8s pg timeout",
+            "application_scope": {"workspace": "infra"},
+            "max_selected_bindings": 1,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["mode"] == "route_plan_only"
+    assert payload["candidate_binding_ids"] == [infra_binding, product_binding]
+    assert payload["selected_binding_ids"] == [infra_binding]
+    assert payload["selected_count"] == 1
+    assert payload["rejected_count"] == 1
+    selected = payload["selected_bindings"][0]
+    assert selected["binding_id"] == infra_binding
+    assert selected["binding_name"] == "infra incidents prod"
+    assert selected["index_name"] == "incidents-prod"
+    assert selected["canonical_query"] == "kubernetes postgresql timeout"
+    assert selected["canonical_values"] == ["kubernetes", "postgresql"]
+    assert "matched_aliases:2" in selected["score_reasons"]
+    assert any(
+        reason.startswith("application_scope:") for reason in selected["score_reasons"]
+    )
+    rejected = payload["rejected_bindings"][0]
+    assert rejected["binding_id"] == product_binding
+    assert rejected["score"] == 0.0
+    assert "No active aliases" in " ".join(rejected["warnings"])
+
+
+def test_route_plan_deduplicates_and_reports_failed_bindings(tmp_path):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding_id = _create_binding(client, name="infra incidents prod", index_name="kb")
+
+    response = client.post(
+        "/v1/query/route-plan",
+        json={
+            "candidate_binding_ids": [binding_id, binding_id, 999],
+            "query": "k8s timeout",
+            "include_rejected": False,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["candidate_binding_ids"] == [binding_id, 999]
+    assert payload["failed_count"] == 1
+    assert payload["failed_bindings"] == [
+        {"binding_id": 999, "error": "Elasticsearch binding not found: 999"}
+    ]
+    assert payload["rejected_bindings"] == []
+    assert any("Duplicate binding_id" in item for item in payload["warnings"])

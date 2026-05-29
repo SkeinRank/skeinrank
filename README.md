@@ -1277,3 +1277,18 @@ The behavior is available through the existing `/v1/text/canonicalize`,
 `/v1/query/plan`, `/v1/search`, and `/v1/search/multi` runtime surfaces; no new
 endpoint is introduced. See [`docs/guides/context-trigger-disambiguation.md`](docs/guides/context-trigger-disambiguation.md)
 and [`examples/runtime-routing-api/context-trigger-dictionary.yaml`](examples/runtime-routing-api/context-trigger-dictionary.yaml).
+
+
+### Patch 63C — Multi-binding route plan API
+
+Patch 63C adds `POST /v1/query/route-plan`, a read-only route planner for global
+search and fan-out scenarios. Callers provide `candidate_binding_ids`, a query,
+and optional `application_scope`; SkeinRank builds binding-aware query plans,
+ranks the candidates, and returns `selected_bindings`, `rejected_bindings`, and
+`failed_bindings` with `mode = "route_plan_only"`.
+
+The endpoint does not execute Elasticsearch search and does not mutate runtime
+state. Use it to choose whether the application should call `/v1/search` for one
+binding or `/v1/search/multi` for several bindings. See
+[`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md) and
+[`examples/runtime-routing-api/route-plan.request.json`](examples/runtime-routing-api/route-plan.request.json).
