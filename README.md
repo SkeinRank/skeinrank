@@ -1239,3 +1239,30 @@ skeinrank_validate_alias
 skeinrank_submit_alias_proposal
 skeinrank_get_proposal_status
 ```
+
+## Patch 63A — Binding-aware runtime canonicalization API
+
+Patch 63A makes runtime canonicalization, query planning, and search explicitly
+binding-aware for application-scope routing. Production callers can pass
+`binding_id` or stable `binding_name`, plus optional `application_scope` debug
+metadata, and responses include a `runtime_context` block with the resolved
+profile, binding, fields, filters, target field, and snapshot source.
+
+```json
+{
+  "binding_name": "infra incidents prod",
+  "text": "k8s pg timeout",
+  "mode": "replace",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "incidents"
+  }
+}
+```
+
+This patch does not add automatic intent classification or a multi-binding
+router. It provides the safe application-scope foundation for those later
+runtime-routing patches. See
+[`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md) and
+[`examples/runtime-routing-api`](examples/runtime-routing-api).
+

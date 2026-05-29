@@ -36,6 +36,7 @@ from .text import (
     _policy_decisions_for_matches,
     _replace_matches,
     _resolve_runtime_alias_context,
+    _runtime_context_response,
     _select_non_overlapping_matches,
     _slots_for_matches,
     _tags_for_matches,
@@ -72,6 +73,8 @@ def build_query_plan(
                 session=session,
                 profile_name=request.profile_name,
                 binding_id=request.binding_id,
+                binding_name=request.binding_name,
+                application_scope=request.application_scope,
                 query_text=request.query,
                 text_fields=request.text_fields,
                 target_field=request.target_field,
@@ -125,6 +128,8 @@ def search_documents(
                 session=session,
                 profile_name=request.profile_name,
                 binding_id=request.binding_id,
+                binding_name=request.binding_name,
+                application_scope=request.application_scope,
                 query_text=request.query,
                 text_fields=request.text_fields,
                 target_field=request.target_field,
@@ -179,10 +184,13 @@ def search_documents(
                 canonical_query=plan["canonical_query"],
                 changed=plan["changed"],
                 binding_id=plan["binding_id"],
+                binding_name=plan["binding_name"],
                 snapshot_version=plan["snapshot_version"],
                 snapshot_source=plan["snapshot_source"],
+                runtime_context=plan["runtime_context"],
                 canonical_values=plan["canonical_values"],
                 slots=plan["slots"],
+                tags=plan["tags"],
                 matched_aliases=plan["matched_aliases"],
                 replacements=plan["replacements"],
                 evidence=plan["evidence"],
@@ -244,6 +252,8 @@ def search_multiple_bindings(
                 session=session,
                 profile_name=None,
                 binding_id=binding_id,
+                binding_name=None,
+                application_scope={},
                 query_text=request.query,
                 text_fields=None,
                 target_field=None,
@@ -353,6 +363,8 @@ def _build_runtime_plan(
     session: Session,
     profile_name: str | None,
     binding_id: int | None,
+    binding_name: str | None,
+    application_scope: dict[str, object],
     query_text: str,
     text_fields: list[str] | None,
     target_field: str | None,
@@ -365,7 +377,10 @@ def _build_runtime_plan(
     require_index: bool,
 ) -> dict[str, Any]:
     context = _resolve_runtime_alias_context(
-        session=session, profile_name=profile_name, binding_id=binding_id
+        session=session,
+        profile_name=profile_name,
+        binding_id=binding_id,
+        binding_name=binding_name,
     )
     profile = context.profile
     binding = context.binding
@@ -428,8 +443,12 @@ def _build_runtime_plan(
         "target_field": resolved_target_field,
         "index_name": resolved_index_name,
         "binding_id": binding.id if binding is not None else None,
+        "binding_name": binding.name if binding is not None else None,
         "snapshot_version": context.snapshot_version,
         "snapshot_source": context.snapshot_source,
+        "runtime_context": _runtime_context_response(
+            context, application_scope=application_scope
+        ),
         "canonical_values": canonical_values,
         "slots": slots,
         "tags": tags,

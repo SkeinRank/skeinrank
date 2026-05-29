@@ -1,0 +1,10 @@
+{
+  "binding_name": "infra incidents prod",
+  "query": "k8s pg timeout",
+  "size": 10,
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "incidents",
+    "route": "/incidents/search"
+  }
+}

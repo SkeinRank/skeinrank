@@ -524,3 +524,12 @@ same binding plus unsafe `reindex_alias_swap` target-index choices. See
   without adding a runnable agent package.
 - `../examples/mcp-agent-docs` contains Claude/Cursor config examples, agent
   prompts, LangGraph-style flow policy, and a smoke checklist.
+## Patch 63A — Binding-aware runtime canonicalization API
+
+Runtime canonicalization and query planning now expose a clearer binding-aware
+contract. Production callers should prefer `binding_id` or `binding_name`;
+responses include `runtime_context` for audit/debug, and optional
+`application_scope` metadata can record the app route/workspace that selected
+the binding. See [`guides/runtime-routing-api.md`](guides/runtime-routing-api.md)
+and [`../examples/runtime-routing-api`](../examples/runtime-routing-api).
+

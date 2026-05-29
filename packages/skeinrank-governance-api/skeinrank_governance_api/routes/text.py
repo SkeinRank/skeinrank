@@ -29,6 +29,7 @@ from ..runtime_snapshots import (
     build_runtime_snapshot_payload,
 )
 from ..schemas import (
+    RuntimeContextResponse,
     TextCanonicalizeEvidence,
     TextCanonicalizeMatch,
     TextCanonicalizeRequest,
@@ -112,6 +113,7 @@ def canonicalize_text(
             session=session,
             profile_name=request.profile_name,
             binding_id=request.binding_id,
+            binding_name=request.binding_name,
         )
         candidate_matches = _find_alias_matches(request.text, context.alias_entries)
         matches = _select_non_overlapping_matches(
@@ -165,8 +167,12 @@ def canonicalize_text(
         normalized_profile_name=context.profile.normalized_name,
         mode=mode,
         binding_id=context.binding.id if context.binding is not None else None,
+        binding_name=context.binding.name if context.binding is not None else None,
         snapshot_version=context.snapshot_version,
         snapshot_source=context.snapshot_source,
+        runtime_context=_runtime_context_response(
+            context, application_scope=request.application_scope
+        ),
         original_text=request.text,
         canonical_text=canonical_text,
         changed=canonical_text != request.text,
@@ -184,13 +190,19 @@ def canonicalize_text(
 
 
 def _resolve_runtime_alias_context(
-    *, session: Session, profile_name: str | None, binding_id: int | None
+    *,
+    session: Session,
+    profile_name: str | None,
+    binding_id: int | None,
+    binding_name: str | None = None,
 ) -> _RuntimeAliasContext:
     """Resolve aliases for latest profile preview or binding-pinned runtime mode."""
 
     warnings: list[str] = []
-    if binding_id is not None:
-        binding = _get_binding_or_404(session, binding_id)
+    if binding_id is not None or binding_name is not None:
+        binding = _get_binding_or_404(
+            session, binding_id=binding_id, binding_name=binding_name
+        )
         if profile_name is not None and (
             binding.profile.normalized_name != normalize_profile_name(profile_name)
         ):
@@ -237,7 +249,7 @@ def _resolve_runtime_alias_context(
     if profile_name is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Either binding_id or profile_name is required.",
+            detail="Either binding_id, binding_name, or profile_name is required.",
         )
     profile = _get_profile_or_404(session, profile_name)
     latest_snapshot = build_runtime_snapshot_payload(session, profile)
@@ -252,16 +264,93 @@ def _resolve_runtime_alias_context(
     )
 
 
-def _get_binding_or_404(session: Session, binding_id: int) -> ElasticsearchBinding:
-    binding = session.scalar(
-        select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
+def _get_binding_or_404(
+    session: Session,
+    *,
+    binding_id: int | None = None,
+    binding_name: str | None = None,
+) -> ElasticsearchBinding:
+    if binding_id is None and binding_name is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Either binding_id or binding_name is required.",
+        )
+
+    binding_by_id: ElasticsearchBinding | None = None
+    if binding_id is not None:
+        binding_by_id = session.scalar(
+            select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
+        )
+        if binding_by_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Elasticsearch binding not found: {binding_id}",
+            )
+
+    if binding_name is None:
+        assert binding_by_id is not None
+        return binding_by_id
+
+    normalized_name = normalize_profile_name(binding_name)
+    binding_by_name = session.scalar(
+        select(ElasticsearchBinding).where(
+            ElasticsearchBinding.normalized_name == normalized_name
+        )
     )
-    if binding is None:
+    if binding_by_name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Elasticsearch binding not found: {binding_id}",
+            detail=f"Elasticsearch binding not found: {binding_name}",
         )
-    return binding
+    if binding_by_id is not None and binding_by_id.id != binding_by_name.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="binding_id and binding_name refer to different bindings.",
+        )
+    return binding_by_name
+
+
+def _runtime_context_response(
+    context: _RuntimeAliasContext, *, application_scope: dict[str, object] | None = None
+) -> RuntimeContextResponse:
+    binding = context.binding
+    if binding is None:
+        mode = "profile_preview"
+    elif context.snapshot_source == "binding_runtime_snapshot":
+        mode = "binding_runtime"
+    else:
+        mode = "binding_latest_profile"
+    return RuntimeContextResponse(
+        mode=mode,
+        profile_name=context.profile.name,
+        normalized_profile_name=context.profile.normalized_name,
+        binding_id=binding.id if binding is not None else None,
+        binding_name=binding.name if binding is not None else None,
+        normalized_binding_name=(
+            binding.normalized_name if binding is not None else None
+        ),
+        index_name=binding.index_name if binding is not None else None,
+        text_fields=list(binding.text_fields) if binding is not None else [],
+        target_field=binding.target_field if binding is not None else None,
+        filter_field=binding.filter_field if binding is not None else None,
+        filter_value=binding.filter_value if binding is not None else None,
+        snapshot_version=context.snapshot_version,
+        snapshot_source=context.snapshot_source,
+        application_scope=_sanitize_application_scope(application_scope or {}),
+    )
+
+
+def _sanitize_application_scope(scope: dict[str, object]) -> dict[str, object]:
+    sanitized: dict[str, object] = {}
+    for key, value in scope.items():
+        normalized_key = str(key).strip()
+        if not normalized_key:
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            sanitized[normalized_key] = value
+        else:
+            sanitized[normalized_key] = str(value)
+    return sanitized
 
 
 def _alias_entries_from_binding_snapshot(

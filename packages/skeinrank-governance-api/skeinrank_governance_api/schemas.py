@@ -1262,6 +1262,8 @@ class AgentToolExplainQueryRequest(BaseModel):
 
     profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
+    binding_name: str | None = Field(default=None, min_length=1, max_length=128)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
     query: str = Field(..., min_length=1, max_length=2000)
     text_fields: list[str] | None = Field(default=None, min_length=1)
     target_field: str | None = Field(default=None, min_length=1, max_length=256)
@@ -1305,11 +1307,32 @@ class RuntimeSnapshotResponse(BaseModel):
     rules: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class RuntimeContextResponse(BaseModel):
+    """Resolved runtime context used by canonicalization/search endpoints."""
+
+    mode: str
+    profile_name: str
+    normalized_profile_name: str
+    binding_id: int | None = None
+    binding_name: str | None = None
+    normalized_binding_name: str | None = None
+    index_name: str | None = None
+    text_fields: list[str] = Field(default_factory=list)
+    target_field: str | None = None
+    filter_field: str | None = None
+    filter_value: str | None = None
+    snapshot_version: str | None = None
+    snapshot_source: str
+    application_scope: dict[str, Any] = Field(default_factory=dict)
+
+
 class TextCanonicalizeRequest(BaseModel):
     """Request body for runtime text canonicalization."""
 
     profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
+    binding_name: str | None = Field(default=None, min_length=1, max_length=128)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
     text: str = Field(..., min_length=1, max_length=20000)
     mode: str = Field(
         default="annotate", examples=["annotate", "replace", "attributes"]
@@ -1354,8 +1377,10 @@ class TextCanonicalizeResponse(BaseModel):
     normalized_profile_name: str
     mode: str
     binding_id: int | None = None
+    binding_name: str | None = None
     snapshot_version: str | None = None
     snapshot_source: str = "latest_profile"
+    runtime_context: RuntimeContextResponse | None = None
     original_text: str
     canonical_text: str
     changed: bool
@@ -1374,6 +1399,8 @@ class QueryPlanRequest(BaseModel):
 
     profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
+    binding_name: str | None = Field(default=None, min_length=1, max_length=128)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
     query: str = Field(..., min_length=1, max_length=2000)
     text_fields: list[str] | None = Field(default=None, min_length=1)
     target_field: str | None = Field(default=None, min_length=1, max_length=256)
@@ -1394,8 +1421,10 @@ class QueryPlanResponse(BaseModel):
     text_fields: list[str]
     target_field: str
     binding_id: int | None = None
+    binding_name: str | None = None
     snapshot_version: str | None = None
     snapshot_source: str = "latest_profile"
+    runtime_context: RuntimeContextResponse | None = None
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
     tags: dict[str, list[str]] = Field(default_factory=dict)
@@ -1412,6 +1441,8 @@ class SearchRequest(BaseModel):
 
     profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
+    binding_name: str | None = Field(default=None, min_length=1, max_length=128)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
     index_name: str | None = Field(default=None, min_length=1, max_length=256)
     query: str = Field(..., min_length=1, max_length=2000)
     text_fields: list[str] | None = Field(default=None, min_length=1)
@@ -1444,8 +1475,10 @@ class SearchResponse(BaseModel):
     canonical_query: str
     changed: bool
     binding_id: int | None = None
+    binding_name: str | None = None
     snapshot_version: str | None = None
     snapshot_source: str = "latest_profile"
+    runtime_context: RuntimeContextResponse | None = None
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
     tags: dict[str, list[str]] = Field(default_factory=dict)

@@ -391,7 +391,31 @@ Useful runtime design rule:
 ```text
 profile_name mode = preview/dev dictionary mode
 binding_id mode   = pinned production runtime mode
+binding_name mode = stable named production runtime context
 ```
+
+Patch 63A also accepts optional `application_scope` metadata on
+`/v1/text/canonicalize`, `/v1/query/plan`, and `/v1/search`. This field is
+returned inside `runtime_context` so application teams can see which workspace,
+collection, or route selected the binding. It is debug metadata; it does not
+replace `binding_id` or `binding_name`.
+
+Example binding-aware canonicalization request:
+
+```json
+{
+  "binding_name": "infra incidents prod",
+  "text": "k8s pg timeout",
+  "mode": "replace",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "incidents"
+  }
+}
+```
+
+The response includes `runtime_context` with resolved profile, binding, index,
+fields, target field, filters, snapshot source, and sanitized application scope.
 
 ## Auth and API access
 

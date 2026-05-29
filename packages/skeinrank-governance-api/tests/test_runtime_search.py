@@ -663,3 +663,48 @@ def test_multi_search_deduplicates_binding_ids_and_reports_partial_failures(
     assert payload["results"][1]["status"] == "failed"
     assert "binding not found" in payload["results"][1]["error"]
     assert any("Duplicate binding_id" in item for item in payload["warnings"])
+
+
+def test_query_plan_accepts_binding_name_and_application_scope(tmp_path):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra incidents prod",
+            "profile_name": "infra_incidents",
+            "index_name": "incidents-prod",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+        },
+    )
+    assert binding.status_code == 201, binding.text
+
+    response = client.post(
+        "/v1/query/plan",
+        json={
+            "binding_name": "infra incidents prod",
+            "query": "k8s pg timeout",
+            "application_scope": {
+                "workspace": "infra",
+                "selected_scope": "incidents",
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["binding_id"] == binding.json()["id"]
+    assert payload["binding_name"] == "infra incidents prod"
+    assert payload["text_fields"] == ["title", "body"]
+    assert payload["target_field"] == "skeinrank"
+    assert payload["runtime_context"]["mode"] == "binding_latest_profile"
+    assert payload["runtime_context"]["index_name"] == "incidents-prod"
+    assert payload["runtime_context"]["filter_field"] == "team"
+    assert payload["runtime_context"]["filter_value"] == "infra"
+    assert payload["runtime_context"]["application_scope"] == {
+        "workspace": "infra",
+        "selected_scope": "incidents",
+    }

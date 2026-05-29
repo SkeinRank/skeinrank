@@ -328,6 +328,8 @@ def explain_query_tool(
         session=session,
         profile_name=request.profile_name,
         binding_id=request.binding_id,
+        binding_name=request.binding_name,
+        application_scope=request.application_scope,
         query_text=request.query,
         text_fields=request.text_fields,
         target_field=request.target_field,

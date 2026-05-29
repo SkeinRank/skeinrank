@@ -111,6 +111,13 @@ The current project already exposes core pieces of this contract:
 
 Future headless facade endpoints should reuse the same concepts instead of creating a second terminology model.
 
+Patch 63A makes these runtime surfaces explicitly binding-aware. They accept
+`binding_id` or stable `binding_name`, preserve `profile_name` for preview/dev
+mode, and return a `runtime_context` object so callers can audit which binding,
+fields, filters, target field, and snapshot source produced the result.
+Optional `application_scope` metadata can record the app route/workspace that
+selected the binding.
+
 
 ## Dictionary API facade
 

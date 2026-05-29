@@ -94,6 +94,11 @@ For production search paths, prefer:
 
 A development or preview flow can still use `profile_name`, but a real runtime search path needs binding information because the binding knows the index, fields, filters, and pinned snapshot.
 
+Patch 63A allows production callers to use either numeric `binding_id` or stable
+`binding_name`. Runtime responses include `runtime_context`, which records the
+resolved binding, snapshot source, Elasticsearch fields, optional discriminator
+filter, and any caller-provided `application_scope` metadata.
+
 ## Multi-binding search
 
 For an `All docs` search experience, the backend can fan out across multiple bindings:

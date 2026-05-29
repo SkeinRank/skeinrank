@@ -1810,3 +1810,14 @@ examples/mcp-agent-docs/
 ```
 
 These docs keep the same tool surface and proposal-only safety boundary.
+
+## Patch 63A — Binding-aware runtime canonicalization API
+
+Runtime endpoints now expose a clearer application-scope contract.
+`/v1/text/canonicalize`, `/v1/query/plan`, and `/v1/search` accept `binding_id`
+or stable `binding_name`, preserve `profile_name` for preview/dev mode, and
+return `runtime_context` with resolved profile, binding, index, fields, filters,
+target field, snapshot source, and optional `application_scope` metadata.
+
+See `docs/guides/runtime-routing-api.md` and `examples/runtime-routing-api/`.
+
