@@ -452,8 +452,14 @@ def _normalize_snapshot_tags(value: Any) -> tuple[str, ...]:
 def _normalize_context_triggers(values: list[str]) -> tuple[str, ...]:
     """Normalize context triggers stored on alias rows."""
 
-    normalized = {normalize_value(str(value)) for value in values if str(value).strip()}
-    return tuple(sorted(value for value in normalized if value))
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized_value = normalize_value(str(value))
+        if normalized_value and normalized_value not in seen:
+            normalized.append(normalized_value)
+            seen.add(normalized_value)
+    return tuple(normalized)
 
 
 def alias_entries_from_snapshot(

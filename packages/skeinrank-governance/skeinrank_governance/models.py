@@ -1866,10 +1866,14 @@ def _fill_normalized_alias(mapper: Any, connection: Any, target: TermAlias) -> N
     del mapper, connection
     target.normalized_alias = normalize_value(target.alias_value)
     raw_triggers = target.context_triggers or []
-    normalized_triggers = {
-        normalize_value(str(value)) for value in raw_triggers if str(value).strip()
-    }
-    target.context_triggers = sorted(value for value in normalized_triggers if value)
+    normalized_triggers: list[str] = []
+    seen_triggers: set[str] = set()
+    for value in raw_triggers:
+        normalized = normalize_value(str(value))
+        if normalized and normalized not in seen_triggers:
+            normalized_triggers.append(normalized)
+            seen_triggers.add(normalized)
+    target.context_triggers = normalized_triggers
 
 
 def _fill_normalized_term_tag(mapper: Any, connection: Any, target: TermTag) -> None:

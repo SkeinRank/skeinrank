@@ -158,10 +158,16 @@ def normalize_tag_values(values: Sequence[str] | None) -> list[str]:
 
 
 def _normalize_context_triggers(values: Iterable[str]) -> list[str]:
-    """Normalize, deduplicate and sort alias context trigger values."""
+    """Normalize and deduplicate alias context triggers while preserving input order."""
 
-    normalized = {normalize_value(str(value)) for value in values if str(value).strip()}
-    return sorted(value for value in normalized if value)
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized_value = normalize_value(str(value))
+        if normalized_value and normalized_value not in seen:
+            normalized.append(normalized_value)
+            seen.add(normalized_value)
+    return normalized
 
 
 def set_term_tags(

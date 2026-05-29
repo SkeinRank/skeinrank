@@ -438,7 +438,7 @@ def test_text_canonicalize_context_triggers_gate_noisy_alias(tmp_path):
         json={"context_triggers": ["timeout", "replica", "migration", "timeout"]},
     )
     assert update.status_code == 200, update.text
-    assert update.json()["context_triggers"] == ["migration", "replica", "timeout"]
+    assert update.json()["context_triggers"] == ["timeout", "replica", "migration"]
 
     unrelated = client.post(
         "/v1/text/canonicalize",
@@ -467,15 +467,15 @@ def test_text_canonicalize_context_triggers_gate_noisy_alias(tmp_path):
     assert payload["matched_aliases"] == ["pg"]
     assert payload["replacements"][0]["source"] == "alias_context_trigger"
     assert payload["replacements"][0]["context_triggers"] == [
-        "migration",
-        "replica",
         "timeout",
+        "replica",
+        "migration",
     ]
     assert payload["replacements"][0]["matched_context_triggers"] == [
-        "replica",
         "timeout",
+        "replica",
     ]
     assert payload["evidence"][0]["matched_context_triggers"] == [
-        "replica",
         "timeout",
+        "replica",
     ]
