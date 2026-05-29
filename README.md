@@ -52,6 +52,27 @@ SkeinRank helps teams make company terminology usable at runtime: normalize nois
 
 The repository includes a lightweight Python SDK/CLI, FastAPI runtime and governance APIs, a React governance console, PostgreSQL-backed control-plane state, Elasticsearch enrichment jobs, RabbitMQ/Celery workers, and Docker Compose deployment profiles.
 
+## Product positioning in 60 seconds
+
+SkeinRank is a **Terminology Control Plane**: a governed layer for company-specific language that sits before enterprise search, RAG, and AI-agent workflows. It is designed for teams that already have internal jargon, aliases, abbreviations, service nicknames, incident shorthand, and multiple search surfaces.
+
+```text
+Control Plane: profiles, proposals, evidence, risk policy, snapshots, audit
+Data Plane: immutable runtime snapshots, local canonicalization, enrichment/search integration
+```
+
+The focused UI is intentionally small:
+
+```text
+Playground -> debug query canonicalization
+AI Inbox -> review evidence-backed agent proposals
+Schema & Snapshots -> inspect profiles, bindings, aliases, and snapshot state
+```
+
+SkeinRank is **not** a replacement for Elasticsearch, OpenSearch, or a vector database. It is the terminology governance and canonicalization layer that helps those systems receive cleaner, safer, domain-aware context. It is also not a direct production CRUD console: default UI writes are locked down so production terminology changes flow through proposal, validation, risk policy, review, snapshots, and GitOps-style rollout.
+
+See [`docs/product-positioning.md`](docs/product-positioning.md) for the full product narrative, public-beta checklist, and community/GitHub positioning notes.
+
 ## What SkeinRank gives you
 
 | Capability | Why it matters |

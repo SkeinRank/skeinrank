@@ -4,6 +4,7 @@ This directory keeps repository-level documentation for developers, operators, a
 
 ## Start here
 
+- [`product-positioning.md`](product-positioning.md) — public README/GitHub positioning for SkeinRank as a Terminology Control Plane, including personas, 3-tab UI scope, demo tour, safety posture, and public-beta readiness checklist.
 - [`benchmarks/headless-agent-workflow.md`](benchmarks/headless-agent-workflow.md) — deterministic 48A/49A/49B/49C benchmark for the headless agent proposal workflow, expanded quality report, proposal quality metrics, and agent decision diagnostics.
 - [`benchmarks/openrouter-live-pilot.md`](benchmarks/openrouter-live-pilot.md) — guarded 48B live OpenRouter pilot with cost limits and no runtime mutation.
 - [`benchmarks/containerized-benchmark-integration.md`](benchmarks/containerized-benchmark-integration.md) — 48C Docker Compose + PostgreSQL + Governance API + Elasticsearch integration benchmark.
