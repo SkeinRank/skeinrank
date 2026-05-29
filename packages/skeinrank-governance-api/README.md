@@ -273,6 +273,12 @@ workers without querying PostgreSQL on every request. Patch 36E adds a local
 artifact loader/cache that validates the artifact checksum and reloads the file
 when it changes.
 
+Patch 60A documents the Terminology-as-Code import/export loop in
+`docs/guides/terminology-as-code.md`. Use YAML or JSON files in Git, validate and
+apply them through `skeinrank-migrate`, export the governed dictionary back to
+JSON, then export a binding-scoped runtime artifact for delivery to headless
+workers.
+
 
 ## Headless benchmark CLI
 

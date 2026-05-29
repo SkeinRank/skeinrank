@@ -1,0 +1,36 @@
+schema_version: skeinrank.dictionary.v1
+profile_name: platform_ops
+profile_description: Platform operations terminology managed as code
+create_profile: true
+mode: upsert
+terms:
+  # Common platform engineering shorthand.
+  - canonical_value: kubernetes
+    slot: TOOL
+    description: Container orchestration platform
+    tags:
+      - infra
+      - orchestration
+    aliases:
+      - k8s
+      - value: kube
+        confidence: 0.95
+        notes: Common engineering shorthand
+  - canonical_value: postgresql
+    slot: DATABASE
+    description: PostgreSQL database engine
+    tags:
+      - backend
+      - storage
+    aliases:
+      - postgres
+      - pg
+profile_stop_list:
+  - value: tmp
+    target: alias
+    reason: Too generic for this profile
+
+global_stop_list:
+  - value: unknown
+    target: both
+    reason: Global noise token
