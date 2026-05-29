@@ -1,0 +1,99 @@
+{
+  "schema_version": "skeinrank.demo_walkthrough.v1",
+  "title": "Platform operations Control Plane demo",
+  "description": "A guided product scenario for the focused three-tab SkeinRank UI: Playground, AI Inbox, and Schema & Snapshots.",
+  "demo_profile": "platform_ops",
+  "demo_binding_name": "Production knowledge base",
+  "demo_index": "platform_knowledge_base",
+  "runtime_alias": "platform_knowledge_base_search",
+  "demo_query": "k8s pg timeout during phoenix rollout",
+  "safety": {
+    "legacy_write_tools_enabled_by_default": false,
+    "manual_crud_required": false,
+    "production_changes_flow": "proposal -> validation -> risk policy -> review -> snapshot/GitOps rollout"
+  },
+  "ui_tabs": [
+    {
+      "name": "Playground",
+      "purpose": "Debug canonicalization and compare binding-backed runtime behavior before rollout.",
+      "primary_demo_action": "Run the demo query and inspect canonical values: kubernetes, postgresql, and project phoenix."
+    },
+    {
+      "name": "AI Inbox",
+      "purpose": "Review agent-submitted proposals with evidence, validation status, and risk/apply policy.",
+      "primary_demo_action": "Open each pending proposal card and compare low, medium, and high-risk states."
+    },
+    {
+      "name": "Schema & Snapshots",
+      "purpose": "Inspect the profile, binding, terminology tree, aliases, and runtime snapshot status without direct CRUD writes.",
+      "primary_demo_action": "Open the platform_ops tree and inspect canonical terms, aliases, and the production binding."
+    }
+  ],
+  "guided_steps": [
+    {
+      "order": 1,
+      "tab": "Playground",
+      "action": "Run the demo query in single mode.",
+      "expected_result": "The query plan shows canonical values for kubernetes, postgresql, and project phoenix."
+    },
+    {
+      "order": 2,
+      "tab": "Playground",
+      "action": "Switch to compare mode and use the same binding in both columns for a safe baseline comparison.",
+      "expected_result": "Both columns should agree before a new draft snapshot exists; this demonstrates the split-screen workflow."
+    },
+    {
+      "order": 3,
+      "tab": "AI Inbox",
+      "action": "Review the edge, EKS, OpenSearch, and prod proposals.",
+      "expected_result": "The detail panel shows evidence snapshots, validation findings, and low/medium/high risk policy decisions."
+    },
+    {
+      "order": 4,
+      "tab": "Schema & Snapshots",
+      "action": "Open the platform_ops schema tree and inspect runtime binding plus canonical aliases.",
+      "expected_result": "The tree shows the production binding, category/slot groups, canonical terms, aliases, and read-only details."
+    },
+    {
+      "order": 5,
+      "tab": "Developer Cockpit",
+      "action": "Open a legacy page and confirm write tools are locked unless VITE_SKEINRANK_ENABLE_LEGACY_WRITE_TOOLS=true.",
+      "expected_result": "The UI reinforces that production changes go through proposals, validation, snapshots, and GitOps."
+    }
+  ],
+  "demo_proposals": [
+    {
+      "alias_value": "edge",
+      "canonical_value": "api-gateway",
+      "slot": "service",
+      "expected_risk_level": "low",
+      "evidence_query": "edge gateway"
+    },
+    {
+      "alias_value": "EKS",
+      "canonical_value": "kubernetes",
+      "slot": "technology",
+      "expected_risk_level": "medium",
+      "evidence_query": "EKS"
+    },
+    {
+      "alias_value": "OpenSearch",
+      "canonical_value": "elasticsearch",
+      "slot": "search_backend",
+      "expected_risk_level": "medium",
+      "evidence_query": "OpenSearch"
+    },
+    {
+      "alias_value": "prod",
+      "canonical_value": "production environment",
+      "slot": "environment",
+      "expected_risk_level": "high",
+      "evidence_query": "production"
+    }
+  ],
+  "operator_notes": [
+    "Use make demo-reset for a screenshot-ready local state.",
+    "Use make demo-status for read-only state inspection.",
+    "Do not enable legacy write tools for product demos unless you are explicitly showing local development bypass behavior."
+  ]
+}

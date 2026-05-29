@@ -215,6 +215,21 @@
       ]
     },
     {
+      "canonical_value": "production environment",
+      "slot": "environment",
+      "aliases": [
+        {
+          "value": "prod env",
+          "confidence": 0.9,
+          "notes": "Common shorthand for production runtime context."
+        }
+      ],
+      "tags": [
+        "runtime",
+        "operations"
+      ]
+    },
+    {
       "canonical_value": "incident",
       "slot": "workflow",
       "description": "Production incident or service degradation.",

@@ -96,7 +96,7 @@ Populate the console with a live demo dataset:
 make demo-reset
 ```
 
-This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates review suggestions, checks evidence, and runs enrichment for the Dashboard, Terms, Integrations, AI Inbox, Suggestions, Search Playground, and Snapshots screens.
+This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates evidence-backed AI Inbox proposals, checks query planning evidence, and runs enrichment for the focused Control Plane demo: Playground, AI Inbox, and Schema & Snapshots. The guided tour is documented in [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md).
 
 Default local URLs:
 

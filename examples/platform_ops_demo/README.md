@@ -7,11 +7,11 @@ It creates:
 - an Elasticsearch index: `platform_knowledge_base`;
 - 24 demo knowledge-base documents: incidents, runbooks, tickets, and design notes;
 - a governance profile: `platform_ops`;
-- 15 canonical terms and 29 aliases;
+- 16 canonical terms and 30 aliases;
 - global and profile stop-list entries;
 - an Elasticsearch binding: `Production knowledge base`;
-- pending suggestions for `EKS` and `OpenSearch`;
-- evidence snapshots for suggestions;
+- pending AI Inbox suggestions for `edge`, `EKS`, `OpenSearch`, and `prod`;
+- evidence snapshots and low/medium/high risk review examples;
 - an enrichment job that publishes the runtime alias `platform_knowledge_base_search`.
 
 ## Start the stack
@@ -48,6 +48,23 @@ Check current demo status without writing data:
 ```bash
 make demo-status
 ```
+
+
+## Guided Control Plane walkthrough
+
+Patch 59A turns this seed into a screenshot-ready product walkthrough for the focused three-tab UI:
+
+1. **Playground** — run `k8s pg timeout during phoenix rollout` and inspect canonicalization.
+2. **AI Inbox** — review seeded proposals with evidence and risk/apply-policy decisions.
+3. **Schema & Snapshots** — inspect the `platform_ops` tree, binding, aliases, and runtime snapshot state.
+
+The committed walkthrough contract is:
+
+```text
+examples/platform_ops_demo/platform_ops_demo_walkthrough.json
+```
+
+The seed also demonstrates the read-only legacy cockpit model: old developer routes remain available for inspection, but production-style demos should not enable `VITE_SKEINRANK_ENABLE_LEGACY_WRITE_TOOLS`.
 
 ## Open the console
 

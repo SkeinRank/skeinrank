@@ -36,6 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_DIR = Path(__file__).resolve().parent
 DICTIONARY_PATH = EXAMPLE_DIR / "platform_ops_dictionary.json"
 BULK_PATH = EXAMPLE_DIR / "platform_knowledge_base.ndjson"
+WALKTHROUGH_PATH = EXAMPLE_DIR / "platform_ops_demo_walkthrough.json"
 
 
 class DemoSeedError(RuntimeError):
@@ -186,6 +187,86 @@ def dictionary_summary(payload: dict[str, Any]) -> dict[str, int]:
         "profile_stop_list": len(payload.get("profile_stop_list") or []),
         "global_stop_list": len(payload.get("global_stop_list") or []),
     }
+
+
+def load_guided_walkthrough(path: Path = WALKTHROUGH_PATH) -> dict[str, Any]:
+    """Read the committed product walkthrough scenario."""
+
+    return load_json_file(path)
+
+
+def walkthrough_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return stable counters used by docs, final output, and tests."""
+
+    steps = payload.get("guided_steps") or []
+    proposals = payload.get("demo_proposals") or []
+    tabs = payload.get("ui_tabs") or []
+    return {
+        "steps": len(steps),
+        "tabs": [str(tab.get("name")) for tab in tabs if isinstance(tab, dict)],
+        "demo_proposals": len(proposals),
+        "demo_query": payload.get("demo_query"),
+    }
+
+
+def print_guided_walkthrough(config: DemoConfig) -> None:
+    """Print the short 3-tab walkthrough after the seed completes."""
+
+    try:
+        payload = load_guided_walkthrough()
+    except DemoSeedError:
+        return
+    summary = walkthrough_summary(payload)
+    print("\nGuided product walkthrough")
+    print(f"  UI root: {config.ui_url}")
+    print(f"  Demo query: {summary.get('demo_query') or DEMO_QUERY}")
+    print("  Control Plane tabs: " + ", ".join(summary["tabs"]))
+    print("  Suggested path:")
+    for step in payload.get("guided_steps", []):
+        if not isinstance(step, dict):
+            continue
+        print(
+            "    {order}. {tab}: {action}".format(
+                order=step.get("order"),
+                tab=step.get("tab"),
+                action=step.get("action"),
+            )
+        )
+
+
+def proposal_payload_for_api(
+    payload: dict[str, Any], binding_id: int
+) -> dict[str, Any]:
+    """Strip seed-only keys and attach runtime review context."""
+
+    api_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"evidence_query", "walkthrough_step"}
+    }
+    api_payload.setdefault("binding_id", binding_id)
+    api_payload.setdefault("source", "discovery")
+    api_payload.setdefault("proposal_source_type", "agent")
+    api_payload.setdefault("proposal_source_name", "platform-demo-alias-scout")
+    api_payload.setdefault(
+        "idempotency_key",
+        "platform-demo:{canonical}:{alias}".format(
+            canonical=str(payload.get("canonical_value") or "")
+            .strip()
+            .lower()
+            .replace(" ", "-"),
+            alias=str(payload.get("alias_value") or "")
+            .strip()
+            .lower()
+            .replace(" ", "-"),
+        ),
+    )
+    source_payload = dict(api_payload.get("source_payload") or {})
+    source_payload.setdefault("demo_seed", True)
+    source_payload.setdefault("demo_source", "platform-demo-alias-scout")
+    source_payload.setdefault("walkthrough_step", payload.get("walkthrough_step"))
+    api_payload["source_payload"] = source_payload
+    return api_payload
 
 
 def build_index_mapping() -> dict[str, Any]:
@@ -541,13 +622,33 @@ def ensure_demo_suggestions(
     payloads = [
         {
             "suggestion_type": "alias",
+            "canonical_value": "api-gateway",
+            "alias_value": "edge",
+            "slot": "service",
+            "description": (
+                "Low-risk demo proposal: incident responders often shorten "
+                "edge gateway to edge."
+            ),
+            "confidence": 0.91,
+            "source": "discovery",
+            "context": "Found in API gateway incident response runbooks.",
+            "evidence_query": "edge gateway",
+            "walkthrough_step": "ai-inbox-low-risk",
+        },
+        {
+            "suggestion_type": "alias",
             "canonical_value": "kubernetes",
             "alias_value": "EKS",
             "slot": "technology",
-            "description": "Cloud platform engineers often write EKS in incident notes.",
+            "description": (
+                "Medium-risk demo proposal: cloud platform engineers often "
+                "write EKS in incident notes."
+            ),
             "confidence": 0.82,
             "source": "discovery",
             "context": "Found in ticket-005 and cloud platform incident notes.",
+            "evidence_query": "EKS",
+            "walkthrough_step": "ai-inbox-medium-risk",
         },
         {
             "suggestion_type": "alias",
@@ -555,20 +656,45 @@ def ensure_demo_suggestions(
             "alias_value": "OpenSearch",
             "slot": "search_backend",
             "description": (
-                "Potential alias from search platform notes; needs evidence "
-                "before approval."
+                "Medium-risk demo proposal: reviewer should confirm whether "
+                "OpenSearch belongs in this Elasticsearch-focused profile."
             ),
             "confidence": 0.68,
             "source": "discovery",
             "context": "Reviewer requested evidence before accepting OpenSearch as an alias.",
+            "source_payload": {"risk_flags": ["cross_vendor"]},
+            "evidence_query": "OpenSearch",
+            "walkthrough_step": "ai-inbox-warning",
+        },
+        {
+            "suggestion_type": "alias",
+            "canonical_value": "production environment",
+            "alias_value": "prod",
+            "slot": "environment",
+            "description": (
+                "High-risk demo proposal: prod is intentionally ambiguous "
+                "between production, product, and team shorthand."
+            ),
+            "confidence": 0.74,
+            "source": "discovery",
+            "context": "Use this card to demonstrate high-risk review and warning copy.",
+            "source_payload": {"risk_flags": ["ambiguous_alias"]},
+            "evidence_query": "production",
+            "walkthrough_step": "ai-inbox-high-risk",
         },
     ]
 
     created: list[dict[str, Any]] = []
     for payload in payloads:
-        suggestion = ensure_suggestion(api, existing, payload)
+        suggestion = ensure_suggestion(
+            api, existing, proposal_payload_for_api(payload, binding_id)
+        )
         created.append(suggestion)
-        query = str(payload.get("alias_value") or payload.get("canonical_value"))
+        query = str(
+            payload.get("evidence_query")
+            or payload.get("alias_value")
+            or payload.get("canonical_value")
+        )
         refreshed = api.post(
             f"/v1/governance/profiles/{PROFILE_NAME}/suggestions/{suggestion['id']}"
             "/evidence/refresh",
@@ -689,6 +815,8 @@ def print_final_summary(
             )
         )
     print(f"  Search Playground query: {DEMO_QUERY}")
+    print(f"  Walkthrough file: {WALKTHROUGH_PATH.relative_to(REPO_ROOT)}")
+    print_guided_walkthrough(config)
 
 
 def run(config: DemoConfig) -> None:
