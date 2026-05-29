@@ -34,6 +34,7 @@ def test_terminology_as_code_docs_are_discoverable() -> None:
     assert "docs/guides/terminology-as-code.md" in root
     assert "examples/terminology-as-code" in root
     assert "guides/terminology-as-code.md" in docs
+    assert "guides/dictionary-cli-planning.md" in docs
     assert "Terminology-as-Code import/export map" in api
     assert "../guides/terminology-as-code.md" in spec
     assert "Patch 60A documents the Terminology-as-Code" in package_readme
@@ -57,7 +58,10 @@ def test_terminology_as_code_guide_uses_existing_cli_and_api_surfaces() -> None:
         "/v1/headless/dictionaries/apply",
         "/v1/headless/dictionaries/export?profile_name=platform_ops",
         "/v1/headless/snapshots/export?binding_id=1",
-        "Patch 60B can add stronger CLI planning/lint semantics",
+        "skeinrank-migrate lint",
+        "skeinrank-migrate plan --output plan.json",
+        "skeinrank-migrate apply --plan-output applied-plan.json",
+        "Patch 60B adds",
     )
     for fragment in expected_fragments:
         assert fragment in doc

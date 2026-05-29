@@ -274,10 +274,11 @@ artifact loader/cache that validates the artifact checksum and reloads the file
 when it changes.
 
 Patch 60A documents the Terminology-as-Code import/export loop in
-`docs/guides/terminology-as-code.md`. Use YAML or JSON files in Git, validate and
-apply them through `skeinrank-migrate`, export the governed dictionary back to
-JSON, then export a binding-scoped runtime artifact for delivery to headless
-workers.
+`docs/guides/terminology-as-code.md`. Patch 60B adds CLI planning in
+`docs/guides/dictionary-cli-planning.md`. Use YAML or JSON files in Git, run
+local `lint`, build a server-backed `plan`, apply with `--plan-output`, export
+the governed dictionary back to JSON, then export a binding-scoped runtime
+artifact for delivery to headless workers.
 
 
 ## Headless benchmark CLI
@@ -396,17 +397,31 @@ poetry run skeinrank-migrate --help
 
 The API URL defaults to `http://127.0.0.1:8010` and can be overridden with `--api-url` or `SKEINRANK_CONSOLE_API_URL`. When API auth is enabled, pass a bearer token with `--token` or `SKEINRANK_API_TOKEN`.
 
-Validate a dictionary JSON/YAML file without writing changes:
+Run local JSON/YAML lint before contacting the API:
+
+```bash
+poetry run skeinrank-migrate lint ../../examples/migration/console_dictionary.example.yaml
+```
+
+Validate a dictionary JSON/YAML file against the running API without writing changes:
 
 ```bash
 poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.json
 poetry run skeinrank-migrate validate ../../examples/migration/console_dictionary.example.yaml
 ```
 
-Apply the dictionary after validation:
+Build a server-backed apply plan without writing changes:
 
 ```bash
-poetry run skeinrank-migrate apply ../../examples/migration/console_dictionary.example.json
+poetry run skeinrank-migrate plan ../../examples/migration/console_dictionary.example.yaml \
+  --output console_dictionary.plan.json
+```
+
+Apply the dictionary after validation and write the reviewed plan first:
+
+```bash
+poetry run skeinrank-migrate apply ../../examples/migration/console_dictionary.example.json \
+  --plan-output console_dictionary.apply-plan.json
 ```
 
 Export a profile back to the same stable migration JSON shape. Exports include `schema_version`:

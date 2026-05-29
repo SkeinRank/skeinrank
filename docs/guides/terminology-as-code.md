@@ -139,13 +139,14 @@ binding has not published a runtime snapshot yet.
 
 ## Recommended CI shape
 
-For 60A, keep the delivery loop conservative:
+After 60B, prefer an explicit lint/plan/apply sequence:
 
 ```text
 pull request changes dictionary file
-  -> skeinrank-migrate validate
+  -> skeinrank-migrate lint
+  -> skeinrank-migrate plan --output plan.json
   -> human review / policy checks
-  -> skeinrank-migrate apply
+  -> skeinrank-migrate apply --plan-output applied-plan.json
   -> skeinrank-migrate export
   -> skeinrank-migrate snapshot-export
   -> commit/export artifact to the delivery repository or object storage
@@ -155,9 +156,10 @@ SkeinRank is the manager of terminology state. GitLab CI, Jenkins, ArgoCD, Flux,
 or another GitOps tool should deliver the approved file or runtime artifact to
 serving workers. SkeinRank should not pretend to replace CI/CD.
 
-Patch 60B can add stronger CLI planning/lint semantics on top of this contract.
-Until then, use the existing `validate`, `apply`, `export`, `snapshot-export`,
-`snapshot-inspect`, and `snapshot-eval` commands only.
+Patch 60B adds [`dictionary-cli-planning.md`](dictionary-cli-planning.md) with
+local `lint`, server-backed `plan`, and `apply --plan-output` guidance. Use
+`validate`, `export`, `snapshot-export`, `snapshot-inspect`, and `snapshot-eval`
+for the rest of the existing flow.
 
 ## Safety guarantees in this workflow
 
