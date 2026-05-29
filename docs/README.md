@@ -30,6 +30,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/schema-snapshots-tree-ui.md`](guides/schema-snapshots-tree-ui.md) — read-heavy Schema & Snapshots tree + detail view for bindings, profiles, canonical terms, aliases, and snapshot drift.
 - [`guides/ui-polish-empty-states-degraded-banners.md`](guides/ui-polish-empty-states-degraded-banners.md) — global degraded-state banner and actionable empty states for the 3-tab Control Plane UI.
 - [`guides/control-plane-navigation-slim-down.md`](guides/control-plane-navigation-slim-down.md) — 58F primary navigation contract with Playground, AI Inbox, and Schema & Snapshots plus utility/legacy tools.
+- [`guides/read-only-legacy-admin-cockpit.md`](guides/read-only-legacy-admin-cockpit.md) — 58G lockdown for legacy/admin write controls with an explicit local-development bypass.
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.

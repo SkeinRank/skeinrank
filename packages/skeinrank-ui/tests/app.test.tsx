@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
 import type {
@@ -3141,14 +3141,10 @@ describe("App", () => {
       screen.getByRole("button", { name: "Add to stop list" }),
     ).toBeDisabled();
     expect(
-      screen.getByText(
-        "Your role can inspect guardrails, but only admins and moderators can update stop lists.",
-      ),
-    ).toBeInTheDocument();
+      screen.getAllByText(/Legacy write tools are read-only by default/i).length,
+    ).toBeGreaterThan(0);
     expect(
-      screen.getByText(
-        "Contributors can inspect stop lists, but only admins and moderators can update guardrails.",
-      ),
+      screen.getByText(/Legacy guardrail writes are locked/i),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Save stop-list entry" }),
@@ -3531,14 +3527,10 @@ describe("App", () => {
       screen.getByRole("button", { name: "Run enrichment job" }),
     ).toBeDisabled();
     expect(
-      screen.getByText(
-        "Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations.",
-      ),
-    ).toBeInTheDocument();
+      screen.getAllByText(/Legacy write tools are read-only by default/i).length,
+    ).toBeGreaterThan(0);
     expect(
-      screen.getByText(
-        "Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.",
-      ),
+      screen.getByText(/Legacy binding writes are locked/i),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit binding" })).toBeDisabled();
     expect(
@@ -3566,15 +3558,35 @@ describe("App", () => {
       screen.queryByRole("button", { name: "Edit alias" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Your role has read-only access to this terminology profile. Use the Suggestions tab to propose changes for review.",
-      ),
-    ).toBeInTheDocument();
+      screen.getAllByText(/Legacy write tools are read-only by default/i).length,
+    ).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("tab", { name: /Profiles/ }));
     expect(
       screen.getByRole("button", { name: "Create profile" }),
     ).toBeDisabled();
+  });
+
+  it("locks legacy write tools for admins unless explicitly enabled", async () => {
+    window.localStorage.setItem("skeinrank-ui-enable-legacy-write-tools", "false");
+    stubGovernanceApi();
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Terms" }));
+    expect(await screen.findByText("Legacy terminology editor is read-only")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add term" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Edit alias" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
+    await waitFor(() => {
+      expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole("button", { name: "Create binding" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run enrichment job" })).toBeDisabled();
+    expect(
+      screen.getByText(/Legacy binding writes are locked/i),
+    ).toBeInTheDocument();
   });
 
   it("lets contributors create suggestions without review actions", async () => {

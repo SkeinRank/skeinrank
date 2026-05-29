@@ -1,3 +1,4 @@
+import { areLegacyWriteToolsEnabled } from "./config";
 import type { AuthUser } from "./types";
 
 export type GovernancePermissions = {
@@ -19,19 +20,21 @@ export type GovernancePermissions = {
 export function permissionsForUser(user: AuthUser): GovernancePermissions {
   const isAdmin = user.role === "admin";
   const isModerator = user.role === "moderator";
+  const legacyWriteToolsEnabled = areLegacyWriteToolsEnabled();
+  const canUseLegacyGovernanceWrites = legacyWriteToolsEnabled && (isAdmin || isModerator);
 
   return {
     canManageUsers: isAdmin,
-    canManageProfiles: isAdmin,
-    canManageTerms: isAdmin || isModerator,
-    canManageAliases: isAdmin || isModerator,
-    canExportSnapshots: isAdmin || isModerator,
+    canManageProfiles: legacyWriteToolsEnabled && isAdmin,
+    canManageTerms: canUseLegacyGovernanceWrites,
+    canManageAliases: canUseLegacyGovernanceWrites,
+    canExportSnapshots: canUseLegacyGovernanceWrites,
     canCreateSuggestions: isAdmin || isModerator || user.role === "contributor",
     canReviewSuggestions: isAdmin || isModerator,
     canReadStopLists: true,
-    canManageStopLists: isAdmin || isModerator,
+    canManageStopLists: canUseLegacyGovernanceWrites,
     canReadBindings: true,
-    canManageBindings: isAdmin || isModerator,
+    canManageBindings: canUseLegacyGovernanceWrites,
     canManageApiTokens: true,
     canManageServiceAccounts: isAdmin,
   };

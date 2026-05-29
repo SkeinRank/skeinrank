@@ -1093,3 +1093,8 @@ The 3-tab Control Plane UI now surfaces degraded operational state from `GET /v1
 ### Patch 58F — Control Plane navigation slim-down
 
 The UI navigation now follows the 3-tab Control Plane model: Playground, AI Inbox, and Schema & Snapshots are the only primary product tabs. Legacy/dev/admin pages are not deleted; they are moved into Settings and Developer Cockpit utility groups so existing workflows remain reachable while the default product experience stays focused on debugging, human-in-the-loop proposal review, and schema/snapshot audit. See [`docs/guides/control-plane-navigation-slim-down.md`](docs/guides/control-plane-navigation-slim-down.md).
+
+### Patch 58G — Read-only legacy/admin cockpit lockdown
+
+Legacy and admin cockpit pages are now read-only by default to prevent direct production mutations that bypass proposals, validation, snapshots, and GitOps rollout. The UI keeps old routes available for inspection and local debugging, but disables or replaces unsafe write CTAs such as manual term edits, binding creation, guardrail edits, and enrichment job launches unless `VITE_SKEINRANK_ENABLE_LEGACY_WRITE_TOOLS=true` is set explicitly for local development. See [`docs/guides/read-only-legacy-admin-cockpit.md`](docs/guides/read-only-legacy-admin-cockpit.md).
+

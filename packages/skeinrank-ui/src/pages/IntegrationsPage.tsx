@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 
+import { LEGACY_WRITE_TOOLS_LOCKED_MESSAGE } from "../config";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
@@ -471,7 +472,7 @@ export function IntegrationsPage({ currentUser }: { currentUser: AuthUser }) {
                 readOnlyMessage={
                   permissions.canManageBindings
                     ? null
-                    : "Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations."
+                    : LEGACY_WRITE_TOOLS_LOCKED_MESSAGE
                 }
                 selectedProfile={selectedProfile}
               />
@@ -1732,8 +1733,7 @@ function BindingDetailsPanel({
     >
         {!canManage ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-            Contributors can inspect bindings, but only admins and moderators
-            can update Elasticsearch integration configs.
+            Legacy binding writes are locked. Provision bindings through GitOps/API runbooks, then inspect runtime state here.
           </div>
         ) : null}
 
@@ -2747,8 +2747,7 @@ function EnrichmentJobsDashboard({
           ) : null}
           {!canManage ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-              Contributors can inspect enrichment jobs, but only admins and
-              moderators can run or cancel them.
+              Legacy enrichment controls are locked. Trigger/cancel rollout jobs through controlled runbooks or CI/CD operations, then inspect status here.
             </div>
           ) : null}
           {isLoadingBindings ? (
@@ -3086,8 +3085,7 @@ function EnrichmentJobsPanel({
 
       {!canManage ? (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-          Contributors can inspect enrichment jobs, but only admins and
-          moderators can run them.
+          Legacy enrichment starts are locked. Trigger write-mode jobs through controlled runbooks or CI/CD rollout, then inspect them here.
         </div>
       ) : null}
       {binding.mode !== "write" ? (

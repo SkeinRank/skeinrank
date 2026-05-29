@@ -20,6 +20,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import { areLegacyWriteToolsEnabled, LEGACY_WRITE_TOOLS_LOCKED_MESSAGE } from "../config";
 import type { AppSection } from "../components/layout/AppShell";
 import {
   ConsolePage,
@@ -176,9 +177,9 @@ function SchemaSnapshotsTree({ summary, onNavigate }: { summary: SnapshotSummary
         </div>
       ) : profiles.length === 0 ? (
         <EmptyState
-          actionLabel="Open Terms"
-          description="Create or import a profile before the schema tree can show canonical terms, aliases, and runtime bindings."
-          onAction={() => onNavigate("terms")}
+          actionLabel={areLegacyWriteToolsEnabled() ? "Open Terms" : "Use GitOps/import flow"}
+          description={areLegacyWriteToolsEnabled() ? "Create or import a profile before the schema tree can show canonical terms, aliases, and runtime bindings." : "No profiles are available yet. Import terminology through GitOps/API runbooks or review agent proposals before inspecting the schema tree."}
+          onAction={areLegacyWriteToolsEnabled() ? () => onNavigate("terms") : undefined}
           title="No profiles yet"
         />
       ) : (
@@ -765,17 +766,23 @@ function SnapshotDetailPanel({
     return (
       <EntityDetailPanel
         footer={(
+          areLegacyWriteToolsEnabled() ? (
           <Button className="w-full" onClick={() => onNavigate("integrations")} variant="secondary">
             Create binding
           </Button>
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+            {LEGACY_WRITE_TOOLS_LOCKED_MESSAGE}
+          </div>
+        )
         )}
         title="Snapshot release detail"
       >
         {summary.counts.bindings === 0 ? (
           <EmptyState
-            actionLabel="Create binding"
-            description="Snapshots start after a profile is bound to an Elasticsearch search context."
-            onAction={() => onNavigate("integrations")}
+            actionLabel={areLegacyWriteToolsEnabled() ? "Create binding" : "Binding setup is GitOps-managed"}
+            description={areLegacyWriteToolsEnabled() ? "Snapshots start after a profile is bound to an Elasticsearch search context." : "Snapshots start after a binding is provisioned by the deployment/API runbook. Manual binding creation is locked in the Control Plane UI."}
+            onAction={areLegacyWriteToolsEnabled() ? () => onNavigate("integrations") : undefined}
             title="No bindings yet"
           />
         ) : null}
@@ -915,9 +922,9 @@ function SnapshotHistory({ history, onNavigate }: { history: SnapshotHistoryItem
   return (
     <SectionCard
       actions={(
-        <Button onClick={() => onNavigate("integrations")} variant="secondary">
+        <Button onClick={() => onNavigate(areLegacyWriteToolsEnabled() ? "integrations" : "search-playground")} variant="secondary">
           <History className="mr-2 h-4 w-4" />
-          View jobs
+          {areLegacyWriteToolsEnabled() ? "View jobs" : "Test runtime"}
         </Button>
       )}
       description="Last enrichment jobs that produced, activated, or failed runtime versions."
@@ -925,9 +932,9 @@ function SnapshotHistory({ history, onNavigate }: { history: SnapshotHistoryItem
     >
       {history.length === 0 ? (
         <EmptyState
-          actionLabel="Run enrichment"
-          description="No snapshot-producing enrichment jobs have run yet. Start a job from Integrations after switching a binding to write mode."
-          onAction={() => onNavigate("integrations")}
+          actionLabel={areLegacyWriteToolsEnabled() ? "Run enrichment" : "Open Playground"}
+          description={areLegacyWriteToolsEnabled() ? "No snapshot-producing enrichment jobs have run yet. Start a job from Integrations after switching a binding to write mode." : "No snapshot-producing jobs have run yet. Trigger enrichment through a controlled runbook/CI flow, then verify canonicalization in Playground."}
+          onAction={() => onNavigate(areLegacyWriteToolsEnabled() ? "integrations" : "search-playground")}
           title="No snapshot history yet"
         />
       ) : (
@@ -984,15 +991,21 @@ function SnapshotHistory({ history, onNavigate }: { history: SnapshotHistoryItem
   );
 }
 
-function EmptyState({ actionLabel, description, onAction, title }: { actionLabel: string; description: string; onAction: () => void; title: string }) {
+function EmptyState({ actionLabel, description, onAction, title }: { actionLabel: string; description: string; onAction?: () => void; title: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center dark:border-slate-700">
       <FileJson className="mx-auto h-6 w-6 text-slate-400" />
       <div className="mt-2 text-sm font-medium text-slate-950 dark:text-slate-50">{title}</div>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">{description}</p>
-      <Button className="mt-4" onClick={onAction} variant="secondary">
-        {actionLabel}
-      </Button>
+      {onAction ? (
+        <Button className="mt-4" onClick={onAction} variant="secondary">
+          {actionLabel}
+        </Button>
+      ) : (
+        <div className="mx-auto mt-4 max-w-lg rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          {actionLabel}
+        </div>
+      )}
     </div>
   );
 }

@@ -249,3 +249,16 @@ Developer Cockpit: Dashboard, Terms, Suggestions, Guardrails
 ```
 
 This keeps the UI aligned with the headless/API-first product direction. Reviewers and knowledge managers see the workflow they need, while developers still have access to legacy/manual tools for local testing and pilot debugging.
+
+
+## Read-only legacy/admin cockpit lockdown
+
+Legacy/admin cockpit pages remain reachable for inspection and local debugging, but write controls are disabled by default. This prevents direct UI changes to terminology, bindings, guardrails, or enrichment state from bypassing the proposal → validation → snapshot/GitOps workflow.
+
+For local developer testing only, enable the legacy write bypass explicitly:
+
+```bash
+VITE_SKEINRANK_ENABLE_LEGACY_WRITE_TOOLS=true npm run dev
+```
+
+Production, demo, and enterprise pilot environments should leave this flag disabled.

@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Database, GitBranch, Home, Inbox, LogOut, Mo
 import type { FocusEvent, ReactNode } from "react";
 import { useState } from "react";
 
+import { areLegacyWriteToolsEnabled, LEGACY_WRITE_TOOLS_LOCKED_MESSAGE } from "../../config";
 import { cn } from "../../lib/utils";
 import { useTheme } from "../../theme";
 import type { AuthUser } from "../../types";
@@ -59,6 +60,7 @@ function getInitialSidebarMode(): SidebarMode {
 
 export function AppShell({ activeSection, canManageApiTokens = true, canManageUsers = false, children, currentUser, onLogout, onNavigate }: AppShellProps) {
   const { theme, toggleTheme } = useTheme();
+  const legacyWriteToolsEnabled = areLegacyWriteToolsEnabled();
   const ThemeIcon = themeIcon[theme];
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>(getInitialSidebarMode);
   const [isSidebarPreviewed, setIsSidebarPreviewed] = useState(false);
@@ -195,6 +197,14 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                 <div className="mb-2 flex items-center gap-2 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                   <Wrench className="h-3.5 w-3.5" />
                   Developer Cockpit
+                  <Badge className={legacyWriteToolsEnabled ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}>
+                    {legacyWriteToolsEnabled ? "writes on" : "read-only"}
+                  </Badge>
+                </div>
+              ) : null}
+              {isSidebarOpen && !legacyWriteToolsEnabled ? (
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                  {LEGACY_WRITE_TOOLS_LOCKED_MESSAGE}
                 </div>
               ) : null}
               {renderNavigationGroup("Developer", legacyNavigation, { ariaLabel: "Developer Cockpit navigation", compact: true })}
@@ -226,11 +236,11 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                         ? "Integrations"
                         : activeSection === "api-access"
                           ? "Settings"
-                          : "Terminology control plane"}
+                          : legacyWriteToolsEnabled ? "Terminology control plane" : "Terminology inspector"}
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {activeSection === "dashboard"
-                  ? "Legacy readiness, setup checklist, and runtime status for local development."
+                  ? "Legacy readiness view. Direct production writes are locked unless legacy write tools are explicitly enabled."
                   : activeSection === "users"
                   ? "Manage local users, roles, and access to governance workflows."
                   : activeSection === "snapshots"
@@ -240,14 +250,14 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                   : activeSection === "search-playground"
                     ? "Debug query canonicalization and compare snapshot behavior before rollout."
                   : activeSection === "suggestions"
-                    ? "Legacy manual suggestion workspace retained for development and compatibility."
+                    ? "Legacy manual suggestion workspace retained for audit, development, and compatibility."
                     : activeSection === "guardrails"
-                      ? "Manage stop lists that block noisy or unsafe terminology changes."
+                      ? "Inspect guardrails. Direct edits are locked unless legacy write tools are explicitly enabled."
                       : activeSection === "integrations"
-                        ? "Configure Elasticsearch enrichment bindings for profiles and indices."
+                        ? "Inspect runtime bindings and jobs. Direct binding/enrichment writes are locked by default."
                         : activeSection === "api-access"
-                          ? "Create personal API tokens and manage service account access."
-                          : "Manage canonical terms, aliases, slots, and runtime snapshots."}
+                          ? "Manage access credentials and service-account tokens."
+                          : legacyWriteToolsEnabled ? "Manage canonical terms, aliases, slots, and runtime snapshots." : "Read-only legacy terminology inspector. Use AI Inbox, proposals, snapshots, and GitOps for production changes."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
