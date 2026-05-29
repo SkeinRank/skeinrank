@@ -230,3 +230,22 @@ The Snapshots section includes a read-only Schema & Snapshots workspace. Users c
 The shell displays a compact degraded-state banner when `GET /v1/ops/alerts/report` returns alert events. This is read-only and does not send webhooks or mutate runtime state. Empty states in the Inbox and Playground now explain the next safe setup step instead of appearing as blank screens.
 
 Compare mode is intentionally read-only: it does not run enrichment jobs, publish snapshots, apply proposals, or write to Elasticsearch. The separate `Run search` button remains the only path that calls runtime search.
+
+## Control Plane navigation slim-down
+
+The primary navigation is intentionally limited to three daily product surfaces:
+
+```text
+Playground
+AI Inbox
+Schema & Snapshots
+```
+
+Low-level pages are preserved but moved below the primary workflow:
+
+```text
+Settings: API Access, Users, Integrations
+Developer Cockpit: Dashboard, Terms, Suggestions, Guardrails
+```
+
+This keeps the UI aligned with the headless/API-first product direction. Reviewers and knowledge managers see the workflow they need, while developers still have access to legacy/manual tools for local testing and pilot debugging.

@@ -44,7 +44,7 @@ export function App() {
 function AuthGate() {
   const queryClient = useQueryClient();
   const [tokenVersion, setTokenVersion] = useState(() => getAuthToken() ?? "anonymous");
-  const [activeSection, setActiveSection] = useState<AppSection>("dashboard");
+  const [activeSection, setActiveSection] = useState<AppSection>("search-playground");
 
   const meQuery = useQuery({
     queryKey: ["auth", "me", tokenVersion],
@@ -67,7 +67,7 @@ function AuthGate() {
     onSettled: () => {
       clearAuthToken();
       setTokenVersion("anonymous");
-      setActiveSection("dashboard");
+      setActiveSection("search-playground");
       queryClient.clear();
     },
   });
@@ -98,7 +98,7 @@ function AuthGate() {
   }
 
   const permissions = permissionsForUser(currentUser);
-  const safeActiveSection = activeSection === "users" && !permissions.canManageUsers ? "dashboard" : activeSection;
+  const safeActiveSection = activeSection === "users" && !permissions.canManageUsers ? "search-playground" : activeSection;
 
   return (
     <AppShell

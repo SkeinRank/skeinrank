@@ -2227,7 +2227,7 @@ async function openSnapshotsPage() {
 
 async function openSearchPlaygroundPage() {
   fireEvent.click(
-    await screen.findByRole("button", { name: "Search Playground" }),
+    await screen.findByRole("button", { name: "Playground" }),
   );
   await screen.findByRole("heading", { name: "Search Playground" });
 }
@@ -2247,21 +2247,18 @@ describe("App", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Dashboard" }),
+      await screen.findByRole("heading", { name: "Search Playground" }),
     ).toBeInTheDocument();
-    expect(
-      await screen.findByText("Runtime control center"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Production search context is ready."),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Setup progress")).toBeInTheDocument();
-    expect(screen.getByText("Pin snapshot")).toBeInTheDocument();
-    expect(screen.getByText("Next actions")).toBeInTheDocument();
-    const attentionBadge = screen.getByText("1 attention");
-    expect(attentionBadge).toHaveClass("shrink-0");
-    expect(attentionBadge).toHaveClass("whitespace-nowrap");
-    expect(screen.getByText("Ready bindings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Playground" })).toHaveAttribute("aria-current", "page");
+    const primaryNavigation = screen.getByRole("navigation", { name: "Primary product navigation" });
+    expect(primaryNavigation).toHaveTextContent("Playground");
+    expect(primaryNavigation).toHaveTextContent("AI Inbox");
+    expect(primaryNavigation).toHaveTextContent("Schema & Snapshots");
+    expect(primaryNavigation).not.toHaveTextContent("Dashboard");
+    expect(primaryNavigation).not.toHaveTextContent("Terms");
+    expect(screen.getByText("Developer Cockpit")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Terms" })).toBeInTheDocument();
 
     await openTermsPage();
 

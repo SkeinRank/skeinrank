@@ -1089,3 +1089,7 @@ The Snapshots section now includes a read-heavy Schema & Snapshots workspace wit
 ### Patch 58E — UI polish / empty states / degraded banners
 
 The 3-tab Control Plane UI now surfaces degraded operational state from `GET /v1/ops/alerts/report` as a non-mutating banner and improves empty states for AI Inbox and Search Playground. This keeps the UI focused on review, debugging, and audit without adding manual CRUD, custom monitoring dashboards, enrichment triggers, or new backend endpoints. See [`docs/guides/ui-polish-empty-states-degraded-banners.md`](docs/guides/ui-polish-empty-states-degraded-banners.md).
+
+### Patch 58F — Control Plane navigation slim-down
+
+The UI navigation now follows the 3-tab Control Plane model: Playground, AI Inbox, and Schema & Snapshots are the only primary product tabs. Legacy/dev/admin pages are not deleted; they are moved into Settings and Developer Cockpit utility groups so existing workflows remain reachable while the default product experience stays focused on debugging, human-in-the-loop proposal review, and schema/snapshot audit. See [`docs/guides/control-plane-navigation-slim-down.md`](docs/guides/control-plane-navigation-slim-down.md).
