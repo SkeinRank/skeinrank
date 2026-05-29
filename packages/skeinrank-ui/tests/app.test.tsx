@@ -2221,8 +2221,8 @@ async function openTermsPage() {
 }
 
 async function openSnapshotsPage() {
-  fireEvent.click(await screen.findByRole("button", { name: "Snapshots" }));
-  await screen.findByRole("heading", { name: "Runtime snapshots" });
+  fireEvent.click(await screen.findByRole("button", { name: "Schema & Snapshots" }));
+  await screen.findByRole("heading", { name: "Schema & Snapshots" });
 }
 
 async function openSearchPlaygroundPage() {
@@ -2289,9 +2289,17 @@ describe("App", () => {
 
     await openSnapshotsPage();
 
-    expect(await screen.findByText("Snapshot release cockpit")).toBeInTheDocument();
+    expect(await screen.findByText("Schema & snapshots workspace")).toBeInTheDocument();
+    expect(screen.getByText("Schema tree")).toBeInTheDocument();
+    expect(screen.getByText("Snapshot timeline")).toBeInTheDocument();
+    expect(await screen.findByText("Profile: default_it")).toBeInTheDocument();
+    expect(await screen.findByText("Binding: infra docs")).toBeInTheDocument();
+    expect(await screen.findByText("Category: TOOL")).toBeInTheDocument();
+    expect(await screen.findByText("Canonical: kubernetes")).toBeInTheDocument();
+    expect(await screen.findByText("Alias: k8s")).toBeInTheDocument();
+    expect(screen.getByText("Snapshot release cockpit")).toBeInTheDocument();
     expect(screen.getByText("Runtime audit")).toBeInTheDocument();
-    expect(screen.getByText("Runtime bindings")).toBeInTheDocument();
+    expect(screen.getAllByText("Runtime bindings").length).toBeGreaterThan(0);
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
     expect(screen.getByText("Profile drift")).toBeInTheDocument();
     expect(screen.getByText("Recent snapshot events")).toBeInTheDocument();

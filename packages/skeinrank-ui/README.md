@@ -63,6 +63,7 @@ The governance console currently includes:
 - role-aware controls for Admin, Moderator, and Contributor users
 - AI Inbox page for human-in-the-loop review of agent proposals with cards plus a detail panel for risk, validation findings, apply-policy, evidence snippets, source payload, and approve/reject actions
 - Search Playground page with single-query preview, explicit search, and split-screen snapshot compare across two binding-backed runtime contexts
+- Schema & Snapshots page with a read-heavy tree + detail layout for bindings, profiles, slots/categories, canonical terms, aliases, and runtime snapshot drift
 - Suggestions page for legacy/dev proposal creation, filtering, approving, rejecting, and evidence-checking alias/canonical term proposals
 - Guardrails page for global and profile-scoped stop-list management
 - Integrations page for manual Elasticsearch binding configs, shared-index validation, time-window filters, dry-run previews, and enrichment job status
@@ -218,5 +219,9 @@ and updates the rollout panel with completed rollback metadata.
 ## Search Playground snapshot compare
 
 The Search Playground supports a safe split-screen compare mode. Users pick two existing Elasticsearch bindings, enter one query, and the UI calls `POST /v1/query/plan` for each binding. This compares active/staging or prod/draft runtime behavior without introducing a new backend endpoint or mutating snapshots.
+
+## Schema & Snapshots tree
+
+The Snapshots section includes a read-only Schema & Snapshots workspace. Users can inspect `binding → profile → category/slot → canonical term → aliases` in a tree and select any node to see details in the right panel. A companion snapshot timeline mode shows active/pending versions, drift, alias counts, and rollback availability. The UI uses existing profile, terms, binding, and snapshot summary endpoints and does not add manual schema editing or rollout buttons.
 
 Compare mode is intentionally read-only: it does not run enrichment jobs, publish snapshots, apply proposals, or write to Elasticsearch. The separate `Run search` button remains the only path that calls runtime search.

@@ -66,7 +66,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
     { label: "Guardrails", icon: ShieldCheck, section: "guardrails" as const, available: true },
     { label: "Integrations", icon: Plug, section: "integrations" as const, available: true },
     { label: "Search Playground", icon: Search, section: "search-playground" as const, available: true },
-    { label: "Snapshots", icon: GitBranch, section: "snapshots" as const, available: true },
+    { label: "Schema & Snapshots", icon: GitBranch, section: "snapshots" as const, available: true },
     { label: "API Access", icon: KeyRound, section: "api-access" as const, available: canManageApiTokens },
     { label: "Users", icon: Users, section: "users" as const, available: canManageUsers },
   ];
@@ -165,7 +165,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                   : activeSection === "users"
                   ? "Users and roles"
                   : activeSection === "snapshots"
-                    ? "Runtime snapshots"
+                    ? "Schema & Snapshots"
                   : activeSection === "proposal-inbox"
                     ? "AI Proposals Inbox"
                   : activeSection === "search-playground"
@@ -186,7 +186,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                   : activeSection === "users"
                   ? "Manage local users, roles, and access to governance workflows."
                   : activeSection === "snapshots"
-                    ? "Audit active runtime snapshots, stale bindings, and enrichment history."
+                    ? "Inspect terminology schema, aliases, bindings, and immutable runtime snapshots."
                   : activeSection === "proposal-inbox"
                     ? "Review agent-submitted terminology changes with risk, evidence, and human approval."
                   : activeSection === "search-playground"

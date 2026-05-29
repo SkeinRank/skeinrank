@@ -1081,3 +1081,7 @@ Patch 57C adds an offline company-model integration plan for connecting private/
 ### Patch 58C — Playground Snapshot Compare UI
 
 Search Playground now includes a split-screen compare mode for binding-backed runtime snapshots. The UI compares two existing bindings by calling the existing `POST /v1/query/plan` endpoint twice, then highlights canonical query, matched alias, canonical value, replacement, and snapshot differences. No new backend endpoint or runtime mutation is introduced.
+
+### Patch 58D — Schema & Snapshots Tree UI
+
+The Snapshots section now includes a read-heavy Schema & Snapshots workspace with a tree + detail layout for `binding → profile → category/slot → canonical term → aliases` and a snapshot timeline mode. The UI uses existing profile, binding, terms, and snapshot-summary endpoints; it does not add manual CRUD, enrichment triggers, snapshot publishing, or rollback actions. See [`docs/guides/schema-snapshots-tree-ui.md`](docs/guides/schema-snapshots-tree-ui.md).
