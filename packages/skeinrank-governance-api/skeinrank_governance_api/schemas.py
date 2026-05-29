@@ -461,6 +461,7 @@ class AliasCreateRequest(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     status: str = "active"
     notes: str | None = None
+    context_triggers: list[str] = Field(default_factory=list)
 
 
 class AliasUpdateRequest(BaseModel):
@@ -470,6 +471,7 @@ class AliasUpdateRequest(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     status: str | None = None
     notes: str | None = None
+    context_triggers: list[str] | None = None
 
 
 class AliasResponse(BaseModel):
@@ -481,6 +483,7 @@ class AliasResponse(BaseModel):
     status: str
     confidence: float
     notes: str | None = None
+    context_triggers: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -1353,6 +1356,8 @@ class TextCanonicalizeMatch(BaseModel):
     end: int
     confidence: float
     source: str = "alias"
+    context_triggers: list[str] = Field(default_factory=list)
+    matched_context_triggers: list[str] = Field(default_factory=list)
 
 
 class TextCanonicalizeEvidence(BaseModel):
@@ -1368,6 +1373,8 @@ class TextCanonicalizeEvidence(BaseModel):
     end: int
     confidence: float
     source: str = "alias"
+    context_triggers: list[str] = Field(default_factory=list)
+    matched_context_triggers: list[str] = Field(default_factory=list)
 
 
 class TextCanonicalizeResponse(BaseModel):
@@ -1560,6 +1567,7 @@ class ConsoleDictionaryAliasInput(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     status: str = "active"
     notes: str | None = None
+    context_triggers: list[str] = Field(default_factory=list)
 
 
 class ConsoleDictionaryTermInput(BaseModel):

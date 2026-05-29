@@ -1132,3 +1132,30 @@ examples/mcp-agent-docs/
 
 They use the same `skeinrank-mcp` stdio adapter and do not add new Governance API
 routes.
+
+## Patch 63B: Alias context triggers
+
+Alias create/update and dictionary import payloads can include optional
+`context_triggers`:
+
+```json
+{
+  "alias_value": "pg",
+  "confidence": 0.95,
+  "context_triggers": ["timeout", "replica", "migration"]
+}
+```
+
+A trigger-gated alias only matches in the existing runtime endpoints when the
+query also contains at least one configured trigger:
+
+```text
+POST /v1/text/canonicalize
+POST /v1/query/plan
+POST /v1/search
+POST /v1/search/multi
+```
+
+Runtime explanation payloads include `context_triggers`,
+`matched_context_triggers`, and `source = "alias_context_trigger"` for gated
+matches. No new endpoint is introduced by this patch.

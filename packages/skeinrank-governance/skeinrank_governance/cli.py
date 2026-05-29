@@ -157,6 +157,13 @@ def normalize_tag_values(values: Sequence[str] | None) -> list[str]:
     return sorted(normalized)
 
 
+def _normalize_context_triggers(values: Iterable[str]) -> list[str]:
+    """Normalize, deduplicate and sort alias context trigger values."""
+
+    normalized = {normalize_value(str(value)) for value in values if str(value).strip()}
+    return sorted(value for value in normalized if value)
+
+
 def set_term_tags(
     session: Session, term: CanonicalTerm, values: Sequence[str] | None
 ) -> list[TermTag]:
@@ -207,6 +214,7 @@ def add_alias(
     confidence: float = 1.0,
     status: str = ACTIVE_STATUS,
     notes: str | None = None,
+    context_triggers: list[str] | None = None,
     actor: str = "cli",
 ) -> TermAlias:
     """Add an alias to a canonical term."""
@@ -232,6 +240,7 @@ def add_alias(
         confidence=confidence,
         status=status,
         notes=notes,
+        context_triggers=_normalize_context_triggers(context_triggers or []),
     )
     session.add(alias)
     session.flush()
@@ -248,6 +257,7 @@ def add_alias(
             "confidence": confidence,
             "status": status,
             "notes": notes,
+            "context_triggers": _normalize_context_triggers(context_triggers or []),
         },
     )
     return alias

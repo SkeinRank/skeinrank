@@ -1266,3 +1266,14 @@ runtime-routing patches. See
 [`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md) and
 [`examples/runtime-routing-api`](examples/runtime-routing-api).
 
+
+
+### Patch 63B — Context-trigger disambiguation for aliases
+
+Patch 63B adds optional `context_triggers` to aliases. Trigger-gated aliases only
+match when the query also contains at least one configured trigger word or phrase,
+which helps keep short aliases such as `pg` from expanding outside their domain.
+The behavior is available through the existing `/v1/text/canonicalize`,
+`/v1/query/plan`, `/v1/search`, and `/v1/search/multi` runtime surfaces; no new
+endpoint is introduced. See [`docs/guides/context-trigger-disambiguation.md`](docs/guides/context-trigger-disambiguation.md)
+and [`examples/runtime-routing-api/context-trigger-dictionary.yaml`](examples/runtime-routing-api/context-trigger-dictionary.yaml).

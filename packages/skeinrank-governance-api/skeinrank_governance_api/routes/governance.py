@@ -1835,6 +1835,7 @@ def add_term_alias(
             confidence=request.confidence,
             status=request.status,
             notes=request.notes,
+            context_triggers=request.context_triggers,
             actor="api",
         )
         session.commit()
@@ -1910,6 +1911,9 @@ def update_term_alias(
 
     if "notes" in fields:
         alias.notes = request.notes
+
+    if "context_triggers" in fields and request.context_triggers is not None:
+        alias.context_triggers = _normalize_context_triggers(request.context_triggers)
 
     try:
         session.commit()
@@ -4916,6 +4920,11 @@ def _elasticsearch_binding_response(
     )
 
 
+def _normalize_context_triggers(values: list[str]) -> list[str]:
+    normalized = {normalize_value(str(value)) for value in values if str(value).strip()}
+    return sorted(value for value in normalized if value)
+
+
 def _alias_response(alias: TermAlias) -> AliasResponse:
     return AliasResponse(
         id=alias.id,
@@ -4924,6 +4933,7 @@ def _alias_response(alias: TermAlias) -> AliasResponse:
         status=alias.status,
         confidence=alias.confidence,
         notes=alias.notes,
+        context_triggers=list(alias.context_triggers or []),
         created_at=alias.created_at,
         updated_at=alias.updated_at,
     )

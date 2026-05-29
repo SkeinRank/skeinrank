@@ -140,8 +140,10 @@ a warning. Do not rely on either preview shape for production search paths.
 
 ## What this patch does not do
 
-Patch 63A does not add automatic intent classification, context triggers, or a
-multi-binding router. Those belong to later runtime-routing patches. This patch
-only makes the binding-aware contract explicit and easier to integrate with
-application-scope routing.
+Patch 63A made the binding-aware contract explicit. Patch 63B adds deterministic
+`context_triggers` for aliases so noisy surfaces can be gated by nearby query
+terms without introducing an LLM router. Multi-binding route planning remains a
+later runtime-routing patch.
+
+See also: [`context-trigger-disambiguation.md`](context-trigger-disambiguation.md).
 

@@ -371,6 +371,9 @@ class TermAlias(TimestampMixin, Base):
     )
     confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    context_triggers: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
 
     profile: Mapped[TerminologyProfile] = relationship(back_populates="aliases")
     term: Mapped[CanonicalTerm] = relationship(back_populates="aliases")
@@ -1862,6 +1865,11 @@ def _fill_normalized_term(mapper: Any, connection: Any, target: CanonicalTerm) -
 def _fill_normalized_alias(mapper: Any, connection: Any, target: TermAlias) -> None:
     del mapper, connection
     target.normalized_alias = normalize_value(target.alias_value)
+    raw_triggers = target.context_triggers or []
+    normalized_triggers = {
+        normalize_value(str(value)) for value in raw_triggers if str(value).strip()
+    }
+    target.context_triggers = sorted(value for value in normalized_triggers if value)
 
 
 def _fill_normalized_term_tag(mapper: Any, connection: Any, target: TermTag) -> None:

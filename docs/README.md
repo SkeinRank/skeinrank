@@ -532,4 +532,5 @@ responses include `runtime_context` for audit/debug, and optional
 `application_scope` metadata can record the app route/workspace that selected
 the binding. See [`guides/runtime-routing-api.md`](guides/runtime-routing-api.md)
 and [`../examples/runtime-routing-api`](../examples/runtime-routing-api).
+Patch 63B adds deterministic alias `context_triggers`; see [`guides/context-trigger-disambiguation.md`](guides/context-trigger-disambiguation.md).
 

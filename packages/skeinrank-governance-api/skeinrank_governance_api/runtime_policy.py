@@ -32,6 +32,7 @@ class _AliasLike(Protocol):
     slot: str
     confidence: float
     tags: tuple[str, ...]
+    context_triggers: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,7 @@ class _RuntimeCandidate:
     slot: str
     confidence: float
     tags: tuple[str, ...]
+    context_triggers: tuple[str, ...]
     source: str
     status: str
     reason: str | None = None
@@ -91,6 +93,7 @@ class _RuntimeCandidate:
             slot=self.slot,
             confidence=self.confidence,
             tags=self.tags,
+            context_triggers=self.context_triggers,
         )
 
     def to_summary(self) -> dict[str, object]:
@@ -99,6 +102,7 @@ class _RuntimeCandidate:
             "normalized_canonical": self.normalized_canonical,
             "slot": self.slot,
             "tags": list(self.tags),
+            "context_triggers": list(self.context_triggers),
             "confidence": self.confidence,
             "source": self.source,
             "status": self.status,
@@ -178,6 +182,7 @@ def _alias_like_to_entry(alias: _AliasLike) -> RuntimeAliasEntry:
         slot=alias.slot,
         confidence=alias.confidence,
         tags=tuple(alias.tags or ()),
+        context_triggers=tuple(getattr(alias, "context_triggers", ()) or ()),
     )
 
 
@@ -194,6 +199,7 @@ def _candidate_groups_from_aliases(
             slot=entry.slot,
             confidence=entry.confidence,
             tags=tuple(entry.tags or ()),
+            context_triggers=tuple(getattr(entry, "context_triggers", ()) or ()),
             source="active_alias",
             status="active",
         )
@@ -235,6 +241,7 @@ def _extend_with_ambiguous_candidates(
                 slot=candidate.slot,
                 confidence=candidate.confidence,
                 tags=tags,
+                context_triggers=(),
                 source=f"ambiguous_{candidate.source}",
                 status=candidate.status,
             )

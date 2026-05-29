@@ -50,6 +50,7 @@ class _AliasEntry:
     slot: str
     confidence: float
     tags: tuple[str, ...] = ()
+    context_triggers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,8 @@ class _CandidateMatch:
     canonical_value: str
     slot: str
     tags: tuple[str, ...]
+    context_triggers: tuple[str, ...]
+    matched_context_triggers: tuple[str, ...]
     matched_text: str
     start: int
     end: int
@@ -140,6 +143,8 @@ def canonicalize_text(
                 canonical_value=match.canonical_value,
                 slot=match.slot,
                 tags=list(match.tags),
+                context_triggers=list(match.context_triggers),
+                matched_context_triggers=list(match.matched_context_triggers),
                 matched_text=match.matched_text,
                 start=match.start,
                 end=match.end,
@@ -373,6 +378,7 @@ def _alias_entries_from_runtime_entries(entries) -> list[_AliasEntry]:
             slot=entry.slot,
             confidence=entry.confidence,
             tags=tuple(getattr(entry, "tags", ()) or ()),
+            context_triggers=tuple(getattr(entry, "context_triggers", ()) or ()),
         )
         for entry in entries
     ]
@@ -449,6 +455,9 @@ def _active_alias_entries_for_profile(
                 slot=alias.term.slot,
                 confidence=alias.confidence,
                 tags=_tags_for_term(alias.term),
+                context_triggers=_normalize_context_triggers(
+                    getattr(alias, "context_triggers", []) or []
+                ),
             )
         )
     return entries
@@ -483,25 +492,65 @@ def _find_alias_matches(
     text: str, alias_entries: list[_AliasEntry]
 ) -> list[_CandidateMatch]:
     matches: list[_CandidateMatch] = []
+    normalized_text = normalize_value(text)
     for alias_entry in alias_entries:
+        matched_context_triggers = _matched_context_triggers(
+            normalized_text, alias_entry.context_triggers
+        )
+        if alias_entry.context_triggers and not matched_context_triggers:
+            continue
         pattern = _alias_pattern(alias_entry.alias_value)
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            reason = "Alias matched active canonical term"
+            source = "alias"
+            confidence = alias_entry.confidence
+            if alias_entry.context_triggers:
+                reason = (
+                    "Alias matched active canonical term with context trigger(s): "
+                    + ", ".join(matched_context_triggers)
+                )
+                source = "alias_context_trigger"
             matches.append(
                 _CandidateMatch(
                     alias_value=alias_entry.alias_value,
                     canonical_value=alias_entry.canonical_value,
                     slot=alias_entry.slot,
                     tags=alias_entry.tags,
+                    context_triggers=alias_entry.context_triggers,
+                    matched_context_triggers=matched_context_triggers,
                     matched_text=match.group(0),
                     start=match.start(),
                     end=match.end(),
-                    confidence=alias_entry.confidence,
+                    confidence=confidence,
+                    source=source,
+                    reason=reason,
                 )
             )
     return sorted(
         matches,
         key=lambda item: (item.start, -(item.end - item.start), item.alias_value),
     )
+
+
+def _matched_context_triggers(
+    normalized_text: str, context_triggers: tuple[str, ...]
+) -> tuple[str, ...]:
+    if not context_triggers:
+        return ()
+    matched: list[str] = []
+    for trigger in context_triggers:
+        normalized_trigger = normalize_value(trigger)
+        if not normalized_trigger:
+            continue
+        pattern = _alias_pattern(normalized_trigger)
+        if re.search(pattern, normalized_text, flags=re.IGNORECASE):
+            matched.append(normalized_trigger)
+    return tuple(sorted(set(matched)))
+
+
+def _normalize_context_triggers(values: list[str]) -> tuple[str, ...]:
+    normalized = {normalize_value(str(value)) for value in values if str(value).strip()}
+    return tuple(sorted(value for value in normalized if value))
 
 
 def _alias_pattern(alias_value: str) -> str:
@@ -551,6 +600,8 @@ def _match_response(match: _CandidateMatch) -> TextCanonicalizeMatch:
         canonical_value=match.canonical_value,
         slot=match.slot,
         tags=list(match.tags),
+        context_triggers=list(match.context_triggers),
+        matched_context_triggers=list(match.matched_context_triggers),
         matched_text=match.matched_text,
         start=match.start,
         end=match.end,

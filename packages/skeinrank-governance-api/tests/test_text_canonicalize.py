@@ -419,3 +419,63 @@ def test_text_canonicalize_rejects_binding_id_name_mismatch(tmp_path):
 
     assert response.status_code == 409
     assert "binding_id and binding_name" in response.json()["detail"]
+
+
+def test_text_canonicalize_context_triggers_gate_noisy_alias(tmp_path):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    term_response = client.get(
+        "/v1/governance/profiles/infra_incidents/terms/postgresql"
+    )
+    assert term_response.status_code == 200, term_response.text
+    pg_alias = next(
+        alias
+        for alias in term_response.json()["aliases"]
+        if alias["alias_value"] == "pg"
+    )
+    update = client.patch(
+        f"/v1/governance/profiles/infra_incidents/terms/postgresql/aliases/{pg_alias['id']}",
+        json={"context_triggers": ["timeout", "replica", "migration", "timeout"]},
+    )
+    assert update.status_code == 200, update.text
+    assert update.json()["context_triggers"] == ["migration", "replica", "timeout"]
+
+    unrelated = client.post(
+        "/v1/text/canonicalize",
+        json={
+            "profile_name": "infra_incidents",
+            "text": "pg layout issue",
+            "mode": "replace",
+        },
+    )
+    assert unrelated.status_code == 200, unrelated.text
+    unrelated_payload = unrelated.json()
+    assert unrelated_payload["canonical_text"] == "pg layout issue"
+    assert unrelated_payload["matched_aliases"] == []
+
+    related = client.post(
+        "/v1/text/canonicalize",
+        json={
+            "profile_name": "infra_incidents",
+            "text": "pg timeout on replica",
+            "mode": "replace",
+        },
+    )
+    assert related.status_code == 200, related.text
+    payload = related.json()
+    assert payload["canonical_text"] == "postgresql timeout on replica"
+    assert payload["matched_aliases"] == ["pg"]
+    assert payload["replacements"][0]["source"] == "alias_context_trigger"
+    assert payload["replacements"][0]["context_triggers"] == [
+        "migration",
+        "replica",
+        "timeout",
+    ]
+    assert payload["replacements"][0]["matched_context_triggers"] == [
+        "replica",
+        "timeout",
+    ]
+    assert payload["evidence"][0]["matched_context_triggers"] == [
+        "replica",
+        "timeout",
+    ]

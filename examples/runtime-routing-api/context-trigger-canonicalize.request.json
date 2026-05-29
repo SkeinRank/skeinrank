@@ -1,0 +1,9 @@
+{
+  "binding_name": "infra incidents prod",
+  "text": "pg timeout on replica",
+  "mode": "replace",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "incidents"
+  }
+}

@@ -1821,3 +1821,13 @@ target field, snapshot source, and optional `application_scope` metadata.
 
 See `docs/guides/runtime-routing-api.md` and `examples/runtime-routing-api/`.
 
+
+
+## Context-trigger disambiguation for aliases
+
+Patch 63B adds optional `context_triggers` on aliases. The existing runtime
+canonicalization and search surfaces keep their URLs, but alias matches can now be
+trigger-gated for noisy surfaces such as `pg`. Dictionary import/export preserves
+`context_triggers`, runtime snapshots include them, and explanation payloads expose
+`context_triggers` plus `matched_context_triggers`. See
+[`docs/guides/context-trigger-disambiguation.md`](../../docs/guides/context-trigger-disambiguation.md).

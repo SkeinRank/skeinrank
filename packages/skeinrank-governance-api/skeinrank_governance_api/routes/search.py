@@ -406,6 +406,8 @@ def _build_runtime_plan(
                 canonical_value=match.canonical_value,
                 slot=match.slot,
                 tags=list(match.tags),
+                context_triggers=list(match.context_triggers),
+                matched_context_triggers=list(match.matched_context_triggers),
                 matched_text=match.matched_text,
                 start=match.start,
                 end=match.end,
