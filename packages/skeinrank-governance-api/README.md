@@ -275,10 +275,13 @@ when it changes.
 
 Patch 60A documents the Terminology-as-Code import/export loop in
 `docs/guides/terminology-as-code.md`. Patch 60B adds CLI planning in
-`docs/guides/dictionary-cli-planning.md`. Use YAML or JSON files in Git, run
-local `lint`, build a server-backed `plan`, apply with `--plan-output`, export
-the governed dictionary back to JSON, then export a binding-scoped runtime
-artifact for delivery to headless workers.
+`docs/guides/dictionary-cli-planning.md`. Patch 60C adds the GitOps delivery
+runbook in `docs/deployment/gitops-delivery-runbook.md` and examples in
+`examples/gitops-delivery`. Use YAML or JSON files in Git, run local `lint`,
+build a server-backed `plan`, apply with `--plan-output`, export the governed
+dictionary back to JSON, then export a binding-scoped runtime artifact for
+GitLab CI, ArgoCD, Flux, or another delivery tool to move into headless runtime
+workers.
 
 
 ## Headless benchmark CLI

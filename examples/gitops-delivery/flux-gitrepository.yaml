@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: skeinrank-runtime-artifacts
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://git.example.com/search-platform/skeinrank-runtime-artifacts.git
+  ref:
+    branch: main

@@ -157,7 +157,9 @@ or another GitOps tool should deliver the approved file or runtime artifact to
 serving workers. SkeinRank should not pretend to replace CI/CD.
 
 Patch 60B adds [`dictionary-cli-planning.md`](dictionary-cli-planning.md) with
-local `lint`, server-backed `plan`, and `apply --plan-output` guidance. Use
+local `lint`, server-backed `plan`, and `apply --plan-output` guidance. Patch
+60C adds [`../deployment/gitops-delivery-runbook.md`](../deployment/gitops-delivery-runbook.md)
+for GitLab CI, ArgoCD, Flux, and runtime artifact delivery examples. Use
 `validate`, `export`, `snapshot-export`, `snapshot-inspect`, and `snapshot-eval`
 for the rest of the existing flow.
 

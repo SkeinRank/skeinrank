@@ -325,7 +325,9 @@ poetry run skeinrank-migrate snapshot-export \
 
 See [`docs/guides/terminology-as-code.md`](docs/guides/terminology-as-code.md),
 [`docs/guides/dictionary-cli-planning.md`](docs/guides/dictionary-cli-planning.md),
-and [`examples/terminology-as-code`](examples/terminology-as-code).
+[`docs/deployment/gitops-delivery-runbook.md`](docs/deployment/gitops-delivery-runbook.md),
+[`examples/terminology-as-code`](examples/terminology-as-code), and
+[`examples/gitops-delivery`](examples/gitops-delivery).
 
 ## Agent-ready proposals and validation
 

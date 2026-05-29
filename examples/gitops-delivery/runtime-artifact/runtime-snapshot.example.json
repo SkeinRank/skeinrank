@@ -1,0 +1,14 @@
+{
+  "schema_version": "skeinrank.runtime_snapshot_artifact.v1",
+  "snapshot_version": "platform_ops@example",
+  "source": "example-placeholder",
+  "binding": {
+    "id": 1,
+    "profile_name": "platform_ops",
+    "index_name": "platform_knowledge_base",
+    "target_field": "skeinrank_terms"
+  },
+  "terms": [],
+  "compiled_aliases": [],
+  "checksum": "replace-with-skeinrank-migrate-snapshot-export-output"
+}

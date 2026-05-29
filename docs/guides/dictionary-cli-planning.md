@@ -113,3 +113,18 @@ pull request changes dictionary file
 
 `lint` is a local guardrail. `plan` is the server-backed apply decision. `apply`
 remains the only write step in this part of the flow.
+
+## Delivery after apply
+
+After a reviewed apply, use the existing export commands and the 60C GitOps
+runbook to deliver runtime artifacts:
+
+```bash
+poetry run skeinrank-migrate export --profile-name "$SKEINRANK_PROFILE_NAME" --output reports/governed-dictionary.json
+poetry run skeinrank-migrate snapshot-export --binding-id "$SKEINRANK_BINDING_ID" --source latest --snapshot-version "$SKEINRANK_SNAPSHOT_VERSION" --output runtime/runtime-snapshot.json
+```
+
+See [`../deployment/gitops-delivery-runbook.md`](../deployment/gitops-delivery-runbook.md)
+for GitLab CI, ArgoCD, and Flux examples. GitOps delivery is external to
+SkeinRank: the CLI writes artifacts, while your delivery tool commits, syncs,
+mounts, restarts, or reloads runtime workers.
