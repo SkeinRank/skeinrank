@@ -1,14 +1,16 @@
-import { ChevronLeft, ChevronRight, Database, GitBranch, Home, KeyRound, LogOut, Moon, Monitor, Plug, Search, ShieldCheck, Sparkles, Sun, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Database, GitBranch, Home, Inbox, LogOut, Moon, Monitor, Plug, Search, Settings, ShieldCheck, Sparkles, Sun, Users, Wrench } from "lucide-react";
 import type { FocusEvent, ReactNode } from "react";
 import { useState } from "react";
 
+import { areLegacyWriteToolsEnabled, LEGACY_WRITE_TOOLS_LOCKED_MESSAGE } from "../../config";
 import { cn } from "../../lib/utils";
 import { useTheme } from "../../theme";
 import type { AuthUser } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { ControlPlaneStatusBanner } from "./ControlPlaneStatusBanner";
 
-export type AppSection = "dashboard" | "terms" | "suggestions" | "guardrails" | "integrations" | "search-playground" | "snapshots" | "api-access" | "users";
+export type AppSection = "dashboard" | "terms" | "proposal-inbox" | "suggestions" | "guardrails" | "integrations" | "search-playground" | "snapshots" | "api-access" | "users";
 
 type AppShellProps = {
   activeSection: AppSection;
@@ -21,6 +23,13 @@ type AppShellProps = {
 };
 
 type SidebarMode = "expanded" | "collapsed";
+
+type NavigationItem = {
+  label: string;
+  icon: typeof Search;
+  section: AppSection;
+  available: boolean;
+};
 
 const SIDEBAR_STORAGE_KEY = "skeinrank-ui-sidebar-mode";
 
@@ -51,6 +60,7 @@ function getInitialSidebarMode(): SidebarMode {
 
 export function AppShell({ activeSection, canManageApiTokens = true, canManageUsers = false, children, currentUser, onLogout, onNavigate }: AppShellProps) {
   const { theme, toggleTheme } = useTheme();
+  const legacyWriteToolsEnabled = areLegacyWriteToolsEnabled();
   const ThemeIcon = themeIcon[theme];
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>(getInitialSidebarMode);
   const [isSidebarPreviewed, setIsSidebarPreviewed] = useState(false);
@@ -58,16 +68,23 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
   const isSidebarCollapsed = sidebarMode === "collapsed";
   const isSidebarOpen = !isSidebarCollapsed || isSidebarPreviewed;
 
-  const navigation = [
-    { label: "Dashboard", icon: Home, section: "dashboard" as const, available: true },
-    { label: "Terms", icon: Database, section: "terms" as const, available: true },
-    { label: "Suggestions", icon: Sparkles, section: "suggestions" as const, available: true },
-    { label: "Guardrails", icon: ShieldCheck, section: "guardrails" as const, available: true },
-    { label: "Integrations", icon: Plug, section: "integrations" as const, available: true },
-    { label: "Search Playground", icon: Search, section: "search-playground" as const, available: true },
-    { label: "Snapshots", icon: GitBranch, section: "snapshots" as const, available: true },
-    { label: "API Access", icon: KeyRound, section: "api-access" as const, available: canManageApiTokens },
-    { label: "Users", icon: Users, section: "users" as const, available: canManageUsers },
+  const primaryNavigation: NavigationItem[] = [
+    { label: "Playground", icon: Search, section: "search-playground", available: true },
+    { label: "AI Inbox", icon: Inbox, section: "proposal-inbox", available: true },
+    { label: "Schema & Snapshots", icon: GitBranch, section: "snapshots", available: true },
+  ];
+
+  const settingsNavigation: NavigationItem[] = [
+    { label: "API Access", icon: Settings, section: "api-access", available: canManageApiTokens },
+    { label: "Users", icon: Users, section: "users", available: canManageUsers },
+    { label: "Integrations", icon: Plug, section: "integrations", available: true },
+  ];
+
+  const legacyNavigation: NavigationItem[] = [
+    { label: "Dashboard", icon: Home, section: "dashboard", available: true },
+    { label: "Terms", icon: Database, section: "terms", available: true },
+    { label: "Suggestions", icon: Sparkles, section: "suggestions", available: true },
+    { label: "Guardrails", icon: ShieldCheck, section: "guardrails", available: true },
   ];
 
   function setNextSidebarMode(mode: SidebarMode) {
@@ -81,6 +98,51 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
     if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
       setIsSidebarPreviewed(false);
     }
+  }
+
+  function renderNavigationGroup(label: string, items: NavigationItem[], options: { compact?: boolean; ariaLabel: string }) {
+    const availableItems = items.filter((item) => item.available);
+    if (availableItems.length === 0) {
+      return null;
+    }
+
+    return (
+      <nav aria-label={options.ariaLabel} className={cn(options.compact ? "space-y-1" : "space-y-1.5")}>
+        {isSidebarOpen ? (
+          <div className={cn("px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500", options.compact ? "mb-1" : "mb-2")}>{label}</div>
+        ) : (
+          <div className="mx-auto mb-2 h-px w-8 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
+        )}
+        {availableItems.map((item) => (
+          <button
+            key={item.label}
+            aria-current={activeSection === item.section ? "page" : undefined}
+            aria-label={item.label}
+            className={cn(
+              "group relative flex w-full items-center rounded-xl text-left font-medium transition-colors",
+              options.compact ? "py-2 text-xs" : "py-2.5 text-sm",
+              isSidebarOpen ? "gap-3 px-3" : "justify-center px-0",
+              activeSection === item.section
+                ? "bg-slate-950 text-white dark:bg-slate-100 dark:text-slate-950"
+                : options.compact
+                  ? "text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-slate-50"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-50",
+            )}
+            onClick={() => onNavigate(item.section)}
+            title={isSidebarOpen ? undefined : item.label}
+            type="button"
+          >
+            <item.icon className={cn("shrink-0", options.compact ? "h-4 w-4" : "h-5 w-5")} />
+            <span className={isSidebarOpen ? "truncate" : "sr-only"}>{item.label}</span>
+            {!isSidebarOpen ? (
+              <span className="pointer-events-none absolute left-12 z-30 hidden whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-lg group-hover:block dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                {item.label}
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </nav>
+    );
   }
 
   return (
@@ -107,7 +169,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
             {isSidebarOpen ? (
               <div className="min-w-0">
                 <div className="truncate text-lg font-semibold tracking-tight">SkeinRank</div>
-                <div className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">Governance Console</div>
+                <div className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">Control Plane</div>
               </div>
             ) : null}
           </div>
@@ -123,35 +185,32 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
           ) : null}
         </div>
 
-        <nav className="mt-16 space-y-1">
-          {navigation
-            .filter((item) => item.available)
-            .map((item) => (
-              <button
-                key={item.label}
-                aria-current={activeSection === item.section ? "page" : undefined}
-                aria-label={item.label}
-                className={cn(
-                  "group relative flex w-full items-center rounded-xl py-2.5 text-left text-sm font-medium transition-colors",
-                  isSidebarOpen ? "gap-3 px-3" : "justify-center px-0",
-                  activeSection === item.section
-                    ? "bg-slate-950 text-white dark:bg-slate-100 dark:text-slate-950"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-50",
-                )}
-                onClick={() => onNavigate(item.section)}
-                title={isSidebarOpen ? undefined : item.label}
-                type="button"
-              >
-                <item.icon className="h-5 w-5 shrink-0" />
-                <span className={isSidebarOpen ? "truncate" : "sr-only"}>{item.label}</span>
-                {!isSidebarOpen ? (
-                  <span className="pointer-events-none absolute left-12 z-30 hidden whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-lg group-hover:block dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
-                    {item.label}
-                  </span>
-                ) : null}
-              </button>
-            ))}
-        </nav>
+        <div className="mt-12 flex h-[calc(100%-7rem)] flex-col justify-between gap-6">
+          <div className="space-y-6">
+            {renderNavigationGroup("Control Plane", primaryNavigation, { ariaLabel: "Primary product navigation" })}
+          </div>
+
+          <div className="space-y-5 border-t border-slate-200 pt-5 dark:border-slate-800">
+            {renderNavigationGroup("Settings", settingsNavigation, { ariaLabel: "Settings navigation", compact: true })}
+            <div>
+              {isSidebarOpen ? (
+                <div className="mb-2 flex items-center gap-2 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                  <Wrench className="h-3.5 w-3.5" />
+                  Developer Cockpit
+                  <Badge className={legacyWriteToolsEnabled ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}>
+                    {legacyWriteToolsEnabled ? "writes on" : "read-only"}
+                  </Badge>
+                </div>
+              ) : null}
+              {isSidebarOpen && !legacyWriteToolsEnabled ? (
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                  {LEGACY_WRITE_TOOLS_LOCKED_MESSAGE}
+                </div>
+              ) : null}
+              {renderNavigationGroup("Developer", legacyNavigation, { ariaLabel: "Developer Cockpit navigation", compact: true })}
+            </div>
+          </div>
+        </div>
       </aside>
 
       <main className={cn("transition-[padding] duration-200 ease-out", isSidebarCollapsed ? "lg:pl-20" : "lg:pl-72")}>
@@ -164,7 +223,9 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                   : activeSection === "users"
                   ? "Users and roles"
                   : activeSection === "snapshots"
-                    ? "Runtime snapshots"
+                    ? "Schema & Snapshots"
+                  : activeSection === "proposal-inbox"
+                    ? "AI Proposals Inbox"
                   : activeSection === "search-playground"
                     ? "Search Playground"
                   : activeSection === "suggestions"
@@ -174,27 +235,29 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
                       : activeSection === "integrations"
                         ? "Integrations"
                         : activeSection === "api-access"
-                          ? "API Access"
-                          : "Terminology control plane"}
+                          ? "Settings"
+                          : legacyWriteToolsEnabled ? "Terminology control plane" : "Terminology inspector"}
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {activeSection === "dashboard"
-                  ? "Product readiness, setup checklist, and runtime status for SkeinRank."
+                  ? "Legacy readiness view. Direct production writes are locked unless legacy write tools are explicitly enabled."
                   : activeSection === "users"
                   ? "Manage local users, roles, and access to governance workflows."
                   : activeSection === "snapshots"
-                    ? "Audit active runtime snapshots, stale bindings, and enrichment history."
+                    ? "Inspect terminology schema, aliases, bindings, and immutable runtime snapshots."
+                  : activeSection === "proposal-inbox"
+                    ? "Review agent-submitted terminology changes with risk, evidence, and human approval."
                   : activeSection === "search-playground"
-                    ? "Test binding-aware canonicalization, query plans, and Elasticsearch search results."
+                    ? "Debug query canonicalization and compare snapshot behavior before rollout."
                   : activeSection === "suggestions"
-                    ? "Propose aliases, review pending changes, and approve terminology updates."
+                    ? "Legacy manual suggestion workspace retained for audit, development, and compatibility."
                     : activeSection === "guardrails"
-                      ? "Manage stop lists that block noisy or unsafe terminology changes."
+                      ? "Inspect guardrails. Direct edits are locked unless legacy write tools are explicitly enabled."
                       : activeSection === "integrations"
-                        ? "Configure Elasticsearch enrichment bindings for profiles and indices."
+                        ? "Inspect runtime bindings and jobs. Direct binding/enrichment writes are locked by default."
                         : activeSection === "api-access"
-                          ? "Create personal API tokens and manage service account access."
-                          : "Manage canonical terms, aliases, slots, and runtime snapshots."}
+                          ? "Manage access credentials and service-account tokens."
+                          : legacyWriteToolsEnabled ? "Manage canonical terms, aliases, slots, and runtime snapshots." : "Read-only legacy terminology inspector. Use AI Inbox, proposals, snapshots, and GitOps for production changes."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -214,6 +277,7 @@ export function AppShell({ activeSection, canManageApiTokens = true, canManageUs
               <Badge>MVP</Badge>
             </div>
           </div>
+          <ControlPlaneStatusBanner />
         </header>
         <div className="p-6">{children}</div>
       </main>

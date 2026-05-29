@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, PlusCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LEGACY_WRITE_TOOLS_LOCKED_MESSAGE } from "../config";
 import { AddTermForm } from "../components/AddTermForm";
 import { ProfileManager } from "../components/ProfileManager";
 import { TermDetailsPanel } from "../components/TermDetailsPanel";
@@ -486,6 +487,8 @@ export function GovernanceDashboard({
         termCount={termsQuery.data?.length ?? 0}
       />
 
+      {!permissions.canManageTerms && !permissions.canManageProfiles ? <LegacyReadOnlyNotice /> : null}
+
       {activeSection === "profiles" ? (
         <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
           <ProfileManager
@@ -502,7 +505,7 @@ export function GovernanceDashboard({
             readOnlyMessage={
               permissions.canManageProfiles
                 ? null
-                : "Only admins can create, rename, or delete terminology profiles."
+                : LEGACY_WRITE_TOOLS_LOCKED_MESSAGE
             }
             onCreateProfile={handleCreateProfile}
             onDeleteProfile={handleDeleteProfile}
@@ -562,7 +565,7 @@ export function GovernanceDashboard({
                 readOnlyMessage={
                   permissions.canManageTerms
                     ? null
-                    : "Your role can inspect terms, but cannot create canonical terms."
+                    : LEGACY_WRITE_TOOLS_LOCKED_MESSAGE
                 }
                 onSubmit={handleCreateTerm}
               />
@@ -628,6 +631,16 @@ export function GovernanceDashboard({
         </MasterDetailLayout>
       )}
     </ConsolePage>
+  );
+}
+
+
+function LegacyReadOnlyNotice() {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+      <div className="font-semibold">Legacy terminology editor is read-only</div>
+      <p className="mt-1">{LEGACY_WRITE_TOOLS_LOCKED_MESSAGE}</p>
+    </div>
   );
 }
 

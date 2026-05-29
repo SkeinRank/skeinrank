@@ -1,6 +1,7 @@
 import type {
   AliasCreateRequest,
   AliasUpdateRequest,
+  AlertingReport,
   ApiToken,
   ApiTokenCreateRequest,
   ApiTokenCreateResponse,
@@ -253,6 +254,10 @@ export function revokeServiceAccountToken(accountName: string, tokenId: number) 
 
 export function getDashboardSummary() {
   return requestJson<DashboardSummary>("/v1/dashboard/summary");
+}
+
+export function getAlertsReport() {
+  return requestJson<AlertingReport>("/v1/ops/alerts/report");
 }
 
 export function getSnapshotSummary() {

@@ -19,24 +19,39 @@ import type { ElasticsearchBinding, RuntimeQueryPlanResponse, RuntimeSearchRespo
 
 const defaultQuery = "k8s pg timeout";
 
+type PlaygroundMode = "single" | "compare";
+
+type SnapshotCompareResult = {
+  left: RuntimeQueryPlanResponse;
+  right: RuntimeQueryPlanResponse;
+  leftBinding: ElasticsearchBinding | null;
+  rightBinding: ElasticsearchBinding | null;
+};
+
 export function SearchPlaygroundPage() {
   const bindingsQuery = useQuery({
     queryKey: ["elasticsearch-bindings", "all"],
     queryFn: () => listElasticsearchBindings(),
   });
   const [selectedBindingId, setSelectedBindingId] = useState<number | null>(null);
+  const [compareBindingId, setCompareBindingId] = useState<number | null>(null);
   const [queryText, setQueryText] = useState(defaultQuery);
   const [size, setSize] = useState("10");
   const [canonicalBoost, setCanonicalBoost] = useState("3");
+  const [playgroundMode, setPlaygroundMode] = useState<PlaygroundMode>("single");
   const [activeResult, setActiveResult] = useState<RuntimeQueryPlanResponse | RuntimeSearchResponse | null>(null);
   const [activeMode, setActiveMode] = useState<"plan" | "search" | null>(null);
+  const [compareResult, setCompareResult] = useState<SnapshotCompareResult | null>(null);
 
   const bindings = useMemo(() => bindingsQuery.data ?? [], [bindingsQuery.data]);
   const effectiveBindingId = selectedBindingId ?? bindings[0]?.id ?? null;
+  const effectiveCompareBindingId =
+    compareBindingId ?? bindings.find((binding) => binding.id !== effectiveBindingId)?.id ?? effectiveBindingId;
 
   useEffect(() => {
     if (bindings.length === 0) {
       setSelectedBindingId(null);
+      setCompareBindingId(null);
       return;
     }
     if (!selectedBindingId || !bindings.some((binding) => binding.id === selectedBindingId)) {
@@ -44,9 +59,25 @@ export function SearchPlaygroundPage() {
     }
   }, [bindings, selectedBindingId]);
 
+  useEffect(() => {
+    if (bindings.length === 0) {
+      setCompareBindingId(null);
+      return;
+    }
+    if (!compareBindingId || !bindings.some((binding) => binding.id === compareBindingId)) {
+      const fallbackBinding = bindings.find((binding) => binding.id !== effectiveBindingId) ?? bindings[0];
+      setCompareBindingId(fallbackBinding.id);
+    }
+  }, [bindings, compareBindingId, effectiveBindingId]);
+
   const selectedBinding = useMemo(
     () => bindings.find((binding) => binding.id === effectiveBindingId) ?? null,
     [bindings, effectiveBindingId],
+  );
+
+  const selectedCompareBinding = useMemo(
+    () => bindings.find((binding) => binding.id === effectiveCompareBindingId) ?? null,
+    [bindings, effectiveCompareBindingId],
   );
 
   const queryPlanMutation = useMutation({
@@ -61,6 +92,7 @@ export function SearchPlaygroundPage() {
     onSuccess: (result) => {
       setActiveMode("plan");
       setActiveResult(result);
+      setCompareResult(null);
     },
   });
 
@@ -77,13 +109,44 @@ export function SearchPlaygroundPage() {
     onSuccess: (result) => {
       setActiveMode("search");
       setActiveResult(result);
+      setCompareResult(null);
+    },
+  });
+
+  const compareMutation = useMutation({
+    mutationFn: async () => {
+      if (!effectiveBindingId || !effectiveCompareBindingId) {
+        throw new Error("Select two runtime bindings before comparing snapshots.");
+      }
+      const basePayload = {
+        query: queryText.trim(),
+        size: parseInteger(size, 10),
+        canonical_boost: parseFloatOrDefault(canonicalBoost, 3),
+        include_evidence: true,
+      };
+      const [left, right] = await Promise.all([
+        buildRuntimeQueryPlan({ ...basePayload, binding_id: effectiveBindingId }),
+        buildRuntimeQueryPlan({ ...basePayload, binding_id: effectiveCompareBindingId }),
+      ]);
+      return { left, right };
+    },
+    onSuccess: ({ left, right }) => {
+      setActiveMode(null);
+      setActiveResult(null);
+      setCompareResult({
+        left,
+        right,
+        leftBinding: selectedBinding,
+        rightBinding: selectedCompareBinding,
+      });
     },
   });
 
   const canSubmit = Boolean(effectiveBindingId) && queryText.trim().length > 0;
-  const isSubmitting = queryPlanMutation.isPending || searchMutation.isPending;
-  const errorMessage = errorText(queryPlanMutation.error) ?? errorText(searchMutation.error);
-  const resultStats = getResultStats(activeResult);
+  const canCompare = canSubmit && Boolean(effectiveCompareBindingId);
+  const isSubmitting = queryPlanMutation.isPending || searchMutation.isPending || compareMutation.isPending;
+  const errorMessage = errorText(queryPlanMutation.error) ?? errorText(searchMutation.error) ?? errorText(compareMutation.error);
+  const resultStats = getResultStats(activeResult, compareResult);
 
   async function handlePlanSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,6 +163,14 @@ export function SearchPlaygroundPage() {
     await searchMutation.mutateAsync();
   }
 
+  async function handleCompareClick() {
+    if (!canCompare) {
+      return;
+    }
+    setPlaygroundMode("compare");
+    await compareMutation.mutateAsync();
+  }
+
   return (
     <ConsolePage className="space-y-4">
       <WorkspaceHeader
@@ -108,7 +179,7 @@ export function SearchPlaygroundPage() {
             {selectedBinding ? selectedBinding.snapshot_status ?? "uninitialized" : "no binding"}
           </Badge>
         }
-        description="Run binding-aware query planning, inspect canonical rewrites, and verify Elasticsearch output before shipping runtime search behavior."
+        description="Run binding-aware query planning, compare snapshots side-by-side, and verify Elasticsearch output before shipping runtime search behavior."
         eyebrow="Runtime query lab"
         meta={
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -127,17 +198,17 @@ export function SearchPlaygroundPage() {
               value={compactSnapshot(selectedBinding)}
             />
             <MetricPill
-              helper={activeResult ? "from latest preview" : "run a query plan"}
+              helper={activeResult || compareResult ? "from latest preview" : "run a query plan"}
               icon={Sparkles}
               label="Canonical values"
-              tone={activeResult ? "emerald" : "slate"}
+              tone={activeResult || compareResult ? "emerald" : "slate"}
               value={resultStats.canonicalValues}
             />
             <MetricPill
-              helper={activeMode === "search" ? "Elasticsearch results" : "query-plan mode"}
+              helper={playgroundMode === "compare" ? "snapshot compare mode" : activeMode === "search" ? "Elasticsearch results" : "query-plan mode"}
               icon={Search}
               label="Runtime output"
-              tone={activeResult ? "violet" : "slate"}
+              tone={activeResult || compareResult ? "violet" : "slate"}
               value={resultStats.output}
             />
           </div>
@@ -149,31 +220,28 @@ export function SearchPlaygroundPage() {
         <div className="min-w-0 space-y-4">
           <SectionCard
             actions={<Badge className="shrink-0 whitespace-nowrap">binding-aware</Badge>}
-            description="Choose a runtime binding, enter real user wording, then compare raw query text with SkeinRank canonical context."
+            description="Choose runtime bindings, enter real user wording, then inspect canonical context or compare two binding-backed snapshots."
             title="Binding-aware query lab"
           >
             <form className="space-y-4" onSubmit={handlePlanSubmit}>
+              <div className="flex flex-wrap gap-2">
+                <ModeButton active={playgroundMode === "single"} label="Single mode" onClick={() => setPlaygroundMode("single")} />
+                <ModeButton active={playgroundMode === "compare"} label="Compare snapshots" onClick={() => setPlaygroundMode("compare")} />
+              </div>
+
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_120px_150px]">
-                <label className="space-y-1 text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Binding
-                  <select
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
-                    disabled={bindingsQuery.isLoading || bindings.length === 0}
-                    onChange={(event) => {
-                      setSelectedBindingId(Number(event.target.value));
-                      setActiveResult(null);
-                      setActiveMode(null);
-                    }}
-                    value={effectiveBindingId ?? ""}
-                  >
-                    {bindings.length === 0 ? <option value="">No bindings available</option> : null}
-                    {bindings.map((binding) => (
-                      <option key={binding.id} value={binding.id}>
-                        {bindingOptionLabel(binding)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <BindingSelect
+                  bindings={bindings}
+                  disabled={bindingsQuery.isLoading || bindings.length === 0}
+                  label={playgroundMode === "compare" ? "Column A binding" : "Binding"}
+                  onChange={(bindingId) => {
+                    setSelectedBindingId(bindingId);
+                    setActiveResult(null);
+                    setActiveMode(null);
+                    setCompareResult(null);
+                  }}
+                  value={effectiveBindingId}
+                />
                 <label className="space-y-1 text-sm font-medium text-slate-700 dark:text-slate-200">
                   Size
                   <Input
@@ -201,11 +269,32 @@ export function SearchPlaygroundPage() {
                 </label>
               </div>
 
+              {playgroundMode === "compare" ? (
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <BindingSelect
+                    bindings={bindings}
+                    disabled={bindingsQuery.isLoading || bindings.length === 0}
+                    label="Column B binding"
+                    onChange={(bindingId) => {
+                      setCompareBindingId(bindingId);
+                      setCompareResult(null);
+                    }}
+                    value={effectiveCompareBindingId}
+                  />
+                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-200">
+                    Compare mode uses the existing query-plan endpoint twice. Column A can be active prod, while Column B can be a staging or draft binding.
+                  </div>
+                </div>
+              ) : null}
+
               <label className="space-y-1 text-sm font-medium text-slate-700 dark:text-slate-200">
                 Query
                 <textarea
                   className="min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950/80 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-slate-500 dark:focus:bg-slate-950 dark:focus:ring-slate-800"
-                  onChange={(event) => setQueryText(event.target.value)}
+                  onChange={(event) => {
+                    setQueryText(event.target.value);
+                    setCompareResult(null);
+                  }}
                   placeholder="k8s pg timeout during phoenix rollout"
                   value={queryText}
                 />
@@ -214,8 +303,11 @@ export function SearchPlaygroundPage() {
               {selectedBinding ? <SelectedBindingChips binding={selectedBinding} /> : null}
 
               {bindings.length === 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-                  Create an Elasticsearch binding first. Search Playground needs a binding to resolve profile, fields, index, and runtime snapshot.
+                <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/70 px-4 py-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+                  <div className="font-semibold">No runtime bindings available for Playground</div>
+                  <p className="mt-1 leading-6">
+                    Create or seed a binding before running query-plan or snapshot compare. The Playground intentionally tests binding-backed runtime snapshots instead of loose profile edits.
+                  </p>
                 </div>
               ) : null}
 
@@ -232,19 +324,60 @@ export function SearchPlaygroundPage() {
                 <Button disabled={!canSubmit || isSubmitting} onClick={handleSearchClick} type="button" variant="secondary">
                   Run search
                 </Button>
+                <Button disabled={!canCompare || isSubmitting} onClick={handleCompareClick} type="button" variant="secondary">
+                  Compare snapshots
+                </Button>
               </div>
             </form>
           </SectionCard>
 
-          <ResultPanel mode={activeMode} result={activeResult} />
+          {compareResult ? <SnapshotComparePanel compare={compareResult} /> : <ResultPanel mode={activeMode} result={activeResult} />}
         </div>
 
         <aside className="min-w-0 space-y-4">
           <BindingContextPanel binding={selectedBinding} isLoading={bindingsQuery.isLoading} />
+          {playgroundMode === "compare" ? <CompareContextPanel binding={selectedCompareBinding} /> : null}
           <RuntimeChecksPanel />
         </aside>
       </MasterDetailLayout>
     </ConsolePage>
+  );
+}
+
+function BindingSelect({ bindings, disabled, label, onChange, value }: { bindings: ElasticsearchBinding[]; disabled: boolean; label: string; onChange: (bindingId: number) => void; value: number | null }) {
+  return (
+    <label className="space-y-1 text-sm font-medium text-slate-700 dark:text-slate-200">
+      {label}
+      <select
+        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
+        disabled={disabled}
+        onChange={(event) => onChange(Number(event.target.value))}
+        value={value ?? ""}
+      >
+        {bindings.length === 0 ? <option value="">No bindings available</option> : null}
+        {bindings.map((binding) => (
+          <option key={binding.id} value={binding.id}>
+            {bindingOptionLabel(binding)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ModeButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      className={
+        active
+          ? "rounded-full bg-slate-950 px-3 py-1.5 text-sm font-semibold text-white dark:bg-slate-100 dark:text-slate-950"
+          : "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
+      }
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
   );
 }
 
@@ -292,26 +425,44 @@ function BindingContextPanel({ binding, isLoading }: { binding: ElasticsearchBin
       {isLoading ? (
         <div className="text-sm text-slate-500 dark:text-slate-400">Loading bindings...</div>
       ) : binding ? (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-4 dark:border-cyan-500/20 dark:bg-cyan-500/5">
-            <div className="text-base font-semibold text-slate-950 dark:text-slate-50">{binding.name}</div>
-            <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              {binding.profile_name} → {binding.index_name}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <InfoBox label="Binding ID" value={`#${binding.id}`} />
-            <InfoBox label="Target field" value={binding.target_field} />
-            <InfoBox label="Text fields" value={binding.text_fields.join(", ")} />
-            <InfoBox label="Discriminator" value={binding.filter_field ? `${binding.filter_field}=${binding.filter_value ?? ""}` : "None"} />
-            <InfoBox label="Runtime snapshot" value={binding.last_successful_snapshot_version ?? "latest profile fallback"} />
-            <InfoBox label="Mode" value={binding.mode} />
-          </div>
-        </div>
+        <BindingContextBody binding={binding} />
       ) : (
         <div className="text-sm text-slate-500 dark:text-slate-400">No binding selected.</div>
       )}
     </EntityDetailPanel>
+  );
+}
+
+function CompareContextPanel({ binding }: { binding: ElasticsearchBinding | null }) {
+  return (
+    <EntityDetailPanel
+      badge={<Badge className="shrink-0 whitespace-nowrap">compare</Badge>}
+      description="Column B should point at a staging, draft, or alternative snapshot-backed binding."
+      title="Compare context"
+    >
+      {binding ? <BindingContextBody binding={binding} /> : <div className="text-sm text-slate-500 dark:text-slate-400">No comparison binding selected.</div>}
+    </EntityDetailPanel>
+  );
+}
+
+function BindingContextBody({ binding }: { binding: ElasticsearchBinding }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-4 dark:border-cyan-500/20 dark:bg-cyan-500/5">
+        <div className="text-base font-semibold text-slate-950 dark:text-slate-50">{binding.name}</div>
+        <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          {binding.profile_name} → {binding.index_name}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <InfoBox label="Binding ID" value={`#${binding.id}`} />
+        <InfoBox label="Target field" value={binding.target_field} />
+        <InfoBox label="Text fields" value={binding.text_fields.join(", ")} />
+        <InfoBox label="Discriminator" value={binding.filter_field ? `${binding.filter_field}=${binding.filter_value ?? ""}` : "None"} />
+        <InfoBox label="Runtime snapshot" value={binding.last_successful_snapshot_version ?? binding.pending_snapshot_version ?? "latest profile fallback"} />
+        <InfoBox label="Mode" value={binding.mode} />
+      </div>
+    </div>
   );
 }
 
@@ -324,6 +475,7 @@ function RuntimeChecksPanel() {
       <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
         <CheckRow text="user wording resolves to canonical terms" />
         <CheckRow text="the selected binding snapshot is used" />
+        <CheckRow text="compare mode highlights canonicalization differences" />
         <CheckRow text="results come from the expected index" />
         <CheckRow text="raw DSL stays available under advanced details" />
       </div>
@@ -344,7 +496,7 @@ function ResultPanel({ mode, result }: { mode: "plan" | "search" | null; result:
   if (!result) {
     return (
       <SectionCard
-        description="Run a preview or search to see the canonicalized query before debug details."
+        description="Run a preview, search, or snapshot compare to see the canonicalized query before debug details."
         title="Result preview"
       >
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
@@ -361,6 +513,59 @@ function ResultPanel({ mode, result }: { mode: "plan" | "search" | null; result:
       <ResultSummaryCard mode={mode} result={result} />
       {searchResult ? <SearchHitsPanel result={searchResult} /> : null}
       <AdvancedDetails result={result} />
+    </div>
+  );
+}
+
+function SnapshotComparePanel({ compare }: { compare: SnapshotCompareResult }) {
+  const diff = buildCanonicalDiff(compare.left, compare.right);
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        actions={<Badge className="shrink-0 whitespace-nowrap">split-screen</Badge>}
+        description="Compare how two binding-backed snapshots canonicalize the same query before release. This uses the existing query-plan API for each column."
+        title="Snapshot compare result"
+      >
+        <div className="grid gap-4 xl:grid-cols-2">
+          <CompareColumn binding={compare.leftBinding} label="Column A" result={compare.left} tone="slate" />
+          <CompareColumn binding={compare.rightBinding} label="Column B" result={compare.right} tone="emerald" />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <CompactList title="Added canonical values" values={diff.addedCanonicalValues} empty="No new values." />
+          <CompactList title="Removed canonical values" values={diff.removedCanonicalValues} empty="No removed values." />
+          <CompactList title="New matched aliases" values={diff.addedMatchedAliases} empty="No new aliases." />
+        </div>
+      </SectionCard>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <AdvancedDetails result={compare.left} />
+        <AdvancedDetails result={compare.right} />
+      </div>
+    </div>
+  );
+}
+
+function CompareColumn({ binding, label, result, tone }: { binding: ElasticsearchBinding | null; label: string; result: RuntimeQueryPlanResponse; tone: "emerald" | "slate" }) {
+  const borderClass = tone === "emerald" ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/20 dark:bg-emerald-500/5" : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60";
+  return (
+    <div className={`rounded-2xl border p-4 ${borderClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+          <div className="mt-1 text-base font-semibold text-slate-950 dark:text-slate-50">{binding?.name ?? `Binding #${result.binding_id ?? "unknown"}`}</div>
+          <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">{binding ? `${binding.profile_name} → ${binding.index_name}` : result.profile_name}</div>
+        </div>
+        <Badge className="shrink-0 whitespace-nowrap">{result.snapshot_version ?? binding?.pending_snapshot_version ?? "latest profile"}</Badge>
+      </div>
+      <div className="mt-4 space-y-3">
+        <QueryBox label="Original query" value={result.query} />
+        <QueryBox emphasis label="Canonical query" value={result.canonical_query} />
+        <div className="grid gap-3 md:grid-cols-2">
+          <CompactList title="Matched aliases" values={result.matched_aliases} empty="No aliases matched." />
+          <CompactList title="Canonical values" values={result.canonical_values} empty="No canonical values." />
+        </div>
+        {result.replacements.length > 0 ? <ReplacementChips replacements={result.replacements} /> : null}
+        {result.warnings.length > 0 ? <WarningsBox warnings={result.warnings} /> : null}
+      </div>
     </div>
   );
 }
@@ -612,7 +817,12 @@ function ReplacementTable({ replacements }: { replacements: RuntimeQueryPlanResp
   );
 }
 
-function getResultStats(result: RuntimeQueryPlanResponse | RuntimeSearchResponse | null) {
+function getResultStats(result: RuntimeQueryPlanResponse | RuntimeSearchResponse | null, compare: SnapshotCompareResult | null) {
+  if (compare) {
+    const leftCount = compare.left.canonical_values.length;
+    const rightCount = compare.right.canonical_values.length;
+    return { canonicalValues: `${leftCount} → ${rightCount}`, output: "Compare ready" };
+  }
   if (!result) {
     return { canonicalValues: "—", output: "Preview" };
   }
@@ -620,6 +830,19 @@ function getResultStats(result: RuntimeQueryPlanResponse | RuntimeSearchResponse
     return { canonicalValues: String(result.canonical_values.length), output: `${formatTotal(result.total)} hits` };
   }
   return { canonicalValues: String(result.canonical_values.length), output: "Plan ready" };
+}
+
+function buildCanonicalDiff(left: RuntimeQueryPlanResponse, right: RuntimeQueryPlanResponse) {
+  return {
+    addedCanonicalValues: arrayDifference(right.canonical_values, left.canonical_values),
+    removedCanonicalValues: arrayDifference(left.canonical_values, right.canonical_values),
+    addedMatchedAliases: arrayDifference(right.matched_aliases, left.matched_aliases),
+  };
+}
+
+function arrayDifference(a: string[], b: string[]) {
+  const bSet = new Set(b);
+  return [...new Set(a)].filter((value) => !bSet.has(value));
 }
 
 function compactSnapshot(binding: ElasticsearchBinding | null) {

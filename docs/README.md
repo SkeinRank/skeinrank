@@ -25,6 +25,12 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`adr/0001-headless-runtime-contracts.md`](adr/0001-headless-runtime-contracts.md) — accepted architecture decision for headless runtime boundaries.
 - [`guides/core-sdk-and-cli.md`](guides/core-sdk-and-cli.md) — local dictionary validation, extraction, canonicalization, and document extraction.
 - [`guides/governance-console.md`](guides/governance-console.md) — governance API/UI workflow.
+- [`guides/proposal-inbox-ui.md`](guides/proposal-inbox-ui.md) — review-first AI Inbox detail panel for evidence, risk, validation findings, and approve/reject actions.
+- [`guides/playground-snapshot-compare-ui.md`](guides/playground-snapshot-compare-ui.md) — Search Playground split-screen compare mode for binding-backed runtime snapshots.
+- [`guides/schema-snapshots-tree-ui.md`](guides/schema-snapshots-tree-ui.md) — read-heavy Schema & Snapshots tree + detail view for bindings, profiles, canonical terms, aliases, and snapshot drift.
+- [`guides/ui-polish-empty-states-degraded-banners.md`](guides/ui-polish-empty-states-degraded-banners.md) — global degraded-state banner and actionable empty states for the 3-tab Control Plane UI.
+- [`guides/control-plane-navigation-slim-down.md`](guides/control-plane-navigation-slim-down.md) — 58F primary navigation contract with Playground, AI Inbox, and Schema & Snapshots plus utility/legacy tools.
+- [`guides/read-only-legacy-admin-cockpit.md`](guides/read-only-legacy-admin-cockpit.md) — 58G lockdown for legacy/admin write controls with an explicit local-development bypass.
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.
@@ -376,6 +382,12 @@ Patch 44D adds the final DB-backed tracking tables for the initial agent audit t
 ### Proposal lifecycle hardening
 
 Suggestion responses include lifecycle fields that help headless clients and UI review flows distinguish reviewable, warning, blocked, approved/applied, and rejected proposals without guessing from raw validation summaries.
+
+The UI now includes a dedicated AI Proposals Inbox page for human-in-the-loop moderation. It is separate from the legacy Suggestions/dev workflow and focuses on pending proposal cards plus a detail panel for risk level, apply-policy decision, validation findings, saved evidence snippets, source payload metadata, and approve/reject actions.
+
+The primary sidebar now follows a slim 3-tab Control Plane contract: Playground, AI Inbox, and Schema & Snapshots. Low-level setup, manual CRUD, and developer pages remain reachable under Settings / Developer Cockpit rather than being deleted.
+
+The Snapshots section now includes a Schema & Snapshots tree workspace. It keeps schema inspection read-heavy by showing binding/profile/category/canonical/alias hierarchy and snapshot drift without adding broad manual edit forms or dangerous rollout buttons.
 
 ### Proposal apply idempotency
 

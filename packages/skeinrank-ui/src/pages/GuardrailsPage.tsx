@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Ban, Globe2, Layers3, ShieldCheck } from "lucide-react";
 
+import { LEGACY_WRITE_TOOLS_LOCKED_MESSAGE } from "../config";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -339,7 +340,7 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
               readOnlyMessage={
                 permissions.canManageStopLists
                   ? null
-                  : "Your role can inspect global guardrails, but only admins and moderators can update global stop lists."
+                  : LEGACY_WRITE_TOOLS_LOCKED_MESSAGE
               }
             />
           </div>
@@ -399,7 +400,7 @@ export function GuardrailsPage({ currentUser }: { currentUser: AuthUser }) {
               readOnlyMessage={
                 permissions.canManageStopLists
                   ? null
-                  : "Your role can inspect guardrails, but only admins and moderators can update stop lists."
+                  : LEGACY_WRITE_TOOLS_LOCKED_MESSAGE
               }
             />
           </div>
@@ -1051,8 +1052,7 @@ function GlobalStopListEntryDetailsPanel({
       </div>
       {!canManage ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-          Contributors can inspect global stop lists, but only admins and
-          moderators can update global guardrails.
+          Legacy guardrail writes are locked. Change stop-list policy through proposals, GitOps/API runbooks, and snapshot rollout.
         </div>
       ) : null}
       <form className="space-y-4" onSubmit={handleSubmit}>
@@ -1209,8 +1209,7 @@ function StopListEntryDetailsPanel({
       </div>
       {!canManage ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-          Contributors can inspect stop lists, but only admins and moderators
-          can update guardrails.
+          Legacy guardrail writes are locked. Change stop-list policy through proposals, GitOps/API runbooks, and snapshot rollout.
         </div>
       ) : null}
       <form className="space-y-4" onSubmit={handleSubmit}>

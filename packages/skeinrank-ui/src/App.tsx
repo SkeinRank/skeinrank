@@ -10,6 +10,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { GovernanceDashboard } from "./pages/GovernanceDashboard";
 import { GuardrailsPage } from "./pages/GuardrailsPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
+import { ProposalInboxPage } from "./pages/ProposalInboxPage";
 import { SearchPlaygroundPage } from "./pages/SearchPlaygroundPage";
 import { SnapshotsPage } from "./pages/SnapshotsPage";
 import { SuggestionsPage } from "./pages/SuggestionsPage";
@@ -43,7 +44,7 @@ export function App() {
 function AuthGate() {
   const queryClient = useQueryClient();
   const [tokenVersion, setTokenVersion] = useState(() => getAuthToken() ?? "anonymous");
-  const [activeSection, setActiveSection] = useState<AppSection>("dashboard");
+  const [activeSection, setActiveSection] = useState<AppSection>("search-playground");
 
   const meQuery = useQuery({
     queryKey: ["auth", "me", tokenVersion],
@@ -66,7 +67,7 @@ function AuthGate() {
     onSettled: () => {
       clearAuthToken();
       setTokenVersion("anonymous");
-      setActiveSection("dashboard");
+      setActiveSection("search-playground");
       queryClient.clear();
     },
   });
@@ -97,7 +98,7 @@ function AuthGate() {
   }
 
   const permissions = permissionsForUser(currentUser);
-  const safeActiveSection = activeSection === "users" && !permissions.canManageUsers ? "dashboard" : activeSection;
+  const safeActiveSection = activeSection === "users" && !permissions.canManageUsers ? "search-playground" : activeSection;
 
   return (
     <AppShell
@@ -112,6 +113,8 @@ function AuthGate() {
         <DashboardPage onNavigate={setActiveSection} />
       ) : safeActiveSection === "users" ? (
         <UsersPage currentUser={currentUser} />
+      ) : safeActiveSection === "proposal-inbox" ? (
+        <ProposalInboxPage currentUser={currentUser} />
       ) : safeActiveSection === "suggestions" ? (
         <SuggestionsPage currentUser={currentUser} />
       ) : safeActiveSection === "guardrails" ? (

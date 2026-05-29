@@ -1,20 +1,26 @@
-import { useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   CheckCircle2,
   CircleDashed,
+  Database,
   FileJson,
   GitBranch,
   History,
   Layers3,
+  Network,
   Plug,
   RotateCcw,
+  Search,
   ShieldCheck,
   Sparkles,
+  Tags,
   TriangleAlert,
 } from "lucide-react";
 
+import { areLegacyWriteToolsEnabled, LEGACY_WRITE_TOOLS_LOCKED_MESSAGE } from "../config";
 import type { AppSection } from "../components/layout/AppShell";
 import {
   ConsolePage,
@@ -27,10 +33,18 @@ import {
 } from "../components/layout/ConsolePrimitives";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { getSnapshotSummary } from "../lib/api";
-import type { SnapshotBindingState, SnapshotHistoryItem, SnapshotSummary } from "../types";
+import { getSnapshotSummary, listElasticsearchBindings, listProfiles, listTerms } from "../lib/api";
+import type { CanonicalTerm, ElasticsearchBinding, Profile, SnapshotBindingState, SnapshotHistoryItem, SnapshotSummary, TermAlias } from "../types";
 
 type RuntimeAuditLevel = "ready" | "attention" | "empty";
+type SchemaTreeMode = "schema" | "snapshots";
+type SchemaNode =
+  | { kind: "profile"; profile: Profile }
+  | { kind: "binding"; binding: ElasticsearchBinding }
+  | { kind: "category"; profileName: string; slot: string; terms: CanonicalTerm[] }
+  | { kind: "term"; term: CanonicalTerm; profileName: string }
+  | { kind: "alias"; alias: TermAlias; term: CanonicalTerm; profileName: string }
+  | { kind: "snapshot"; binding: SnapshotBindingState };
 
 export function SnapshotsPage({ onNavigate }: { onNavigate: (section: AppSection) => void }) {
   const summaryQuery = useQuery({
@@ -79,6 +93,8 @@ export function SnapshotsPage({ onNavigate }: { onNavigate: (section: AppSection
     <ConsolePage>
       <RuntimeSnapshotsHeader summary={summary} onNavigate={onNavigate} />
 
+      <SchemaSnapshotsTree summary={summary} onNavigate={onNavigate} />
+
       <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_430px]">
         <RuntimeBindingsTable
           bindings={summary.bindings}
@@ -93,6 +109,446 @@ export function SnapshotsPage({ onNavigate }: { onNavigate: (section: AppSection
     </ConsolePage>
   );
 }
+
+
+function SchemaSnapshotsTree({ summary, onNavigate }: { summary: SnapshotSummary; onNavigate: (section: AppSection) => void }) {
+  const profilesQuery = useQuery({ queryKey: ["schema-snapshots", "profiles"], queryFn: listProfiles });
+  const bindingsQuery = useQuery({ queryKey: ["schema-snapshots", "bindings"], queryFn: () => listElasticsearchBindings() });
+  const profiles = profilesQuery.data ?? [];
+  const bindings = bindingsQuery.data ?? [];
+  const [selectedProfileName, setSelectedProfileName] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<SchemaNode | null>(null);
+  const [mode, setMode] = useState<SchemaTreeMode>("schema");
+
+  useEffect(() => {
+    if (!selectedProfileName && profiles.length > 0) {
+      setSelectedProfileName(profiles[0].name);
+    }
+  }, [profiles, selectedProfileName]);
+
+  const termsQuery = useQuery({
+    queryKey: ["schema-snapshots", "terms", selectedProfileName],
+    queryFn: () => listTerms(selectedProfileName ?? ""),
+    enabled: Boolean(selectedProfileName),
+  });
+
+  const selectedProfile = useMemo(
+    () => profiles.find((profile) => profile.name === selectedProfileName) ?? profiles[0] ?? null,
+    [profiles, selectedProfileName],
+  );
+  const terms = termsQuery.data ?? [];
+  const bindingsForProfile = bindings.filter((binding) => binding.profile_name === selectedProfile?.name);
+  const snapshotBindingsForProfile = summary.bindings.filter((binding) => binding.profile_name === selectedProfile?.name);
+  const categories = useMemo(() => groupTermsBySlot(terms), [terms]);
+  const ambiguityCount = countDuplicateAliases(terms);
+
+  useEffect(() => {
+    if (!selectedNode && selectedProfile) {
+      setSelectedNode({ kind: "profile", profile: selectedProfile });
+    }
+  }, [selectedNode, selectedProfile]);
+
+  const loading = profilesQuery.isLoading || bindingsQuery.isLoading;
+  const error = profilesQuery.error ?? bindingsQuery.error ?? termsQuery.error;
+
+  return (
+    <SectionCard
+      actions={(
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setMode("schema")} variant={mode === "schema" ? "primary" : "secondary"}>
+            <Network className="mr-2 h-4 w-4" />
+            Schema tree
+          </Button>
+          <Button onClick={() => setMode("snapshots")} variant={mode === "snapshots" ? "primary" : "secondary"}>
+            <History className="mr-2 h-4 w-4" />
+            Snapshot timeline
+          </Button>
+        </div>
+      )}
+      description="Read-only tree view for binding → profile → category → canonical terms → aliases, with snapshot status kept next to the schema."
+      title="Schema & snapshots workspace"
+    >
+      {loading ? (
+        <div className="text-sm text-slate-500 dark:text-slate-400">Loading schema tree...</div>
+      ) : error ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
+          <div>{error instanceof Error ? error.message : "Unable to load schema tree."}</div>
+        </div>
+      ) : profiles.length === 0 ? (
+        <EmptyState
+          actionLabel={areLegacyWriteToolsEnabled() ? "Open Terms" : "Use GitOps/import flow"}
+          description={areLegacyWriteToolsEnabled() ? "Create or import a profile before the schema tree can show canonical terms, aliases, and runtime bindings." : "No profiles are available yet. Import terminology through GitOps/API runbooks or review agent proposals before inspecting the schema tree."}
+          onAction={areLegacyWriteToolsEnabled() ? () => onNavigate("terms") : undefined}
+          title="No profiles yet"
+        />
+      ) : (
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricPill helper="governance scopes" icon={Database} label="Profiles" tone="cyan" value={profiles.length} />
+            <MetricPill helper="runtime contexts" icon={Plug} label="Bindings" tone={bindings.length > 0 ? "emerald" : "slate"} value={bindings.length} />
+            <MetricPill helper="selected profile" icon={Tags} label="Canonical terms" tone={terms.length > 0 ? "violet" : "slate"} value={terms.length} />
+            <MetricPill helper="duplicate alias values" icon={TriangleAlert} label="Ambiguities" tone={ambiguityCount > 0 ? "amber" : "emerald"} value={ambiguityCount} />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,1.08fr)]">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/35">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected profile</div>
+                  <div className="mt-1 text-sm font-medium text-slate-950 dark:text-slate-50">{selectedProfile?.name}</div>
+                </div>
+                <select
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                  onChange={(event) => {
+                    const nextProfile = profiles.find((profile) => profile.name === event.target.value) ?? null;
+                    setSelectedProfileName(event.target.value);
+                    setSelectedNode(nextProfile ? { kind: "profile", profile: nextProfile } : null);
+                  }}
+                  value={selectedProfile?.name ?? ""}
+                >
+                  {profiles.map((profile) => (
+                    <option key={profile.id} value={profile.name}>{profile.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mt-4 max-h-[640px] overflow-auto rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-950">
+                {mode === "schema" ? (
+                  <SchemaTree
+                    bindings={bindingsForProfile}
+                    categories={categories}
+                    profile={selectedProfile}
+                    selectedNode={selectedNode}
+                    setSelectedNode={setSelectedNode}
+                  />
+                ) : (
+                  <SnapshotTree
+                    bindings={snapshotBindingsForProfile}
+                    selectedNode={selectedNode}
+                    setSelectedNode={setSelectedNode}
+                  />
+                )}
+              </div>
+            </div>
+
+            <SchemaNodeDetail node={selectedNode} onNavigate={onNavigate} summary={summary} />
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function SchemaTree({ bindings, categories, profile, selectedNode, setSelectedNode }: {
+  bindings: ElasticsearchBinding[];
+  categories: Array<{ slot: string; terms: CanonicalTerm[] }>;
+  profile: Profile | null;
+  selectedNode: SchemaNode | null;
+  setSelectedNode: (node: SchemaNode) => void;
+}) {
+  if (!profile) {
+    return <div className="p-4 text-sm text-slate-500 dark:text-slate-400">No profile selected.</div>;
+  }
+
+  return (
+    <div className="space-y-2 text-sm">
+      <TreeButton
+        active={selectedNode?.kind === "profile" && selectedNode.profile.id === profile.id}
+        depth={0}
+        icon={<Database className="h-4 w-4" />}
+        label={`Profile: ${profile.name}`}
+        meta={`${categories.reduce((total, category) => total + category.terms.length, 0)} terms`}
+        onClick={() => setSelectedNode({ kind: "profile", profile })}
+      />
+
+      <div className="space-y-1">
+        <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Runtime bindings</div>
+        {bindings.length === 0 ? (
+          <TreeEmptyLine depth={1} label="No bindings for this profile" />
+        ) : bindings.map((binding) => (
+          <TreeButton
+            active={selectedNode?.kind === "binding" && selectedNode.binding.id === binding.id}
+            depth={1}
+            icon={<Plug className="h-4 w-4" />}
+            key={binding.id}
+            label={`Binding: ${binding.name}`}
+            meta={binding.index_name}
+            onClick={() => setSelectedNode({ kind: "binding", binding })}
+          />
+        ))}
+      </div>
+
+      <div className="space-y-1">
+        <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Terminology tree</div>
+        {categories.length === 0 ? (
+          <TreeEmptyLine depth={1} label="No canonical terms yet" />
+        ) : categories.map((category) => (
+          <div key={category.slot}>
+            <TreeButton
+              active={selectedNode?.kind === "category" && selectedNode.slot === category.slot}
+              depth={1}
+              icon={<Tags className="h-4 w-4" />}
+              label={`Category: ${category.slot}`}
+              meta={`${category.terms.length} terms`}
+              onClick={() => setSelectedNode({ kind: "category", profileName: profile.name, slot: category.slot, terms: category.terms })}
+            />
+            <div className="space-y-1">
+              {category.terms.map((term) => (
+                <div key={term.id}>
+                  <TreeButton
+                    active={selectedNode?.kind === "term" && selectedNode.term.id === term.id}
+                    depth={2}
+                    icon={<CircleDashed className="h-4 w-4" />}
+                    label={`Canonical: ${term.canonical_value}`}
+                    meta={`${term.aliases.length} aliases`}
+                    onClick={() => setSelectedNode({ kind: "term", profileName: profile.name, term })}
+                  />
+                  {term.aliases.length === 0 ? <TreeEmptyLine depth={3} label="No aliases" /> : term.aliases.map((alias) => (
+                    <TreeButton
+                      active={selectedNode?.kind === "alias" && selectedNode.alias.id === alias.id}
+                      depth={3}
+                      icon={<CheckCircle2 className="h-4 w-4" />}
+                      key={alias.id}
+                      label={`Alias: ${alias.alias_value}`}
+                      meta={`${Math.round(alias.confidence * 100)}%`}
+                      onClick={() => setSelectedNode({ kind: "alias", profileName: profile.name, term, alias })}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SnapshotTree({ bindings, selectedNode, setSelectedNode }: {
+  bindings: SnapshotBindingState[];
+  selectedNode: SchemaNode | null;
+  setSelectedNode: (node: SchemaNode) => void;
+}) {
+  if (bindings.length === 0) {
+    return <div className="p-4 text-sm text-slate-500 dark:text-slate-400">No snapshot-tracked bindings for this profile.</div>;
+  }
+  return (
+    <div className="space-y-2 text-sm">
+      {bindings.map((binding) => (
+        <TreeButton
+          active={selectedNode?.kind === "snapshot" && selectedNode.binding.id === binding.id}
+          depth={0}
+          icon={<GitBranch className="h-4 w-4" />}
+          key={binding.id}
+          label={`Snapshot: ${binding.name}`}
+          meta={binding.active_snapshot_version ?? binding.status}
+          onClick={() => setSelectedNode({ kind: "snapshot", binding })}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SchemaNodeDetail({ node, onNavigate, summary }: { node: SchemaNode | null; onNavigate: (section: AppSection) => void; summary: SnapshotSummary }) {
+  if (!node) {
+    return (
+      <EntityDetailPanel title="Schema detail" description="Select a profile, binding, category, canonical term, alias, or snapshot node.">
+        <div className="text-sm text-slate-500 dark:text-slate-400">Nothing selected yet.</div>
+      </EntityDetailPanel>
+    );
+  }
+
+  if (node.kind === "profile") {
+    const snapshotBindings = summary.bindings.filter((binding) => binding.profile_name === node.profile.name);
+    return (
+      <EntityDetailPanel badge={<StatusBadge status="read only" />} title={`Profile: ${node.profile.name}`} description={node.profile.description ?? "Read-only governance profile."}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SnapshotFact label="Normalized" value={node.profile.normalized_name} />
+          <SnapshotFact label="Runtime bindings" value={String(snapshotBindings.length)} />
+          <SnapshotFact label="Created" value={formatDate(node.profile.created_at)} />
+          <SnapshotFact label="Updated" value={formatDate(node.profile.updated_at)} />
+        </div>
+        <DetailCallout tone="cyan" title="Terminology-as-Code boundary">
+          This UI is read-heavy: inspect schema and snapshot state here, but keep canonical edits in agent proposals, API workflows, or GitOps-controlled imports.
+        </DetailCallout>
+      </EntityDetailPanel>
+    );
+  }
+
+  if (node.kind === "binding") {
+    return (
+      <EntityDetailPanel badge={<StatusBadge status={node.binding.snapshot_status ?? node.binding.mode} />} title={`Binding: ${node.binding.name}`} description={`${node.binding.profile_name} → ${node.binding.index_name}`}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SnapshotFact label="Provider" value={node.binding.provider} />
+          <SnapshotFact label="Mode" value={node.binding.mode} />
+          <SnapshotFact label="Text fields" value={node.binding.text_fields.join(", ")} />
+          <SnapshotFact label="Target field" value={node.binding.target_field} />
+          <SnapshotFact label="Active snapshot" mono value={node.binding.last_successful_snapshot_version ?? "none"} />
+          <SnapshotFact label="Pending snapshot" mono value={node.binding.pending_snapshot_version ?? "none"} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => onNavigate("search-playground")} variant="secondary"><Search className="mr-2 h-4 w-4" /> Test in Playground</Button>
+          <Button onClick={() => onNavigate("integrations")} variant="secondary"><Plug className="mr-2 h-4 w-4" /> Open integrations</Button>
+        </div>
+      </EntityDetailPanel>
+    );
+  }
+
+  if (node.kind === "category") {
+    const aliasCount = node.terms.reduce((total, term) => total + term.aliases.length, 0);
+    return (
+      <EntityDetailPanel badge={<Badge>{node.terms.length} terms</Badge>} title={`Category: ${node.slot}`} description={`Virtual folder for ${node.profileName}.`}>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <SnapshotFact label="Terms" value={String(node.terms.length)} />
+          <SnapshotFact label="Aliases" value={String(aliasCount)} />
+          <SnapshotFact label="Profile" value={node.profileName} />
+        </div>
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800">
+          {node.terms.slice(0, 8).map((term) => (
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 dark:border-slate-800" key={term.id}>
+              <span className="font-medium text-slate-950 dark:text-slate-50">{term.canonical_value}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{term.aliases.length} aliases</span>
+            </div>
+          ))}
+        </div>
+      </EntityDetailPanel>
+    );
+  }
+
+  if (node.kind === "term") {
+    return (
+      <EntityDetailPanel badge={<StatusBadge status={node.term.status} />} title={`Canonical: ${node.term.canonical_value}`} description={node.term.description ?? `Slot ${node.term.slot} in ${node.profileName}.`}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SnapshotFact label="Slot" value={node.term.slot} />
+          <SnapshotFact label="Aliases" value={String(node.term.aliases.length)} />
+          <SnapshotFact label="Normalized" value={node.term.normalized_value} />
+          <SnapshotFact label="Updated" value={formatDate(node.term.updated_at)} />
+        </div>
+        <div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Aliases</div>
+          <div className="flex flex-wrap gap-2">
+            {node.term.aliases.length === 0 ? <Badge>No aliases</Badge> : node.term.aliases.map((alias) => (
+              <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" key={alias.id}>{alias.alias_value}</Badge>
+            ))}
+          </div>
+        </div>
+      </EntityDetailPanel>
+    );
+  }
+
+  if (node.kind === "alias") {
+    return (
+      <EntityDetailPanel badge={<StatusBadge status={node.alias.status} />} title={`Alias: ${node.alias.alias_value}`} description={`Maps to ${node.term.canonical_value}.`}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SnapshotFact label="Canonical" value={node.term.canonical_value} />
+          <SnapshotFact label="Slot" value={node.term.slot} />
+          <SnapshotFact label="Confidence" value={`${Math.round(node.alias.confidence * 100)}%`} />
+          <SnapshotFact label="Normalized" value={node.alias.normalized_alias} />
+        </div>
+        {node.alias.notes ? <DetailCallout title="Notes">{node.alias.notes}</DetailCallout> : null}
+      </EntityDetailPanel>
+    );
+  }
+
+  return (
+    <EntityDetailPanel badge={<StatusBadge status={node.binding.status} />} title={`Snapshot: ${node.binding.name}`} description={`${node.binding.profile_name} → ${node.binding.index_name}`}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SnapshotFact label="Active version" mono value={node.binding.active_snapshot_version ?? "none"} />
+        <SnapshotFact label="Pending version" mono value={node.binding.pending_snapshot_version ?? "none"} />
+        <SnapshotFact label="Snapshot aliases" value={String(node.binding.snapshot_aliases_total)} />
+        <SnapshotFact label="Current aliases" value={String(node.binding.current_aliases_total)} />
+        <SnapshotFact label="Added / removed" value={`+${node.binding.diff.added_aliases} / -${node.binding.diff.removed_aliases}`} />
+        <SnapshotFact label="Rollback" value={node.binding.rollback_available ? "available" : "not available"} />
+      </div>
+      {node.binding.diff.changed ? (
+        <DetailCallout tone="amber" title="Profile drift detected">
+          This binding has schema changes that are not represented by the active runtime snapshot yet. Use Playground compare before release.
+        </DetailCallout>
+      ) : (
+        <DetailCallout tone="emerald" title="Snapshot aligned">
+          Active runtime snapshot matches the current profile alias checksum for this binding.
+        </DetailCallout>
+      )}
+    </EntityDetailPanel>
+  );
+}
+
+function TreeButton({ active, depth, icon, label, meta, onClick }: { active: boolean; depth: number; icon: ReactNode; label: string; meta?: string; onClick: () => void }) {
+  return (
+    <button
+      className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors ${active ? "bg-slate-950 text-white dark:bg-slate-100 dark:text-slate-950" : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"}`}
+      onClick={onClick}
+      style={{ paddingLeft: `${0.75 + depth * 1.1}rem` }}
+      type="button"
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0 opacity-80">{icon}</span>
+        <span className="truncate font-medium">{label}</span>
+      </span>
+      {meta ? <span className={`shrink-0 text-xs ${active ? "text-white/75 dark:text-slate-950/65" : "text-slate-500 dark:text-slate-400"}`}>{meta}</span> : null}
+    </button>
+  );
+}
+
+function TreeEmptyLine({ depth, label }: { depth: number; label: string }) {
+  return (
+    <div className="rounded-xl px-3 py-2 text-xs text-slate-400 dark:text-slate-500" style={{ paddingLeft: `${0.75 + depth * 1.1}rem` }}>
+      {label}
+    </div>
+  );
+}
+
+function DetailCallout({ children, title, tone = "slate" }: { children: ReactNode; title: string; tone?: "slate" | "cyan" | "emerald" | "amber" }) {
+  const classes = tone === "emerald"
+    ? "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200"
+    : tone === "amber"
+      ? "border-amber-100 bg-amber-50 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+      : tone === "cyan"
+        ? "border-cyan-100 bg-cyan-50 text-cyan-800 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-200"
+        : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300";
+  return (
+    <div className={`rounded-2xl border p-4 text-sm ${classes}`}>
+      <div className="font-semibold">{title}</div>
+      <div className="mt-1 leading-6">{children}</div>
+    </div>
+  );
+}
+
+function groupTermsBySlot(terms: CanonicalTerm[]) {
+  const groups = new Map<string, CanonicalTerm[]>();
+  for (const term of terms) {
+    const slot = term.slot || "Uncategorized";
+    groups.set(slot, [...(groups.get(slot) ?? []), term]);
+  }
+  return Array.from(groups.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([slot, groupedTerms]) => ({
+      slot,
+      terms: [...groupedTerms].sort((left, right) => left.canonical_value.localeCompare(right.canonical_value)),
+    }));
+}
+
+function countDuplicateAliases(terms: CanonicalTerm[]) {
+  const aliases = new Map<string, Set<string>>();
+  for (const term of terms) {
+    for (const alias of term.aliases) {
+      const key = alias.normalized_alias || alias.alias_value.toLowerCase();
+      const values = aliases.get(key) ?? new Set<string>();
+      values.add(term.canonical_value);
+      aliases.set(key, values);
+    }
+  }
+  return Array.from(aliases.values()).filter((values) => values.size > 1).length;
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "—";
+  }
+  return new Date(value).toLocaleString();
+}
+
 
 function RuntimeSnapshotsHeader({ summary, onNavigate }: { summary: SnapshotSummary; onNavigate: (section: AppSection) => void }) {
   const auditLevel = getAuditLevel(summary);
@@ -310,17 +766,23 @@ function SnapshotDetailPanel({
     return (
       <EntityDetailPanel
         footer={(
+          areLegacyWriteToolsEnabled() ? (
           <Button className="w-full" onClick={() => onNavigate("integrations")} variant="secondary">
             Create binding
           </Button>
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+            {LEGACY_WRITE_TOOLS_LOCKED_MESSAGE}
+          </div>
+        )
         )}
         title="Snapshot release detail"
       >
         {summary.counts.bindings === 0 ? (
           <EmptyState
-            actionLabel="Create binding"
-            description="Snapshots start after a profile is bound to an Elasticsearch search context."
-            onAction={() => onNavigate("integrations")}
+            actionLabel={areLegacyWriteToolsEnabled() ? "Create binding" : "Binding setup is GitOps-managed"}
+            description={areLegacyWriteToolsEnabled() ? "Snapshots start after a profile is bound to an Elasticsearch search context." : "Snapshots start after a binding is provisioned by the deployment/API runbook. Manual binding creation is locked in the Control Plane UI."}
+            onAction={areLegacyWriteToolsEnabled() ? () => onNavigate("integrations") : undefined}
             title="No bindings yet"
           />
         ) : null}
@@ -460,9 +922,9 @@ function SnapshotHistory({ history, onNavigate }: { history: SnapshotHistoryItem
   return (
     <SectionCard
       actions={(
-        <Button onClick={() => onNavigate("integrations")} variant="secondary">
+        <Button onClick={() => onNavigate(areLegacyWriteToolsEnabled() ? "integrations" : "search-playground")} variant="secondary">
           <History className="mr-2 h-4 w-4" />
-          View jobs
+          {areLegacyWriteToolsEnabled() ? "View jobs" : "Test runtime"}
         </Button>
       )}
       description="Last enrichment jobs that produced, activated, or failed runtime versions."
@@ -470,9 +932,9 @@ function SnapshotHistory({ history, onNavigate }: { history: SnapshotHistoryItem
     >
       {history.length === 0 ? (
         <EmptyState
-          actionLabel="Run enrichment"
-          description="No snapshot-producing enrichment jobs have run yet. Start a job from Integrations after switching a binding to write mode."
-          onAction={() => onNavigate("integrations")}
+          actionLabel={areLegacyWriteToolsEnabled() ? "Run enrichment" : "Open Playground"}
+          description={areLegacyWriteToolsEnabled() ? "No snapshot-producing enrichment jobs have run yet. Start a job from Integrations after switching a binding to write mode." : "No snapshot-producing jobs have run yet. Trigger enrichment through a controlled runbook/CI flow, then verify canonicalization in Playground."}
+          onAction={() => onNavigate(areLegacyWriteToolsEnabled() ? "integrations" : "search-playground")}
           title="No snapshot history yet"
         />
       ) : (
@@ -529,15 +991,21 @@ function SnapshotHistory({ history, onNavigate }: { history: SnapshotHistoryItem
   );
 }
 
-function EmptyState({ actionLabel, description, onAction, title }: { actionLabel: string; description: string; onAction: () => void; title: string }) {
+function EmptyState({ actionLabel, description, onAction, title }: { actionLabel: string; description: string; onAction?: () => void; title: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center dark:border-slate-700">
       <FileJson className="mx-auto h-6 w-6 text-slate-400" />
       <div className="mt-2 text-sm font-medium text-slate-950 dark:text-slate-50">{title}</div>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">{description}</p>
-      <Button className="mt-4" onClick={onAction} variant="secondary">
-        {actionLabel}
-      </Button>
+      {onAction ? (
+        <Button className="mt-4" onClick={onAction} variant="secondary">
+          {actionLabel}
+        </Button>
+      ) : (
+        <div className="mx-auto mt-4 max-w-lg rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          {actionLabel}
+        </div>
+      )}
     </div>
   );
 }

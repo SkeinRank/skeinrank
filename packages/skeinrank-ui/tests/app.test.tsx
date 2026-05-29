@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/App";
 import type {
@@ -2221,13 +2221,13 @@ async function openTermsPage() {
 }
 
 async function openSnapshotsPage() {
-  fireEvent.click(await screen.findByRole("button", { name: "Snapshots" }));
-  await screen.findByRole("heading", { name: "Runtime snapshots" });
+  fireEvent.click(await screen.findByRole("button", { name: "Schema & Snapshots" }));
+  await screen.findByRole("heading", { name: "Schema & Snapshots" });
 }
 
 async function openSearchPlaygroundPage() {
   fireEvent.click(
-    await screen.findByRole("button", { name: "Search Playground" }),
+    await screen.findByRole("button", { name: "Playground" }),
   );
   await screen.findByRole("heading", { name: "Search Playground" });
 }
@@ -2247,21 +2247,18 @@ describe("App", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Dashboard" }),
+      await screen.findByRole("heading", { name: "Search Playground" }),
     ).toBeInTheDocument();
-    expect(
-      await screen.findByText("Runtime control center"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Production search context is ready."),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Setup progress")).toBeInTheDocument();
-    expect(screen.getByText("Pin snapshot")).toBeInTheDocument();
-    expect(screen.getByText("Next actions")).toBeInTheDocument();
-    const attentionBadge = screen.getByText("1 attention");
-    expect(attentionBadge).toHaveClass("shrink-0");
-    expect(attentionBadge).toHaveClass("whitespace-nowrap");
-    expect(screen.getByText("Ready bindings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Playground" })).toHaveAttribute("aria-current", "page");
+    const primaryNavigation = screen.getByRole("navigation", { name: "Primary product navigation" });
+    expect(primaryNavigation).toHaveTextContent("Playground");
+    expect(primaryNavigation).toHaveTextContent("AI Inbox");
+    expect(primaryNavigation).toHaveTextContent("Schema & Snapshots");
+    expect(primaryNavigation).not.toHaveTextContent("Dashboard");
+    expect(primaryNavigation).not.toHaveTextContent("Terms");
+    expect(screen.getByText("Developer Cockpit")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Terms" })).toBeInTheDocument();
 
     await openTermsPage();
 
@@ -2289,9 +2286,17 @@ describe("App", () => {
 
     await openSnapshotsPage();
 
-    expect(await screen.findByText("Snapshot release cockpit")).toBeInTheDocument();
+    expect(await screen.findByText("Schema & snapshots workspace")).toBeInTheDocument();
+    expect(screen.getByText("Schema tree")).toBeInTheDocument();
+    expect(screen.getByText("Snapshot timeline")).toBeInTheDocument();
+    expect(await screen.findByText("Profile: default_it")).toBeInTheDocument();
+    expect(await screen.findByText("Binding: infra docs")).toBeInTheDocument();
+    expect(await screen.findByText("Category: TOOL")).toBeInTheDocument();
+    expect(await screen.findByText("Canonical: kubernetes")).toBeInTheDocument();
+    expect(await screen.findByText("Alias: k8s")).toBeInTheDocument();
+    expect(screen.getByText("Snapshot release cockpit")).toBeInTheDocument();
     expect(screen.getByText("Runtime audit")).toBeInTheDocument();
-    expect(screen.getByText("Runtime bindings")).toBeInTheDocument();
+    expect(screen.getAllByText("Runtime bindings").length).toBeGreaterThan(0);
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
     expect(screen.getByText("Profile drift")).toBeInTheDocument();
     expect(screen.getByText("Recent snapshot events")).toBeInTheDocument();
@@ -3136,14 +3141,10 @@ describe("App", () => {
       screen.getByRole("button", { name: "Add to stop list" }),
     ).toBeDisabled();
     expect(
-      screen.getByText(
-        "Your role can inspect guardrails, but only admins and moderators can update stop lists.",
-      ),
-    ).toBeInTheDocument();
+      screen.getAllByText(/Legacy write tools are read-only by default/i).length,
+    ).toBeGreaterThan(0);
     expect(
-      screen.getByText(
-        "Contributors can inspect stop lists, but only admins and moderators can update guardrails.",
-      ),
+      screen.getByText(/Legacy guardrail writes are locked/i),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Save stop-list entry" }),
@@ -3526,14 +3527,10 @@ describe("App", () => {
       screen.getByRole("button", { name: "Run enrichment job" }),
     ).toBeDisabled();
     expect(
-      screen.getByText(
-        "Your role can inspect Elasticsearch bindings, but only admins and moderators can update integrations.",
-      ),
-    ).toBeInTheDocument();
+      screen.getAllByText(/Legacy write tools are read-only by default/i).length,
+    ).toBeGreaterThan(0);
     expect(
-      screen.getByText(
-        "Contributors can inspect bindings, but only admins and moderators can update Elasticsearch integration configs.",
-      ),
+      screen.getByText(/Legacy binding writes are locked/i),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit binding" })).toBeDisabled();
     expect(
@@ -3561,15 +3558,35 @@ describe("App", () => {
       screen.queryByRole("button", { name: "Edit alias" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Your role has read-only access to this terminology profile. Use the Suggestions tab to propose changes for review.",
-      ),
-    ).toBeInTheDocument();
+      screen.getAllByText(/Legacy write tools are read-only by default/i).length,
+    ).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("tab", { name: /Profiles/ }));
     expect(
       screen.getByRole("button", { name: "Create profile" }),
     ).toBeDisabled();
+  });
+
+  it("locks legacy write tools for admins unless explicitly enabled", async () => {
+    window.localStorage.setItem("skeinrank-ui-enable-legacy-write-tools", "false");
+    stubGovernanceApi();
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Terms" }));
+    expect(await screen.findByText("Legacy terminology editor is read-only")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add term" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Edit alias" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Integrations" }));
+    await waitFor(() => {
+      expect(screen.getAllByText("infra docs").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole("button", { name: "Create binding" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run enrichment job" })).toBeDisabled();
+    expect(
+      screen.getByText(/Legacy binding writes are locked/i),
+    ).toBeInTheDocument();
   });
 
   it("lets contributors create suggestions without review actions", async () => {

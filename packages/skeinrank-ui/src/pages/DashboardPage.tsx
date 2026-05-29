@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
+import { areLegacyWriteToolsEnabled, LEGACY_WRITE_TOOLS_LOCKED_MESSAGE } from "../config";
 import { cn } from "../lib/utils";
 import {
   ConsolePage,
@@ -96,8 +97,11 @@ export function DashboardPage({
     return null;
   }
 
+  const legacyWriteToolsEnabled = areLegacyWriteToolsEnabled();
+
   return (
     <ConsolePage>
+      {!legacyWriteToolsEnabled ? <LegacyWriteLockdownNotice /> : null}
       <MasterDetailLayout asideWidthClassName="xl:grid-cols-[minmax(0,1fr)_330px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <CommandCenter summary={summary} onNavigate={onNavigate} />
         <NextActions summary={summary} onNavigate={onNavigate} />
@@ -116,7 +120,8 @@ export function DashboardPage({
 }
 
 function getSetupItems(setup: DashboardSetupChecklist): SetupItem[] {
-  return [
+  const legacyWriteToolsEnabled = areLegacyWriteToolsEnabled();
+  return legacyWriteToolsEnabled ? [
     {
       done: setup.has_profile,
       label: "Create terminology",
@@ -149,6 +154,42 @@ function getSetupItems(setup: DashboardSetupChecklist): SetupItem[] {
       done: setup.has_runtime_snapshot,
       label: "Pin snapshot",
       description: "Serve a safe version.",
+      actionLabel: "Open Snapshots",
+      section: "snapshots",
+    },
+  ] : [
+    {
+      done: setup.has_profile,
+      label: "Import terminology",
+      description: "Keep terms in GitOps/YAML or proposals.",
+      actionLabel: "View schema",
+      section: "snapshots",
+    },
+    {
+      done: setup.has_terms,
+      label: "Review aliases",
+      description: "Inspect canonicalized terms before rollout.",
+      actionLabel: "View schema",
+      section: "snapshots",
+    },
+    {
+      done: setup.has_binding,
+      label: "Provision binding",
+      description: "Configure search contexts via deploy/runbook flow.",
+      actionLabel: "View snapshots",
+      section: "snapshots",
+    },
+    {
+      done: setup.has_successful_enrichment,
+      label: "Verify rollout",
+      description: "Run controlled enrichment outside manual UI clicks.",
+      actionLabel: "Open Playground",
+      section: "search-playground",
+    },
+    {
+      done: setup.has_runtime_snapshot,
+      label: "Pin snapshot",
+      description: "Serve immutable runtime versions.",
       actionLabel: "Open Snapshots",
       section: "snapshots",
     },
@@ -508,9 +549,9 @@ function BindingHealth({
   return (
     <SectionCard
       actions={
-        <Button onClick={() => onNavigate("integrations")} variant="secondary">
+        <Button onClick={() => onNavigate(areLegacyWriteToolsEnabled() ? "integrations" : "snapshots")} variant="secondary">
           <Plug className="mr-2 h-4 w-4" />
-          Open integrations
+          {areLegacyWriteToolsEnabled() ? "Open integrations" : "View runtime contexts"}
         </Button>
       }
       description="Runtime contexts that drive production search behavior."
@@ -518,9 +559,9 @@ function BindingHealth({
     >
         {bindings.length === 0 ? (
           <EmptyState
-            actionLabel="Create binding"
-            description="No Elasticsearch bindings exist yet. Create one after you add a terminology profile."
-            onAction={() => onNavigate("integrations")}
+            actionLabel={areLegacyWriteToolsEnabled() ? "Create binding" : "View snapshot workspace"}
+            description={areLegacyWriteToolsEnabled() ? "No Elasticsearch bindings exist yet. Create one after you add a terminology profile." : "No runtime contexts exist yet. Configure bindings through GitOps/API runbooks, then inspect them in Schema & Snapshots."}
+            onAction={() => onNavigate(areLegacyWriteToolsEnabled() ? "integrations" : "snapshots")}
             title="No bindings configured"
           />
         ) : (
@@ -568,9 +609,9 @@ function RecentJobs({
   return (
     <SectionCard
       actions={
-        <Button onClick={() => onNavigate("integrations")} variant="secondary">
+        <Button onClick={() => onNavigate(areLegacyWriteToolsEnabled() ? "integrations" : "snapshots")} variant="secondary">
           <GitBranch className="mr-2 h-4 w-4" />
-          View jobs
+          {areLegacyWriteToolsEnabled() ? "View jobs" : "View snapshots"}
         </Button>
       }
       description="Latest rollout and snapshot activity."
@@ -578,9 +619,9 @@ function RecentJobs({
     >
         {jobs.length === 0 ? (
           <EmptyState
-            actionLabel="Run enrichment"
-            description="No enrichment jobs have run yet. Start from the Integrations page after creating a binding."
-            onAction={() => onNavigate("integrations")}
+            actionLabel={areLegacyWriteToolsEnabled() ? "Run enrichment" : "Open Playground"}
+            description={areLegacyWriteToolsEnabled() ? "No enrichment jobs have run yet. Start from the Integrations page after creating a binding." : "No enrichment jobs have run yet. Trigger rollout through CI/CD or an operator runbook, then verify behavior in Playground."}
+            onAction={() => onNavigate(areLegacyWriteToolsEnabled() ? "integrations" : "search-playground")}
             title="No enrichment jobs yet"
           />
         ) : (
@@ -637,6 +678,16 @@ function SystemReadiness({ summary }: { summary: DashboardSummary }) {
           </div>
         ))}
     </SectionCard>
+  );
+}
+
+
+function LegacyWriteLockdownNotice() {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+      <div className="font-semibold">Legacy dashboard is read-only</div>
+      <p className="mt-1">{LEGACY_WRITE_TOOLS_LOCKED_MESSAGE}</p>
+    </div>
   );
 }
 

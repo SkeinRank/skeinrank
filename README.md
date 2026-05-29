@@ -96,7 +96,7 @@ Populate the console with a live demo dataset:
 make demo-reset
 ```
 
-This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates review suggestions, checks evidence, and runs enrichment for the Dashboard, Terms, Integrations, Suggestions, Search Playground, and Snapshots screens.
+This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates review suggestions, checks evidence, and runs enrichment for the Dashboard, Terms, Integrations, AI Inbox, Suggestions, Search Playground, and Snapshots screens.
 
 Default local URLs:
 
@@ -411,6 +411,8 @@ Start here:
 - [`docs/adr/0001-headless-runtime-contracts.md`](docs/adr/0001-headless-runtime-contracts.md) — architecture decision for headless runtime boundaries.
 - [`docs/guides/core-sdk-and-cli.md`](docs/guides/core-sdk-and-cli.md) — local SDK/CLI workflows.
 - [`docs/guides/governance-console.md`](docs/guides/governance-console.md) — governance API and UI workflows.
+- [`docs/guides/proposal-inbox-ui.md`](docs/guides/proposal-inbox-ui.md) — AI Inbox review details for evidence, risk, validation findings, and source audit metadata.
+- `packages/skeinrank-ui/src/pages/ProposalInboxPage.tsx` — review-first AI proposal inbox for human-in-the-loop moderation.
 - [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — API examples for coverage review, policy, and before/after evaluation.
 - [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md) — enrichment, dry-runs, jobs, evidence, and cancellation.
 - [`docs/guides/development.md`](docs/guides/development.md) — development checks and package layout.
@@ -1074,3 +1076,25 @@ Patch 57B extends the model-provider abstraction with concrete `openrouter` and 
 ### Patch 57C — Company model integration docs and tests
 
 Patch 57C adds an offline company-model integration plan for connecting private/local model endpoints to the alias scout. It documents the `local_endpoint` flow, verifies redacted provider plans, and keeps live calls behind explicit pilot flags. See [`docs/deployment/company-model-integration.md`](docs/deployment/company-model-integration.md).
+
+
+### Patch 58C — Playground Snapshot Compare UI
+
+Search Playground now includes a split-screen compare mode for binding-backed runtime snapshots. The UI compares two existing bindings by calling the existing `POST /v1/query/plan` endpoint twice, then highlights canonical query, matched alias, canonical value, replacement, and snapshot differences. No new backend endpoint or runtime mutation is introduced.
+
+### Patch 58D — Schema & Snapshots Tree UI
+
+The Snapshots section now includes a read-heavy Schema & Snapshots workspace with a tree + detail layout for `binding → profile → category/slot → canonical term → aliases` and a snapshot timeline mode. The UI uses existing profile, binding, terms, and snapshot-summary endpoints; it does not add manual CRUD, enrichment triggers, snapshot publishing, or rollback actions. See [`docs/guides/schema-snapshots-tree-ui.md`](docs/guides/schema-snapshots-tree-ui.md).
+
+### Patch 58E — UI polish / empty states / degraded banners
+
+The 3-tab Control Plane UI now surfaces degraded operational state from `GET /v1/ops/alerts/report` as a non-mutating banner and improves empty states for AI Inbox and Search Playground. This keeps the UI focused on review, debugging, and audit without adding manual CRUD, custom monitoring dashboards, enrichment triggers, or new backend endpoints. See [`docs/guides/ui-polish-empty-states-degraded-banners.md`](docs/guides/ui-polish-empty-states-degraded-banners.md).
+
+### Patch 58F — Control Plane navigation slim-down
+
+The UI navigation now follows the 3-tab Control Plane model: Playground, AI Inbox, and Schema & Snapshots are the only primary product tabs. Legacy/dev/admin pages are not deleted; they are moved into Settings and Developer Cockpit utility groups so existing workflows remain reachable while the default product experience stays focused on debugging, human-in-the-loop proposal review, and schema/snapshot audit. See [`docs/guides/control-plane-navigation-slim-down.md`](docs/guides/control-plane-navigation-slim-down.md).
+
+### Patch 58G — Read-only legacy/admin cockpit lockdown
+
+Legacy and admin cockpit pages are now read-only by default to prevent direct production mutations that bypass proposals, validation, snapshots, and GitOps rollout. The UI keeps old routes available for inspection and local debugging, but disables or replaces unsafe write CTAs such as manual term edits, binding creation, guardrail edits, and enrichment job launches unless `VITE_SKEINRANK_ENABLE_LEGACY_WRITE_TOOLS=true` is set explicitly for local development. See [`docs/guides/read-only-legacy-admin-cockpit.md`](docs/guides/read-only-legacy-admin-cockpit.md).
+

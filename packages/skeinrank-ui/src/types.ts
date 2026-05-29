@@ -1,3 +1,48 @@
+
+export type AlertingEventSeverity = "info" | "warning" | "critical" | string;
+
+export type AlertingEvent = {
+  id: string;
+  severity: AlertingEventSeverity;
+  source: string;
+  signal: string;
+  message: string;
+  details: Record<string, unknown>;
+  recommended_action: string | null;
+};
+
+export type AlertingReport = {
+  schema_version: string;
+  status: "ok" | "degraded" | string;
+  severity: AlertingEventSeverity;
+  generated_at: string;
+  service: {
+    name: string;
+    version: string | null;
+  };
+  environment: string;
+  request_id: string | null;
+  summary: {
+    events_total: number;
+    critical_events: number;
+    warning_events: number;
+    info_events: number;
+    degraded_sources: string[];
+  };
+  events: AlertingEvent[];
+  hooks: Record<string, unknown>;
+  recommendations: string[];
+  safety: {
+    read_only: boolean;
+    database_mutation_enabled: boolean;
+    runtime_mutation_enabled: boolean;
+    openrouter_calls: boolean;
+    elasticsearch_calls: boolean;
+    webhook_delivery_enabled: boolean;
+    secrets_included: boolean;
+  };
+};
+
 export type DashboardReadinessItem = {
   status: string;
   configured: boolean;
@@ -524,11 +569,25 @@ export type SuggestionSource = "manual" | "discovery" | "import";
 
 export type SuggestionType = "alias" | "canonical_term";
 
+export type ProposalApplyPolicy = {
+  schema_version: string;
+  risk_level: string;
+  decision: string;
+  can_batch_apply: boolean;
+  requires_reviewer: boolean;
+  requires_admin: boolean;
+  requires_warning_override: boolean;
+  auto_apply_allowed: boolean;
+  reasons: string[];
+  signals: Record<string, unknown>;
+};
+
 export type GovernanceSuggestion = {
   id: number;
   profile_id: number;
   term_id: number | null;
   alias_id: number | null;
+  binding_id?: number | null;
   suggestion_type: SuggestionType;
   canonical_value: string;
   normalized_canonical: string;
@@ -539,7 +598,19 @@ export type GovernanceSuggestion = {
   confidence: number;
   source: SuggestionSource;
   context: string | null;
+  proposal_source_type?: string;
+  proposal_source_name?: string | null;
+  idempotency_key?: string | null;
+  source_payload?: Record<string, unknown> | null;
+  validation_summary?: Record<string, unknown> | null;
   status: SuggestionStatus;
+  lifecycle_status?: string;
+  lifecycle_reason?: string;
+  validation_status?: string;
+  risk_level?: string;
+  apply_policy?: ProposalApplyPolicy | null;
+  can_approve?: boolean;
+  can_apply?: boolean;
   created_by: string | null;
   reviewed_by: string | null;
   review_comment: string | null;
@@ -560,10 +631,17 @@ export type SuggestionCreateRequest = {
   confidence?: number;
   source?: SuggestionSource;
   context?: string | null;
+  binding_id?: number | null;
+  proposal_source_type?: string;
+  proposal_source_name?: string | null;
+  idempotency_key?: string | null;
+  source_payload?: Record<string, unknown> | null;
+  validation_summary?: Record<string, unknown> | null;
 };
 
 export type SuggestionReviewRequest = {
   review_comment?: string | null;
+  allow_warnings?: boolean;
 };
 
 export type UserRole = "admin" | "moderator" | "contributor";
