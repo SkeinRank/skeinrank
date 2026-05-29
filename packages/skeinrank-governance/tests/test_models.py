@@ -726,7 +726,7 @@ def test_invalid_elasticsearch_binding_write_strategy_is_rejected(session):
         session.commit()
 
 
-def test_invalid_elasticsearch_enrichment_job_status_is_rejected(session):
+def test_paused_elasticsearch_enrichment_job_status_is_valid(session):
     profile = TerminologyProfile(name="default_it")
     binding = ElasticsearchBinding(
         profile=profile,
@@ -739,6 +739,27 @@ def test_invalid_elasticsearch_enrichment_job_status_is_rejected(session):
         binding=binding,
         profile=profile,
         status="paused",
+        write_strategy="reindex_alias_swap",
+        source_index="docs",
+    )
+    session.add(job)
+
+    session.commit()
+
+
+def test_invalid_elasticsearch_enrichment_job_status_is_rejected(session):
+    profile = TerminologyProfile(name="default_it")
+    binding = ElasticsearchBinding(
+        profile=profile,
+        name="docs",
+        index_name="docs",
+        text_fields=["body"],
+        target_field="skeinrank",
+    )
+    job = ElasticsearchEnrichmentJob(
+        binding=binding,
+        profile=profile,
+        status="not_a_status",
         write_strategy="reindex_alias_swap",
         source_index="docs",
     )

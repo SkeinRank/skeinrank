@@ -25,6 +25,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/terminology-as-code.md`](guides/terminology-as-code.md) — 60A Terminology-as-Code import/export workflow: YAML/JSON in Git, JSON APIs, PostgreSQL control-plane state, and binding-scoped runtime snapshot artifacts.
 - [`guides/dictionary-cli-planning.md`](guides/dictionary-cli-planning.md) — 60B CLI `lint`, server-backed `plan`, and `apply --plan-output` workflow for JSON/YAML dictionaries.
 - [`deployment/gitops-delivery-runbook.md`](deployment/gitops-delivery-runbook.md) — 60C GitOps delivery runbook for GitLab CI, ArgoCD, Flux, and binding-scoped runtime artifacts.
+- [`guides/enrichment-pause-resume-checkpointing.md`](guides/enrichment-pause-resume-checkpointing.md) — 61C pause/resume controls and chunk checkpoint metadata for Celery-backed enrichment jobs.
 - [`../examples/gitops-delivery`](../examples/gitops-delivery) — reference GitLab CI, ArgoCD, Flux, and Kustomize examples for runtime artifact delivery.
 - [`concepts/coverage-framework.md`](concepts/coverage-framework.md) — slots, tags, ambiguous aliases, binding policies, and evaluation guardrails.
 - [`adr/0001-headless-runtime-contracts.md`](adr/0001-headless-runtime-contracts.md) — accepted architecture decision for headless runtime boundaries.
@@ -41,6 +42,9 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.
+- [`guides/enrichment-beta-hardening.md`](guides/enrichment-beta-hardening.md) — preflight, concurrency guard, and beta safety rules for enrichment jobs.
+- [`deployment/blue-green-alias-swap-runbook.md`](deployment/blue-green-alias-swap-runbook.md) — blue/green operator runbook for `reindex_alias_swap`, alias publish, cancellation, and rollback.
+- [`../examples/blue-green-alias-swap`](../examples/blue-green-alias-swap) — request payloads and checklist for the 61B alias-swap rollout path.
 - [`guides/development.md`](guides/development.md) — local development checks and package workflow.
 - [`api/governance-api.md`](api/governance-api.md) — important HTTP surfaces and runtime endpoints.
 
@@ -56,6 +60,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.
 - [`deployment/headless-quickstart.md`](deployment/headless-quickstart.md) — API/PostgreSQL-only golden path for headless integrations.
 - [`deployment/gitops-delivery-runbook.md`](deployment/gitops-delivery-runbook.md) — GitLab CI / ArgoCD / Flux delivery runbook for Terminology-as-Code runtime artifacts.
+- [`deployment/blue-green-alias-swap-runbook.md`](deployment/blue-green-alias-swap-runbook.md) — production-oriented blue/green alias-swap runbook for Elasticsearch enrichment.
 - [`deployment/security.md`](deployment/security.md) — production-oriented security baseline.
 - [`deployment/env-and-secrets.md`](deployment/env-and-secrets.md) — `.env` validation, required settings, and secrets handling.
 - [`deployment/production-compose.md`](deployment/production-compose.md) — production-ish Compose profile, ops services, and smoke checks.
@@ -491,3 +496,12 @@ Patch 57B adds concrete provider adapters for the alias scout: `openrouter` and 
 ### Company model integration
 
 Patch 57C adds a safe company-model integration plan for private/local chat-completion endpoints. Use `--print-company-model-integration-plan` to inspect the workflow without network calls or secrets. See [`deployment/company-model-integration.md`](deployment/company-model-integration.md).
+
+## Patch 61A — Enrichment Beta hardening
+
+`POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight` is a
+read-only operator check for enrichment jobs. It returns `ready`,
+`blocking_issues`, `warnings`, `recommended_request`, and safety metadata. The
+start-job endpoint uses the same guard and blocks concurrent active jobs for the
+same binding plus unsafe `reindex_alias_swap` target-index choices. See
+[`guides/enrichment-beta-hardening.md`](guides/enrichment-beta-hardening.md) and [`deployment/blue-green-alias-swap-runbook.md`](deployment/blue-green-alias-swap-runbook.md).

@@ -63,6 +63,8 @@ ELASTICSEARCH_BINDING_WRITE_STRATEGIES = ("in_place", "reindex_alias_swap")
 ELASTICSEARCH_ENRICHMENT_JOB_STATUSES = (
     "queued",
     "running",
+    "pause_requested",
+    "paused",
     "cancel_requested",
     "cancelled",
     "succeeded",

@@ -94,7 +94,21 @@ Dry-run reads a small sample, extracts text from configured fields, matches acti
 
 ## Enrichment jobs
 
-Start a write-mode enrichment job:
+Run a read-only safety preflight before starting a write job:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
+```
+
+The preflight returns `ready`, `blocking_issues`, `warnings`,
+`recommended_request`, and safety metadata. It does not create jobs, write
+documents, reindex, or swap aliases. See
+[`enrichment-beta-hardening.md`](enrichment-beta-hardening.md) for the 61A beta
+hardening contract and
+[`../deployment/blue-green-alias-swap-runbook.md`](../deployment/blue-green-alias-swap-runbook.md)
+for the 61B operator rollout path.
+
+Start a write-mode enrichment job after preflight passes:
 
 ```text
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
@@ -105,6 +119,15 @@ Inspect jobs:
 ```text
 GET /v1/governance/elasticsearch/jobs?binding_id=...
 GET /v1/governance/elasticsearch/jobs/{job_id}
+POST /v1/governance/elasticsearch/jobs/{job_id}/pause
+POST /v1/governance/elasticsearch/jobs/{job_id}/resume
+```
+
+Roll back a completed reindex alias-swap job when conservative rollout metadata
+is available:
+
+```text
+POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
 ```
 
 Supported job statuses include:
@@ -112,6 +135,8 @@ Supported job statuses include:
 ```text
 queued
 running
+pause_requested
+paused
 cancel_requested
 cancelled
 succeeded
@@ -148,13 +173,24 @@ export SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE=500
 
 ## Job cancellation
 
-Cancel a queued or running job:
+Cancel a queued, paused, or running job:
 
 ```text
 POST /v1/governance/elasticsearch/jobs/{job_id}/cancel
 ```
 
-Queued jobs can move directly to `cancelled`. Running jobs move to `cancel_requested` so workers can stop safely before starting new chunks. Alias swap is prevented when cancellation is requested.
+Queued or paused jobs can move directly to `cancelled`. Running jobs move to `cancel_requested` so workers can stop safely before starting new chunks. Alias swap is prevented when cancellation is requested.
+
+## Pause/resume checkpoints
+
+Celery-backed chunked jobs can be paused and resumed at chunk boundaries:
+
+```text
+POST /v1/governance/elasticsearch/jobs/{job_id}/pause
+POST /v1/governance/elasticsearch/jobs/{job_id}/resume
+```
+
+Paused jobs expose `result_json.chunked_enrichment.checkpoint` with completed, failed, cancelled, and remaining chunk indices. Resume requeues remaining chunks only. See [`enrichment-pause-resume-checkpointing.md`](enrichment-pause-resume-checkpointing.md).
 
 ## Evidence lookup
 

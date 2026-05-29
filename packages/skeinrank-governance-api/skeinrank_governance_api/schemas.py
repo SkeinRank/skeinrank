@@ -928,6 +928,17 @@ class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
     chunk_size: int | None = Field(default=None, ge=1, le=1000)
 
 
+class ElasticsearchEnrichmentPreflightResponse(BaseModel):
+    """Read-only safety plan for starting one enrichment job."""
+
+    binding: ElasticsearchBindingResponse
+    ready: bool
+    blocking_issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    recommended_request: dict[str, Any] = Field(default_factory=dict)
+    safety: dict[str, Any] = Field(default_factory=dict)
+
+
 class ElasticsearchEnrichmentJobCancelRequest(BaseModel):
     """Request body for safely cancelling an Elasticsearch enrichment job."""
 
@@ -936,6 +947,18 @@ class ElasticsearchEnrichmentJobCancelRequest(BaseModel):
 
 class ElasticsearchEnrichmentJobRollbackRequest(BaseModel):
     """Request body for rolling back a completed reindex alias-swap job."""
+
+    reason: str | None = Field(default=None, max_length=512)
+
+
+class ElasticsearchEnrichmentJobPauseRequest(BaseModel):
+    """Request body for pausing a chunked Elasticsearch enrichment job."""
+
+    reason: str | None = Field(default=None, max_length=512)
+
+
+class ElasticsearchEnrichmentJobResumeRequest(BaseModel):
+    """Request body for resuming a paused Elasticsearch enrichment job."""
 
     reason: str | None = Field(default=None, max_length=512)
 

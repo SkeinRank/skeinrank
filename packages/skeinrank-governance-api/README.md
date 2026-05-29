@@ -791,6 +791,28 @@ Request body:
 
 The endpoint samples documents from the configured index, applies the binding discriminator filter when present, reads configured text fields, matches active profile aliases, and returns the `would_write` payload for the configured target field. It does not update documents and does not start background jobs.
 
+## Elasticsearch enrichment beta hardening
+
+Patch 61A adds a read-only preflight endpoint before write-mode enrichment jobs:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
+```
+
+The preflight uses the same request body as `POST /jobs` and returns `ready`,
+`blocking_issues`, `warnings`, `recommended_request`, and `safety` metadata. It
+does not create a job, write documents, reindex, or swap aliases. The start-job
+endpoint runs the same preflight and returns `409` when blocking issues are
+found. It also prevents multiple active jobs for the same binding while a job is
+`queued`, `running`, or `cancel_requested`.
+
+See [`docs/guides/enrichment-beta-hardening.md`](../../docs/guides/enrichment-beta-hardening.md).
+
+Patch 61B adds the operator runbook for the safer blue/green path:
+[`docs/deployment/blue-green-alias-swap-runbook.md`](../../docs/deployment/blue-green-alias-swap-runbook.md) and [`examples/blue-green-alias-swap`](../../examples/blue-green-alias-swap). The runbook uses the existing preflight, start-job, job status, cancel, and rollback APIs; it does not introduce a standalone alias-swap endpoint.
+
+Patch 61C adds pause/resume controls for Celery-backed chunked enrichment jobs and exposes `result_json.chunked_enrichment.checkpoint` so operators can continue from remaining chunks. See [`docs/guides/enrichment-pause-resume-checkpointing.md`](../../docs/guides/enrichment-pause-resume-checkpointing.md) and [`examples/enrichment-pause-resume`](../../examples/enrichment-pause-resume).
+
 ## Elasticsearch enrichment write strategy
 
 Elasticsearch bindings include `write_strategy` metadata for future write jobs:

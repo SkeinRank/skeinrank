@@ -1,0 +1,7 @@
+{
+  "snapshot_version": "platform_ops@2026-05-29T12:00:00Z",
+  "max_documents": 1000,
+  "chunk_size": 250,
+  "alias_name": "platform_knowledge_base_search",
+  "target_index_name": "platform_knowledge_base__skeinrank_20260529_1200"
+}

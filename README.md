@@ -81,6 +81,7 @@ See [`docs/product-positioning.md`](docs/product-positioning.md) for the full pr
 | Runtime bindings | Bind a profile to a concrete index/search context and pin the safe snapshot used at runtime. |
 | Evidence-assisted review | Check aliases against Elasticsearch documents before accepting terminology changes. |
 | Enrichment jobs | Write canonical values, slots, matched aliases, and snapshot metadata back into indexed documents. |
+| Pause/resume checkpoints | Pause Celery-backed enrichment jobs at chunk boundaries and resume from the remaining checkpoint. |
 | Search Playground | Preview how raw queries become governed runtime context before integrating downstream search/RAG. |
 
 ## Why SkeinRank
@@ -137,7 +138,7 @@ Default local URLs:
 | RabbitMQ Management | `http://127.0.0.1:15672` |
 | PostgreSQL | `127.0.0.1:15432` |
 
-Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md).
+Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md). Enrichment pause/resume and chunk checkpointing are documented in [`docs/guides/enrichment-pause-resume-checkpointing.md`](docs/guides/enrichment-pause-resume-checkpointing.md).
 
 Operational schema check after migrations:
 
@@ -480,6 +481,8 @@ Start here:
 - `packages/skeinrank-ui/src/pages/ProposalInboxPage.tsx` — review-first AI proposal inbox for human-in-the-loop moderation.
 - [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — API examples for coverage review, policy, and before/after evaluation.
 - [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md) — enrichment, dry-runs, jobs, evidence, and cancellation.
+- [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md) — 61A preflight, concurrency guard, and beta safety rules for enrichment jobs.
+- [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md) — 61B blue/green operator runbook for `reindex_alias_swap`, alias publish, cancellation, and rollback.
 - [`docs/guides/development.md`](docs/guides/development.md) — development checks and package layout.
 - [`docs/api/governance-api.md`](docs/api/governance-api.md) — important governance/runtime API surfaces.
 
@@ -491,6 +494,7 @@ Deployment docs:
 - [`docs/deployment/observability.md`](docs/deployment/observability.md)
 - [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md)
+- [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md)
 
 ## Repository layout
 
@@ -1163,3 +1167,21 @@ The UI navigation now follows the 3-tab Control Plane model: Playground, AI Inbo
 
 Legacy and admin cockpit pages are now read-only by default to prevent direct production mutations that bypass proposals, validation, snapshots, and GitOps rollout. The UI keeps old routes available for inspection and local debugging, but disables or replaces unsafe write CTAs such as manual term edits, binding creation, guardrail edits, and enrichment job launches unless `VITE_SKEINRANK_ENABLE_LEGACY_WRITE_TOOLS=true` is set explicitly for local development. See [`docs/guides/read-only-legacy-admin-cockpit.md`](docs/guides/read-only-legacy-admin-cockpit.md).
 
+
+### Patch 61A — Enrichment Beta hardening
+
+Elasticsearch enrichment jobs now have a read-only preflight endpoint:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
+```
+
+The preflight reports `ready`, `blocking_issues`, `warnings`,
+`recommended_request`, and safety metadata before any job is created. The
+start-job endpoint runs the same checks and blocks unsafe starts, including
+concurrent active jobs for the same binding and unsafe `reindex_alias_swap`
+targets. See [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md).
+
+### Patch 61B — Blue/green alias-swap runbook
+
+Patch 61B documents the operator rollout path for `reindex_alias_swap` jobs: run dry-run, run preflight, start one binding-scoped job, monitor `result_json.rollout`, cancel before publish when needed, and use the conservative rollback endpoint after a completed alias swap. It does not add a new alias-swap endpoint or index cleanup command. See [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md) and [`examples/blue-green-alias-swap`](examples/blue-green-alias-swap).
