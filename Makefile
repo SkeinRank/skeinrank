@@ -1,8 +1,10 @@
-.PHONY: demo-seed demo-reset demo-status headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run support-bundle-plan support-bundle-export support-bundle-inspect support-bundle-clean backup-restore-drill-plan backup-restore-drill-run backup-restore-drill-inspect backup-restore-drill-clean alerts-report-plan alerts-report-generate alerts-report-show alerts-report-clean agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
+.PHONY: demo-seed demo-reset demo-status demo-tour-plan demo-tour-smoke demo-tour demo-tour-show demo-tour-clean headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run support-bundle-plan support-bundle-export support-bundle-inspect support-bundle-clean backup-restore-drill-plan backup-restore-drill-run backup-restore-drill-inspect backup-restore-drill-clean alerts-report-plan alerts-report-generate alerts-report-show alerts-report-clean agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py
+DEMO_TOUR := examples/platform_ops_demo/demo_product_tour.py
 DEMO_ARGS ?=
+DEMO_TOUR_REPORT ?= examples/platform_ops_demo/reports/platform_ops_demo_tour_report.json
 HEADLESS_COMPOSE := docker compose --env-file deploy/docker/headless.env.example -f docker-compose.headless.yml
 
 PROD_ENV ?= .env
@@ -89,6 +91,22 @@ demo-reset:
 
 demo-status:
 	$(PYTHON) $(DEMO_SEED) --status $(DEMO_ARGS)
+
+demo-tour-plan:
+	$(PYTHON) $(DEMO_TOUR) --plan $(DEMO_ARGS)
+
+demo-tour-smoke:
+	$(PYTHON) $(DEMO_TOUR) --write-report $(DEMO_TOUR_REPORT) $(DEMO_ARGS)
+
+demo-tour:
+	$(MAKE) demo-reset DEMO_ARGS="$(DEMO_ARGS)"
+	$(MAKE) demo-tour-smoke DEMO_ARGS="$(DEMO_ARGS)" DEMO_TOUR_REPORT="$(DEMO_TOUR_REPORT)"
+
+demo-tour-show:
+	$(PYTHON) -m json.tool $(DEMO_TOUR_REPORT)
+
+demo-tour-clean:
+	rm -rf examples/platform_ops_demo/reports
 
 headless-up:
 	$(HEADLESS_COMPOSE) up --build -d

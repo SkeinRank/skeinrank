@@ -4,6 +4,7 @@ This directory keeps repository-level documentation for developers, operators, a
 
 ## Start here
 
+- [`product-positioning.md`](product-positioning.md) — public README/GitHub positioning for SkeinRank as a Terminology Control Plane, including personas, 3-tab UI scope, demo tour, safety posture, and public-beta readiness checklist.
 - [`benchmarks/headless-agent-workflow.md`](benchmarks/headless-agent-workflow.md) — deterministic 48A/49A/49B/49C benchmark for the headless agent proposal workflow, expanded quality report, proposal quality metrics, and agent decision diagnostics.
 - [`benchmarks/openrouter-live-pilot.md`](benchmarks/openrouter-live-pilot.md) — guarded 48B live OpenRouter pilot with cost limits and no runtime mutation.
 - [`benchmarks/containerized-benchmark-integration.md`](benchmarks/containerized-benchmark-integration.md) — 48C Docker Compose + PostgreSQL + Governance API + Elasticsearch integration benchmark.
@@ -31,6 +32,8 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`guides/ui-polish-empty-states-degraded-banners.md`](guides/ui-polish-empty-states-degraded-banners.md) — global degraded-state banner and actionable empty states for the 3-tab Control Plane UI.
 - [`guides/control-plane-navigation-slim-down.md`](guides/control-plane-navigation-slim-down.md) — 58F primary navigation contract with Playground, AI Inbox, and Schema & Snapshots plus utility/legacy tools.
 - [`guides/read-only-legacy-admin-cockpit.md`](guides/read-only-legacy-admin-cockpit.md) — 58G lockdown for legacy/admin write controls with an explicit local-development bypass.
+- [`guides/seeded-demo-walkthrough.md`](guides/seeded-demo-walkthrough.md) — 59A seeded product walkthrough for Playground, AI Inbox, Schema & Snapshots, and read-only legacy cockpit.
+- [`guides/demo-product-tour.md`](guides/demo-product-tour.md) — 59B one-command demo tour and smoke report (`make demo-tour`, `make demo-tour-smoke`, `platform_ops_demo_tour_report.json`).
 - [`guides/coverage-framework.md`](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 - [`../examples/agents/openrouter_alias_scout`](../examples/agents/openrouter_alias_scout) — reference OpenRouter alias scout foundation and SkeinRank REST client.
 - [`guides/elasticsearch-enrichment.md`](guides/elasticsearch-enrichment.md) — Elasticsearch enrichment, dry-run, evidence, jobs, and cancellation.

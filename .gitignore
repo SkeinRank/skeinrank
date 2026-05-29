@@ -75,3 +75,6 @@ examples/benchmarks/platform_ops_v1/reports/
 
 # Generated pilot/support reports
 examples/pilots/reports/
+
+# Generated platform ops demo tour reports
+examples/platform_ops_demo/reports/

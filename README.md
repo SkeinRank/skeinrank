@@ -52,6 +52,27 @@ SkeinRank helps teams make company terminology usable at runtime: normalize nois
 
 The repository includes a lightweight Python SDK/CLI, FastAPI runtime and governance APIs, a React governance console, PostgreSQL-backed control-plane state, Elasticsearch enrichment jobs, RabbitMQ/Celery workers, and Docker Compose deployment profiles.
 
+## Product positioning in 60 seconds
+
+SkeinRank is a **Terminology Control Plane**: a governed layer for company-specific language that sits before enterprise search, RAG, and AI-agent workflows. It is designed for teams that already have internal jargon, aliases, abbreviations, service nicknames, incident shorthand, and multiple search surfaces.
+
+```text
+Control Plane: profiles, proposals, evidence, risk policy, snapshots, audit
+Data Plane: immutable runtime snapshots, local canonicalization, enrichment/search integration
+```
+
+The focused UI is intentionally small:
+
+```text
+Playground -> debug query canonicalization
+AI Inbox -> review evidence-backed agent proposals
+Schema & Snapshots -> inspect profiles, bindings, aliases, and snapshot state
+```
+
+SkeinRank is **not** a replacement for Elasticsearch, OpenSearch, or a vector database. It is the terminology governance and canonicalization layer that helps those systems receive cleaner, safer, domain-aware context. It is also not a direct production CRUD console: default UI writes are locked down so production terminology changes flow through proposal, validation, risk policy, review, snapshots, and GitOps-style rollout.
+
+See [`docs/product-positioning.md`](docs/product-positioning.md) for the full product narrative, public-beta checklist, and community/GitHub positioning notes.
+
 ## What SkeinRank gives you
 
 | Capability | Why it matters |
@@ -96,7 +117,15 @@ Populate the console with a live demo dataset:
 make demo-reset
 ```
 
-This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates review suggestions, checks evidence, and runs enrichment for the Dashboard, Terms, Integrations, AI Inbox, Suggestions, Search Playground, and Snapshots screens.
+This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates evidence-backed AI Inbox proposals, checks query planning evidence, and runs enrichment for the focused Control Plane demo: Playground, AI Inbox, and Schema & Snapshots. The guided tour is documented in [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md).
+
+For a one-command seeded product tour and smoke report, run:
+
+```bash
+make demo-tour
+```
+
+This resets the local demo, verifies the three-tab walkthrough, and writes `examples/platform_ops_demo/reports/platform_ops_demo_tour_report.json`. Use `make demo-tour-smoke` for the read-oriented smoke check against an already seeded stack, and see [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md).
 
 Default local URLs:
 
