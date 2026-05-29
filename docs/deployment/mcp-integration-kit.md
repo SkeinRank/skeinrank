@@ -139,5 +139,15 @@ See `examples/mcp-integration-kit/` for:
 - a safety-focused agent system prompt;
 - a simple integration workflow checklist.
 
-More client-specific docs for Claude Desktop, Cursor, and LangGraph-style agents
-are intentionally left for the dedicated MCP client docs patch.
+Client-specific docs are available for Claude Desktop, Cursor/IDE agents, and
+LangGraph-style agents:
+
+```text
+docs/deployment/mcp-claude-desktop.md
+docs/deployment/mcp-cursor-agents.md
+docs/deployment/mcp-langgraph-agents.md
+examples/mcp-agent-docs/
+```
+
+They all use the same `skeinrank-mcp` stdio adapter, scoped credentials, offline
+smoke test, and proposal-only safety boundary.

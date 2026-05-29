@@ -1798,3 +1798,15 @@ tokens and explicit `agent:*` scopes. See
 Agents can list bindings, explain queries, validate aliases, submit proposals,
 and check proposal status. They cannot approve proposals, publish snapshots, or
 mutate runtime terminology directly.
+
+Patch 62C adds client-specific MCP docs for Claude Desktop, Cursor/IDE agents,
+and LangGraph-style agents. See:
+
+```text
+docs/deployment/mcp-claude-desktop.md
+docs/deployment/mcp-cursor-agents.md
+docs/deployment/mcp-langgraph-agents.md
+examples/mcp-agent-docs/
+```
+
+These docs keep the same tool surface and proposal-only safety boundary.

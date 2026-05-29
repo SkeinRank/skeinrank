@@ -1096,3 +1096,15 @@ skeinrank.mcp_integration_manifest.v1
 
 The full runbook and generic examples live in
 `docs/deployment/mcp-integration-kit.md` and `examples/mcp-integration-kit/`.
+
+Client-specific MCP setup docs live in:
+
+```text
+docs/deployment/mcp-claude-desktop.md
+docs/deployment/mcp-cursor-agents.md
+docs/deployment/mcp-langgraph-agents.md
+examples/mcp-agent-docs/
+```
+
+They use the same `skeinrank-mcp` stdio adapter and do not add new Governance API
+routes.

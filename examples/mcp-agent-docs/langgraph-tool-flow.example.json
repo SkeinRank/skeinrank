@@ -1,0 +1,31 @@
+{
+  "schema": "skeinrank.langgraph_mcp_tool_flow.v1",
+  "server": {
+    "name": "skeinrank",
+    "transport": "stdio",
+    "command": "skeinrank-mcp"
+  },
+  "allowed_tools": [
+    "skeinrank_list_bindings",
+    "skeinrank_explain_query",
+    "skeinrank_validate_alias",
+    "skeinrank_submit_alias_proposal",
+    "skeinrank_get_proposal_status"
+  ],
+  "recommended_nodes": [
+    "resolve_binding_context",
+    "explain_query",
+    "validate_alias_candidate",
+    "submit_pending_proposal",
+    "check_proposal_status",
+    "route_to_human_review"
+  ],
+  "forbidden_actions": [
+    "approve_proposal",
+    "apply_dictionary",
+    "publish_snapshot",
+    "reload_runtime"
+  ],
+  "runtime_mutation_directly_allowed": false,
+  "human_review_required": true
+}

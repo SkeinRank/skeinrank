@@ -1219,3 +1219,23 @@ The smoke test exits without serving stdio or contacting the Governance API:
 cd packages/skeinrank-governance-api
 poetry run skeinrank-mcp --smoke-test
 ```
+
+### Patch 62C — MCP client docs for Claude Desktop, Cursor, and LangGraph-style agents
+
+Patch 62C adds client-specific MCP setup docs and safe agent prompts without
+adding new tools or endpoints. See
+[`docs/deployment/mcp-claude-desktop.md`](docs/deployment/mcp-claude-desktop.md),
+[`docs/deployment/mcp-cursor-agents.md`](docs/deployment/mcp-cursor-agents.md),
+[`docs/deployment/mcp-langgraph-agents.md`](docs/deployment/mcp-langgraph-agents.md),
+and [`examples/mcp-agent-docs`](examples/mcp-agent-docs).
+
+The documented clients all use the same existing `skeinrank-mcp` stdio adapter
+and the same five tools:
+
+```text
+skeinrank_list_bindings
+skeinrank_explain_query
+skeinrank_validate_alias
+skeinrank_submit_alias_proposal
+skeinrank_get_proposal_status
+```

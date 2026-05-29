@@ -516,3 +516,11 @@ same binding plus unsafe `reindex_alias_swap` target-index choices. See
   tokens for MCP agents and the offline `skeinrank-mcp --smoke-test` helper.
 - `../examples/mcp-scoped-credentials` contains service-account token request
   examples and scoped-token MCP client config.
+- `deployment/mcp-claude-desktop.md` documents Claude Desktop stdio setup for
+  `skeinrank-mcp`.
+- `deployment/mcp-cursor-agents.md` documents Cursor/IDE agent usage for search
+  integration and terminology proposal workflows.
+- `deployment/mcp-langgraph-agents.md` documents a LangGraph-style agent pattern
+  without adding a runnable agent package.
+- `../examples/mcp-agent-docs` contains Claude/Cursor config examples, agent
+  prompts, LangGraph-style flow policy, and a smoke checklist.

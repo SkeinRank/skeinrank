@@ -196,6 +196,17 @@ GET  /v1/governance/profiles/{profile_name}/suggestions
 A proposal submitted by MCP is still pending review. Runtime changes require the
 normal governance flow: review, apply, snapshot publication, and deployment.
 
+
+Client-specific setup docs for Claude Desktop, Cursor/IDE agents, and
+LangGraph-style agents live in:
+
+```text
+docs/deployment/mcp-claude-desktop.md
+docs/deployment/mcp-cursor-agents.md
+docs/deployment/mcp-langgraph-agents.md
+examples/mcp-agent-docs/
+```
+
 ## Safety checklist
 
 - Use service-account tokens, not human personal tokens, for deployed agents.

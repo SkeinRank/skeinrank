@@ -305,6 +305,11 @@ and CI checks:
 skeinrank-mcp --smoke-test
 ```
 
+Client-specific MCP docs for Claude Desktop, Cursor/IDE agents, and
+LangGraph-style agents use the same stdio adapter and tool boundary. See
+`docs/deployment/mcp-claude-desktop.md`, `docs/deployment/mcp-cursor-agents.md`,
+`docs/deployment/mcp-langgraph-agents.md`, and `examples/mcp-agent-docs/`.
+
 The output schema is `skeinrank.mcp_smoke_report.v1`. The helper does not call
 the Governance API, create proposals, approve suggestions, publish snapshots, or
 reload runtime state.
