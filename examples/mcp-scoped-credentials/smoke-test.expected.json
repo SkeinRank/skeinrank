@@ -1,0 +1,5 @@
+{
+  "schema": "skeinrank.mcp_smoke_report.v1",
+  "status": "passed",
+  "requires_governance_api": false
+}

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "skeinrank": {
+      "command": "skeinrank-mcp",
+      "env": {
+        "SKEINRANK_MCP_GOVERNANCE_API_URL": "http://127.0.0.1:8010",
+        "SKEINRANK_MCP_ROLE": "contributor",
+        "SKEINRANK_MCP_TIMEOUT_SECONDS": "10.0",
+        "SKEINRANK_MCP_API_TOKEN": "${SKEINRANK_MCP_API_TOKEN}"
+      }
+    }
+  }
+}

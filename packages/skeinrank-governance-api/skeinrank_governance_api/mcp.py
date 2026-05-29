@@ -18,10 +18,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from .scoped_agent_credentials import build_scoped_agent_credentials_policy
+
 MCP_PROTOCOL_VERSION = "2024-11-05"
 DEFAULT_API_URL = "http://127.0.0.1:8010"
 DEFAULT_ROLE = "admin"
 DEFAULT_TIMEOUT_SECONDS = 10.0
+SMOKE_REPORT_SCHEMA = "skeinrank.mcp_smoke_report.v1"
 
 API_URL_ENV = "SKEINRANK_MCP_GOVERNANCE_API_URL"
 API_TOKEN_ENV = "SKEINRANK_MCP_API_TOKEN"
@@ -240,6 +243,122 @@ def tool_definitions() -> list[JsonDict]:
     ]
 
 
+def integration_manifest() -> JsonDict:
+    """Return a dependency-light manifest for agent/MCP client packaging."""
+
+    return {
+        "schema": "skeinrank.mcp_integration_manifest.v1",
+        "server": {
+            "name": "skeinrank-mcp",
+            "transport": "stdio",
+            "command": "skeinrank-mcp",
+            "description": (
+                "Thin MCP stdio adapter over the SkeinRank Governance API "
+                "agent-safe REST tools."
+            ),
+        },
+        "environment": {
+            API_URL_ENV: {
+                "required": False,
+                "default": DEFAULT_API_URL,
+                "description": "Base URL for the SkeinRank Governance API.",
+            },
+            ROLE_ENV: {
+                "required": False,
+                "default": DEFAULT_ROLE,
+                "description": "Role header for local no-auth deployments.",
+            },
+            API_TOKEN_ENV: {
+                "required": False,
+                "secret": True,
+                "description": "Bearer token when Governance API auth is enabled.",
+            },
+            TIMEOUT_ENV: {
+                "required": False,
+                "default": DEFAULT_TIMEOUT_SECONDS,
+                "description": "HTTP timeout for calls from the adapter to the API.",
+            },
+        },
+        "credentials": build_scoped_agent_credentials_policy(current_user=None),
+        "smoke_tests": {
+            "offline_command": "skeinrank-mcp --smoke-test",
+            "requires_governance_api": False,
+            "schema": SMOKE_REPORT_SCHEMA,
+        },
+        "safety": {
+            "mutates_runtime_directly": False,
+            "proposal_flow": "validate -> submit proposal -> human review -> snapshot",
+            "notes": [
+                "The MCP adapter does not own business logic.",
+                "Alias changes go through existing /v1/tools/* validation and review APIs.",
+                "Use binding_id for production runtime context when available.",
+            ],
+        },
+        "tools": tool_definitions(),
+    }
+
+
+def env_template() -> str:
+    """Return a shell-friendly env template for local MCP integration."""
+
+    return "\n".join(
+        [
+            f"{API_URL_ENV}={DEFAULT_API_URL}",
+            "# Local no-auth development may keep admin role.",
+            "# Auth-enabled MCP deployments should prefer a contributor service account",
+            "# with the agent-proposal-writer scopes from /v1/auth/scoped-agent-credentials.",
+            f"{ROLE_ENV}={DEFAULT_ROLE}",
+            f"{TIMEOUT_ENV}={DEFAULT_TIMEOUT_SECONDS}",
+            f"# {API_TOKEN_ENV}=paste-scoped-service-account-token-here",
+            "",
+        ]
+    )
+
+
+def smoke_test_report() -> JsonDict:
+    """Return an offline MCP packaging smoke-test report.
+
+    The smoke test intentionally avoids network access. It verifies that the
+    stdio adapter can initialize, expose tools, and emit packaging metadata.
+    """
+
+    fake_client = SkeinRankApiClient(transport=lambda method, path, payload: {})
+    server = SkeinRankMcpServer(SkeinRankMcpTools(fake_client))
+    initialize = server.handle_request(
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+    )
+    tools = server.handle_request(
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+    )
+    manifest = integration_manifest()
+    tool_names = [tool["name"] for tool in tool_definitions()]
+    expected_tools = {
+        "skeinrank_list_bindings",
+        "skeinrank_explain_query",
+        "skeinrank_validate_alias",
+        "skeinrank_submit_alias_proposal",
+        "skeinrank_get_proposal_status",
+    }
+    checks = {
+        "initialize_ok": bool(initialize and initialize.get("result")),
+        "tools_list_ok": bool(tools and tools.get("result", {}).get("tools")),
+        "expected_tools_present": expected_tools.issubset(set(tool_names)),
+        "manifest_ok": manifest.get("schema")
+        == "skeinrank.mcp_integration_manifest.v1",
+        "credential_policy_present": (
+            manifest.get("credentials", {}).get("schema_version")
+            == "skeinrank.scoped_agent_credentials.v1"
+        ),
+    }
+    return {
+        "schema": SMOKE_REPORT_SCHEMA,
+        "status": "passed" if all(checks.values()) else "failed",
+        "checks": checks,
+        "tool_names": tool_names,
+        "requires_governance_api": False,
+    }
+
+
 class SkeinRankMcpServer:
     """Minimal JSON-RPC MCP server for stdio transports."""
 
@@ -405,12 +524,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Defaults to ${ROLE_ENV} or admin."
         ),
     )
+    parser.add_argument(
+        "--print-tool-manifest",
+        action="store_true",
+        help="Print a JSON integration manifest and exit without serving stdio.",
+    )
+    parser.add_argument(
+        "--print-env-template",
+        action="store_true",
+        help="Print an env template for local MCP integration and exit.",
+    )
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Run offline MCP packaging checks and exit without serving stdio.",
+    )
     args = parser.parse_args(argv)
 
     if args.api_url:
         os.environ[API_URL_ENV] = args.api_url
     if args.role:
         os.environ[ROLE_ENV] = args.role
+
+    if args.print_env_template:
+        sys.stdout.write(env_template())
+        return 0
+    if args.print_tool_manifest:
+        json.dump(integration_manifest(), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+        return 0
+    if args.smoke_test:
+        report = smoke_test_report()
+        json.dump(report, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+        return 0 if report["status"] == "passed" else 1
+
     return serve_stdio(build_server_from_env(), sys.stdin.buffer, sys.stdout.buffer)
 
 

@@ -1046,6 +1046,17 @@ The endpoint does not create admin-capable agent credentials by default. Use
 `contributor` service accounts and explicit `agent:*` scopes for scheduled
 agents.
 
+Patch 62B uses this policy for MCP deployments. The packaged `skeinrank-mcp`
+manifest includes the same `skeinrank.scoped_agent_credentials.v1` credential
+policy, and the offline smoke helper can be run with:
+
+```bash
+skeinrank-mcp --smoke-test
+```
+
+See `docs/deployment/mcp-scoped-credentials-smoke-tests.md` and
+`examples/mcp-scoped-credentials/`.
+
 ## Profile isolation checks
 
 Patch 55D adds a read-only isolation report for profile/binding safety:
@@ -1065,3 +1076,35 @@ sample_limit=20
 ```
 
 Use a lower `sample_limit` when a degraded database may contain many issues.
+
+## MCP integration packaging helpers
+
+Patch 62A adds packaging helpers to the existing `skeinrank-mcp` console script.
+They print local metadata and exit without starting the stdio server or calling
+the Governance API:
+
+```bash
+poetry run skeinrank-mcp --print-tool-manifest
+poetry run skeinrank-mcp --print-env-template
+```
+
+The tool manifest schema is:
+
+```text
+skeinrank.mcp_integration_manifest.v1
+```
+
+The full runbook and generic examples live in
+`docs/deployment/mcp-integration-kit.md` and `examples/mcp-integration-kit/`.
+
+Client-specific MCP setup docs live in:
+
+```text
+docs/deployment/mcp-claude-desktop.md
+docs/deployment/mcp-cursor-agents.md
+docs/deployment/mcp-langgraph-agents.md
+examples/mcp-agent-docs/
+```
+
+They use the same `skeinrank-mcp` stdio adapter and do not add new Governance API
+routes.

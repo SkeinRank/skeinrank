@@ -1185,3 +1185,57 @@ targets. See [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment
 ### Patch 61B — Blue/green alias-swap runbook
 
 Patch 61B documents the operator rollout path for `reindex_alias_swap` jobs: run dry-run, run preflight, start one binding-scoped job, monitor `result_json.rollout`, cancel before publish when needed, and use the conservative rollback endpoint after a completed alias swap. It does not add a new alias-swap endpoint or index cleanup command. See [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md) and [`examples/blue-green-alias-swap`](examples/blue-green-alias-swap).
+
+## MCP packaging and agent integration kit
+
+Patch 62A packages the existing `skeinrank-mcp` stdio adapter as an agent
+integration kit for safe proposal workflows. See
+`docs/deployment/mcp-integration-kit.md` and `examples/mcp-integration-kit/`.
+
+The adapter remains thin: it delegates to the existing `/v1/tools/*` and
+proposal review APIs, and agents cannot directly mutate active runtime
+terminology.
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --print-tool-manifest
+poetry run skeinrank-mcp --print-env-template
+poetry run skeinrank-mcp --smoke-test
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+### Patch 62B — MCP scoped credentials and smoke tests
+
+Patch 62B adds least-privilege MCP credential guidance and an offline packaging
+smoke test for the existing `skeinrank-mcp` adapter. The recommended production
+shape is a `contributor` service-account token with explicit `agent:*` scopes,
+not an admin token. See
+[`docs/deployment/mcp-scoped-credentials-smoke-tests.md`](docs/deployment/mcp-scoped-credentials-smoke-tests.md)
+and [`examples/mcp-scoped-credentials`](examples/mcp-scoped-credentials).
+
+The smoke test exits without serving stdio or contacting the Governance API:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --smoke-test
+```
+
+### Patch 62C — MCP client docs for Claude Desktop, Cursor, and LangGraph-style agents
+
+Patch 62C adds client-specific MCP setup docs and safe agent prompts without
+adding new tools or endpoints. See
+[`docs/deployment/mcp-claude-desktop.md`](docs/deployment/mcp-claude-desktop.md),
+[`docs/deployment/mcp-cursor-agents.md`](docs/deployment/mcp-cursor-agents.md),
+[`docs/deployment/mcp-langgraph-agents.md`](docs/deployment/mcp-langgraph-agents.md),
+and [`examples/mcp-agent-docs`](examples/mcp-agent-docs).
+
+The documented clients all use the same existing `skeinrank-mcp` stdio adapter
+and the same five tools:
+
+```text
+skeinrank_list_bindings
+skeinrank_explain_query
+skeinrank_validate_alias
+skeinrank_submit_alias_proposal
+skeinrank_get_proposal_status
+```

@@ -505,3 +505,22 @@ read-only operator check for enrichment jobs. It returns `ready`,
 start-job endpoint uses the same guard and blocks concurrent active jobs for the
 same binding plus unsafe `reindex_alias_swap` target-index choices. See
 [`guides/enrichment-beta-hardening.md`](guides/enrichment-beta-hardening.md) and [`deployment/blue-green-alias-swap-runbook.md`](deployment/blue-green-alias-swap-runbook.md).
+
+## MCP integration kit
+
+- `deployment/mcp-integration-kit.md` documents the packaged `skeinrank-mcp`
+  stdio adapter, its safe tool boundary, and the generic agent integration flow.
+- `../examples/mcp-integration-kit` contains client-neutral config, env, prompt,
+  and tool-contract fixtures.
+- `deployment/mcp-scoped-credentials-smoke-tests.md` documents scoped service-account
+  tokens for MCP agents and the offline `skeinrank-mcp --smoke-test` helper.
+- `../examples/mcp-scoped-credentials` contains service-account token request
+  examples and scoped-token MCP client config.
+- `deployment/mcp-claude-desktop.md` documents Claude Desktop stdio setup for
+  `skeinrank-mcp`.
+- `deployment/mcp-cursor-agents.md` documents Cursor/IDE agent usage for search
+  integration and terminology proposal workflows.
+- `deployment/mcp-langgraph-agents.md` documents a LangGraph-style agent pattern
+  without adding a runnable agent package.
+- `../examples/mcp-agent-docs` contains Claude/Cursor config examples, agent
+  prompts, LangGraph-style flow policy, and a smoke checklist.

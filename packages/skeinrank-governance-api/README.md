@@ -1762,3 +1762,51 @@ Patch 57B keeps OpenRouter as the default model provider and adds a `local_endpo
 ### Patch 57C — Company model integration
 
 The OpenRouter alias scout now includes an offline company-model integration plan. It documents how to configure `local_endpoint`, preview provider settings, run a one-call smoke, and then run a validated pilot without exposing secrets.
+
+## MCP integration kit
+
+Patch 62A packages the existing `skeinrank-mcp` stdio adapter as a client-neutral
+agent integration kit. The adapter still has no mandatory third-party MCP runtime
+dependency and still delegates business logic to the Governance API.
+
+Docs and examples:
+
+```text
+docs/deployment/mcp-integration-kit.md
+examples/mcp-integration-kit/
+```
+
+Packaging helpers:
+
+```bash
+poetry run skeinrank-mcp --print-tool-manifest
+poetry run skeinrank-mcp --print-env-template
+poetry run skeinrank-mcp --smoke-test
+```
+
+Start the stdio adapter after the Governance API is running:
+
+```bash
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+Patch 62B documents auth-enabled MCP deployments with contributor service-account
+tokens and explicit `agent:*` scopes. See
+`docs/deployment/mcp-scoped-credentials-smoke-tests.md` and
+`examples/mcp-scoped-credentials/`.
+
+Agents can list bindings, explain queries, validate aliases, submit proposals,
+and check proposal status. They cannot approve proposals, publish snapshots, or
+mutate runtime terminology directly.
+
+Patch 62C adds client-specific MCP docs for Claude Desktop, Cursor/IDE agents,
+and LangGraph-style agents. See:
+
+```text
+docs/deployment/mcp-claude-desktop.md
+docs/deployment/mcp-cursor-agents.md
+docs/deployment/mcp-langgraph-agents.md
+examples/mcp-agent-docs/
+```
+
+These docs keep the same tool surface and proposal-only safety boundary.

@@ -7,7 +7,10 @@ from skeinrank_governance_api.mcp import (
     SkeinRankApiClient,
     SkeinRankMcpServer,
     SkeinRankMcpTools,
+    env_template,
+    integration_manifest,
     read_framed_message,
+    smoke_test_report,
     tool_definitions,
     write_framed_message,
 )
@@ -187,3 +190,43 @@ def test_mcp_framed_message_round_trip():
     stream.seek(0)
 
     assert read_framed_message(stream) == message
+
+
+def test_mcp_integration_manifest_documents_packaged_tools():
+    manifest = integration_manifest()
+
+    assert manifest["schema"] == "skeinrank.mcp_integration_manifest.v1"
+    assert manifest["server"]["name"] == "skeinrank-mcp"
+    assert manifest["server"]["transport"] == "stdio"
+    assert manifest["safety"]["mutates_runtime_directly"] is False
+    assert "SKEINRANK_MCP_GOVERNANCE_API_URL" in manifest["environment"]
+    assert (
+        manifest["credentials"]["schema_version"]
+        == "skeinrank.scoped_agent_credentials.v1"
+    )
+    assert manifest["smoke_tests"]["offline_command"] == "skeinrank-mcp --smoke-test"
+
+    names = {tool["name"] for tool in manifest["tools"]}
+    assert "skeinrank_submit_alias_proposal" in names
+    assert "skeinrank_explain_query" in names
+
+
+def test_mcp_env_template_uses_real_environment_names():
+    template = env_template()
+
+    assert "SKEINRANK_MCP_GOVERNANCE_API_URL=http://127.0.0.1:8010" in template
+    assert "SKEINRANK_MCP_ROLE=admin" in template
+    assert "SKEINRANK_MCP_TIMEOUT_SECONDS=10.0" in template
+    assert "SKEINRANK_MCP_API_TOKEN" in template
+
+
+def test_mcp_offline_smoke_report_passes_without_api() -> None:
+    report = smoke_test_report()
+
+    assert report["schema"] == "skeinrank.mcp_smoke_report.v1"
+    assert report["status"] == "passed"
+    assert report["requires_governance_api"] is False
+    assert report["checks"]["initialize_ok"] is True
+    assert report["checks"]["tools_list_ok"] is True
+    assert report["checks"]["credential_policy_present"] is True
+    assert "skeinrank_submit_alias_proposal" in report["tool_names"]
