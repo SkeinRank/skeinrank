@@ -1,0 +1,15 @@
+{
+  "name": "mcp proposal writer token rotated",
+  "scopes": [
+    "agent:runs:read",
+    "agent:runs:write",
+    "agent:tracking:read",
+    "agent:tracking:write",
+    "agent:tools:read",
+    "agent:tools:validate",
+    "agent:tools:suggest",
+    "agent:tools:explain",
+    "ops:reports:read"
+  ],
+  "expires_in_days": 90
+}

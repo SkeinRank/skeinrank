@@ -512,3 +512,7 @@ same binding plus unsafe `reindex_alias_swap` target-index choices. See
   stdio adapter, its safe tool boundary, and the generic agent integration flow.
 - `../examples/mcp-integration-kit` contains client-neutral config, env, prompt,
   and tool-contract fixtures.
+- `deployment/mcp-scoped-credentials-smoke-tests.md` documents scoped service-account
+  tokens for MCP agents and the offline `skeinrank-mcp --smoke-test` helper.
+- `../examples/mcp-scoped-credentials` contains service-account token request
+  examples and scoped-token MCP client config.

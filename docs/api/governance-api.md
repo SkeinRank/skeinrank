@@ -1046,6 +1046,17 @@ The endpoint does not create admin-capable agent credentials by default. Use
 `contributor` service accounts and explicit `agent:*` scopes for scheduled
 agents.
 
+Patch 62B uses this policy for MCP deployments. The packaged `skeinrank-mcp`
+manifest includes the same `skeinrank.scoped_agent_credentials.v1` credential
+policy, and the offline smoke helper can be run with:
+
+```bash
+skeinrank-mcp --smoke-test
+```
+
+See `docs/deployment/mcp-scoped-credentials-smoke-tests.md` and
+`examples/mcp-scoped-credentials/`.
+
 ## Profile isolation checks
 
 Patch 55D adds a read-only isolation report for profile/binding safety:

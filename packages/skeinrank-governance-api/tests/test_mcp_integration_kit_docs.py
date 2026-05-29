@@ -32,6 +32,7 @@ def test_mcp_integration_kit_docs_are_discoverable() -> None:
     assert "examples/mcp-integration-kit" in _read(PACKAGE_README)
     assert "docs/deployment/mcp-integration-kit.md" in _read(API_DOC)
     assert "--print-tool-manifest" in _read(CONTRACTS_DOC)
+    assert "--smoke-test" in _read(CONTRACTS_DOC)
 
 
 def test_mcp_integration_kit_documents_existing_tool_surface() -> None:
@@ -42,6 +43,7 @@ def test_mcp_integration_kit_documents_existing_tool_surface() -> None:
         "skeinrank-mcp --api-url http://127.0.0.1:8010",
         "skeinrank-mcp --print-tool-manifest",
         "skeinrank-mcp --print-env-template",
+        "skeinrank-mcp --smoke-test",
         "skeinrank.mcp_integration_manifest.v1",
         "skeinrank_list_bindings",
         "skeinrank_explain_query",

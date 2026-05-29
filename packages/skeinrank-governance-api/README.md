@@ -1781,6 +1781,7 @@ Packaging helpers:
 ```bash
 poetry run skeinrank-mcp --print-tool-manifest
 poetry run skeinrank-mcp --print-env-template
+poetry run skeinrank-mcp --smoke-test
 ```
 
 Start the stdio adapter after the Governance API is running:
@@ -1788,6 +1789,11 @@ Start the stdio adapter after the Governance API is running:
 ```bash
 poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
 ```
+
+Patch 62B documents auth-enabled MCP deployments with contributor service-account
+tokens and explicit `agent:*` scopes. See
+`docs/deployment/mcp-scoped-credentials-smoke-tests.md` and
+`examples/mcp-scoped-credentials/`.
 
 Agents can list bindings, explain queries, validate aliases, submit proposals,
 and check proposal status. They cannot approve proposals, publish snapshots, or

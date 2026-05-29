@@ -294,3 +294,17 @@ runtime contract. The `skeinrank-mcp` adapter can print a local tool manifest
 with `--print-tool-manifest` and an env template with `--print-env-template`.
 These helpers make agent packaging easier while keeping all business logic in
 the existing Governance API and proposal review flow.
+
+
+## MCP adapter packaging smoke test
+
+The `skeinrank-mcp` adapter exposes an offline smoke helper for client packaging
+and CI checks:
+
+```bash
+skeinrank-mcp --smoke-test
+```
+
+The output schema is `skeinrank.mcp_smoke_report.v1`. The helper does not call
+the Governance API, create proposals, approve suggestions, publish snapshots, or
+reload runtime state.

@@ -1200,5 +1200,22 @@ terminology.
 cd packages/skeinrank-governance-api
 poetry run skeinrank-mcp --print-tool-manifest
 poetry run skeinrank-mcp --print-env-template
+poetry run skeinrank-mcp --smoke-test
 poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```
+
+### Patch 62B — MCP scoped credentials and smoke tests
+
+Patch 62B adds least-privilege MCP credential guidance and an offline packaging
+smoke test for the existing `skeinrank-mcp` adapter. The recommended production
+shape is a `contributor` service-account token with explicit `agent:*` scopes,
+not an admin token. See
+[`docs/deployment/mcp-scoped-credentials-smoke-tests.md`](docs/deployment/mcp-scoped-credentials-smoke-tests.md)
+and [`examples/mcp-scoped-credentials`](examples/mcp-scoped-credentials).
+
+The smoke test exits without serving stdio or contacting the Governance API:
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --smoke-test
 ```

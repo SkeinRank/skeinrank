@@ -70,8 +70,28 @@ Print a shell-friendly env template:
 poetry run skeinrank-mcp --print-env-template
 ```
 
+Run the offline packaging smoke test:
+
+```bash
+poetry run skeinrank-mcp --smoke-test
+```
+
 These helpers are packaging-only. They do not call the Governance API, create
 proposals, or mutate runtime terminology.
+
+## Scoped credentials
+
+Auth-enabled MCP deployments should use service-account API tokens with explicit
+agent scopes. The credential policy is exposed by the existing endpoint:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+```
+
+The same policy is included in the `skeinrank-mcp --print-tool-manifest` output
+under `credentials`. See
+[`mcp-scoped-credentials-smoke-tests.md`](mcp-scoped-credentials-smoke-tests.md)
+and `examples/mcp-scoped-credentials/` for request bodies and smoke-test examples.
 
 ## Tools exposed
 

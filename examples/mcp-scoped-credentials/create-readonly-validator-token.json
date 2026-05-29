@@ -1,0 +1,11 @@
+{
+  "name": "mcp readonly validator token",
+  "scopes": [
+    "agent:runs:read",
+    "agent:tracking:read",
+    "agent:tools:read",
+    "agent:tools:validate",
+    "ops:reports:read"
+  ],
+  "expires_in_days": 90
+}
