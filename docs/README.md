@@ -505,3 +505,10 @@ read-only operator check for enrichment jobs. It returns `ready`,
 start-job endpoint uses the same guard and blocks concurrent active jobs for the
 same binding plus unsafe `reindex_alias_swap` target-index choices. See
 [`guides/enrichment-beta-hardening.md`](guides/enrichment-beta-hardening.md) and [`deployment/blue-green-alias-swap-runbook.md`](deployment/blue-green-alias-swap-runbook.md).
+
+## MCP integration kit
+
+- `deployment/mcp-integration-kit.md` documents the packaged `skeinrank-mcp`
+  stdio adapter, its safe tool boundary, and the generic agent integration flow.
+- `../examples/mcp-integration-kit` contains client-neutral config, env, prompt,
+  and tool-contract fixtures.

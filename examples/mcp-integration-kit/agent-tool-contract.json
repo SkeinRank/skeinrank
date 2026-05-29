@@ -1,0 +1,57 @@
+{
+  "schema": "skeinrank.mcp_agent_tool_contract.v1",
+  "server": "skeinrank-mcp",
+  "transport": "stdio",
+  "tools": [
+    {
+      "name": "skeinrank_list_bindings",
+      "safe_sample_arguments": {
+        "enabled_only": true
+      }
+    },
+    {
+      "name": "skeinrank_explain_query",
+      "safe_sample_arguments": {
+        "binding_id": 1,
+        "query": "k8s pg timeout",
+        "include_evidence": true
+      }
+    },
+    {
+      "name": "skeinrank_validate_alias",
+      "safe_sample_arguments": {
+        "binding_id": 1,
+        "canonical_value": "postgresql",
+        "alias_value": "pg",
+        "slot": "database",
+        "confidence": 0.91,
+        "proposal_source_name": "mcp-agent"
+      }
+    },
+    {
+      "name": "skeinrank_submit_alias_proposal",
+      "safe_sample_arguments": {
+        "binding_id": 1,
+        "canonical_value": "postgresql",
+        "alias_value": "pg",
+        "slot": "database",
+        "confidence": 0.91,
+        "context": "Observed in failed-query logs: pg timeout",
+        "proposal_source_name": "mcp-agent",
+        "idempotency_key": "mcp-agent:infra:pg:postgresql"
+      }
+    },
+    {
+      "name": "skeinrank_get_proposal_status",
+      "safe_sample_arguments": {
+        "profile_name": "infra_incidents",
+        "suggestion_id": 1
+      }
+    }
+  ],
+  "safety": {
+    "direct_runtime_mutation": false,
+    "review_required": true,
+    "preferred_runtime_context": "binding_id"
+  }
+}

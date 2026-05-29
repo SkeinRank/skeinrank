@@ -1065,3 +1065,23 @@ sample_limit=20
 ```
 
 Use a lower `sample_limit` when a degraded database may contain many issues.
+
+## MCP integration packaging helpers
+
+Patch 62A adds packaging helpers to the existing `skeinrank-mcp` console script.
+They print local metadata and exit without starting the stdio server or calling
+the Governance API:
+
+```bash
+poetry run skeinrank-mcp --print-tool-manifest
+poetry run skeinrank-mcp --print-env-template
+```
+
+The tool manifest schema is:
+
+```text
+skeinrank.mcp_integration_manifest.v1
+```
+
+The full runbook and generic examples live in
+`docs/deployment/mcp-integration-kit.md` and `examples/mcp-integration-kit/`.

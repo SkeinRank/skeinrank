@@ -240,6 +240,69 @@ def tool_definitions() -> list[JsonDict]:
     ]
 
 
+def integration_manifest() -> JsonDict:
+    """Return a dependency-light manifest for agent/MCP client packaging."""
+
+    return {
+        "schema": "skeinrank.mcp_integration_manifest.v1",
+        "server": {
+            "name": "skeinrank-mcp",
+            "transport": "stdio",
+            "command": "skeinrank-mcp",
+            "description": (
+                "Thin MCP stdio adapter over the SkeinRank Governance API "
+                "agent-safe REST tools."
+            ),
+        },
+        "environment": {
+            API_URL_ENV: {
+                "required": False,
+                "default": DEFAULT_API_URL,
+                "description": "Base URL for the SkeinRank Governance API.",
+            },
+            ROLE_ENV: {
+                "required": False,
+                "default": DEFAULT_ROLE,
+                "description": "Role header for local no-auth deployments.",
+            },
+            API_TOKEN_ENV: {
+                "required": False,
+                "secret": True,
+                "description": "Bearer token when Governance API auth is enabled.",
+            },
+            TIMEOUT_ENV: {
+                "required": False,
+                "default": DEFAULT_TIMEOUT_SECONDS,
+                "description": "HTTP timeout for calls from the adapter to the API.",
+            },
+        },
+        "safety": {
+            "mutates_runtime_directly": False,
+            "proposal_flow": "validate -> submit proposal -> human review -> snapshot",
+            "notes": [
+                "The MCP adapter does not own business logic.",
+                "Alias changes go through existing /v1/tools/* validation and review APIs.",
+                "Use binding_id for production runtime context when available.",
+            ],
+        },
+        "tools": tool_definitions(),
+    }
+
+
+def env_template() -> str:
+    """Return a shell-friendly env template for local MCP integration."""
+
+    return "\n".join(
+        [
+            f"{API_URL_ENV}={DEFAULT_API_URL}",
+            f"{ROLE_ENV}={DEFAULT_ROLE}",
+            f"{TIMEOUT_ENV}={DEFAULT_TIMEOUT_SECONDS}",
+            f"# {API_TOKEN_ENV}=paste-token-here-when-auth-is-enabled",
+            "",
+        ]
+    )
+
+
 class SkeinRankMcpServer:
     """Minimal JSON-RPC MCP server for stdio transports."""
 
@@ -405,12 +468,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Defaults to ${ROLE_ENV} or admin."
         ),
     )
+    parser.add_argument(
+        "--print-tool-manifest",
+        action="store_true",
+        help="Print a JSON integration manifest and exit without serving stdio.",
+    )
+    parser.add_argument(
+        "--print-env-template",
+        action="store_true",
+        help="Print an env template for local MCP integration and exit.",
+    )
     args = parser.parse_args(argv)
 
     if args.api_url:
         os.environ[API_URL_ENV] = args.api_url
     if args.role:
         os.environ[ROLE_ENV] = args.role
+
+    if args.print_env_template:
+        sys.stdout.write(env_template())
+        return 0
+    if args.print_tool_manifest:
+        json.dump(integration_manifest(), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
     return serve_stdio(build_server_from_env(), sys.stdin.buffer, sys.stdout.buffer)
 
 

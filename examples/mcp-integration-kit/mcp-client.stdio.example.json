@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "skeinrank": {
+      "command": "skeinrank-mcp",
+      "args": [
+        "--api-url",
+        "http://127.0.0.1:8010"
+      ],
+      "env": {
+        "SKEINRANK_MCP_ROLE": "admin",
+        "SKEINRANK_MCP_TIMEOUT_SECONDS": "10.0"
+      }
+    }
+  }
+}

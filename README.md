@@ -1185,3 +1185,20 @@ targets. See [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment
 ### Patch 61B — Blue/green alias-swap runbook
 
 Patch 61B documents the operator rollout path for `reindex_alias_swap` jobs: run dry-run, run preflight, start one binding-scoped job, monitor `result_json.rollout`, cancel before publish when needed, and use the conservative rollback endpoint after a completed alias swap. It does not add a new alias-swap endpoint or index cleanup command. See [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md) and [`examples/blue-green-alias-swap`](examples/blue-green-alias-swap).
+
+## MCP packaging and agent integration kit
+
+Patch 62A packages the existing `skeinrank-mcp` stdio adapter as an agent
+integration kit for safe proposal workflows. See
+`docs/deployment/mcp-integration-kit.md` and `examples/mcp-integration-kit/`.
+
+The adapter remains thin: it delegates to the existing `/v1/tools/*` and
+proposal review APIs, and agents cannot directly mutate active runtime
+terminology.
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --print-tool-manifest
+poetry run skeinrank-mcp --print-env-template
+poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
+```

@@ -286,3 +286,11 @@ Patch 38J adds dedicated coverage docs and examples:
 - `examples/coverage-framework/` for tagged dictionary, ambiguous alias, binding policy, and evaluation query payloads.
 
 These files document the existing Phase C APIs. They do not add new runtime behavior; the resolver, policy model, ambiguous alias model, and evaluator are implemented by the preceding 38A-38I patches.
+
+### MCP integration kit
+
+Patch 62A adds an MCP integration kit around this boundary without changing the
+runtime contract. The `skeinrank-mcp` adapter can print a local tool manifest
+with `--print-tool-manifest` and an env template with `--print-env-template`.
+These helpers make agent packaging easier while keeping all business logic in
+the existing Governance API and proposal review flow.

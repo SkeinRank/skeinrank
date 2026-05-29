@@ -7,6 +7,8 @@ from skeinrank_governance_api.mcp import (
     SkeinRankApiClient,
     SkeinRankMcpServer,
     SkeinRankMcpTools,
+    env_template,
+    integration_manifest,
     read_framed_message,
     tool_definitions,
     write_framed_message,
@@ -187,3 +189,26 @@ def test_mcp_framed_message_round_trip():
     stream.seek(0)
 
     assert read_framed_message(stream) == message
+
+
+def test_mcp_integration_manifest_documents_packaged_tools():
+    manifest = integration_manifest()
+
+    assert manifest["schema"] == "skeinrank.mcp_integration_manifest.v1"
+    assert manifest["server"]["name"] == "skeinrank-mcp"
+    assert manifest["server"]["transport"] == "stdio"
+    assert manifest["safety"]["mutates_runtime_directly"] is False
+    assert "SKEINRANK_MCP_GOVERNANCE_API_URL" in manifest["environment"]
+
+    names = {tool["name"] for tool in manifest["tools"]}
+    assert "skeinrank_submit_alias_proposal" in names
+    assert "skeinrank_explain_query" in names
+
+
+def test_mcp_env_template_uses_real_environment_names():
+    template = env_template()
+
+    assert "SKEINRANK_MCP_GOVERNANCE_API_URL=http://127.0.0.1:8010" in template
+    assert "SKEINRANK_MCP_ROLE=admin" in template
+    assert "SKEINRANK_MCP_TIMEOUT_SECONDS=10.0" in template
+    assert "SKEINRANK_MCP_API_TOKEN" in template
