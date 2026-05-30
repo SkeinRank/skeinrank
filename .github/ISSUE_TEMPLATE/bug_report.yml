@@ -1,13 +1,16 @@
----
 name: Bug report
 description: Report a reproducible SkeinRank bug
 title: "bug: "
-labels: [bug]
+labels:
+  - "type: bug"
+  - "status: needs-triage"
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug. Please do not include secrets, raw tokens, private documents, or unredacted customer logs.
+        Thanks for reporting a bug. Redact secrets, raw tokens, private documents, and customer logs before posting.
+
+        Questions and architecture discussions belong in [Discussions](https://github.com/SkeinRank/skeinrank/discussions).
   - type: textarea
     id: summary
     attributes:
@@ -19,7 +22,7 @@ body:
     id: reproduce
     attributes:
       label: Steps to reproduce
-      description: Include commands, endpoints, or UI steps.
+      description: Include commands, endpoints, UI steps, or the exact demo flow.
       placeholder: |
         1. Run ...
         2. Open ...
@@ -36,14 +39,35 @@ body:
     id: actual
     attributes:
       label: Actual behavior / logs
-      description: Redact secrets before pasting logs.
+      description: Paste relevant logs after redacting secrets and private data.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - governance-api
+        - ui
+        - core
+        - elasticsearch
+        - mcp
+        - docs
+        - ci
+        - site
+        - unknown / other
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: Version / commit
-      placeholder: main@sha or package version
+      placeholder: "v0.10.0-beta.1, main@sha, or package version"
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "OS, Python/Node version, Docker version, browser, database/search backend"
   - type: checkboxes
     id: safety
     attributes:
@@ -51,4 +75,3 @@ body:
       options:
         - label: I removed secrets, tokens, private documents, and customer data from this report.
           required: true
----

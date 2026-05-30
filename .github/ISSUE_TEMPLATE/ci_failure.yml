@@ -1,0 +1,38 @@
+name: Regression / CI failure
+description: Report a failing test, GitHub Actions job, packaging failure, or release regression
+title: "ci: "
+labels:
+  - "type: bug"
+  - "area: ci"
+  - "status: needs-triage"
+body:
+  - type: input
+    id: run
+    attributes:
+      label: CI run / command
+      placeholder: "GitHub Actions URL or command such as poetry run pytest -q"
+    validations:
+      required: true
+  - type: textarea
+    id: failure
+    attributes:
+      label: Failure summary
+      description: Paste the shortest relevant failing section.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+  - type: textarea
+    id: suspect
+    attributes:
+      label: Suspected cause or related PR
+      description: Optional.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, tokens, private documents, and customer data from logs.
+          required: true

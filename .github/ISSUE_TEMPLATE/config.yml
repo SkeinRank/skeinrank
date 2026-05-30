@@ -1,5 +1,14 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Ask a question in Discussions
+    url: https://github.com/SkeinRank/skeinrank/discussions/categories/q-a
+    about: Use Q&A for setup questions, API usage, bindings, snapshots, MCP, and integration help.
+  - name: Start an architecture / RFC discussion
+    url: https://github.com/SkeinRank/skeinrank/discussions/categories/architecture-rfc
+    about: Use this for runtime routing, governance, enrichment, MCP, and Terminology-as-Code design discussions.
+  - name: Share an integration idea
+    url: https://github.com/SkeinRank/skeinrank/discussions/categories/integrations
+    about: Use this for Elasticsearch, OpenSearch, RAG, MCP clients, Claude Desktop, Cursor, and LangGraph-style workflows.
   - name: Security report
     url: https://github.com/SkeinRank/skeinrank/security/advisories/new
     about: Please report vulnerabilities privately when GitHub advisories are enabled.

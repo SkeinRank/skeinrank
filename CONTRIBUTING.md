@@ -93,3 +93,13 @@ The Python CI uses Ruff and pytest. The UI uses TypeScript, Vitest, and Vite. Ke
 ## Security and secrets
 
 Never commit secrets, `.env` files, generated support bundles, demo reports, OpenRouter API keys, Elasticsearch credentials, or database dumps. See `SECURITY.md` for vulnerability reporting.
+
+
+## Issues and Discussions
+
+Use Issues for reproducible bugs, failing commands, documentation mistakes, and concrete implementation tasks. Use Discussions for questions, ideas, architecture proposals, integration feedback, and public beta conversations.
+
+Issue labels follow the taxonomy in [`docs/community/github-labels.md`](docs/community/github-labels.md): `type:*`, `area:*`, `status:*`, and `priority:*`. New issues should start as `status: needs-triage` until a maintainer accepts or redirects them.
+
+Architecture changes should usually start as a Discussion in `Architecture / RFC` before becoming implementation issues. Integration ideas for Elasticsearch/OpenSearch, MCP clients, Claude Desktop, Cursor, LangGraph-style agents, RAG pipelines, or GitOps delivery can start in the `Integrations` discussion category.
+

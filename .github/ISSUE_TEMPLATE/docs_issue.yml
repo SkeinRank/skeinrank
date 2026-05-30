@@ -1,0 +1,27 @@
+name: Docs issue
+description: Report unclear, outdated, missing, or incorrect documentation
+title: "docs: "
+labels:
+  - "type: docs"
+  - "area: docs"
+  - "status: needs-triage"
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Document location
+      description: Link the README, docs page, guide, example, or file path.
+      placeholder: "README.md, docs/guides/runtime-routing-api.md, examples/..."
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is wrong or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Suggested fix
+      description: Optional wording, structure, diagram, or example that would help.

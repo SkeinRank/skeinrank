@@ -75,6 +75,12 @@ Schema health is available through `GET /schema/health` and `python -m skeinrank
 Patch 54A adds `docs/pilots/first-company-pilot-runbook.md` and `examples/pilots/first_company_pilot_checklist.md` as the operator-facing path for the first company pilot: intake, local rehearsal, config preparation, preflight/seed/eval/report, optional validated-agent smoke, and exit criteria.
 
 
+## Community and repository operations
+
+- [`community/discussions.md`](community/discussions.md) — GitHub Discussions categories, welcome post, public beta feedback thread, and roadmap discussion draft.
+- [`community/github-labels.md`](community/github-labels.md) — GitHub label taxonomy and GitHub CLI commands for syncing labels.
+
+
 ## Headless dictionary facade
 
 Automation-first integrations should prefer the headless dictionary routes:

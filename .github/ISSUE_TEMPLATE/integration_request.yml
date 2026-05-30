@@ -1,0 +1,44 @@
+name: Integration request
+description: Request or discuss an integration with search, RAG, MCP, GitOps, or agent tooling
+title: "integration: "
+labels:
+  - "type: integration"
+  - "status: needs-triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For broad architecture exploration, consider starting in [Integrations Discussions](https://github.com/SkeinRank/skeinrank/discussions/categories/integrations) first.
+  - type: input
+    id: system
+    attributes:
+      label: Target system
+      placeholder: "Elasticsearch, OpenSearch, Qdrant, Claude Desktop, Cursor, LangGraph, GitLab CI, Flux, ArgoCD..."
+    validations:
+      required: true
+  - type: dropdown
+    id: integration_type
+    attributes:
+      label: Integration type
+      options:
+        - search backend
+        - RAG pipeline
+        - MCP / agent client
+        - GitOps / CI delivery
+        - observability / operations
+        - data source / connector
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Desired workflow
+      description: What should SkeinRank read, validate, produce, or expose?
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Auth, networking, privacy, schema, runtime, scale, deployment, or security constraints.

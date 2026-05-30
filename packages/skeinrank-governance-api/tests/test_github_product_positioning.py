@@ -10,8 +10,8 @@ CONTRIBUTING = REPO_ROOT / "CONTRIBUTING.md"
 SECURITY = REPO_ROOT / "SECURITY.md"
 CODE_OF_CONDUCT = REPO_ROOT / "CODE_OF_CONDUCT.md"
 PR_TEMPLATE = REPO_ROOT / ".github/PULL_REQUEST_TEMPLATE.md"
-BUG_TEMPLATE = REPO_ROOT / ".github/ISSUE_TEMPLATE/bug_report.md"
-FEATURE_TEMPLATE = REPO_ROOT / ".github/ISSUE_TEMPLATE/feature_request.md"
+BUG_TEMPLATE = REPO_ROOT / ".github/ISSUE_TEMPLATE/bug_report.yml"
+FEATURE_TEMPLATE = REPO_ROOT / ".github/ISSUE_TEMPLATE/feature_request.yml"
 ISSUE_CONFIG = REPO_ROOT / ".github/ISSUE_TEMPLATE/config.yml"
 CI_WORKFLOW = REPO_ROOT / ".github/workflows/ci.yml"
 
@@ -100,4 +100,6 @@ def test_github_community_files_exist_and_are_skeinrank_specific() -> None:
     assert "No new direct production mutation path" in pr_template
     assert "Legacy UI write tools remain locked by default" in pr_template
     assert "Redact secrets" in bug_template
-    assert "GitOps / Terminology-as-Code" in feature_template
+    assert "status: needs-triage" in bug_template
+    assert "Terminology-as-Code" in feature_template
+    assert "status: needs-triage" in feature_template
