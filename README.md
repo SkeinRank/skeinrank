@@ -481,6 +481,7 @@ Legacy OpenRouter/model-provider command markers retained for CI discoverability
 --print-tool-schemas
 --discover-candidates
 --sample-evidence
+--print-sample-evidence-pack
 --print-llm-review-plan
 --run-demo-report
 --print-security-profile
