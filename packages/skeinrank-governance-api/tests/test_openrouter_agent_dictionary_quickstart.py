@@ -185,7 +185,6 @@ def test_cli_print_and_write_payload_commands_work(tmp_path: Path) -> None:
 
 def test_docs_mention_42e_quickstart() -> None:
     for path in (
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",

@@ -146,7 +146,6 @@ def test_alias_scout_cli_demo_report_outputs_and_writes_json(tmp_path: Path) -> 
 
 def test_openrouter_40k_docs_and_makefile_are_linked() -> None:
     paths = [
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",

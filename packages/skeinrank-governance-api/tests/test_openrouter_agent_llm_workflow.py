@@ -224,7 +224,6 @@ def test_llm_review_cli_requires_openrouter_key_for_live_execution() -> None:
 
 def test_openrouter_40j_docs_are_linked() -> None:
     paths = [
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",

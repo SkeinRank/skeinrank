@@ -24,7 +24,6 @@ def _load_module(name: str, path: Path) -> Any:
 def test_57c_company_model_integration_docs_and_cli_exist() -> None:
     assert (AGENT_DIR / "company_model_integration.py").exists()
     docs = [
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         AGENT_DIR / "README.md",

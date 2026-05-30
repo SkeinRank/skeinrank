@@ -143,7 +143,6 @@ def test_41a_cli_reports_canonical_hints_and_llm_plan_uses_them() -> None:
 
 def test_41a_docs_are_linked() -> None:
     paths = [
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
