@@ -7,12 +7,16 @@
 <h1 align="center">SkeinRank</h1>
 
 <p align="center">
-  <strong>Open-source terminology control plane for search and RAG.</strong>
+  <strong>Enterprise search and RAG break when users speak in internal slang. SkeinRank fixes that with governed, binding-aware terminology normalization.</strong>
 </p>
 
 <p align="center">
-  Turn messy aliases such as <code>k8s</code>, <code>kube</code>, <code>pg</code>, and <code>postgres</code>
-  into governed, versioned runtime context for enterprise search, Elasticsearch, and RAG workflows.
+  <strong>Open-source Domain Language Control Plane for enterprise search, RAG, and AI-agent workflows.</strong>
+</p>
+
+<p align="center">
+  SkeinRank acts as a Terminology Control Plane: it discovers internal terms and acronyms, validates them with evidence, resolves ambiguity by runtime context,
+  ships immutable snapshots, and helps measure retrieval quality before and after every terminology change.
 </p>
 
 <p align="center">
@@ -41,20 +45,97 @@
 </p>
 
 <p align="center">
-  <a href="https://skeinrank.github.io">
-    <img src="docs/assets/screenshots/dashboard-runtime-control-center-dark.png" alt="SkeinRank governance console dashboard" width="960" />
-  </a>
+  <img
+    src="docs/assets/architecture/skeinrank-sidecar-architecture.png"
+    alt="SkeinRank sidecar architecture for search, RAG, and AI agents"
+    width="960"
+  />
+</p>
+
+<p align="center">
+  <em>Drop SkeinRank into your stack as a terminology sidecar: canonicalize noisy domain language, resolve runtime context through bindings, and send search-ready requests to your backend.</em>
 </p>
 
 ---
 
-SkeinRank helps teams make company terminology usable at runtime: normalize noisy domain language, govern canonical terms and aliases, publish immutable snapshots, enrich indexed documents, and serve search-ready context to retrieval, RAG, and agent workflows.
+## The problem
 
-The repository includes a lightweight Python SDK/CLI, FastAPI runtime and governance APIs, a React governance console, PostgreSQL-backed control-plane state, Elasticsearch enrichment jobs, RabbitMQ/Celery workers, and Docker Compose deployment profiles.
+Users do not search with your canonical vocabulary. They search with team slang, legacy abbreviations, incident shorthand, and ambiguous internal names:
 
-## Product positioning in 60 seconds
+```text
+"k8s pg timeout"
+```
 
-SkeinRank is a **Terminology Control Plane**: a governed layer for company-specific language that sits before enterprise search, RAG, and AI-agent workflows. It is designed for teams that already have internal jargon, aliases, abbreviations, service nicknames, incident shorthand, and multiple search surfaces.
+Your systems may store the same idea as `kubernetes`, `Kube`, `PostgreSQL`, `postgres`, or `psql`. In another workspace, `pg` might mean `page` or `product group`. Search engines, vector databases, RAG prompts, and agents usually see that as noise.
+
+SkeinRank gives that language a governed lifecycle instead of spreading it across Elasticsearch synonym files, regex snippets, CSVs, prompts, and one-off scripts.
+
+## What SkeinRank does
+
+SkeinRank is a **terminology sidecar** for teams that already run Elasticsearch, OpenSearch, vector search, internal documentation search, RAG, or AI-agent workflows.
+
+It does not replace your search engine. It sits beside your application stack and turns messy company language into governed, versioned, binding-aware runtime context:
+
+```text
+raw query:        "k8s pg timeout"
+canonical query:  "kubernetes postgresql timeout"
+runtime context:  binding + profile + fields + pinned snapshot
+```
+
+In one pass, SkeinRank helps you:
+
+| Step | What happens |
+| --- | --- |
+| Discover | Find internal terms, acronyms, aliases, and ambiguous surfaces. |
+| Prove | Attach evidence from documents, incidents, tickets, and search traces. |
+| Govern | Review proposed changes through AI Inbox and risk-aware policy. |
+| Snapshot | Publish immutable terminology versions for runtime use. |
+| Bind | Apply the right vocabulary to the right search context. |
+| Serve | Expose API, SDK, CLI, and MCP tools for search, RAG, and agents. |
+| Evaluate | Compare retrieval behavior before and after terminology changes. |
+
+It is **not a direct production CRUD console**. Production terminology changes are expected to flow through `proposal -> validation -> risk policy -> review -> snapshot -> rollout` — the same safety posture as `proposal, validation, risk policy, review, snapshots`, and GitOps-style rollout.
+
+See [`docs/product-positioning.md`](docs/product-positioning.md) for the product narrative and public-beta checklist.
+
+## Why teams need this
+
+Enterprise search and RAG often fail for reasons that are not model-related:
+
+- the same thing is called `postgres`, `pg`, `psql`, and `PostgreSQL`;
+- the same alias can mean different things in different workspaces;
+- synonyms live in Elasticsearch, regex files, CSVs, prompts, and scripts;
+- nobody knows which version of the rules is currently used in runtime;
+- agents can discover new terminology, but should not mutate production directly.
+
+SkeinRank turns that into an auditable control-plane flow:
+
+```text
+Discover -> Validate -> Review -> Publish snapshot -> Bind to runtime -> Enrich/search -> Evaluate
+```
+
+## Core model
+
+| Concept | Meaning |
+| --- | --- |
+| `Profile` | Domain terminology: canonical values, aliases, slots, tags, stop lists. |
+| `Binding` | Runtime search context: profile + index/alias + fields + target field + pinned snapshot. |
+| `Snapshot` | Immutable version of terminology that can be safely served or exported. |
+| `Proposal` | Agent, CLI, or human-submitted terminology change awaiting review. |
+| `Evidence` | Documents, query traces, validation findings, and risk metadata behind a proposal. |
+
+In production, runtime requests should be **binding-first**:
+
+```json
+{
+  "binding_id": 1,
+  "query": "k8s pg timeout"
+}
+```
+
+`profile_name` remains useful for preview/dev workflows, but `binding_id` knows which index, fields, snapshot, filters, and runtime policy are active.
+
+## Control Plane and Data Plane
 
 ```text
 Control Plane: profiles, proposals, evidence, risk policy, snapshots, audit
@@ -69,64 +150,44 @@ AI Inbox -> review evidence-backed agent proposals
 Schema & Snapshots -> inspect profiles, bindings, aliases, and snapshot state
 ```
 
-SkeinRank is **not** a replacement for Elasticsearch, OpenSearch, or a vector database. It is the terminology governance and canonicalization layer that helps those systems receive cleaner, safer, domain-aware context. It is also not a direct production CRUD console: default UI writes are locked down so production terminology changes flow through proposal, validation, risk policy, review, snapshots, and GitOps-style rollout.
-
-See [`docs/product-positioning.md`](docs/product-positioning.md) for the full product narrative, public-beta checklist, and community/GitHub positioning notes.
-
 ## What SkeinRank gives you
 
 | Capability | Why it matters |
 | --- | --- |
-| Terminology governance | Manage canonical terms, aliases, slots, guardrails, and review workflows in one control plane. |
-| Runtime bindings | Bind a profile to a concrete index/search context and pin the safe snapshot used at runtime. |
-| Evidence-assisted review | Check aliases against Elasticsearch documents before accepting terminology changes. |
-| Enrichment jobs | Write canonical values, slots, matched aliases, and snapshot metadata back into indexed documents. |
-| Pause/resume checkpoints | Pause Celery-backed enrichment jobs at chunk boundaries and resume from the remaining checkpoint. |
-| Search Playground | Preview how raw queries become governed runtime context before integrating downstream search/RAG. |
-
-## Why SkeinRank
-
-Internal knowledge rarely uses one clean vocabulary. The same concept can appear as `k8s`, `kube`, `kubernetes`, `pg`, `postgres`, `postgresql`, service nicknames, team-specific abbreviations, and incident shorthand.
-
-Search and RAG systems usually see that as noise. SkeinRank turns it into a managed lifecycle:
-
-```text
-Discover → Validate → Review → Publish snapshot → Bind to runtime → Enrich/search → Evaluate
-```
-
-The core idea is simple:
-
-```text
-Profile = domain terminology
-Binding = where and how that terminology is applied
-Snapshot = immutable runtime version
-Evidence = why a term or alias should be trusted
-```
+| Terminology governance | Manage canonical terms, aliases, slots, tags, guardrails, and review workflows in one place. |
+| Binding-aware runtime | Resolve terminology by application scope, binding, search index, fields, and pinned snapshot. |
+| Context-trigger disambiguation | Keep ambiguous aliases safe: `pg timeout` can map differently than `pg layout`. |
+| Multi-binding route plans | Build read-only routing plans for `All docs` style search without executing search. |
+| Evidence-assisted review | Check aliases against Elasticsearch/OpenSearch evidence before accepting changes. |
+| Terminology-as-Code | Lint, plan, apply, export, and snapshot dictionaries through CI/GitOps workflows. |
+| Enrichment safety | Preflight, blue/green alias swap, rollback, pause/resume, and chunk checkpointing. |
+| MCP integration | Let Claude Desktop, Cursor-style IDE agents, and LangGraph-style agents inspect and submit proposals safely. |
 
 ## Quickstart: platform preview
 
-Use Docker Compose when you want to try the full platform: governance console, API, PostgreSQL, Elasticsearch, RabbitMQ worker, and UI.
+Use Docker Compose when you want the full local preview: Governance API, PostgreSQL, Elasticsearch, RabbitMQ worker, and React UI.
 
 ```bash
 cp .env.example .env
 docker compose -f docker-compose.dev.yml up --build -d
 ```
 
-Populate the console with a live demo dataset:
+Seed the platform demo:
 
 ```bash
 make demo-reset
 ```
 
-This loads `examples/platform_ops_demo`, creates the `platform_ops` profile, binds it to the `platform_knowledge_base` Elasticsearch index, creates evidence-backed AI Inbox proposals, checks query planning evidence, and runs enrichment for the focused Control Plane demo: Playground, AI Inbox, and Schema & Snapshots. The guided tour is documented in [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md).
+This loads the `platform_ops` profile, creates the `platform_knowledge_base` Elasticsearch index, adds evidence-backed AI Inbox proposals, and prepares the Playground plus Schema & Snapshots demo. The walkthrough lives in [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md).
 
-For a one-command seeded product tour and smoke report, run:
+Run the one-command guided tour and smoke report:
 
 ```bash
 make demo-tour
+make demo-tour-smoke
 ```
 
-This resets the local demo, verifies the three-tab walkthrough, and writes `examples/platform_ops_demo/reports/platform_ops_demo_tour_report.json`. Use `make demo-tour-smoke` for the read-oriented smoke check against an already seeded stack, and see [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md).
+The report is written to `examples/platform_ops_demo/reports/platform_ops_demo_tour_report.json`; the script is `examples/platform_ops_demo/demo_product_tour.py`. See [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md).
 
 Default local URLs:
 
@@ -138,307 +199,9 @@ Default local URLs:
 | RabbitMQ Management | `http://127.0.0.1:15672` |
 | PostgreSQL | `127.0.0.1:15432` |
 
-Full instructions live in [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md). Enrichment pause/resume and chunk checkpointing are documented in [`docs/guides/enrichment-pause-resume-checkpointing.md`](docs/guides/enrichment-pause-resume-checkpointing.md).
-
-Operational schema check after migrations:
-
-```bash
-cd packages/skeinrank-governance-api
-poetry run python -m skeinrank_governance_api.migrations check
-```
-
-The HTTP equivalent is `GET /schema/health`; `/readyz` also requires the database schema to match the current Alembic head. Patch 45A also exposes the same operational state as Prometheus gauges through `GET /metrics`, including database/schema health and current DB-backed agent tracking counts. Patch 45B adds structured log event fields and `GET /v1/ops/troubleshooting/report` for sanitized operator diagnostics. Patch 45C adds portable governance DB backup/restore commands and operational runbooks in `docs/deployment/backup-restore.md`. Patch 46B adds `.env` preflight validation through `make prod-env-check` and `python -m skeinrank_governance_api.env_validation validate --file .env`. Patch 46C adds the production-ish upgrade path, migration safety notes, and release checklist in [`docs/deployment/upgrade-guide.md`](docs/deployment/upgrade-guide.md), [`docs/deployment/migration-safety.md`](docs/deployment/migration-safety.md), and [`docs/deployment/release-checklist.md`](docs/deployment/release-checklist.md).
-
-
-
-## Headless benchmark and agent workflow E2E
-
-Patch 49C adds `agent_decision_diagnostics` to benchmark reports so proposal quality regressions can be traced back to document skip/revisit decisions, validator reasons, idempotent aliases, and missing-alias explanations.
-
-Patch 48A adds a deterministic benchmark for the headless agent-governance workflow. Patch 49A expands the `platform_ops_v1` fixture into a 50-document quality benchmark with proposal precision-like, recall-like, blocked-alias, warning, idempotency, skipped-document, snapshot, and runtime canonicalization signals. Patch 49B adds proposal-level quality metrics with per-alias outcomes, source/action/status breakdowns, evidence coverage, approval/submission rates, and quality gates. It runs without calling OpenRouter or Elasticsearch.
-
-```bash
-make benchmark-reset
-make benchmark-seed
-make benchmark-eval
-make benchmark-report
-```
-
-The fixture lives in `examples/benchmarks/platform_ops_v1`; the guide is in [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md). A successful quality report should keep `proposal_precision_like = 1.0`, `expected_alias_recall = 1.0`, `runtime_canonicalization_accuracy = 1.0`, `unexpected_proposals = 0`, and `noise_rate = 0.0`.
-
-## OpenRouter live agent pilot
-
-Patch 48B adds a guarded live pilot mode on top of the deterministic benchmark foundation. It can call OpenRouter with hard limits, but validation/submission through SkeinRank is opt-in and the agent still cannot approve/apply proposals or publish snapshots.
-
-## Containerized benchmark integration
-
-Patch 48C adds a full-stack benchmark harness that runs the `platform_ops_v1` fixture against Docker Compose services: PostgreSQL, Governance API, and Elasticsearch. It is the integration layer above the deterministic 48A benchmark and does not call OpenRouter.
-
-```bash
-make benchmark-stack-up
-make benchmark-stack-wait
-make benchmark-stack-reset
-make benchmark-stack-seed
-make benchmark-stack-eval
-make benchmark-stack-report
-make benchmark-stack-clean
-```
-
-Use the shorthand when you want the complete stack flow without stopping the containers:
-
-```bash
-make benchmark-stack-run
-
-The stack uses `deploy/docker/benchmark.env.example` and a dedicated `skeinrank-benchmark` Compose project.
-```
-
-See [`docs/benchmarks/containerized-benchmark-integration.md`](docs/benchmarks/containerized-benchmark-integration.md).
-
-## Retrieval eval baseline
-
-Patch 50A adds the first retrieval quality baseline for `platform_ops_v1`: qrels, retrieval queries, a literal baseline run, a SkeinRank-expanded run, and `NDCG@10`, `MRR@10`, `Recall@10`, and `Precision@10` deltas. Patch 50B expands the fixture to 200 documents and adds `hard_negatives.jsonl` plus `hard_negative_leakage@10`; 50B.1 tightens query hygiene with alias-to-canonical expansion, weighted domain terms, and `generic_token_noise@10`. Patch 50C adds a retrieval comparison report for pilot/company index runs, with query groups, regressions, leakage diagnostics, and operator recommendations. Patch 53A expands the default corpus to 500 documents and adds `corpus_manifest.json` so small-pilot scale quality checks have a stable fixture shape.
-
-```bash
-make benchmark-retrieval-plan
-make benchmark-retrieval-eval
-make benchmark-retrieval-report
-make benchmark-retrieval-compare
-make benchmark-retrieval-compare-report
-make benchmark-retrieval-clean
-```
-
-See [`docs/benchmarks/retrieval-eval-baseline.md`](docs/benchmarks/retrieval-eval-baseline.md).
-
-Patch 53B adds a deterministic 5k synthetic smoke generator for scale checks without OpenRouter, Elasticsearch, database calls, or runtime mutation. It writes generated JSONL/manifest artifacts under ignored `examples/benchmarks/platform_ops_v1/reports/synthetic/` paths.
-
-```bash
-make benchmark-smoke-plan
-make benchmark-smoke-generate
-make benchmark-smoke-report
-make benchmark-smoke-clean
-```
-
-See [`docs/benchmarks/synthetic-smoke-generator.md`](docs/benchmarks/synthetic-smoke-generator.md).
-
-Patch 53C adds an offline cost, latency, and throughput report for the 5k smoke manifest. It can also read an ignored OpenRouter live-pilot report to include token/cost hints while keeping provider calls disabled inside the report command.
-
-```bash
-make benchmark-performance-plan
-make benchmark-performance-report
-make benchmark-performance-show
-make benchmark-performance-clean
-```
-
-See [`docs/benchmarks/cost-latency-throughput-report.md`](docs/benchmarks/cost-latency-throughput-report.md).
-
-```bash
-make agent-openrouter-pilot-plan
-OPENROUTER_API_KEY=sk-or-... make agent-openrouter-pilot-report
-```
-
-Use `OPENROUTER_API_KEY` only in your local shell or ignored `.env` files. See [`docs/benchmarks/openrouter-live-pilot.md`](docs/benchmarks/openrouter-live-pilot.md).
-
-
-## First-company Elasticsearch pilot path
-
-Patch 49E adds a safe integration path for a real Elasticsearch/OpenSearch index.
-Copy `examples/pilots/elasticsearch_pilot.example.json`, edit the profile, index,
-text fields, evidence checks, and runtime queries, then run:
-
-```bash
-make pilot-plan
-# PILOT_CONFIG accepts both repo-relative paths and absolute paths such as /tmp/skeinrank-pilot.json.
-make pilot-preflight PILOT_CONFIG=/tmp/skeinrank-pilot.json
-make pilot-seed PILOT_CONFIG=/tmp/skeinrank-pilot.json
-make pilot-eval PILOT_CONFIG=/tmp/skeinrank-pilot.json
-make pilot-report PILOT_CONFIG=/tmp/skeinrank-pilot.json
-```
-
-The report schema is `skeinrank.pilot.integration_report.v1`. The pilot path is
-read-only after seeding: it does not call OpenRouter, submit proposals,
-approve/apply changes, publish snapshots, or write to Elasticsearch. For local
-smoke testing against the benchmark stack, run `make pilot-stack-run`.
-See [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md).
-
-Patch 54A adds a complete first-company operator runbook and checklist: [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md) and [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md). Patch 54B adds [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md) for sanitized support bundles, and Patch 56B extends it with [`docs/pilots/support-bundle-production.md`](docs/pilots/support-bundle-production.md) for logs, config inventory, health snapshots, alert/degraded-state snapshots, and last agent runs. Use them to plan intake, local rehearsal, company config, preflight/seed/eval/report, optional validated-agent smoke, troubleshooting, and exit criteria.
-
-## Quickstart: headless runtime
-
-Use the headless Compose profile when you want the automation-first path without the React UI, Elasticsearch, RabbitMQ, or Celery workers. It starts PostgreSQL, runs migrations, and exposes the Governance API for dictionary apply/export and runtime snapshot artifact smoke tests.
-
-```bash
-docker compose \
-  --env-file deploy/docker/headless.env.example \
-  -f docker-compose.headless.yml \
-  up --build -d
-
-deploy/docker/scripts/headless-golden-path.sh
-```
-
-The golden path applies `examples/migration/console_dictionary.example.json`, creates a local binding, exports `skeinrank.runtime_snapshot_artifact.v1`, and writes a portable artifact under `snapshots/`.
-
-Full instructions live in [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md).
-
-## Headless dictionary API
-
-Use the headless dictionary facade when CI jobs, agents, or service integrations
-need to validate, apply, or export dictionary spec v1 payloads without relying on
-console-specific route names.
-
-```text
-POST /v1/headless/dictionaries/validate
-POST /v1/headless/dictionaries/apply
-GET  /v1/headless/dictionaries/export?profile_name=...
-```
-
-The legacy `/v1/console/dictionary/*` routes remain available for the governance
-console and older scripts. Both surfaces share the same validation/apply logic.
-
-## Terminology-as-Code export/import
-
-Patch 60A documents the safe file-based workflow for teams that want to manage
-SkeinRank terminology through Git and CI/CD. The model is **YAML outside, JSON
-inside**: people review YAML or JSON dictionaries in Git, HTTP APIs receive and
-return JSON, PostgreSQL remains the control-plane source of truth, and runtime
-workers consume binding-scoped immutable snapshot artifacts.
-
-Existing commands and endpoints are used; no new mutation path is introduced.
-Patch 60B adds explicit CLI planning around the same apply API:
-
-```bash
-cd packages/skeinrank-governance-api
-poetry run skeinrank-migrate lint \
-  ../../examples/terminology-as-code/platform_ops.dictionary.yaml
-poetry run skeinrank-migrate plan \
-  ../../examples/terminology-as-code/platform_ops.dictionary.yaml \
-  --output ../../examples/terminology-as-code/platform_ops.plan.json
-poetry run skeinrank-migrate apply \
-  ../../examples/terminology-as-code/platform_ops.dictionary.yaml \
-  --plan-output ../../examples/terminology-as-code/platform_ops.apply-plan.json
-poetry run skeinrank-migrate export \
-  --profile-name platform_ops \
-  --output ../../examples/terminology-as-code/platform_ops.dictionary.json
-poetry run skeinrank-migrate snapshot-export \
-  --binding-id 1 \
-  --source latest \
-  --output ../../snapshots/platform_ops.binding-1.json
-```
-
-See [`docs/guides/terminology-as-code.md`](docs/guides/terminology-as-code.md),
-[`docs/guides/dictionary-cli-planning.md`](docs/guides/dictionary-cli-planning.md),
-[`docs/deployment/gitops-delivery-runbook.md`](docs/deployment/gitops-delivery-runbook.md),
-[`examples/terminology-as-code`](examples/terminology-as-code), and
-[`examples/gitops-delivery`](examples/gitops-delivery).
-
-## Agent-ready proposals and validation
-
-Phase B extends the existing suggestions review queue into an agent-safe proposal
-path. Manual suggestions still work as before, while agents, CLI jobs, and
-service integrations can attach optional `binding_id`, `proposal_source_type`,
-`proposal_source_name`, `idempotency_key`, and `source_payload` fields. When a
-caller does not provide `validation_summary`, SkeinRank now runs a proposal
-checker registry and stores structured results for canonical availability, alias
-collisions, stop-list guardrails, noisy aliases, confidence, idempotency hints,
-and agent audit payloads. These records remain pending until a moderator/admin
-reviews them, so LLMs and agents do not mutate runtime terminology directly.
-
-Patch 37C adds a small REST tool facade for agents and service integrations that
-need stable, task-shaped calls without learning the full console API surface:
-
-```text
-GET  /v1/tools/bindings
-POST /v1/tools/validate-alias
-POST /v1/tools/suggest-alias
-POST /v1/tools/explain-query
-```
-
-The tools reuse the same proposal validation registry and runtime query planner.
-They create pending suggestions only through `suggest-alias`; validation and
-query explanation are read-only.
-
-Patch 37D adds an atomic batch apply and snapshot publish path for reviewed
-proposals:
-
-```text
-POST /v1/governance/profiles/{profile_name}/suggestions/apply-batch
-```
-
-A moderator/admin can apply selected pending suggestions in one transaction and,
-when a `binding_id` is provided, pin a fresh runtime snapshot on that binding.
-This keeps agent proposals separate from production terminology until a reviewed
-batch is intentionally released.
-
-Patch 37F adds a dependency-light MCP stdio adapter on top of the REST tools:
-
-```bash
-cd packages/skeinrank-governance-api
-poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
-```
-
-The MCP server exposes `skeinrank_list_bindings`, `skeinrank_explain_query`,
-`skeinrank_validate_alias`, `skeinrank_submit_alias_proposal`, and
-`skeinrank_get_proposal_status`. It does not own business logic; it only adapts
-MCP tool calls to the existing `/v1/tools/*` and proposal review APIs.
-
-Patch 37G adds proposal metrics and source quality reporting so reviewers can
-identify useful agents and noisy sources:
-
-```text
-GET /v1/governance/proposals/source-quality
-GET /metrics
-```
-
-## OpenRouter alias scout foundation
-
-Patch 40F adds a dependency-light reference runner for agent integrations:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --dry-run-plan
-```
-
-Patch 40G adds the OpenRouter/OpenAI-compatible layer around that runner:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-tool-schemas
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-system-prompt
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-review-prompt
-```
-
-Patch 40H adds the local candidate discovery/pruning step before any LLM call:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-candidates
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
-```
-
-Patch 40I adds compact evidence sampling around discovered candidates:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-evidence
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
-```
-
-Patch 40K adds the local E2E demo report:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-demo-report
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-demo-review-prompt
-make agent-demo
-```
-
-Patch 40J adds the first live OpenRouter execution path: export
-`OPENROUTER_API_KEY`, run `--print-llm-review-plan` for an offline preview, then
-run `--llm-review --model openai/gpt-4o-mini --max-candidates 3` to obtain strict
-`propose`, `reject`, or `needs_evidence` judgments. The workflow emits
-`skeinrank.agent_llm_review_report.v1`, is LangGraph-ready, and still does not
-submit proposals or mutate SkeinRank state by default. The schemas map only to
-existing `/v1/tools/*` routes, so agents can validate and submit proposals later,
-but runtime terminology changes only through reviewed batches and snapshots. See
-[`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout).
-
 ## Quickstart: local SDK / CLI
 
-Use the lightweight `skeinrank` package path when you want to validate a dictionary or test canonicalization without starting platform services. Dictionary files should declare `schema_version: skeinrank.dictionary.v1`; JSON is canonical, and YAML is accepted for CLI input.
+Use the lightweight core package when you want canonicalization without the full platform stack.
 
 ```bash
 cd packages/skeinrank-core
@@ -462,53 +225,194 @@ result = extract_terms("k8s rollout uses pg database", dictionary=dictionary)
 print(result.canonical_values)  # ["kubernetes", "postgresql"]
 ```
 
-See [`docs/guides/core-sdk-and-cli.md`](docs/guides/core-sdk-and-cli.md) for CLI, SDK, document extraction, packaging, and publishing notes.
+See [`docs/guides/core-sdk-and-cli.md`](docs/guides/core-sdk-and-cli.md).
 
-## Documentation
+## Quickstart: headless runtime
+
+Use the API/PostgreSQL-only path when you want dictionary apply/export and runtime snapshot artifact smoke tests without the React UI, Elasticsearch, RabbitMQ, or Celery workers.
+
+```bash
+docker compose \
+  --env-file deploy/docker/headless.env.example \
+  -f docker-compose.headless.yml \
+  up --build -d
+
+deploy/docker/scripts/headless-golden-path.sh
+```
+
+The golden path applies `examples/migration/console_dictionary.example.json`, creates a local binding, exports `skeinrank.runtime_snapshot_artifact.v1`, and writes a portable artifact under `snapshots/`.
+
+See [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md).
+
+## Runtime API surface
+
+SkeinRank exposes binding-aware runtime endpoints for canonicalization, query planning, and search integration:
+
+```text
+POST /v1/text/canonicalize
+POST /v1/query/plan
+POST /v1/query/route-plan
+POST /v1/search
+POST /v1/search/multi
+```
+
+Patch 63A adds binding-aware canonicalization, Patch 63B adds context-trigger alias disambiguation, and Patch 63C adds the read-only multi-binding route plan API. The route-plan endpoint does not execute Elasticsearch; it only returns selected/rejected bindings, canonical queries, scores, and runtime context.
+
+Read the guide: [`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md). Examples: [`examples/runtime-routing-api`](examples/runtime-routing-api). Context triggers: [`docs/guides/context-trigger-disambiguation.md`](docs/guides/context-trigger-disambiguation.md).
+
+## Terminology-as-Code and GitOps
+
+SkeinRank supports a safe file-based workflow for teams that manage terminology in Git.
+
+The model is **YAML outside, JSON inside**:
+
+- people review YAML/JSON dictionary artifacts in Git;
+- the API receives and returns JSON;
+- PostgreSQL remains the control-plane source of truth;
+- runtime workers consume binding-scoped immutable snapshot artifacts.
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-migrate lint ../../examples/terminology-as-code/platform_ops.dictionary.yaml
+poetry run skeinrank-migrate plan ../../examples/terminology-as-code/platform_ops.dictionary.yaml --output plan.json
+poetry run skeinrank-migrate apply ../../examples/terminology-as-code/platform_ops.dictionary.yaml --plan-output applied-plan.json
+poetry run skeinrank-migrate export --profile-name platform_ops --output dictionary.json
+poetry run skeinrank-migrate snapshot-export --binding-id 1 --source latest --output runtime-snapshot.json
+poetry run skeinrank-migrate snapshot-inspect runtime-snapshot.json
+poetry run skeinrank-migrate snapshot-eval --before before.json --after after.json --queries queries.jsonl --output snapshot-evaluation.json
+```
+
+Docs and examples:
+
+- [`docs/guides/terminology-as-code.md`](docs/guides/terminology-as-code.md)
+- [`docs/guides/dictionary-cli-planning.md`](docs/guides/dictionary-cli-planning.md)
+- [`docs/deployment/gitops-delivery-runbook.md`](docs/deployment/gitops-delivery-runbook.md)
+- [`examples/terminology-as-code`](examples/terminology-as-code)
+- [`examples/gitops-delivery`](examples/gitops-delivery)
+
+## Enrichment safety
+
+Elasticsearch/OpenSearch enrichment is treated as an operator workflow, not a casual UI action. Use preflight and blue/green alias swap for production-like runs.
+
+Important surfaces:
+
+```text
+POST /v1/governance/elasticsearch/bindings/{binding_id}/dry-run
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+POST /v1/governance/elasticsearch/jobs/{job_id}/pause
+POST /v1/governance/elasticsearch/jobs/{job_id}/resume
+POST /v1/governance/elasticsearch/jobs/{job_id}/cancel
+POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
+```
+
+Runbooks:
+
+- [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md)
+- [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md)
+- [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md)
+- [`docs/guides/enrichment-pause-resume-checkpointing.md`](docs/guides/enrichment-pause-resume-checkpointing.md)
+- [`examples/blue-green-alias-swap`](examples/blue-green-alias-swap)
+
+Operator path: create demo Elasticsearch index -> run enrichment job -> runtime search.
+
+## MCP and agent integration
+
+SkeinRank includes a dependency-light MCP stdio adapter. It exposes only proposal-safe tools; agents can inspect, validate, and submit pending proposals, but they do not publish snapshots or mutate runtime directly.
+
+```bash
+cd packages/skeinrank-governance-api
+poetry run skeinrank-mcp --print-tool-manifest
+poetry run skeinrank-mcp --print-env-template
+poetry run skeinrank-mcp --smoke-test
+```
+
+MCP tools:
+
+```text
+skeinrank_list_bindings
+skeinrank_explain_query
+skeinrank_validate_alias
+skeinrank_submit_alias_proposal
+skeinrank_get_proposal_status
+```
+
+Docs and examples:
+
+- [`docs/deployment/mcp-integration-kit.md`](docs/deployment/mcp-integration-kit.md)
+- [`docs/deployment/mcp-scoped-credentials-smoke-tests.md`](docs/deployment/mcp-scoped-credentials-smoke-tests.md)
+- [`docs/deployment/mcp-claude-desktop.md`](docs/deployment/mcp-claude-desktop.md)
+- [`docs/deployment/mcp-cursor-agents.md`](docs/deployment/mcp-cursor-agents.md)
+- [`docs/deployment/mcp-langgraph-agents.md`](docs/deployment/mcp-langgraph-agents.md)
+- [`examples/mcp-integration-kit`](examples/mcp-integration-kit)
+- [`examples/mcp-scoped-credentials`](examples/mcp-scoped-credentials)
+- [`examples/mcp-agent-docs`](examples/mcp-agent-docs)
+
+## Benchmarks and pilots
+
+SkeinRank includes deterministic benchmark and pilot workflows that do not require OpenRouter or production data by default.
+
+| Area | Commands / docs |
+| --- | --- |
+| Headless benchmark | `make benchmark-reset`, `make benchmark-seed`, `make benchmark-eval`, `make benchmark-report`; [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md) |
+| Containerized benchmark | `make benchmark-stack-run`; [`docs/benchmarks/containerized-benchmark-integration.md`](docs/benchmarks/containerized-benchmark-integration.md) |
+| Retrieval eval | `make benchmark-retrieval-eval`, `make benchmark-retrieval-compare`; [`docs/benchmarks/retrieval-eval-baseline.md`](docs/benchmarks/retrieval-eval-baseline.md) |
+| Synthetic smoke | `make benchmark-smoke-generate`; [`docs/benchmarks/synthetic-smoke-generator.md`](docs/benchmarks/synthetic-smoke-generator.md) |
+| Performance report | `make benchmark-performance-report`; [`docs/benchmarks/cost-latency-throughput-report.md`](docs/benchmarks/cost-latency-throughput-report.md) |
+| First-company pilot | `make pilot-plan`; [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md) |
+
+First-company operator docs:
+
+- [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md)
+- [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md)
+- [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md)
+- [`docs/pilots/support-bundle-production.md`](docs/pilots/support-bundle-production.md)
+
+## Documentation map
 
 Start here:
 
 - [`docs/overview.md`](docs/overview.md) — product overview and repository map.
+- [`docs/product-positioning.md`](docs/product-positioning.md) — positioning, personas, demo story, and beta checklist.
 - [`docs/concepts/terminology-control-plane.md`](docs/concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.
 - [`docs/concepts/profiles-bindings-snapshots.md`](docs/concepts/profiles-bindings-snapshots.md) — why production runtime should be binding-first.
-- [`docs/concepts/headless-runtime-contracts.md`](docs/concepts/headless-runtime-contracts.md) — headless-first runtime contracts, proposal-safe agents, and UI scope.
-- [`docs/concepts/dictionary-spec-v1.md`](docs/concepts/dictionary-spec-v1.md) — stable dictionary import/export contract with `schema_version`.
-- [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md) — coverage framework for tags, ambiguous aliases, binding policies, and safe evaluation.
-- [`docs/adr/0001-headless-runtime-contracts.md`](docs/adr/0001-headless-runtime-contracts.md) — architecture decision for headless runtime boundaries.
-- [`docs/guides/core-sdk-and-cli.md`](docs/guides/core-sdk-and-cli.md) — local SDK/CLI workflows.
+- [`docs/concepts/headless-runtime-contracts.md`](docs/concepts/headless-runtime-contracts.md) — Control Plane / Data Plane boundaries.
+- [`docs/adr/0001-headless-runtime-contracts.md`](docs/adr/0001-headless-runtime-contracts.md) — architecture decision record.
+- [`docs/concepts/dictionary-spec-v1.md`](docs/concepts/dictionary-spec-v1.md) — stable dictionary import/export contract.
+- [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md) — tags, ambiguous aliases, binding policies, and evaluation.
+- [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — coverage review API examples.
+- [`examples/coverage-framework`](examples/coverage-framework) — coverage examples.
+- [`docs/api/governance-api.md`](docs/api/governance-api.md) — governance and runtime API surfaces.
 - [`docs/guides/governance-console.md`](docs/guides/governance-console.md) — governance API and UI workflows.
-- [`docs/guides/proposal-inbox-ui.md`](docs/guides/proposal-inbox-ui.md) — AI Inbox review details for evidence, risk, validation findings, and source audit metadata.
-- `packages/skeinrank-ui/src/pages/ProposalInboxPage.tsx` — review-first AI proposal inbox for human-in-the-loop moderation.
-- [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md) — API examples for coverage review, policy, and before/after evaluation.
-- [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md) — enrichment, dry-runs, jobs, evidence, and cancellation.
-- [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md) — 61A preflight, concurrency guard, and beta safety rules for enrichment jobs.
-- [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md) — 61B blue/green operator runbook for `reindex_alias_swap`, alias publish, cancellation, and rollback.
+- [`docs/guides/proposal-inbox-ui.md`](docs/guides/proposal-inbox-ui.md) — AI Inbox review details.
 - [`docs/guides/development.md`](docs/guides/development.md) — development checks and package layout.
-- [`docs/api/governance-api.md`](docs/api/governance-api.md) — important governance/runtime API surfaces.
 
 Deployment docs:
 
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md)
+- [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md)
+- [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md)
+- [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md)
 - [`docs/deployment/security.md`](docs/deployment/security.md)
 - [`docs/deployment/env-and-secrets.md`](docs/deployment/env-and-secrets.md)
 - [`docs/deployment/observability.md`](docs/deployment/observability.md)
 - [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
-- [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md)
-- [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md)
+- [`docs/deployment/upgrade-guide.md`](docs/deployment/upgrade-guide.md)
+- [`docs/deployment/migration-safety.md`](docs/deployment/migration-safety.md)
+- [`docs/deployment/release-checklist.md`](docs/deployment/release-checklist.md)
 
 ## Repository layout
 
 ```text
-packages/skeinrank-core                    Lightweight Python SDK, CLI, extraction, canonicalization
+packages/skeinrank-core                    Python SDK, CLI, extraction, canonicalization
 packages/skeinrank-server                  FastAPI runtime wrapper for extraction/rerank workflows
 packages/skeinrank-provider-elasticsearch  Elasticsearch provider and enrichment CLI
 packages/skeinrank-governance              SQLAlchemy/Alembic governance foundation
-packages/skeinrank-governance-api          FastAPI governance/control-plane API and worker
+packages/skeinrank-governance-api          FastAPI governance/control-plane API, workers, MCP adapter
 packages/skeinrank-ui                      React/TypeScript governance console
-examples/platform_ops_demo                 Local preview seed data and automation
-examples/demo                              Demo corpus, queries, enriched documents, eval output
+examples/platform_ops_demo                 Local preview seed data and guided tour automation
 examples/migration                         Example dictionary import/export payloads
-examples/coverage-framework                Phase C tags, ambiguous alias, binding policy, and evaluation examples
+examples/coverage-framework                Tags, ambiguous alias, binding policy, and evaluation examples
 deploy/                                    Dockerfiles, Prometheus, Grafana, OpenTelemetry config
 docs/                                      Product, concept, guide, API, and deployment docs
 ```
@@ -536,759 +440,62 @@ The GitHub Actions workflow runs Ruff, package tests, UI type checks/tests/build
 
 ## Docker Compose dev stack
 
-SkeinRank includes Docker Compose profiles for local development and production-like deployment.
+SkeinRank includes Compose profiles for local development, headless runtime, and production-oriented deployment.
 
 Main files:
 
 - [`docker-compose.dev.yml`](docker-compose.dev.yml) — local development stack.
 - [`docker-compose.headless.yml`](docker-compose.headless.yml) — API/PostgreSQL-only headless stack.
 - [`docker-compose.prod.yml`](docker-compose.prod.yml) — production-oriented stack.
-- [`.env.production.example`](.env.production.example) — required production Compose environment template; validate a copied `.env` with `make prod-env-check`.
-- [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md) — production-ish Compose profile, ops services, and smoke checks.
-- [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) — Docker Compose setup guide.
-- [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) — API-only golden path for dictionary apply and snapshot artifact export.
+- [`.env.production.example`](.env.production.example) — production Compose environment template.
+- [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) — full local setup, including dictionary import, create demo Elasticsearch index, run enrichment job, and runtime search.
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md) — local stack troubleshooting.
 - [`docs/deployment/security.md`](docs/deployment/security.md) — deployment and security notes.
 
 ## Project status
 
-SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is terminology governance, profile bindings, snapshot-safe runtime context, Elasticsearch enrichment, evidence-assisted review, Search Playground workflows, and local Docker Compose deployment.
+SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, and Elasticsearch/OpenSearch enrichment safety.
+
+<!--
+Documentation discoverability compatibility index.
+
+The root README intentionally stays product-focused, but legacy CI checks also
+verify that earlier patch-era agent docs remain discoverable from the project
+landing page. Keep these markers as a compact index instead of expanding the
+README with historical implementation details.
+
+OpenRouter alias scout and model-provider docs:
+- examples/agents/openrouter_alias_scout
+- docs/guides/openrouter-agent.md
+- docs/deployment/openrouter-alias-scout.md
+- docs/deployment/openrouter-agent-full-demo.md
+- docs/deployment/model-provider-abstraction.md
+- docs/deployment/model-provider-adapters.md
+- docs/deployment/company-model-integration.md
+
+Patch markers retained for documentation link checks:
+Patch 40G, Patch 40H, Patch 40I, Patch 40J, Patch 40K, Patch 40L,
+Patch 40N, Patch 40O, Patch 41A, 42D, 42E, Patch 57A, Patch 57B, Patch 57C.
+
+Legacy OpenRouter/model-provider command markers retained for CI discoverability:
+--print-tool-schemas
+--discover-candidates
+--sample-evidence
+--print-sample-evidence-pack
+--print-llm-review-plan
+--run-demo-report
+--print-security-profile
+--run-evaluation-report
+--print-deployment-recipe
+--print-canonical-hints
+--print-dictionary-quickstart-plan
+
+Model-provider vocabulary retained for CI discoverability:
+model provider
+local endpoint
+local_endpoint
+-->
 
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE).
-
-### Headless snapshot artifacts
-
-Phase A adds a binding-first snapshot artifact export for GitOps/headless runtime flows: `GET /v1/headless/snapshots/export?binding_id=...` or `skeinrank-migrate snapshot-export --binding-id ... --output runtime-snapshot.json`.
-
-
-### Runtime snapshot artifact loading
-
-Headless workers can export a binding-scoped runtime artifact and inspect it locally:
-
-```bash
-skeinrank-migrate snapshot-export --binding-id 1 --output runtime-snapshot.json
-skeinrank-migrate snapshot-inspect runtime-snapshot.json
-```
-
-The artifact loader/cache validates `skeinrank.runtime_snapshot_artifact.v1` and keeps the immutable runtime read model available without querying PostgreSQL on every request.
-
-
-### Patch 38A/38B: term tags in governance and runtime
-
-Dictionary terms and governance term APIs now accept optional `tags` on canonical
-terms. Tags are normalized, deduplicated facets (`infra`, `backend`, `storage`)
-that complement the primary `slot`. Runtime snapshot alias entries now carry
-those tags too, so exported artifacts and query/canonicalization debug output
-can explain both the primary slot and richer term facets.
-
-
-- Conflict detection report with severity and persisted review state for alias drift, stop-list collisions, and pending proposal conflicts.
-
-- Coverage framework now includes term tags, conflict review state, and ambiguous alias candidates for controlled multi-interpretation review. Conflicting alias proposals now automatically populate ambiguous alias candidates for reviewer follow-up without changing active runtime terminology.
-
-### Binding policies
-
-Phase C adds binding policies as the bridge between ambiguous alias candidates and future runtime resolution. A policy belongs to a binding and can record preferred slots, allowed tags, denied slots, and context-specific rules such as `pg -> postgresql` for an infra binding.
-
-### Patch 38I: snapshot before/after evaluation
-
-Runtime snapshot artifacts can be compared before publishing a new terminology
-release. The evaluator reports alias additions/removals/changes, tag drift, and
-optional sample-query canonicalization diffs:
-
-```bash
-skeinrank-migrate snapshot-eval \
-  --before snapshots/platform_ops.before.json \
-  --after snapshots/platform_ops.after.json \
-  --queries examples/evaluation/queries.jsonl \
-  --output snapshot-evaluation.json
-```
-
-This is an offline guardrail for the coverage framework: teams can see whether a
-new snapshot expands recall safely or changes query plans in risky ways before
-promoting it to runtime.
-
-### Patch 38J: coverage docs and examples
-
-Phase C documentation is collected in [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md) and [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md). Example payloads live in [`examples/coverage-framework`](examples/coverage-framework) and show a complete controlled-coverage flow: tagged dictionary, ambiguous `pg` candidates, infra/docs binding policies, and snapshot-evaluation queries.
-
-## Patch 40L — OpenRouter agent security profile
-
-Patch 40L adds a safe service-account profile to the OpenRouter alias scout. The
-runner can now print and validate a redacted security report before live model
-review:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-security-profile
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --check-security-profile
-```
-
-The report schema is `skeinrank.agent_security_profile.v1`. Proposal submission
-remains disabled by default; the agent may prepare proposal payloads, but it
-must not directly write dictionaries, publish snapshots, push to Git, or mutate
-runtime state.
-
-## Patch 40M — OpenRouter agent budget and cache
-
-Patch 40M adds run budgets and JSON response caching to the OpenRouter alias
-scout. It keeps the agent safe by default: no backend routes are changed,
-proposal submission stays disabled, and cached responses never mutate runtime
-state. Use `--print-budget-cache-plan` for an offline `skeinrank.agent_budget_cache_plan.v1`
-preview, `--max-llm-calls` / `--max-run-cost-usd` for live-run limits, and
-`--clear-llm-cache` to remove the configured local cache.
-## Patch 40N — Agent evaluation loop
-
-Patch 40N adds an offline evaluation report for the OpenRouter alias scout. It
-can score the local demo pipeline or a saved `skeinrank.agent_llm_review_report.v1`
-without calling OpenRouter, SkeinRank, Elasticsearch, or publishing snapshots.
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-evaluation-report
-python examples/agents/openrouter_alias_scout/run_alias_scout.py \
-  --llm-review-report /tmp/skeinrank-alias-scout-llm-report.json \
-  --run-evaluation-report
-```
-
-The output schema is `skeinrank.agent_evaluation_report.v1`. It reports
-evidence coverage, LLM action mix, proposal-ready counts, optional human/policy
-outcomes (`accepted`, `rejected`, `blocked`, `ambiguous`, `noisy`, `conflict`),
-cost/cache summary, and a quality gate. Snapshot before/after evaluation remains
-disabled until approved proposals are applied through the governed workflow.
-
-### Patch 40O — Agent deployment recipe
-
-Patch 40O adds a Docker Compose deployment recipe for the OpenRouter alias scout.
-Use `--print-deployment-recipe` to inspect the offline `skeinrank.agent_deployment_recipe.v1` report, or `make agent-deploy-plan` / `make agent-compose-config` from the repository root. The reference service defaults to an offline evaluation report; proposal submission and runtime mutation remain disabled.
-
-## Patch 41A — Canonical hints and stronger review pack
-
-Patch 41A improves the OpenRouter alias scout quality loop without changing backend routes or mutating runtime state. The runner now includes configured canonical hints in each candidate pack, so the model can choose from known terms such as `kubernetes`, `postgresql`, `elasticsearch`, and `rabbitmq` instead of guessing from raw evidence only.
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-canonical-hints
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
-```
-
-The report schema is `skeinrank.agent_canonical_hints.v1`. Validation-sprint noise such as `queue`, `red`, and `shard` is pruned before LLM review by default, while real alias candidates such as `pg`, `k8s`, and `kube` receive `possible_canonical`, `slot`, `canonical_hint`, `canonical_candidates`, and `known_canonicals` fields in the review pack.
-
-
-## Patch 41B — Validate and submit proposals safely
-
-Patch 41B connects high-confidence agent `proposal_payload` values to the
-existing SkeinRank agent tools without changing backend routes. The runner can
-preview a submission plan, validate ready proposals through
-`POST /v1/tools/validate-alias`, and optionally submit pending proposals through
-`POST /v1/tools/suggest-alias` only when explicitly requested and allowed by
-security/config.
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py \
-  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
-  --print-proposal-submission-plan
-
-python examples/agents/openrouter_alias_scout/run_alias_scout.py \
-  --llm-review-report /tmp/skeinrank-41a-llm-report.json \
-  --validate-ready-proposals
-```
-
-Submission remains opt-in and governed. It creates pending proposals only; it
-never writes directly to dictionaries, never pushes Git, and never publishes
-runtime snapshots.
-
-## Patch 41C — Agent validation statuses and idempotent proposal handling
-
-Patch 41C keeps proposal submission safe while making validation reports more
-useful for agent workflows. Validation warnings are now classified before any
-optional submission: existing aliases that already map to the requested canonical
-are treated as idempotent no-ops, slot mismatches are routed to manual review,
-and blocked validations are never submitted.
-
-This means an agent run can distinguish:
-
-```text
-passed → eligible for optional submission
-existing alias warning → idempotent_existing_alias
-slot mismatch warning → manual_review_required
-blocked → blocked
-```
-
-The runner still does not mutate runtime dictionaries or publish snapshots.
-
-
-## Patch 41D — New alias proposal smoke test
-
-Patch 41D adds a controlled smoke path for a brand-new alias proposal. It does not call OpenRouter and does not publish snapshots. The runner can generate a proposal-ready LLM report for the configured smoke alias, validate it through `POST /v1/tools/validate-alias`, and, only with an explicit submit flag, create a pending proposal through `POST /v1/tools/suggest-alias`.
-
-Preview the smoke plan without network calls:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-new-alias-smoke-plan
-```
-
-Write a proposal-ready smoke report:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py \
-  --write-new-alias-smoke-llm-report /tmp/skeinrank-new-alias-smoke-llm.json
-```
-
-Validate the smoke proposal without saving it:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-new-alias-smoke-test
-```
-
-Create one pending proposal and verify idempotent retry explicitly:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py \
-  --submit-new-alias-smoke-test \
-  --write-new-alias-smoke-report /tmp/skeinrank-new-alias-smoke-report.json
-```
-
-The default smoke alias is `pgx → postgresql` in the `infra_incidents` profile. Re-running the submit smoke should not create duplicate proposals; the second `suggest-alias` call is expected to return an idempotent retry.
-
-## Patch 41E — Elasticsearch evidence connector
-
-Patch 41E adds an optional, read-only Elasticsearch/OpenSearch evidence connector for the OpenRouter alias scout. It does not change backend routes, does not call OpenRouter, and does not mutate dictionaries, snapshots, or runtime state. The connector searches a configured index for discovered candidates, normalizes hits into local evidence records, and reuses the existing compact evidence sampler.
-
-Preview the connector plan without network calls:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-elasticsearch-evidence-plan
-```
-
-Sample evidence from Elasticsearch for discovered candidates:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py \
-  --sample-evidence-from-elasticsearch \
-  --elasticsearch-url http://127.0.0.1:9200 \
-  --elasticsearch-index skeinrank-agent-evidence \
-  --elasticsearch-text-field title \
-  --elasticsearch-text-field text
-```
-
-Export normalized Elasticsearch hits to JSONL for offline review:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py \
-  --write-elasticsearch-evidence-records /tmp/skeinrank-es-evidence.jsonl
-```
-
-
-### Patch 41F — Agent run/document tracking
-
-The OpenRouter alias scout can now produce local run/document tracking reports with deterministic content hashes and processing-context hashes. This helps identify unchanged documents before spending LLM budget and provides a migration path toward PostgreSQL-backed `agent_runs` / `agent_document_visits` state.
-
-### Patch 41G — Proposal inbox / review workflow
-
-The OpenRouter alias scout now includes an offline proposal inbox. It converts LLM review + validation reports into review cards with evidence previews, validation status, recommended next action, and optional JSONL review decisions.
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-proposal-inbox-plan
-```
-
-The inbox is safe by default: it does not write dictionaries, submit snapshots, or mutate runtime state.
-
-
-### Patch 41H — Apply approved proposals + snapshot evaluation
-
-The OpenRouter alias scout now includes an offline approved-proposal apply plan and snapshot evaluation report. It consumes the 41G proposal inbox, selects locally approved review decisions, and produces a governed apply plan without direct dictionary writes, snapshot publishing, or runtime mutation. Use `--print-approved-apply-plan`, `--build-approved-apply-plan`, `--write-approved-apply-plan`, `--run-snapshot-evaluation`, and `--write-snapshot-evaluation-report`.
-
-### Patch 41I — scheduled agent runner
-
-The OpenRouter alias scout can now run as a one-shot scheduled worker suitable for
-cron, Airflow, Prefect, GitHub Actions, Docker Compose, or Kubernetes CronJob:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-scheduled-runner-plan
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-agent-cycle
-```
-
-The safe default is offline and report-only. Live LLM review, proposal validation, and
-proposal submission require explicit flags and still do not publish snapshots.
-
-### Patch 42A — full agent integration smoke test
-
-Patch 42A adds a one-command, network-free smoke test for the OpenRouter alias scout
-contour. It builds demo, synthetic LLM, synthetic validation, proposal inbox,
-approved-apply, snapshot-evaluation, evaluation, and cycle-summary artifacts without
-calling OpenRouter, Elasticsearch, or the SkeinRank API:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py \
-  --write-integration-smoke-report /tmp/skeinrank-agent-smoke.json
-```
-
-This is intended as a CI/preflight check before live validation.
-
-### Patch 42B — Real Elasticsearch validation scenario
-
-The OpenRouter alias scout includes a reproducible real Elasticsearch validation scenario. It can generate a tiny fixture corpus, explicitly index it into an isolated validation index, and run read-only evidence validation without OpenRouter or SkeinRank API calls.
-
-### Patch 42C — Agent reports/artifacts standard
-
-The OpenRouter alias scout now has a stable artifact layout for headless runs:
-
-```text
-reports/<run_id>/manifest.json
-reports/<run_id>/run_summary.json
-reports/<run_id>/reports/<stage>.json
-```
-
-This makes scheduled runs easier to archive from Airflow, cron, GitHub Actions,
-or Kubernetes CronJobs without changing the Governance API.
-
-
-### Patch 42D — Docker Compose full agent demo
-
-Patch 42D adds a reproducible Docker Compose demo for the OpenRouter alias scout. It layers `deploy/docker/openrouter-agent-full-demo.compose.yml` on top of `docker-compose.dev.yml`, indexes the bundled real-ES validation fixtures, runs the safe scheduled agent cycle, and writes 42C-standard artifacts under `examples/agents/openrouter_alias_scout/reports/docker-demo/`.
-
-```bash
-make agent-docker-demo-plan
-make agent-docker-demo-config
-make agent-docker-demo-run
-```
-
-The demo is safe by default: OpenRouter calls, proposal submission, runtime mutation, and snapshot publishing stay disabled unless explicitly configured. See `docs/deployment/openrouter-agent-full-demo.md`.
-
-### Patch 42E — Dictionary import → binding → snapshot quickstart
-
-Patch 42E adds a headless onboarding quickstart for the first operator journey: write a sample dictionary payload, validate it through `POST /v1/console/dictionary/validate`, optionally import it with `POST /v1/console/dictionary/import`, create an Elasticsearch binding with `POST /v1/governance/elasticsearch/bindings`, and export a source=latest headless snapshot artifact through `GET /v1/headless/snapshots/export`.
-
-```bash
-make agent-dictionary-quickstart-plan
-make agent-dictionary-quickstart-payloads
-make agent-dictionary-quickstart-validate
-```
-
-Direct CLI:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-dictionary-quickstart-plan
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-dictionary-quickstart-payloads
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --run-dictionary-quickstart
-```
-
-Import, binding creation, and snapshot export remain explicit opt-in flags: `--dictionary-quickstart-apply-import`, `--dictionary-quickstart-create-binding`, and `--dictionary-quickstart-export-snapshot`. The quickstart never publishes runtime snapshots and does not write directly to dictionaries outside the console import endpoint.
-
-- Patch 42F adds backend proposal batch hardening: a dry-run apply preview endpoint and warning-gated batch apply semantics for agent/human review flows.
-
-### Patch 42G — Runtime API final smoke
-
-The OpenRouter alias scout now includes a final runtime smoke layer for the installable flow. It validates existing runtime/headless endpoints without mutating dictionaries or publishing snapshots:
-
-```bash
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-runtime-api-smoke-plan
-python examples/agents/openrouter_alias_scout/run_alias_scout.py --write-runtime-api-smoke-report /tmp/runtime-api-smoke.json
-```
-
-The smoke calls `POST /v1/text/canonicalize`, `POST /v1/query/plan`, and optionally `GET /v1/headless/snapshots/export?binding_id=<id>&source=latest`.
-
-
-
-### Patch 44A — DB-backed agent run registry
-
-SkeinRank Governance API now includes a persisted `agent_runs` registry for agent workflow executions. The registry is the first DB-backed layer for production agent tracking: every run can be registered with a stable `run_id`, lifecycle status, profile/binding scope, model/prompt metadata, artifact URIs, and a compact summary payload.
-
-Initial endpoints:
-
-```text
-POST /v1/agents/runs
-GET /v1/agents/runs
-GET /v1/agents/runs/{run_id}
-PATCH /v1/agents/runs/{run_id}
-```
-
-This patch only tracks run-level metadata. Document visits, candidate observations, LLM reviews, and proposal attempts are planned as later 44B–44D layers.
-
-
-### Patch 44B — Agent document visits
-
-Patch 44B adds DB-backed `agent_document_visits` tracking for agent runs. Each visit records a source document identity, content hash, processing-context hash, visit status, and `should_scan` decision. This is the foundation for skipping unchanged documents and rerunning only when content or agent context changes.
-
-### Patch 44C — Candidate observations and evidence windows
-
-Patch 44C adds DB-backed persistence for agent candidate observations and evidence windows. Agent runs can now persist discovered aliases, canonical hints, discovery scores, candidate packs, and the evidence snippets that support later LLM review or proposal attempts.
-
-New API endpoints:
-
-```text
-POST /v1/agents/runs/{run_id}/candidate-observations
-GET  /v1/agents/runs/{run_id}/candidate-observations
-GET  /v1/agents/runs/{run_id}/evidence-windows
-```
-
-This remains a tracking/audit layer: it stores observations and evidence for review, but does not directly mutate dictionaries, publish snapshots, or submit proposals.
-
-
-
-### Patch 44D — LLM reviews and proposal attempts
-
-Patch 44D completes the first DB-backed agent tracking milestone by adding persisted `agent_llm_reviews` and `agent_proposal_attempts`. Agent runs can now store model judgments, usage metadata, raw OpenRouter responses, validation/submission attempts, idempotency keys, and proposal-source payloads for audit.
-
-New API endpoints:
-
-```text
-POST /v1/agents/runs/{run_id}/llm-reviews
-GET  /v1/agents/runs/{run_id}/llm-reviews
-POST /v1/agents/runs/{run_id}/proposal-attempts
-GET  /v1/agents/runs/{run_id}/proposal-attempts
-```
-
-This is still a tracking/audit layer: it does not directly mutate dictionaries, submit proposals, or publish snapshots.
-
-
-### Patch 43A — Proposal lifecycle hardening
-
-SkeinRank now exposes proposal lifecycle metadata on governance suggestions: `validation_status`, `lifecycle_status`, `lifecycle_reason`, `can_approve`, and `can_apply`. Single-suggestion approval now blocks proposals with `blocked` validation status and requires `allow_warnings=true` for validation warnings, matching the safer batch-apply behavior.
-
-- Patch 43B hardens proposal batch apply retries: already-approved suggestions and already-existing same-canonical aliases are treated as idempotent no-ops instead of duplicate mutations.
-
-### Patch 43C — RBAC/scoped token enforcement for agent actions
-
-Agent-facing APIs now enforce API-token scopes in addition to role checks. Session
-login tokens and local-dev mode keep the existing role-based behavior, while
-personal/service-account API tokens must include the required scopes.
-
-Recommended service-account scopes:
-
-```text
-agent:runs:read
-agent:runs:write
-agent:tracking:read
-agent:tracking:write
-agent:tools:read
-agent:tools:validate
-agent:tools:suggest
-agent:tools:explain
-ops:reports:read
-```
-
-This keeps scheduled agents and CI jobs least-privileged: read-only jobs can list
-runs and tracking records, validation-only jobs can call `validate-alias`, proposal-writing jobs must explicitly carry `agent:tools:suggest`, and support/ops automation can read troubleshooting reports with `ops:reports:read`.
-
-
-
-### Benchmark stack troubleshooting
-
-If `benchmark-stack-up` reports a Docker container name conflict for `skeinrank-*-dev`, the stack target now prunes the fixed dev-stack benchmark containers before startup:
-
-```bash
-make benchmark-stack-prune-containers
-make benchmark-stack-up
-```
-
-The prune step removes containers only; named volumes are not deleted. Use `docker compose -f docker-compose.dev.yml down -v` only when you intentionally want to remove persisted dev volumes.
-
-The stack benchmark connects to PostgreSQL from the local Poetry environment, so run `cd packages/skeinrank-governance-api && poetry install` after applying dependency changes.
-
-
-### Patch 49D — Live OpenRouter validated pilot
-
-Adds an explicit validate-only live pilot flow for OpenRouter proposals against the SkeinRank Governance API. Use `make benchmark-agent-live-validated-pilot-plan` to preview and `make benchmark-agent-live-validated-pilot-report` or `make benchmark-agent-live-validated-pilot-stack` for guarded live validation. Reports include `validated_pilot` diagnostics and keep runtime mutation disabled.
-
-### Patch 52A — Agent run progress API
-
-Patch 52A adds a read-only progress endpoint for long-running agent workflows. The endpoint computes progress from the existing DB-backed tracking tables (`agent_document_visits`, `agent_candidate_observations`, `agent_evidence_windows`, `agent_llm_reviews`, and `agent_proposal_attempts`) plus optional run `summary` hints such as `expected_documents_total` and `phase`.
-
-New endpoint:
-
-```text
-GET /v1/agents/runs/{run_id}/progress
-```
-
-The response is an operator-facing snapshot with document, candidate, evidence, LLM review, proposal, error, artifact, and timestamp counters. It is safe by design: it does not execute agents, call OpenRouter, submit proposals, mutate dictionaries, or publish snapshots.
-
-### Patch 52B — Resume/retry/batch limits
-
-Patch 52B adds a read-only resume planner for long-running agent runs. It builds the next safe batch from existing tracking rows without mutating the run, calling OpenRouter/Elasticsearch, submitting proposals, applying dictionaries, or publishing snapshots.
-
-New endpoint:
-
-```text
-POST /v1/agents/runs/{run_id}/resume-plan
-```
-
-Request options:
-
-```json
-{
-  "batch_limit": 100,
-  "retry_errors": true,
-  "retry_skipped": false,
-  "force_rescan": false,
-  "source_ids": ["doc-001", "doc-002"]
-}
-```
-
-The response schema is `skeinrank.agent_run_resume_plan.v1`. Work item kinds include `resume_unfinished_document`, `retry_document_error`, `retry_candidate_error`, `retry_llm_review_error`, `retry_proposal_error`, `retry_skipped_document`, and `force_rescan`. `batch_limit` caps the returned next batch, while `has_more` shows that more work remains.
-
-### Patch 52C — Agent run diagnostics/report
-
-Patch 52C adds a read-only diagnostics report for long-running agent runs. It combines progress counters with sampled skipped/unchanged documents, errors, manual-review items, proposal validation outcomes, and token/cost hints from persisted LLM usage metadata.
-
-New endpoint:
-
-```text
-GET /v1/agents/runs/{run_id}/report
-```
-
-The response schema is `skeinrank.agent_run_report.v1`. The report is operator-facing and safe by design: it does not execute agents, retry work, call OpenRouter/Elasticsearch, submit proposals, apply dictionaries, or publish snapshots. Use it before `/resume-plan` to understand why a run stopped, which documents were skipped, where validation blocked candidates, and whether a configured cost budget was exceeded.
-
-### Patch 53A.1 — Validated pilot preflight hotfix
-
-Patch 53A.1 tightens the OpenRouter validated pilot guardrail. Before spending OpenRouter budget, the runner now verifies not only `/livez` and `/v1/tools/bindings`, but also the read-only `POST /v1/tools/validate-alias` tool with a synthetic preflight payload. If the selected profile or binding context is missing, the CLI fails before any live model call and explains that the benchmark stack must be seeded or an existing `--profile-name` / `--binding-id` must be provided.
-
-### Patch 53B — 5k synthetic smoke generator
-
-Adds an offline deterministic 5,000-document synthetic smoke generator for `platform_ops_v1`. Use `make benchmark-smoke-plan`, `make benchmark-smoke-generate`, and `make benchmark-smoke-report` to create and inspect local generated artifacts. The generator records batch counts, role counts, aliases, unchanged-skip candidates, and corpus hash while keeping OpenRouter, Elasticsearch, database calls, and runtime mutation disabled.
-
-### Patch 53C — Cost, latency, throughput report
-
-Adds `skeinrank_governance_api.benchmark_performance`, the `skeinrank-governance-benchmark-performance` Poetry script, and `make benchmark-performance-*` targets. The report reads the 5k synthetic manifest plus optional live-pilot usage JSON and produces offline estimates for documents/minute, seconds/document, batch latency, token/cost rates, skip/cache/idempotency savings, and simple 100k-document projection. It does not call OpenRouter, Elasticsearch, the database, or runtime mutation APIs.
-
-### Patch 54A — First company pilot runbook
-
-Adds an operator-facing runbook and checklist for the first company pilot. The runbook connects the existing benchmark, pilot integration, and validated-agent pieces into a safe sequence: local rehearsal, company config intake, API/Elasticsearch preflight, dictionary/binding seed, read-only evidence/runtime report, optional validated OpenRouter smoke, and explicit exit criteria.
-
-Patch 54B adds `make support-bundle-plan`, `make support-bundle-export`, and `make support-bundle-inspect` for first-company pilot troubleshooting bundles.
-
-### Backup/restore verified drill
-
-Patch 54C adds a disposable backup/restore drill for first-company pilots:
-
-```bash
-make backup-restore-drill-plan
-make backup-restore-drill-run
-make backup-restore-drill-inspect
-```
-
-It uses local SQLite source/target databases under `examples/pilots/reports/`,
-exports a portable governance JSON backup, restores it into a migrated target DB,
-and verifies representative profile, term, alias, binding, proposal, snapshot,
-and agent-run data. See `docs/deployment/backup-restore-verified-scenario.md`.
-
-### Patch 55A — Apply policy and risk levels
-
-Adds an additive proposal apply-policy layer with schema `skeinrank.apply_policy.v1`.
-New and existing proposal responses now expose `risk_level` plus an `apply_policy`
-payload derived from validation status, confidence, alias shape, risk flags, and
-validation checks. Batch preview items also expose policy fields so reviewers can
-separate low-risk batch-approve candidates from medium/high-risk proposals.
-
-No migrations or runtime apply behavior changes are introduced. `auto_apply_allowed`
-remains `false`; blocked proposals still cannot apply, and warning proposals still
-require explicit `allow_warnings: true`. See `docs/policies/apply-policy-risk-levels.md`.
-
-### Patch 55B — Role boundaries for agent/reviewer/admin
-
-Adds an explicit operational boundary document with schema `skeinrank.role_boundaries.v1`. Existing governance roles remain unchanged: `contributor` maps to the agent boundary, `moderator` maps to the reviewer boundary, and `admin` remains the only boundary that can apply proposal batches or publish runtime snapshots. See `docs/policies/role-boundaries.md`.
-
-### Patch 55C — Token rotation / scoped agent credentials
-
-Service-account tokens can now be rotated without returning or reusing the old
-plaintext secret. Admins can create a replacement token and revoke the previous
-one in a single operation:
-
-```http
-POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
-```
-
-Admins can also inspect the recommended least-privilege agent credential shapes:
-
-```http
-GET /v1/auth/scoped-agent-credentials
-```
-
-The policy keeps agent credentials on the `contributor` role with explicit
-`agent:*` and `ops:reports:read` scopes. Agents can validate, track, and submit
-pending proposals when scoped for it, but they still cannot approve, batch-apply,
-publish snapshots, or mutate runtime state.
-
-See `docs/policies/token-rotation-scoped-agent-credentials.md`.
-
-### Patch 55D — Tenant/profile isolation checks
-
-Adds a read-only profile/binding isolation report for the current production safety model:
-
-```http
-GET /v1/governance/isolation-checks
-```
-
-The response schema is `skeinrank.profile_isolation.v1`. The check verifies that binding-scoped proposals, policies, enrichment jobs, agent runs, and agent tracking rows stay inside their profile/binding context. It also documents the runtime guards that reject mismatched `profile_name` / `binding_id` requests before provider calls or mutations.
-
-This patch does not add a tenant column or claim full multi-tenancy. The current isolation boundary remains the profile plus optional runtime binding. See `docs/policies/profile-isolation-checks.md`.
-
-
-### Patch 56A — Alerting hooks and degraded-state reports
-
-Patch 56A adds a read-only degraded-state alert report for production support workflows:
-
-```http
-GET /v1/ops/alerts/report
-```
-
-It combines troubleshooting checks with profile/binding isolation state and returns `skeinrank.alerting_report.v1` plus a sanitized webhook-style payload preview. The endpoint does not deliver webhooks and does not call OpenRouter, Elasticsearch, proposal apply, or snapshot publish paths. CLI and Makefile helpers are available through `python -m skeinrank_governance_api.alerting` / `skeinrank-governance-alerting` and `make alerts-report-*`. See `docs/deployment/alerting-hooks-degraded-state-reports.md`.
-
-## Patch 57A — Model provider abstraction
-
-Patch 57A adds the first model provider abstraction for the OpenRouter alias scout. The agent workflow now accepts a minimal chat-completion provider interface while keeping OpenRouter as the default adapter. Use `--print-model-provider-plan` to inspect provider config without network calls or secret output. See [`docs/deployment/model-provider-abstraction.md`](docs/deployment/model-provider-abstraction.md).
-
-## Patch 57B — OpenRouter and local endpoint adapters
-
-Patch 57B extends the model-provider abstraction with concrete `openrouter` and `local_endpoint` adapters for the alias scout. OpenRouter remains the default hosted provider, while `local_endpoint` targets self-hosted OpenAI-compatible `/chat/completions` servers such as vLLM, LM Studio, or an Ollama-compatible gateway. Provider plans remain offline and secret-redacted. See [`docs/deployment/model-provider-adapters.md`](docs/deployment/model-provider-adapters.md).
-
-### Patch 57C — Company model integration docs and tests
-
-Patch 57C adds an offline company-model integration plan for connecting private/local model endpoints to the alias scout. It documents the `local_endpoint` flow, verifies redacted provider plans, and keeps live calls behind explicit pilot flags. See [`docs/deployment/company-model-integration.md`](docs/deployment/company-model-integration.md).
-
-
-### Patch 58C — Playground Snapshot Compare UI
-
-Search Playground now includes a split-screen compare mode for binding-backed runtime snapshots. The UI compares two existing bindings by calling the existing `POST /v1/query/plan` endpoint twice, then highlights canonical query, matched alias, canonical value, replacement, and snapshot differences. No new backend endpoint or runtime mutation is introduced.
-
-### Patch 58D — Schema & Snapshots Tree UI
-
-The Snapshots section now includes a read-heavy Schema & Snapshots workspace with a tree + detail layout for `binding → profile → category/slot → canonical term → aliases` and a snapshot timeline mode. The UI uses existing profile, binding, terms, and snapshot-summary endpoints; it does not add manual CRUD, enrichment triggers, snapshot publishing, or rollback actions. See [`docs/guides/schema-snapshots-tree-ui.md`](docs/guides/schema-snapshots-tree-ui.md).
-
-### Patch 58E — UI polish / empty states / degraded banners
-
-The 3-tab Control Plane UI now surfaces degraded operational state from `GET /v1/ops/alerts/report` as a non-mutating banner and improves empty states for AI Inbox and Search Playground. This keeps the UI focused on review, debugging, and audit without adding manual CRUD, custom monitoring dashboards, enrichment triggers, or new backend endpoints. See [`docs/guides/ui-polish-empty-states-degraded-banners.md`](docs/guides/ui-polish-empty-states-degraded-banners.md).
-
-### Patch 58F — Control Plane navigation slim-down
-
-The UI navigation now follows the 3-tab Control Plane model: Playground, AI Inbox, and Schema & Snapshots are the only primary product tabs. Legacy/dev/admin pages are not deleted; they are moved into Settings and Developer Cockpit utility groups so existing workflows remain reachable while the default product experience stays focused on debugging, human-in-the-loop proposal review, and schema/snapshot audit. See [`docs/guides/control-plane-navigation-slim-down.md`](docs/guides/control-plane-navigation-slim-down.md).
-
-### Patch 58G — Read-only legacy/admin cockpit lockdown
-
-Legacy and admin cockpit pages are now read-only by default to prevent direct production mutations that bypass proposals, validation, snapshots, and GitOps rollout. The UI keeps old routes available for inspection and local debugging, but disables or replaces unsafe write CTAs such as manual term edits, binding creation, guardrail edits, and enrichment job launches unless `VITE_SKEINRANK_ENABLE_LEGACY_WRITE_TOOLS=true` is set explicitly for local development. See [`docs/guides/read-only-legacy-admin-cockpit.md`](docs/guides/read-only-legacy-admin-cockpit.md).
-
-
-### Patch 61A — Enrichment Beta hardening
-
-Elasticsearch enrichment jobs now have a read-only preflight endpoint:
-
-```text
-POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
-```
-
-The preflight reports `ready`, `blocking_issues`, `warnings`,
-`recommended_request`, and safety metadata before any job is created. The
-start-job endpoint runs the same checks and blocks unsafe starts, including
-concurrent active jobs for the same binding and unsafe `reindex_alias_swap`
-targets. See [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md).
-
-### Patch 61B — Blue/green alias-swap runbook
-
-Patch 61B documents the operator rollout path for `reindex_alias_swap` jobs: run dry-run, run preflight, start one binding-scoped job, monitor `result_json.rollout`, cancel before publish when needed, and use the conservative rollback endpoint after a completed alias swap. It does not add a new alias-swap endpoint or index cleanup command. See [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md) and [`examples/blue-green-alias-swap`](examples/blue-green-alias-swap).
-
-## MCP packaging and agent integration kit
-
-Patch 62A packages the existing `skeinrank-mcp` stdio adapter as an agent
-integration kit for safe proposal workflows. See
-`docs/deployment/mcp-integration-kit.md` and `examples/mcp-integration-kit/`.
-
-The adapter remains thin: it delegates to the existing `/v1/tools/*` and
-proposal review APIs, and agents cannot directly mutate active runtime
-terminology.
-
-```bash
-cd packages/skeinrank-governance-api
-poetry run skeinrank-mcp --print-tool-manifest
-poetry run skeinrank-mcp --print-env-template
-poetry run skeinrank-mcp --smoke-test
-poetry run skeinrank-mcp --api-url http://127.0.0.1:8010
-```
-
-### Patch 62B — MCP scoped credentials and smoke tests
-
-Patch 62B adds least-privilege MCP credential guidance and an offline packaging
-smoke test for the existing `skeinrank-mcp` adapter. The recommended production
-shape is a `contributor` service-account token with explicit `agent:*` scopes,
-not an admin token. See
-[`docs/deployment/mcp-scoped-credentials-smoke-tests.md`](docs/deployment/mcp-scoped-credentials-smoke-tests.md)
-and [`examples/mcp-scoped-credentials`](examples/mcp-scoped-credentials).
-
-The smoke test exits without serving stdio or contacting the Governance API:
-
-```bash
-cd packages/skeinrank-governance-api
-poetry run skeinrank-mcp --smoke-test
-```
-
-### Patch 62C — MCP client docs for Claude Desktop, Cursor, and LangGraph-style agents
-
-Patch 62C adds client-specific MCP setup docs and safe agent prompts without
-adding new tools or endpoints. See
-[`docs/deployment/mcp-claude-desktop.md`](docs/deployment/mcp-claude-desktop.md),
-[`docs/deployment/mcp-cursor-agents.md`](docs/deployment/mcp-cursor-agents.md),
-[`docs/deployment/mcp-langgraph-agents.md`](docs/deployment/mcp-langgraph-agents.md),
-and [`examples/mcp-agent-docs`](examples/mcp-agent-docs).
-
-The documented clients all use the same existing `skeinrank-mcp` stdio adapter
-and the same five tools:
-
-```text
-skeinrank_list_bindings
-skeinrank_explain_query
-skeinrank_validate_alias
-skeinrank_submit_alias_proposal
-skeinrank_get_proposal_status
-```
-
-## Patch 63A — Binding-aware runtime canonicalization API
-
-Patch 63A makes runtime canonicalization, query planning, and search explicitly
-binding-aware for application-scope routing. Production callers can pass
-`binding_id` or stable `binding_name`, plus optional `application_scope` debug
-metadata, and responses include a `runtime_context` block with the resolved
-profile, binding, fields, filters, target field, and snapshot source.
-
-```json
-{
-  "binding_name": "infra incidents prod",
-  "text": "k8s pg timeout",
-  "mode": "replace",
-  "application_scope": {
-    "workspace": "infra",
-    "selected_scope": "incidents"
-  }
-}
-```
-
-This patch does not add automatic intent classification or a multi-binding
-router. It provides the safe application-scope foundation for those later
-runtime-routing patches. See
-[`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md) and
-[`examples/runtime-routing-api`](examples/runtime-routing-api).
-
-
-
-### Patch 63B — Context-trigger disambiguation for aliases
-
-Patch 63B adds optional `context_triggers` to aliases. Trigger-gated aliases only
-match when the query also contains at least one configured trigger word or phrase,
-which helps keep short aliases such as `pg` from expanding outside their domain.
-The behavior is available through the existing `/v1/text/canonicalize`,
-`/v1/query/plan`, `/v1/search`, and `/v1/search/multi` runtime surfaces; no new
-endpoint is introduced. See [`docs/guides/context-trigger-disambiguation.md`](docs/guides/context-trigger-disambiguation.md)
-and [`examples/runtime-routing-api/context-trigger-dictionary.yaml`](examples/runtime-routing-api/context-trigger-dictionary.yaml).
-
-
-### Patch 63C — Multi-binding route plan API
-
-Patch 63C adds `POST /v1/query/route-plan`, a read-only route planner for global
-search and fan-out scenarios. Callers provide `candidate_binding_ids`, a query,
-and optional `application_scope`; SkeinRank builds binding-aware query plans,
-ranks the candidates, and returns `selected_bindings`, `rejected_bindings`, and
-`failed_bindings` with `mode = "route_plan_only"`.
-
-The endpoint does not execute Elasticsearch search and does not mutate runtime
-state. Use it to choose whether the application should call `/v1/search` for one
-binding or `/v1/search/multi` for several bindings. See
-[`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md) and
-[`examples/runtime-routing-api/route-plan.request.json`](examples/runtime-routing-api/route-plan.request.json).
