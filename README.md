@@ -454,6 +454,14 @@ Main files:
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md) — local stack troubleshooting.
 - [`docs/deployment/security.md`](docs/deployment/security.md) — deployment and security notes.
 
+
+## Community
+
+- Use [Issues](https://github.com/SkeinRank/skeinrank/issues) for reproducible bugs, failing commands, docs mistakes, and concrete implementation tasks.
+- Use [Discussions](https://github.com/SkeinRank/skeinrank/discussions) for questions, ideas, architecture proposals, integration feedback, and public beta conversations.
+- See [`docs/community/discussions.md`](docs/community/discussions.md) for discussion categories and pinned discussion drafts.
+- See [`docs/community/github-labels.md`](docs/community/github-labels.md) for the repository label taxonomy and GitHub CLI sync commands.
+
 ## Project status
 
 SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, and Elasticsearch/OpenSearch enrichment safety.

@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose a concrete product, API, integration, UI, Terminology-as-Code, or docs improvement
+title: "feat: "
+labels:
+  - "type: feature"
+  - "status: needs-triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for actionable feature requests. Early ideas and design tradeoffs may fit better in [Ideas](https://github.com/SkeinRank/skeinrank/discussions/categories/ideas) or Architecture / RFC Discussions.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user, reviewer, operator, or integrator problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the desired behavior, API, UI, workflow, or docs change.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - governance-api
+        - ui
+        - core
+        - elasticsearch
+        - mcp
+        - docs
+        - ci
+        - site
+        - cross-cutting
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety / rollout considerations
+      description: Does this introduce direct mutation, credentials, external calls, runtime rollout, migrations, or search quality risk?
+  - type: checkboxes
+    id: contract
+    attributes:
+      label: Contribution fit
+      options:
+        - label: This request preserves the governed proposal/review/snapshot workflow or explicitly explains why it should change.
+          required: true
