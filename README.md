@@ -476,6 +476,23 @@ OpenRouter alias scout and model-provider docs:
 Patch markers retained for documentation link checks:
 Patch 40G, Patch 40H, Patch 40I, Patch 40J, Patch 40K, Patch 40L,
 Patch 40N, Patch 40O, Patch 41A, 42D, 42E, Patch 57A, Patch 57B, Patch 57C.
+
+Legacy OpenRouter/model-provider command markers retained for CI discoverability:
+--print-tool-schemas
+--discover-candidates
+--sample-evidence
+--print-llm-review-plan
+--run-demo-report
+--print-security-profile
+--run-evaluation-report
+--print-deployment-recipe
+--print-canonical-hints
+--print-dictionary-quickstart-plan
+
+Model-provider vocabulary retained for CI discoverability:
+model provider
+local endpoint
+local_endpoint
 -->
 
 ## License
