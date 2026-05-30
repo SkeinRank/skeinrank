@@ -56,7 +56,6 @@ def test_57b_local_endpoint_docs_and_config_exist() -> None:
     assert local_config["require_api_key"] is False
 
     for path in (
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         AGENT_DIR / "README.md",

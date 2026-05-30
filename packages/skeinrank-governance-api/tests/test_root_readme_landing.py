@@ -48,3 +48,15 @@ def test_root_readme_keeps_product_model_without_stale_dashboard_preview() -> No
 def test_root_readme_architecture_asset_exists() -> None:
     assert ARCHITECTURE_IMAGE.exists()
     assert ARCHITECTURE_IMAGE.stat().st_size > 100_000
+
+
+def test_root_readme_keeps_agent_entry_points_without_legacy_patch_markers() -> None:
+    readme = ROOT_README.read_text(encoding="utf-8")
+
+    assert "examples/agents/openrouter_alias_scout" in readme
+    assert "docs/guides/openrouter-agent.md" in readme
+    assert "Documentation discoverability compatibility index" not in readme
+    assert "Patch 40G" not in readme
+    assert "Patch 57A" not in readme
+    assert "--print-tool-schemas" not in readme
+    assert "--discover-candidates" not in readme

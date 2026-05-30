@@ -137,7 +137,6 @@ def test_security_assert_rejects_runtime_mutation() -> None:
 
 def test_security_profile_docs_are_linked() -> None:
     paths = [
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",

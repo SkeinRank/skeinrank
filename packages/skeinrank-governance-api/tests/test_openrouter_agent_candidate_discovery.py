@@ -140,7 +140,6 @@ def test_alias_scout_cli_candidate_discovery_outputs_parseable_json() -> None:
 
 def test_openrouter_40h_docs_are_linked_from_project_docs() -> None:
     docs = [
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
     ]

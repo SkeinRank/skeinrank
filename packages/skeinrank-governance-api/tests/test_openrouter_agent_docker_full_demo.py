@@ -38,7 +38,6 @@ def test_42d_files_exist_and_docs_are_linked() -> None:
         assert path.exists(), path
 
     for path in (
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
         REPO_ROOT / "deploy" / "docker" / "README.md",

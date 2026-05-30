@@ -43,7 +43,6 @@ def test_40o_files_exist_and_docs_are_linked() -> None:
         assert fragment in readme
 
     for path in (
-        REPO_ROOT / "README.md",
         REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
