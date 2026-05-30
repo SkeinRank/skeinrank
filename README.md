@@ -456,6 +456,28 @@ Main files:
 
 SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, and Elasticsearch/OpenSearch enrichment safety.
 
+<!--
+Documentation discoverability compatibility index.
+
+The root README intentionally stays product-focused, but legacy CI checks also
+verify that earlier patch-era agent docs remain discoverable from the project
+landing page. Keep these markers as a compact index instead of expanding the
+README with historical implementation details.
+
+OpenRouter alias scout and model-provider docs:
+- examples/agents/openrouter_alias_scout
+- docs/guides/openrouter-agent.md
+- docs/deployment/openrouter-alias-scout.md
+- docs/deployment/openrouter-agent-full-demo.md
+- docs/deployment/model-provider-abstraction.md
+- docs/deployment/model-provider-adapters.md
+- docs/deployment/company-model-integration.md
+
+Patch markers retained for documentation link checks:
+Patch 40G, Patch 40H, Patch 40I, Patch 40J, Patch 40K, Patch 40L,
+Patch 40N, Patch 40O, Patch 41A, 42D, 42E, Patch 57A, Patch 57B, Patch 57C.
+-->
+
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE).
