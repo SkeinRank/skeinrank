@@ -524,3 +524,23 @@ same binding plus unsafe `reindex_alias_swap` target-index choices. See
   without adding a runnable agent package.
 - `../examples/mcp-agent-docs` contains Claude/Cursor config examples, agent
   prompts, LangGraph-style flow policy, and a smoke checklist.
+## Patch 63A — Binding-aware runtime canonicalization API
+
+Runtime canonicalization and query planning now expose a clearer binding-aware
+contract. Production callers should prefer `binding_id` or `binding_name`;
+responses include `runtime_context` for audit/debug, and optional
+`application_scope` metadata can record the app route/workspace that selected
+the binding. See [`guides/runtime-routing-api.md`](guides/runtime-routing-api.md)
+and [`../examples/runtime-routing-api`](../examples/runtime-routing-api).
+Patch 63B adds deterministic alias `context_triggers`; see [`guides/context-trigger-disambiguation.md`](guides/context-trigger-disambiguation.md).
+
+
+
+## Patch 63C — Multi-binding route plan API
+
+`POST /v1/query/route-plan` is a read-only multi-binding planner for application
+backends that need to rank candidate bindings before executing search. It returns
+`route_plan_only` responses with `selected_bindings`, `rejected_bindings`, and
+`failed_bindings`; it does not call Elasticsearch. See
+[`guides/runtime-routing-api.md`](guides/runtime-routing-api.md) and
+[`../examples/runtime-routing-api/route-plan.request.json`](../examples/runtime-routing-api/route-plan.request.json).

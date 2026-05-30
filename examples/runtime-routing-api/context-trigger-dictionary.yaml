@@ -1,0 +1,20 @@
+schema_version: skeinrank.dictionary.v1
+profile_name: infra_incidents
+profile_description: Infra terminology with a trigger-gated short alias.
+terms:
+  - canonical_value: postgresql
+    slot: DATABASE
+    tags: [backend, storage]
+    aliases:
+      - value: pg
+        confidence: 0.95
+        notes: Only expand pg in database incident context.
+        context_triggers:
+          - timeout
+          - replica
+          - migration
+  - canonical_value: kubernetes
+    slot: TOOL
+    tags: [infra, orchestration]
+    aliases:
+      - k8s

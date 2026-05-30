@@ -131,3 +131,21 @@ validation and apply implementation.
 - Breaking field changes require a new `schema_version`.
 - Exported dictionaries include `schema_version` so CI, bots, and agents can
   detect the expected contract.
+
+
+## Alias context triggers
+
+Object aliases may include optional `context_triggers` for deterministic runtime
+disambiguation:
+
+```json
+{
+  "value": "pg",
+  "confidence": 0.95,
+  "context_triggers": ["timeout", "replica", "migration"]
+}
+```
+
+A trigger-gated alias matches only when the runtime query also contains at least
+one configured trigger. String aliases and object aliases without triggers keep
+the existing always-active behavior.

@@ -111,6 +111,13 @@ The current project already exposes core pieces of this contract:
 
 Future headless facade endpoints should reuse the same concepts instead of creating a second terminology model.
 
+Patch 63A makes these runtime surfaces explicitly binding-aware. They accept
+`binding_id` or stable `binding_name`, preserve `profile_name` for preview/dev
+mode, and return a `runtime_context` object so callers can audit which binding,
+fields, filters, target field, and snapshot source produced the result.
+Optional `application_scope` metadata can record the app route/workspace that
+selected the binding.
+
 
 ## Dictionary API facade
 
@@ -313,3 +320,11 @@ LangGraph-style agents use the same stdio adapter and tool boundary. See
 The output schema is `skeinrank.mcp_smoke_report.v1`. The helper does not call
 the Governance API, create proposals, approve suggestions, publish snapshots, or
 reload runtime state.
+
+## Patch 63C — read-only route planning
+
+Global search surfaces can call `POST /v1/query/route-plan` with
+`candidate_binding_ids` before deciding whether to execute `/v1/search` for one
+binding or `/v1/search/multi` for several bindings. The route planner returns
+`mode = "route_plan_only"` and never executes Elasticsearch search or mutates
+runtime state.

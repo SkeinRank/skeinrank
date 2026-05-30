@@ -53,6 +53,7 @@ class NormalizedAliasInput:
     confidence: float
     status: str
     notes: str | None
+    context_triggers: list[str]
     term_normalized_value: str
     path: str
 
@@ -194,6 +195,7 @@ def export_console_dictionary(
                         confidence=alias.confidence,
                         status=alias.status,
                         notes=alias.notes,
+                        context_triggers=list(alias.context_triggers or []),
                     )
                     for alias in aliases
                 ],
@@ -394,6 +396,7 @@ def _apply_console_dictionary(
                     confidence=alias_input.confidence,
                     status=alias_input.status,
                     notes=alias_input.notes,
+                    context_triggers=list(alias_input.context_triggers),
                 )
                 session.add(alias)
                 session.flush()
@@ -404,6 +407,7 @@ def _apply_console_dictionary(
                 alias.confidence = alias_input.confidence
                 alias.status = alias_input.status
                 alias.notes = alias_input.notes
+                alias.context_triggers = list(alias_input.context_triggers)
                 summary.updated_aliases += 1
 
     for entry_input in _normalize_stop_entries(
@@ -492,6 +496,17 @@ def _normalize_tag_values(values: list[str]) -> list[str]:
     return sorted({normalize_value(value) for value in values if value.strip()})
 
 
+def _normalize_context_triggers(values: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized_value = normalize_value(str(value))
+        if normalized_value and normalized_value not in seen:
+            normalized.append(normalized_value)
+            seen.add(normalized_value)
+    return normalized
+
+
 def _normalize_terms(
     items: list[ConsoleDictionaryTermInput],
 ) -> list[NormalizedTermInput]:
@@ -534,6 +549,7 @@ def _normalize_alias(
             confidence=1.0,
             status="active",
             notes=None,
+            context_triggers=[],
             term_normalized_value=term_normalized,
             path=path,
         )
@@ -543,6 +559,7 @@ def _normalize_alias(
         confidence=item.confidence,
         status=item.status.strip().lower(),
         notes=item.notes,
+        context_triggers=_normalize_context_triggers(item.context_triggers),
         term_normalized_value=term_normalized,
         path=path,
     )

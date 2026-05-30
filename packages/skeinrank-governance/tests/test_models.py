@@ -92,6 +92,7 @@ def test_create_governance_rows_and_normalized_values(session):
         term=term,
         alias_value="K8S",
         confidence=0.99,
+        context_triggers=["rollout", "pod crash"],
     )
     tag = TermTag(term=term, value="Infra")
     snapshot = ProfileSnapshot(
@@ -389,6 +390,7 @@ def test_create_governance_rows_and_normalized_values(session):
     assert term.normalized_value == "kubernetes"
     assert term.slot == "TOOL"
     assert alias.normalized_alias == "k8s"
+    assert alias.context_triggers == ["rollout", "pod crash"]
     assert tag.value == "infra"
     assert tag.normalized_value == "infra"
     assert snapshot.status == "draft"

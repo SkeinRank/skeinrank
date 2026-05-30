@@ -391,6 +391,59 @@ Useful runtime design rule:
 ```text
 profile_name mode = preview/dev dictionary mode
 binding_id mode   = pinned production runtime mode
+binding_name mode = stable named production runtime context
+```
+
+Patch 63A also accepts optional `application_scope` metadata on
+`/v1/text/canonicalize`, `/v1/query/plan`, and `/v1/search`. This field is
+returned inside `runtime_context` so application teams can see which workspace,
+collection, or route selected the binding. It is debug metadata; it does not
+replace `binding_id` or `binding_name`.
+
+Example binding-aware canonicalization request:
+
+```json
+{
+  "binding_name": "infra incidents prod",
+  "text": "k8s pg timeout",
+  "mode": "replace",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "incidents"
+  }
+}
+```
+
+The response includes `runtime_context` with resolved profile, binding, index,
+fields, target field, filters, snapshot source, and sanitized application scope.
+
+
+Patch 63C adds a read-only multi-binding route planner:
+
+```text
+POST /v1/query/route-plan
+```
+
+Use it when an application has a global search box and wants SkeinRank to rank a
+set of `candidate_binding_ids` before the application decides whether to call
+`/v1/search` or `/v1/search/multi`. The response has
+`mode = "route_plan_only"`, `selected_bindings`, `rejected_bindings`, and
+`failed_bindings`. It builds per-binding query plans but does not execute
+Elasticsearch search and does not mutate runtime state.
+
+Example request:
+
+```json
+{
+  "candidate_binding_ids": [1, 2, 3],
+  "query": "k8s pg timeout",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "all"
+  },
+  "max_selected_bindings": 2,
+  "include_rejected": true
+}
 ```
 
 ## Auth and API access
@@ -1108,3 +1161,30 @@ examples/mcp-agent-docs/
 
 They use the same `skeinrank-mcp` stdio adapter and do not add new Governance API
 routes.
+
+## Patch 63B: Alias context triggers
+
+Alias create/update and dictionary import payloads can include optional
+`context_triggers`:
+
+```json
+{
+  "alias_value": "pg",
+  "confidence": 0.95,
+  "context_triggers": ["timeout", "replica", "migration"]
+}
+```
+
+A trigger-gated alias only matches in the existing runtime endpoints when the
+query also contains at least one configured trigger:
+
+```text
+POST /v1/text/canonicalize
+POST /v1/query/plan
+POST /v1/search
+POST /v1/search/multi
+```
+
+Runtime explanation payloads include `context_triggers`,
+`matched_context_triggers`, and `source = "alias_context_trigger"` for gated
+matches. No new endpoint is introduced by this patch.

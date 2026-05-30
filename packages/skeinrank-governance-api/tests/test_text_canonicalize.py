@@ -323,3 +323,159 @@ def test_text_canonicalize_accepts_binding_id_and_uses_runtime_snapshot(tmp_path
     assert payload["snapshot_source"] == "binding_runtime_snapshot"
     assert payload["canonical_values"] == []
     assert payload["matched_aliases"] == []
+
+
+def test_text_canonicalize_accepts_binding_name_and_returns_runtime_context(tmp_path):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra incidents prod",
+            "profile_name": "infra_incidents",
+            "index_name": "incidents-prod",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
+        },
+    )
+    assert binding_response.status_code == 201, binding_response.text
+
+    response = client.post(
+        "/v1/text/canonicalize",
+        json={
+            "binding_name": "infra incidents prod",
+            "text": "k8s pg timeout",
+            "mode": "replace",
+            "application_scope": {
+                "workspace": "infra",
+                "selected_scope": "incidents",
+                "nested": {"ignored": "as string"},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["binding_name"] == "infra incidents prod"
+    assert payload["canonical_text"] == "kubernetes postgresql timeout"
+    assert payload["runtime_context"] == {
+        "mode": "binding_latest_profile",
+        "profile_name": "infra_incidents",
+        "normalized_profile_name": "infra_incidents",
+        "binding_id": binding_response.json()["id"],
+        "binding_name": "infra incidents prod",
+        "normalized_binding_name": "infra_incidents_prod",
+        "index_name": "incidents-prod",
+        "text_fields": ["title", "body"],
+        "target_field": "skeinrank",
+        "filter_field": "team",
+        "filter_value": "infra",
+        "snapshot_version": payload["snapshot_version"],
+        "snapshot_source": "latest_profile",
+        "application_scope": {
+            "workspace": "infra",
+            "selected_scope": "incidents",
+            "nested": "{'ignored': 'as string'}",
+        },
+    }
+
+
+def test_text_canonicalize_rejects_binding_id_name_mismatch(tmp_path):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    left = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra incidents prod",
+            "profile_name": "infra_incidents",
+            "index_name": "incidents-prod",
+            "text_fields": ["title"],
+            "target_field": "skeinrank",
+        },
+    )
+    assert left.status_code == 201, left.text
+    right = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra runbooks prod",
+            "profile_name": "infra_incidents",
+            "index_name": "runbooks-prod",
+            "text_fields": ["title"],
+            "target_field": "skeinrank",
+        },
+    )
+    assert right.status_code == 201, right.text
+
+    response = client.post(
+        "/v1/text/canonicalize",
+        json={
+            "binding_id": left.json()["id"],
+            "binding_name": "infra runbooks prod",
+            "text": "pg timeout",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "binding_id and binding_name" in response.json()["detail"]
+
+
+def test_text_canonicalize_context_triggers_gate_noisy_alias(tmp_path):
+    client = _client(tmp_path)
+    _seed_dictionary(client)
+    term_response = client.get(
+        "/v1/governance/profiles/infra_incidents/terms/postgresql"
+    )
+    assert term_response.status_code == 200, term_response.text
+    pg_alias = next(
+        alias
+        for alias in term_response.json()["aliases"]
+        if alias["alias_value"] == "pg"
+    )
+    update = client.patch(
+        f"/v1/governance/profiles/infra_incidents/terms/postgresql/aliases/{pg_alias['id']}",
+        json={"context_triggers": ["timeout", "replica", "migration", "timeout"]},
+    )
+    assert update.status_code == 200, update.text
+    assert update.json()["context_triggers"] == ["timeout", "replica", "migration"]
+
+    unrelated = client.post(
+        "/v1/text/canonicalize",
+        json={
+            "profile_name": "infra_incidents",
+            "text": "pg layout issue",
+            "mode": "replace",
+        },
+    )
+    assert unrelated.status_code == 200, unrelated.text
+    unrelated_payload = unrelated.json()
+    assert unrelated_payload["canonical_text"] == "pg layout issue"
+    assert unrelated_payload["matched_aliases"] == []
+
+    related = client.post(
+        "/v1/text/canonicalize",
+        json={
+            "profile_name": "infra_incidents",
+            "text": "pg timeout on replica",
+            "mode": "replace",
+        },
+    )
+    assert related.status_code == 200, related.text
+    payload = related.json()
+    assert payload["canonical_text"] == "postgresql timeout on replica"
+    assert payload["matched_aliases"] == ["pg"]
+    assert payload["replacements"][0]["source"] == "alias_context_trigger"
+    assert payload["replacements"][0]["context_triggers"] == [
+        "timeout",
+        "replica",
+        "migration",
+    ]
+    assert payload["replacements"][0]["matched_context_triggers"] == [
+        "timeout",
+        "replica",
+    ]
+    assert payload["evidence"][0]["matched_context_triggers"] == [
+        "timeout",
+        "replica",
+    ]

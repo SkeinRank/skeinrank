@@ -36,6 +36,7 @@ class RuntimeAliasEntry:
     slot: str
     confidence: float
     tags: tuple[str, ...] = ()
+    context_triggers: tuple[str, ...] = ()
 
 
 RUNTIME_SNAPSHOT_ARTIFACT_SCHEMA_VERSION = "skeinrank.runtime_snapshot_artifact.v1"
@@ -357,6 +358,7 @@ def build_runtime_snapshot_payload(
             "slot": entry.slot,
             "confidence": entry.confidence,
             "tags": list(entry.tags),
+            "context_triggers": list(entry.context_triggers),
         }
         for entry in entries
     ]
@@ -412,6 +414,9 @@ def active_runtime_alias_entries(
                 slot=alias.term.slot,
                 confidence=alias.confidence,
                 tags=_tags_for_term(alias.term),
+                context_triggers=_normalize_context_triggers(
+                    getattr(alias, "context_triggers", []) or []
+                ),
             )
         )
     return entries
@@ -442,6 +447,19 @@ def _normalize_snapshot_tags(value: Any) -> tuple[str, ...]:
         if item_value:
             normalized.add(normalize_value(item_value))
     return tuple(sorted(normalized))
+
+
+def _normalize_context_triggers(values: list[str]) -> tuple[str, ...]:
+    """Normalize context triggers stored on alias rows."""
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized_value = normalize_value(str(value))
+        if normalized_value and normalized_value not in seen:
+            normalized.append(normalized_value)
+            seen.add(normalized_value)
+    return tuple(normalized)
 
 
 def alias_entries_from_snapshot(
@@ -480,6 +498,7 @@ def alias_entries_from_snapshot(
                 slot=slot,
                 confidence=confidence,
                 tags=_normalize_snapshot_tags(item.get("tags")),
+                context_triggers=_normalize_snapshot_tags(item.get("context_triggers")),
             )
         )
     return result

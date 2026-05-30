@@ -1239,3 +1239,56 @@ skeinrank_validate_alias
 skeinrank_submit_alias_proposal
 skeinrank_get_proposal_status
 ```
+
+## Patch 63A — Binding-aware runtime canonicalization API
+
+Patch 63A makes runtime canonicalization, query planning, and search explicitly
+binding-aware for application-scope routing. Production callers can pass
+`binding_id` or stable `binding_name`, plus optional `application_scope` debug
+metadata, and responses include a `runtime_context` block with the resolved
+profile, binding, fields, filters, target field, and snapshot source.
+
+```json
+{
+  "binding_name": "infra incidents prod",
+  "text": "k8s pg timeout",
+  "mode": "replace",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "incidents"
+  }
+}
+```
+
+This patch does not add automatic intent classification or a multi-binding
+router. It provides the safe application-scope foundation for those later
+runtime-routing patches. See
+[`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md) and
+[`examples/runtime-routing-api`](examples/runtime-routing-api).
+
+
+
+### Patch 63B — Context-trigger disambiguation for aliases
+
+Patch 63B adds optional `context_triggers` to aliases. Trigger-gated aliases only
+match when the query also contains at least one configured trigger word or phrase,
+which helps keep short aliases such as `pg` from expanding outside their domain.
+The behavior is available through the existing `/v1/text/canonicalize`,
+`/v1/query/plan`, `/v1/search`, and `/v1/search/multi` runtime surfaces; no new
+endpoint is introduced. See [`docs/guides/context-trigger-disambiguation.md`](docs/guides/context-trigger-disambiguation.md)
+and [`examples/runtime-routing-api/context-trigger-dictionary.yaml`](examples/runtime-routing-api/context-trigger-dictionary.yaml).
+
+
+### Patch 63C — Multi-binding route plan API
+
+Patch 63C adds `POST /v1/query/route-plan`, a read-only route planner for global
+search and fan-out scenarios. Callers provide `candidate_binding_ids`, a query,
+and optional `application_scope`; SkeinRank builds binding-aware query plans,
+ranks the candidates, and returns `selected_bindings`, `rejected_bindings`, and
+`failed_bindings` with `mode = "route_plan_only"`.
+
+The endpoint does not execute Elasticsearch search and does not mutate runtime
+state. Use it to choose whether the application should call `/v1/search` for one
+binding or `/v1/search/multi` for several bindings. See
+[`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md) and
+[`examples/runtime-routing-api/route-plan.request.json`](examples/runtime-routing-api/route-plan.request.json).

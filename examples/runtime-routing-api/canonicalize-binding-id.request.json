@@ -1,0 +1,10 @@
+{
+  "binding_id": 7,
+  "text": "k8s pg timeout",
+  "mode": "replace",
+  "application_scope": {
+    "workspace": "infra",
+    "selected_scope": "incidents",
+    "route": "/incidents/search"
+  }
+}

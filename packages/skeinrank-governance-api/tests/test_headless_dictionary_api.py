@@ -111,12 +111,19 @@ def test_headless_dictionary_apply_and_export_round_trip(tmp_path):
     assert terms["kubernetes"]["tags"] == ["infra", "orchestration"]
     assert terms["postgresql"]["tags"] == ["backend", "storage"]
     assert terms["kubernetes"]["aliases"] == [
-        {"value": "k8s", "confidence": 1.0, "status": "active", "notes": None},
+        {
+            "value": "k8s",
+            "confidence": 1.0,
+            "status": "active",
+            "notes": None,
+            "context_triggers": [],
+        },
         {
             "value": "kube",
             "confidence": 0.95,
             "status": "active",
             "notes": "short form",
+            "context_triggers": [],
         },
     ]
 

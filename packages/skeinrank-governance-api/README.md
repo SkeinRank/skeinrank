@@ -1810,3 +1810,35 @@ examples/mcp-agent-docs/
 ```
 
 These docs keep the same tool surface and proposal-only safety boundary.
+
+## Patch 63A — Binding-aware runtime canonicalization API
+
+Runtime endpoints now expose a clearer application-scope contract.
+`/v1/text/canonicalize`, `/v1/query/plan`, and `/v1/search` accept `binding_id`
+or stable `binding_name`, preserve `profile_name` for preview/dev mode, and
+return `runtime_context` with resolved profile, binding, index, fields, filters,
+target field, snapshot source, and optional `application_scope` metadata.
+
+See `docs/guides/runtime-routing-api.md` and `examples/runtime-routing-api/`.
+
+
+
+## Context-trigger disambiguation for aliases
+
+Patch 63B adds optional `context_triggers` on aliases. The existing runtime
+canonicalization and search surfaces keep their URLs, but alias matches can now be
+trigger-gated for noisy surfaces such as `pg`. Dictionary import/export preserves
+`context_triggers`, runtime snapshots include them, and explanation payloads expose
+`context_triggers` plus `matched_context_triggers`. See
+[`docs/guides/context-trigger-disambiguation.md`](../../docs/guides/context-trigger-disambiguation.md).
+
+
+## Patch 63C — Multi-binding route plan API
+
+The runtime API now includes `POST /v1/query/route-plan`, a read-only
+multi-binding planner. It accepts `candidate_binding_ids`, builds the same
+binding-aware plan used by `/v1/query/plan` for each candidate, scores candidates
+with explainable `score_reasons`, and returns `selected_bindings`,
+`rejected_bindings`, and `failed_bindings` without executing Elasticsearch
+search. See `docs/guides/runtime-routing-api.md` and
+`examples/runtime-routing-api/route-plan.request.json`.

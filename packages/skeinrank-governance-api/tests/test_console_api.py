@@ -124,12 +124,19 @@ def test_console_dictionary_import_and_export_round_trip(tmp_path):
     assert exported_terms["kubernetes"]["tags"] == ["infra", "orchestration"]
     assert exported_terms["postgresql"]["tags"] == ["backend", "storage"]
     assert exported_terms["kubernetes"]["aliases"] == [
-        {"value": "k8s", "confidence": 1.0, "status": "active", "notes": None},
+        {
+            "value": "k8s",
+            "confidence": 1.0,
+            "status": "active",
+            "notes": None,
+            "context_triggers": [],
+        },
         {
             "value": "kube",
             "confidence": 0.95,
             "status": "active",
             "notes": "short form",
+            "context_triggers": [],
         },
     ]
     assert exported["profile_stop_list"] == [

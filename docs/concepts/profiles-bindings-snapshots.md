@@ -94,6 +94,11 @@ For production search paths, prefer:
 
 A development or preview flow can still use `profile_name`, but a real runtime search path needs binding information because the binding knows the index, fields, filters, and pinned snapshot.
 
+Patch 63A allows production callers to use either numeric `binding_id` or stable
+`binding_name`. Runtime responses include `runtime_context`, which records the
+resolved binding, snapshot source, Elasticsearch fields, optional discriminator
+filter, and any caller-provided `application_scope` metadata.
+
 ## Multi-binding search
 
 For an `All docs` search experience, the backend can fan out across multiple bindings:
@@ -105,3 +110,12 @@ query -> binding 3 canonicalization -> search index C
 ```
 
 The results can then be merged. This is safer than assuming one global dictionary, because the same alias can have different meaning across domains.
+
+## Patch 63C — route before fan-out
+
+For `All docs` search, applications can ask SkeinRank for a read-only
+multi-binding route plan via `POST /v1/query/route-plan`. The request supplies
+candidate bindings, and the response ranks them using alias matches,
+context-trigger matches, application-scope hints, and snapshot context. The
+application still owns the final decision to call `/v1/search` or
+`/v1/search/multi`.

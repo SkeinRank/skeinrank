@@ -461,6 +461,7 @@ class AliasCreateRequest(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     status: str = "active"
     notes: str | None = None
+    context_triggers: list[str] = Field(default_factory=list)
 
 
 class AliasUpdateRequest(BaseModel):
@@ -470,6 +471,7 @@ class AliasUpdateRequest(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     status: str | None = None
     notes: str | None = None
+    context_triggers: list[str] | None = None
 
 
 class AliasResponse(BaseModel):
@@ -481,6 +483,7 @@ class AliasResponse(BaseModel):
     status: str
     confidence: float
     notes: str | None = None
+    context_triggers: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -1262,6 +1265,8 @@ class AgentToolExplainQueryRequest(BaseModel):
 
     profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
+    binding_name: str | None = Field(default=None, min_length=1, max_length=128)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
     query: str = Field(..., min_length=1, max_length=2000)
     text_fields: list[str] | None = Field(default=None, min_length=1)
     target_field: str | None = Field(default=None, min_length=1, max_length=256)
@@ -1305,11 +1310,32 @@ class RuntimeSnapshotResponse(BaseModel):
     rules: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class RuntimeContextResponse(BaseModel):
+    """Resolved runtime context used by canonicalization/search endpoints."""
+
+    mode: str
+    profile_name: str
+    normalized_profile_name: str
+    binding_id: int | None = None
+    binding_name: str | None = None
+    normalized_binding_name: str | None = None
+    index_name: str | None = None
+    text_fields: list[str] = Field(default_factory=list)
+    target_field: str | None = None
+    filter_field: str | None = None
+    filter_value: str | None = None
+    snapshot_version: str | None = None
+    snapshot_source: str
+    application_scope: dict[str, Any] = Field(default_factory=dict)
+
+
 class TextCanonicalizeRequest(BaseModel):
     """Request body for runtime text canonicalization."""
 
     profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
+    binding_name: str | None = Field(default=None, min_length=1, max_length=128)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
     text: str = Field(..., min_length=1, max_length=20000)
     mode: str = Field(
         default="annotate", examples=["annotate", "replace", "attributes"]
@@ -1330,6 +1356,8 @@ class TextCanonicalizeMatch(BaseModel):
     end: int
     confidence: float
     source: str = "alias"
+    context_triggers: list[str] = Field(default_factory=list)
+    matched_context_triggers: list[str] = Field(default_factory=list)
 
 
 class TextCanonicalizeEvidence(BaseModel):
@@ -1345,6 +1373,8 @@ class TextCanonicalizeEvidence(BaseModel):
     end: int
     confidence: float
     source: str = "alias"
+    context_triggers: list[str] = Field(default_factory=list)
+    matched_context_triggers: list[str] = Field(default_factory=list)
 
 
 class TextCanonicalizeResponse(BaseModel):
@@ -1354,8 +1384,10 @@ class TextCanonicalizeResponse(BaseModel):
     normalized_profile_name: str
     mode: str
     binding_id: int | None = None
+    binding_name: str | None = None
     snapshot_version: str | None = None
     snapshot_source: str = "latest_profile"
+    runtime_context: RuntimeContextResponse | None = None
     original_text: str
     canonical_text: str
     changed: bool
@@ -1374,6 +1406,8 @@ class QueryPlanRequest(BaseModel):
 
     profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
+    binding_name: str | None = Field(default=None, min_length=1, max_length=128)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
     query: str = Field(..., min_length=1, max_length=2000)
     text_fields: list[str] | None = Field(default=None, min_length=1)
     target_field: str | None = Field(default=None, min_length=1, max_length=256)
@@ -1394,8 +1428,10 @@ class QueryPlanResponse(BaseModel):
     text_fields: list[str]
     target_field: str
     binding_id: int | None = None
+    binding_name: str | None = None
     snapshot_version: str | None = None
     snapshot_source: str = "latest_profile"
+    runtime_context: RuntimeContextResponse | None = None
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
     tags: dict[str, list[str]] = Field(default_factory=dict)
@@ -1407,11 +1443,87 @@ class QueryPlanResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class RoutePlanRequest(BaseModel):
+    """Request body for planning canonicalization across candidate bindings.
+
+    This is a read-only route planner. It builds per-binding query plans and
+    ranks candidate runtime contexts, but it does not execute Elasticsearch
+    search or mutate runtime state.
+    """
+
+    candidate_binding_ids: list[int] = Field(..., min_length=1, max_length=20)
+    query: str = Field(..., min_length=1, max_length=2000)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
+    max_selected_bindings: int = Field(default=5, ge=1, le=20)
+    min_score: float = Field(default=0.01, ge=0.0, le=1.0)
+    canonical_boost: float = Field(default=3.0, ge=0.0, le=100.0)
+    include_rejected: bool = True
+    include_evidence: bool = True
+    max_matches: int = Field(default=100, ge=1, le=1000)
+
+
+class RoutePlanBindingResponse(BaseModel):
+    """Per-binding route planning result.
+
+    Selected and rejected bindings share the same shape so callers can inspect
+    why a binding was chosen or excluded without running a search.
+    """
+
+    binding_id: int
+    binding_name: str | None = None
+    profile_name: str | None = None
+    normalized_profile_name: str | None = None
+    index_name: str | None = None
+    score: float
+    score_reasons: list[str] = Field(default_factory=list)
+    reason: str
+    canonical_query: str
+    changed: bool
+    snapshot_version: str | None = None
+    snapshot_source: str = "latest_profile"
+    runtime_context: RuntimeContextResponse | None = None
+    canonical_values: list[str] = Field(default_factory=list)
+    slots: dict[str, list[str]] = Field(default_factory=dict)
+    tags: dict[str, list[str]] = Field(default_factory=dict)
+    matched_aliases: list[str] = Field(default_factory=list)
+    replacements: list[TextCanonicalizeMatch] = Field(default_factory=list)
+    evidence: list[TextCanonicalizeEvidence] = Field(default_factory=list)
+    policy_decisions: list[dict[str, Any]] = Field(default_factory=list)
+    elasticsearch: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class RoutePlanBindingFailure(BaseModel):
+    """Binding that could not be planned."""
+
+    binding_id: int
+    error: str
+
+
+class RoutePlanResponse(BaseModel):
+    """Read-only multi-binding route plan response."""
+
+    query: str
+    mode: str = "route_plan_only"
+    candidate_binding_ids: list[int]
+    selected_binding_ids: list[int] = Field(default_factory=list)
+    total_bindings: int
+    selected_count: int
+    rejected_count: int
+    failed_count: int
+    selected_bindings: list[RoutePlanBindingResponse] = Field(default_factory=list)
+    rejected_bindings: list[RoutePlanBindingResponse] = Field(default_factory=list)
+    failed_bindings: list[RoutePlanBindingFailure] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class SearchRequest(BaseModel):
     """Request body for executing runtime search against Elasticsearch."""
 
     profile_name: str | None = Field(default=None, min_length=1, max_length=128)
     binding_id: int | None = Field(default=None, ge=1)
+    binding_name: str | None = Field(default=None, min_length=1, max_length=128)
+    application_scope: dict[str, Any] = Field(default_factory=dict)
     index_name: str | None = Field(default=None, min_length=1, max_length=256)
     query: str = Field(..., min_length=1, max_length=2000)
     text_fields: list[str] | None = Field(default=None, min_length=1)
@@ -1444,8 +1556,10 @@ class SearchResponse(BaseModel):
     canonical_query: str
     changed: bool
     binding_id: int | None = None
+    binding_name: str | None = None
     snapshot_version: str | None = None
     snapshot_source: str = "latest_profile"
+    runtime_context: RuntimeContextResponse | None = None
     canonical_values: list[str] = Field(default_factory=list)
     slots: dict[str, list[str]] = Field(default_factory=dict)
     tags: dict[str, list[str]] = Field(default_factory=dict)
@@ -1527,6 +1641,7 @@ class ConsoleDictionaryAliasInput(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     status: str = "active"
     notes: str | None = None
+    context_triggers: list[str] = Field(default_factory=list)
 
 
 class ConsoleDictionaryTermInput(BaseModel):

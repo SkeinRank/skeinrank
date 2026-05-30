@@ -29,6 +29,7 @@ from ..runtime_snapshots import (
     build_runtime_snapshot_payload,
 )
 from ..schemas import (
+    RuntimeContextResponse,
     TextCanonicalizeEvidence,
     TextCanonicalizeMatch,
     TextCanonicalizeRequest,
@@ -49,6 +50,7 @@ class _AliasEntry:
     slot: str
     confidence: float
     tags: tuple[str, ...] = ()
+    context_triggers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,8 @@ class _CandidateMatch:
     canonical_value: str
     slot: str
     tags: tuple[str, ...]
+    context_triggers: tuple[str, ...]
+    matched_context_triggers: tuple[str, ...]
     matched_text: str
     start: int
     end: int
@@ -112,6 +116,7 @@ def canonicalize_text(
             session=session,
             profile_name=request.profile_name,
             binding_id=request.binding_id,
+            binding_name=request.binding_name,
         )
         candidate_matches = _find_alias_matches(request.text, context.alias_entries)
         matches = _select_non_overlapping_matches(
@@ -138,6 +143,8 @@ def canonicalize_text(
                 canonical_value=match.canonical_value,
                 slot=match.slot,
                 tags=list(match.tags),
+                context_triggers=list(match.context_triggers),
+                matched_context_triggers=list(match.matched_context_triggers),
                 matched_text=match.matched_text,
                 start=match.start,
                 end=match.end,
@@ -165,8 +172,12 @@ def canonicalize_text(
         normalized_profile_name=context.profile.normalized_name,
         mode=mode,
         binding_id=context.binding.id if context.binding is not None else None,
+        binding_name=context.binding.name if context.binding is not None else None,
         snapshot_version=context.snapshot_version,
         snapshot_source=context.snapshot_source,
+        runtime_context=_runtime_context_response(
+            context, application_scope=request.application_scope
+        ),
         original_text=request.text,
         canonical_text=canonical_text,
         changed=canonical_text != request.text,
@@ -184,13 +195,19 @@ def canonicalize_text(
 
 
 def _resolve_runtime_alias_context(
-    *, session: Session, profile_name: str | None, binding_id: int | None
+    *,
+    session: Session,
+    profile_name: str | None,
+    binding_id: int | None,
+    binding_name: str | None = None,
 ) -> _RuntimeAliasContext:
     """Resolve aliases for latest profile preview or binding-pinned runtime mode."""
 
     warnings: list[str] = []
-    if binding_id is not None:
-        binding = _get_binding_or_404(session, binding_id)
+    if binding_id is not None or binding_name is not None:
+        binding = _get_binding_or_404(
+            session, binding_id=binding_id, binding_name=binding_name
+        )
         if profile_name is not None and (
             binding.profile.normalized_name != normalize_profile_name(profile_name)
         ):
@@ -237,7 +254,7 @@ def _resolve_runtime_alias_context(
     if profile_name is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Either binding_id or profile_name is required.",
+            detail="Either binding_id, binding_name, or profile_name is required.",
         )
     profile = _get_profile_or_404(session, profile_name)
     latest_snapshot = build_runtime_snapshot_payload(session, profile)
@@ -252,16 +269,93 @@ def _resolve_runtime_alias_context(
     )
 
 
-def _get_binding_or_404(session: Session, binding_id: int) -> ElasticsearchBinding:
-    binding = session.scalar(
-        select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
+def _get_binding_or_404(
+    session: Session,
+    *,
+    binding_id: int | None = None,
+    binding_name: str | None = None,
+) -> ElasticsearchBinding:
+    if binding_id is None and binding_name is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Either binding_id or binding_name is required.",
+        )
+
+    binding_by_id: ElasticsearchBinding | None = None
+    if binding_id is not None:
+        binding_by_id = session.scalar(
+            select(ElasticsearchBinding).where(ElasticsearchBinding.id == binding_id)
+        )
+        if binding_by_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Elasticsearch binding not found: {binding_id}",
+            )
+
+    if binding_name is None:
+        assert binding_by_id is not None
+        return binding_by_id
+
+    normalized_name = normalize_profile_name(binding_name)
+    binding_by_name = session.scalar(
+        select(ElasticsearchBinding).where(
+            ElasticsearchBinding.normalized_name == normalized_name
+        )
     )
-    if binding is None:
+    if binding_by_name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Elasticsearch binding not found: {binding_id}",
+            detail=f"Elasticsearch binding not found: {binding_name}",
         )
-    return binding
+    if binding_by_id is not None and binding_by_id.id != binding_by_name.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="binding_id and binding_name refer to different bindings.",
+        )
+    return binding_by_name
+
+
+def _runtime_context_response(
+    context: _RuntimeAliasContext, *, application_scope: dict[str, object] | None = None
+) -> RuntimeContextResponse:
+    binding = context.binding
+    if binding is None:
+        mode = "profile_preview"
+    elif context.snapshot_source == "binding_runtime_snapshot":
+        mode = "binding_runtime"
+    else:
+        mode = "binding_latest_profile"
+    return RuntimeContextResponse(
+        mode=mode,
+        profile_name=context.profile.name,
+        normalized_profile_name=context.profile.normalized_name,
+        binding_id=binding.id if binding is not None else None,
+        binding_name=binding.name if binding is not None else None,
+        normalized_binding_name=(
+            binding.normalized_name if binding is not None else None
+        ),
+        index_name=binding.index_name if binding is not None else None,
+        text_fields=list(binding.text_fields) if binding is not None else [],
+        target_field=binding.target_field if binding is not None else None,
+        filter_field=binding.filter_field if binding is not None else None,
+        filter_value=binding.filter_value if binding is not None else None,
+        snapshot_version=context.snapshot_version,
+        snapshot_source=context.snapshot_source,
+        application_scope=_sanitize_application_scope(application_scope or {}),
+    )
+
+
+def _sanitize_application_scope(scope: dict[str, object]) -> dict[str, object]:
+    sanitized: dict[str, object] = {}
+    for key, value in scope.items():
+        normalized_key = str(key).strip()
+        if not normalized_key:
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            sanitized[normalized_key] = value
+        else:
+            sanitized[normalized_key] = str(value)
+    return sanitized
 
 
 def _alias_entries_from_binding_snapshot(
@@ -284,6 +378,7 @@ def _alias_entries_from_runtime_entries(entries) -> list[_AliasEntry]:
             slot=entry.slot,
             confidence=entry.confidence,
             tags=tuple(getattr(entry, "tags", ()) or ()),
+            context_triggers=tuple(getattr(entry, "context_triggers", ()) or ()),
         )
         for entry in entries
     ]
@@ -360,6 +455,9 @@ def _active_alias_entries_for_profile(
                 slot=alias.term.slot,
                 confidence=alias.confidence,
                 tags=_tags_for_term(alias.term),
+                context_triggers=_normalize_context_triggers(
+                    getattr(alias, "context_triggers", []) or []
+                ),
             )
         )
     return entries
@@ -394,25 +492,77 @@ def _find_alias_matches(
     text: str, alias_entries: list[_AliasEntry]
 ) -> list[_CandidateMatch]:
     matches: list[_CandidateMatch] = []
+    normalized_text = normalize_value(text)
     for alias_entry in alias_entries:
+        matched_context_triggers = _matched_context_triggers(
+            normalized_text, alias_entry.context_triggers
+        )
+        if alias_entry.context_triggers and not matched_context_triggers:
+            continue
         pattern = _alias_pattern(alias_entry.alias_value)
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            reason = "Alias matched active canonical term"
+            source = "alias"
+            confidence = alias_entry.confidence
+            if alias_entry.context_triggers:
+                reason = (
+                    "Alias matched active canonical term with context trigger(s): "
+                    + ", ".join(matched_context_triggers)
+                )
+                source = "alias_context_trigger"
             matches.append(
                 _CandidateMatch(
                     alias_value=alias_entry.alias_value,
                     canonical_value=alias_entry.canonical_value,
                     slot=alias_entry.slot,
                     tags=alias_entry.tags,
+                    context_triggers=alias_entry.context_triggers,
+                    matched_context_triggers=matched_context_triggers,
                     matched_text=match.group(0),
                     start=match.start(),
                     end=match.end(),
-                    confidence=alias_entry.confidence,
+                    confidence=confidence,
+                    source=source,
+                    reason=reason,
                 )
             )
     return sorted(
         matches,
         key=lambda item: (item.start, -(item.end - item.start), item.alias_value),
     )
+
+
+def _matched_context_triggers(
+    normalized_text: str, context_triggers: tuple[str, ...]
+) -> tuple[str, ...]:
+    if not context_triggers:
+        return ()
+    matched: list[str] = []
+    for trigger in context_triggers:
+        normalized_trigger = normalize_value(trigger)
+        if not normalized_trigger:
+            continue
+        pattern = _alias_pattern(normalized_trigger)
+        if re.search(pattern, normalized_text, flags=re.IGNORECASE):
+            matched.append(normalized_trigger)
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for trigger in matched:
+        if trigger not in seen:
+            deduped.append(trigger)
+            seen.add(trigger)
+    return tuple(deduped)
+
+
+def _normalize_context_triggers(values: list[str]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized_value = normalize_value(str(value))
+        if normalized_value and normalized_value not in seen:
+            normalized.append(normalized_value)
+            seen.add(normalized_value)
+    return tuple(normalized)
 
 
 def _alias_pattern(alias_value: str) -> str:
@@ -462,6 +612,8 @@ def _match_response(match: _CandidateMatch) -> TextCanonicalizeMatch:
         canonical_value=match.canonical_value,
         slot=match.slot,
         tags=list(match.tags),
+        context_triggers=list(match.context_triggers),
+        matched_context_triggers=list(match.matched_context_triggers),
         matched_text=match.matched_text,
         start=match.start,
         end=match.end,

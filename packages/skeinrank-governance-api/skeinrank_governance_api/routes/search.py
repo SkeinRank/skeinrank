@@ -25,6 +25,10 @@ from ..schemas import (
     MultiSearchResponse,
     QueryPlanRequest,
     QueryPlanResponse,
+    RoutePlanBindingFailure,
+    RoutePlanBindingResponse,
+    RoutePlanRequest,
+    RoutePlanResponse,
     SearchHitResponse,
     SearchRequest,
     SearchResponse,
@@ -36,6 +40,7 @@ from .text import (
     _policy_decisions_for_matches,
     _replace_matches,
     _resolve_runtime_alias_context,
+    _runtime_context_response,
     _select_non_overlapping_matches,
     _slots_for_matches,
     _tags_for_matches,
@@ -72,6 +77,8 @@ def build_query_plan(
                 session=session,
                 profile_name=request.profile_name,
                 binding_id=request.binding_id,
+                binding_name=request.binding_name,
+                application_scope=request.application_scope,
                 query_text=request.query,
                 text_fields=request.text_fields,
                 target_field=request.target_field,
@@ -90,6 +97,123 @@ def build_query_plan(
     finally:
         record_runtime_search_request(
             endpoint="query_plan",
+            status=status_label,
+            duration_seconds=elapsed_seconds(started_at),
+        )
+
+
+@router.post("/query/route-plan", response_model=RoutePlanResponse)
+def build_route_plan(
+    request: RoutePlanRequest,
+    http_request: Request,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> RoutePlanResponse:
+    """Build a read-only route plan across candidate binding contexts.
+
+    The route planner canonicalizes the query once per candidate binding and
+    ranks the binding contexts. It does not execute Elasticsearch search and it
+    does not mutate dictionaries, bindings, snapshots, or proposals.
+    """
+
+    started_at = current_time()
+    status_label = "succeeded"
+    binding_ids, warnings = _deduplicate_binding_ids(request.candidate_binding_ids)
+    try:
+        config = http_request.app.state.config
+        with start_span(
+            "runtime.route_plan",
+            {
+                "skeinrank.runtime.endpoint": "query_route_plan",
+                "skeinrank.binding_ids_count": len(binding_ids),
+                **trace_query_text(config, request.query),
+            },
+        ):
+            planned_bindings: list[RoutePlanBindingResponse] = []
+            failed_bindings: list[RoutePlanBindingFailure] = []
+            for binding_id in binding_ids:
+                try:
+                    plan = _build_runtime_plan(
+                        session=session,
+                        profile_name=None,
+                        binding_id=binding_id,
+                        binding_name=None,
+                        application_scope=request.application_scope,
+                        query_text=request.query,
+                        text_fields=None,
+                        target_field=None,
+                        index_name=None,
+                        size=10,
+                        canonical_boost=request.canonical_boost,
+                        include_evidence=request.include_evidence,
+                        max_matches=request.max_matches,
+                        warn_without_binding=False,
+                        require_index=False,
+                    )
+                    score, score_reasons = _route_plan_score(
+                        plan, application_scope=request.application_scope
+                    )
+                    planned_bindings.append(
+                        _route_plan_binding_response(
+                            binding_id=binding_id,
+                            plan=plan,
+                            score=score,
+                            score_reasons=score_reasons,
+                        )
+                    )
+                except HTTPException as exc:
+                    failed_bindings.append(
+                        RoutePlanBindingFailure(
+                            binding_id=binding_id, error=str(exc.detail)
+                        )
+                    )
+
+            planned_bindings.sort(
+                key=lambda item: (item.score, bool(item.changed), item.binding_id),
+                reverse=True,
+            )
+            selected: list[RoutePlanBindingResponse] = []
+            rejected: list[RoutePlanBindingResponse] = []
+            for item in planned_bindings:
+                if (
+                    item.score >= request.min_score
+                    and len(selected) < request.max_selected_bindings
+                ):
+                    selected.append(item)
+                else:
+                    rejected.append(item)
+
+            if failed_bindings:
+                warnings.append(
+                    f"{len(failed_bindings)} candidate binding(s) could not be planned."
+                )
+            if not selected:
+                warnings.append(
+                    "No candidate bindings reached min_score; use application_scope, "
+                    "context_triggers, or an explicit binding_id for production routing."
+                )
+
+            return RoutePlanResponse(
+                query=request.query,
+                candidate_binding_ids=binding_ids,
+                selected_binding_ids=[item.binding_id for item in selected],
+                total_bindings=len(binding_ids),
+                selected_count=len(selected),
+                rejected_count=len(rejected),
+                failed_count=len(failed_bindings),
+                selected_bindings=selected,
+                rejected_bindings=rejected if request.include_rejected else [],
+                failed_bindings=failed_bindings,
+                warnings=warnings,
+            )
+    except Exception:
+        status_label = "failed"
+        raise
+    finally:
+        record_runtime_search_request(
+            endpoint="query_route_plan",
             status=status_label,
             duration_seconds=elapsed_seconds(started_at),
         )
@@ -125,6 +249,8 @@ def search_documents(
                 session=session,
                 profile_name=request.profile_name,
                 binding_id=request.binding_id,
+                binding_name=request.binding_name,
+                application_scope=request.application_scope,
                 query_text=request.query,
                 text_fields=request.text_fields,
                 target_field=request.target_field,
@@ -179,10 +305,13 @@ def search_documents(
                 canonical_query=plan["canonical_query"],
                 changed=plan["changed"],
                 binding_id=plan["binding_id"],
+                binding_name=plan["binding_name"],
                 snapshot_version=plan["snapshot_version"],
                 snapshot_source=plan["snapshot_source"],
+                runtime_context=plan["runtime_context"],
                 canonical_values=plan["canonical_values"],
                 slots=plan["slots"],
+                tags=plan["tags"],
                 matched_aliases=plan["matched_aliases"],
                 replacements=plan["replacements"],
                 evidence=plan["evidence"],
@@ -244,6 +373,8 @@ def search_multiple_bindings(
                 session=session,
                 profile_name=None,
                 binding_id=binding_id,
+                binding_name=None,
+                application_scope={},
                 query_text=request.query,
                 text_fields=None,
                 target_field=None,
@@ -348,11 +479,107 @@ def search_multiple_bindings(
     return response
 
 
+def _route_plan_binding_response(
+    *, binding_id: int, plan: dict[str, Any], score: float, score_reasons: list[str]
+) -> RoutePlanBindingResponse:
+    reason = score_reasons[0] if score_reasons else "no_alias_or_scope_match"
+    return RoutePlanBindingResponse(
+        binding_id=binding_id,
+        binding_name=plan["binding_name"],
+        profile_name=plan["profile_name"],
+        normalized_profile_name=plan["normalized_profile_name"],
+        index_name=plan["index_name"],
+        score=round(score, 4),
+        score_reasons=score_reasons,
+        reason=reason,
+        canonical_query=plan["canonical_query"],
+        changed=plan["changed"],
+        snapshot_version=plan["snapshot_version"],
+        snapshot_source=plan["snapshot_source"],
+        runtime_context=plan["runtime_context"],
+        canonical_values=plan["canonical_values"],
+        slots=plan["slots"],
+        tags=plan["tags"],
+        matched_aliases=plan["matched_aliases"],
+        replacements=plan["replacements"],
+        evidence=plan["evidence"],
+        policy_decisions=plan["policy_decisions"],
+        elasticsearch=plan["elasticsearch"],
+        warnings=plan["warnings"],
+    )
+
+
+def _route_plan_score(
+    plan: dict[str, Any], *, application_scope: dict[str, object]
+) -> tuple[float, list[str]]:
+    score = 0.0
+    reasons: list[str] = []
+    matched_aliases = plan.get("matched_aliases") or []
+    canonical_values = plan.get("canonical_values") or []
+    if matched_aliases:
+        score += min(0.6, 0.25 + 0.15 * len(matched_aliases))
+        reasons.append(f"matched_aliases:{len(matched_aliases)}")
+    if canonical_values:
+        score += min(0.2, 0.05 * len(canonical_values))
+        reasons.append(f"canonical_values:{len(canonical_values)}")
+    trigger_count = sum(
+        len(getattr(match, "matched_context_triggers", []) or [])
+        for match in plan.get("replacements", [])
+    )
+    if trigger_count:
+        score += min(0.15, 0.05 * trigger_count)
+        reasons.append(f"matched_context_triggers:{trigger_count}")
+    scope_hits = _route_scope_hits(plan, application_scope=application_scope)
+    if scope_hits:
+        score += min(0.15, 0.05 * len(scope_hits))
+        reasons.extend(f"application_scope:{item}" for item in scope_hits)
+    if plan.get("snapshot_source") == "binding_runtime_snapshot":
+        score += 0.05
+        reasons.append("binding_runtime_snapshot")
+    return min(1.0, score), reasons
+
+
+def _route_scope_hits(
+    plan: dict[str, Any], *, application_scope: dict[str, object]
+) -> list[str]:
+    if not application_scope:
+        return []
+    haystacks = [
+        plan.get("binding_name"),
+        plan.get("profile_name"),
+        plan.get("normalized_profile_name"),
+        plan.get("index_name"),
+    ]
+    runtime_context = plan.get("runtime_context")
+    if runtime_context is not None:
+        haystacks.extend(
+            [
+                getattr(runtime_context, "normalized_binding_name", None),
+                getattr(runtime_context, "filter_field", None),
+                getattr(runtime_context, "filter_value", None),
+            ]
+        )
+    normalized_haystack = " ".join(
+        str(item).lower().replace("_", " ").replace("-", " ")
+        for item in haystacks
+        if item
+    )
+    hits: list[str] = []
+    for key, value in application_scope.items():
+        if isinstance(value, (str, int, float)):
+            needle = str(value).strip().lower().replace("_", " ").replace("-", " ")
+            if needle and needle in normalized_haystack:
+                hits.append(str(key))
+    return hits
+
+
 def _build_runtime_plan(
     *,
     session: Session,
     profile_name: str | None,
     binding_id: int | None,
+    binding_name: str | None,
+    application_scope: dict[str, object],
     query_text: str,
     text_fields: list[str] | None,
     target_field: str | None,
@@ -365,7 +592,10 @@ def _build_runtime_plan(
     require_index: bool,
 ) -> dict[str, Any]:
     context = _resolve_runtime_alias_context(
-        session=session, profile_name=profile_name, binding_id=binding_id
+        session=session,
+        profile_name=profile_name,
+        binding_id=binding_id,
+        binding_name=binding_name,
     )
     profile = context.profile
     binding = context.binding
@@ -391,6 +621,8 @@ def _build_runtime_plan(
                 canonical_value=match.canonical_value,
                 slot=match.slot,
                 tags=list(match.tags),
+                context_triggers=list(match.context_triggers),
+                matched_context_triggers=list(match.matched_context_triggers),
                 matched_text=match.matched_text,
                 start=match.start,
                 end=match.end,
@@ -428,8 +660,12 @@ def _build_runtime_plan(
         "target_field": resolved_target_field,
         "index_name": resolved_index_name,
         "binding_id": binding.id if binding is not None else None,
+        "binding_name": binding.name if binding is not None else None,
         "snapshot_version": context.snapshot_version,
         "snapshot_source": context.snapshot_source,
+        "runtime_context": _runtime_context_response(
+            context, application_scope=application_scope
+        ),
         "canonical_values": canonical_values,
         "slots": slots,
         "tags": tags,
