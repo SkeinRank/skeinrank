@@ -1,0 +1,40 @@
+# Values used by the optional kind smoke test.
+#
+# The smoke test validates that the chart can be installed into a Kubernetes API
+# server without starting application pods or requiring PostgreSQL, RabbitMQ, or
+# Elasticsearch/OpenSearch. This keeps the check fast and safe for CI and local
+# laptops.
+
+image:
+  tag: v0.10.0-beta.1
+  pullPolicy: IfNotPresent
+
+config:
+  authEnabled: false
+  bootstrapAdmin: false
+  corsOrigins: "http://localhost:5173"
+  elasticsearchUrl: "http://elasticsearch.skeinrank-smoke:9200"
+  uiGovernanceApiUrl: "http://localhost:8010"
+
+governanceApi:
+  replicaCount: 0
+
+governanceWorker:
+  replicaCount: 0
+
+ui:
+  replicaCount: 0
+
+migrations:
+  enabled: false
+
+ingress:
+  enabled: false
+
+podDisruptionBudgets:
+  governanceApi:
+    enabled: false
+  governanceWorker:
+    enabled: false
+  ui:
+    enabled: false

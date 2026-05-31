@@ -143,13 +143,31 @@ It demonstrates:
 See [`helm-production.md`](helm-production.md) for the production values guide and
 preflight checklist.
 
+## Optional kind smoke test
+
+For Kubernetes API validation without starting application pods, use the optional
+kind smoke test:
+
+```bash
+bash scripts/helm/smoke_kind.sh
+```
+
+The smoke test installs the chart with zero replicas and disables the migration
+Job through:
+
+```text
+charts/skeinrank/values-kind-smoke.yaml
+```
+
+See [`helm-smoke-test.md`](helm-smoke-test.md) for local and GitHub Actions usage.
+
 ## Current alpha limitations
 
 - External dependencies are required; the chart does not bundle databases or search backends.
 - No persistent volumes are rendered by this chart.
 - Ingress is optional but still requires your own controller, DNS, and TLS strategy.
 - The migration job is rendered as a regular release resource by default; Helm hook mode is available but disabled in alpha values.
-- The chart is validated with `helm lint` and `helm template`; full kind/k3d smoke tests are planned separately.
+- The chart is validated with `helm lint` and `helm template`; an optional kind smoke test is available in [`helm-smoke-test.md`](helm-smoke-test.md).
 
 For one-machine evaluation, use the release Compose stack first:
 [`release-compose.md`](release-compose.md).

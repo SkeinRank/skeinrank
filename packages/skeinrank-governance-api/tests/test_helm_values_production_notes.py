@@ -104,7 +104,7 @@ def test_helm_production_docs_are_discoverable() -> None:
         "Resource requests and limits",
         "Pod disruption budgets",
         "Preflight checklist",
-        "Full kind/k3d smoke tests are intentionally handled in a later patch",
+        "optional kind smoke test is available",
     ):
         assert fragment in production_doc
 

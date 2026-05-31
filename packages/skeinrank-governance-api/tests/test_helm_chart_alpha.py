@@ -133,7 +133,7 @@ def test_helm_docs_are_discoverable_and_state_alpha_limitations() -> None:
         "SKEINRANK_GOVERNANCE_API_DATABASE_URL",
         "The chart is intentionally small in this first alpha",
         "Helm hook mode is available but disabled in alpha values",
-        "full kind/k3d smoke tests are planned separately",
+        "optional kind smoke test is available",
     ):
         assert fragment in helm_doc
 

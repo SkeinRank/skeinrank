@@ -183,4 +183,4 @@ Before using the chart outside local testing:
 - Render the chart with `helm template` and inspect the manifests.
 - Run the Compose beta stack first when evaluating SkeinRank on one machine.
 
-Full kind/k3d smoke tests are intentionally handled in a later patch.
+An optional kind smoke test is available in [`helm-smoke-test.md`](helm-smoke-test.md). It validates chart installation against a live Kubernetes API server without starting application pods or external dependencies.

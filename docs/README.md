@@ -20,6 +20,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/release-compose.md`](deployment/release-compose.md) — release Compose runbook using published GHCR images.
 - [`deployment/helm-chart.md`](deployment/helm-chart.md) — alpha Helm chart for Kubernetes installs using external PostgreSQL, RabbitMQ, and Elasticsearch/OpenSearch.
 - [`deployment/helm-production.md`](deployment/helm-production.md) — production-oriented Helm values, ingress, PDB, resources, and secret strategy.
+- [`deployment/helm-smoke-test.md`](deployment/helm-smoke-test.md) — optional kind smoke test for validating the Helm chart against a live Kubernetes API server.
 
 - [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
 - [`concepts/terminology-control-plane.md`](concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.

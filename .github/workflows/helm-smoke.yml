@@ -1,0 +1,44 @@
+name: helm-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Existing GHCR image tag to render in the Helm smoke test"
+        required: true
+        default: "v0.10.0-beta.1"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  kind-smoke:
+    name: optional kind helm smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - name: Install kind
+        run: |
+          curl -fsSL -o kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x kind
+          sudo mv kind /usr/local/bin/kind
+          kind version
+
+      - name: Run optional kind smoke test
+        env:
+          SKEINRANK_IMAGE_TAG: ${{ inputs.image_tag }}
+        run: bash scripts/helm/smoke_kind.sh
