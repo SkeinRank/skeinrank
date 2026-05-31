@@ -14,6 +14,26 @@ The development stack starts:
 
 The dev stack is intended for local development and smoke testing. It is not a production security profile. Use `docker-compose.prod.yml` together with `docs/deployment/security.md` for the production-oriented profile.
 
+
+## Public beta release stack
+
+From the repository root, the default `docker-compose.yml` uses prebuilt GHCR images instead of local builds:
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+This pulls:
+
+```text
+ghcr.io/skeinrank/skeinrank-governance-api:${SKEINRANK_IMAGE_TAG:-v0.10.0-beta.1}
+ghcr.io/skeinrank/skeinrank-governance-worker:${SKEINRANK_IMAGE_TAG:-v0.10.0-beta.1}
+ghcr.io/skeinrank/skeinrank-ui:${SKEINRANK_IMAGE_TAG:-v0.10.0-beta.1}
+```
+
+See `docs/deployment/release-compose.md` for the low-friction public beta path.
+
 ## Quick start
 
 From the repository root:

@@ -391,6 +391,7 @@ Start here:
 
 Deployment docs:
 
+- [`docs/deployment/docker-images.md`](docs/deployment/docker-images.md) — GHCR image publishing, automatic tag builds, and manual rebuilds for existing tags.
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md)
 - [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md)
 - [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md)
@@ -442,14 +443,39 @@ The GitHub Actions workflow runs Ruff, package tests, UI type checks/tests/build
 
 ## Docker Compose dev stack
 
-SkeinRank includes Compose profiles for local development, headless runtime, and production-oriented deployment.
+Use the dev stack when you want to build SkeinRank from source and run the full local preview with PostgreSQL, Elasticsearch, RabbitMQ, the Governance API, worker, and UI. See [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) for the full install flow, [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md) for common local failures, [`docs/deployment/security.md`](docs/deployment/security.md) for deployment/security notes, and [`docker-compose.prod.yml`](docker-compose.prod.yml) for the production-oriented Compose template.
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
+## Docker images and Compose
+
+Release images are published to GHCR by `.github/workflows/docker-publish.yml`. The workflow runs automatically for `v*` git tags and can be launched manually for an existing tag such as `v0.10.0-beta.1`. See [`docs/deployment/docker-images.md`](docs/deployment/docker-images.md).
+
+Run the public beta from prebuilt GHCR images:
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+`docker-compose.yml` pulls the API, worker, and UI images automatically. Users do not need to run separate `docker pull` commands. See [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md).
+
+## Docker Compose stacks
+
+SkeinRank includes Compose profiles for release evaluation, local development, headless runtime, and production-oriented deployment.
 
 Main files:
 
-- [`docker-compose.dev.yml`](docker-compose.dev.yml) — local development stack.
+- [`docker-compose.yml`](docker-compose.yml) — release stack using GHCR images.
+- [`.env.example`](.env.example) — release Compose environment template.
+- [`docker-compose.dev.yml`](docker-compose.dev.yml) — local development stack built from source.
 - [`docker-compose.headless.yml`](docker-compose.headless.yml) — API/PostgreSQL-only headless stack.
 - [`docker-compose.prod.yml`](docker-compose.prod.yml) — production-oriented stack.
 - [`.env.production.example`](.env.production.example) — production Compose environment template.
+- [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md) — public beta release stack with GHCR images.
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) — full local setup, including dictionary import, create demo Elasticsearch index, run enrichment job, and runtime search.
 - [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md) — local stack troubleshooting.
 - [`docs/deployment/security.md`](docs/deployment/security.md) — deployment and security notes.

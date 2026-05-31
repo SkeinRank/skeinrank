@@ -1,0 +1,104 @@
+name: publish-docker-images
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Existing git tag to publish as Docker image tag, for example v0.10.0-beta.1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-publish-${{ github.event_name }}-${{ inputs.image_tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: skeinrank
+
+jobs:
+  publish:
+    name: Build and push ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: skeinrank-governance-api
+            dockerfile: deploy/docker/governance-api.Dockerfile
+            description: Governance API, migrations, and CLI runtime
+          - image: skeinrank-governance-worker
+            dockerfile: deploy/docker/governance-api.Dockerfile
+            description: Governance worker runtime; Compose overrides the command
+          - image: skeinrank-ui
+            dockerfile: deploy/docker/ui.Dockerfile
+            description: React governance console
+
+    steps:
+      - name: Resolve release ref and image tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.image_tag }}"
+            ref="${{ inputs.image_tag }}"
+          elif [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            ref="${GITHUB_REF}"
+          else
+            echo "This workflow only publishes pushed git tags or manually selected tags." >&2
+            exit 1
+          fi
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9.]+)?$ ]]; then
+            echo "image_tag must look like v0.10.0 or v0.10.0-beta.1; got: $tag" >&2
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.ref }}
+
+      - name: Capture checked-out revision
+        id: checkout_revision
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ steps.release.outputs.tag }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=https://github.com/SkeinRank/skeinrank
+            org.opencontainers.image.revision=${{ steps.checkout_revision.outputs.sha }}
+            org.opencontainers.image.version=${{ steps.release.outputs.tag }}

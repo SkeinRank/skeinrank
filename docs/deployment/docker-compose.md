@@ -1,5 +1,39 @@
 # Docker Compose full stack install guide
 
+This guide covers both public-beta release Compose and the source-built development stack.
+
+## Public beta quick start using GHCR images
+
+Use the root `docker-compose.yml` when you want to try SkeinRank from published GHCR images without building the Python API or React UI locally:
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+Open:
+
+```text
+UI:        http://127.0.0.1:5173
+API docs:  http://127.0.0.1:8010/docs
+```
+
+Then load the guided demo:
+
+```bash
+make demo-reset
+```
+
+The release stack uses one image tag variable for the SkeinRank service images:
+
+```env
+SKEINRANK_IMAGE_TAG=v0.10.0-beta.1
+```
+
+Full release-compose notes are in [`release-compose.md`](release-compose.md).
+
+## Source-built development stack
+
 This guide shows how to run the SkeinRank governance platform locally as a full development stack.
 
 The stack is intended for local development, integration testing, and product smoke tests. It starts the components needed to verify the main SkeinRank flow end-to-end:

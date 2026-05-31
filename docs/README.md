@@ -57,7 +57,9 @@ This directory keeps repository-level documentation for developers, operators, a
 
 ## Deployment
 
-- [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.
+- [`deployment/docker-images.md`](deployment/docker-images.md) — GHCR image publishing, automatic tag builds, and manual rebuilds for existing tags.
+- [`deployment/release-compose.md`](deployment/release-compose.md) — public beta Compose stack using published GHCR images.
+- [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack and release quickstart.
 - [`deployment/headless-quickstart.md`](deployment/headless-quickstart.md) — API/PostgreSQL-only golden path for headless integrations.
 - [`deployment/gitops-delivery-runbook.md`](deployment/gitops-delivery-runbook.md) — GitLab CI / ArgoCD / Flux delivery runbook for Terminology-as-Code runtime artifacts.
 - [`deployment/blue-green-alias-swap-runbook.md`](deployment/blue-green-alias-swap-runbook.md) — production-oriented blue/green alias-swap runbook for Elasticsearch enrichment.
