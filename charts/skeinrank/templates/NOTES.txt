@@ -1,0 +1,17 @@
+SkeinRank Helm chart alpha has been rendered.
+
+Services:
+  Governance API: {{ include "skeinrank.fullname" . }}-governance-api:{{ .Values.governanceApi.service.port }}
+  UI:             {{ include "skeinrank.fullname" . }}-ui:{{ .Values.ui.service.port }}
+
+The chart expects external PostgreSQL, RabbitMQ, and Elasticsearch/OpenSearch endpoints.
+For local inspection, port-forward the services:
+
+  kubectl port-forward svc/{{ include "skeinrank.fullname" . }}-governance-api 8010:{{ .Values.governanceApi.service.port }}
+  kubectl port-forward svc/{{ include "skeinrank.fullname" . }}-ui 5173:{{ .Values.ui.service.port }}
+
+Then open:
+  API: http://127.0.0.1:8010/livez
+  UI:  http://127.0.0.1:5173
+
+Before production use, set secrets.existingSecret or override secrets.* values.

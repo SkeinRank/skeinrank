@@ -392,6 +392,9 @@ Start here:
 Deployment docs:
 
 - [`docs/deployment/docker-images.md`](docs/deployment/docker-images.md) — GHCR image publishing, automatic tag builds, and manual rebuilds for existing tags.
+- [`docs/deployment/helm-chart.md`](docs/deployment/helm-chart.md) — alpha Helm chart for Kubernetes installs using the published GHCR images.
+- [`docs/deployment/helm-production.md`](docs/deployment/helm-production.md) — production-oriented Helm values, ingress, PDB, resources, and secret strategy.
+- [`docs/deployment/helm-smoke-test.md`](docs/deployment/helm-smoke-test.md) — optional kind smoke test for the alpha Helm chart.
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md)
 - [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md)
 - [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md)
@@ -471,6 +474,7 @@ Main files:
 
 - [`docker-compose.yml`](docker-compose.yml) — release stack using GHCR images.
 - [`.env.example`](.env.example) — release Compose environment template.
+- [`charts/skeinrank`](charts/skeinrank) — alpha Helm chart for Kubernetes installs using the same GHCR images.
 - [`docker-compose.dev.yml`](docker-compose.dev.yml) — local development stack built from source.
 - [`docker-compose.headless.yml`](docker-compose.headless.yml) — API/PostgreSQL-only headless stack.
 - [`docker-compose.prod.yml`](docker-compose.prod.yml) — production-oriented stack.

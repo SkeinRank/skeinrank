@@ -1,0 +1,59 @@
+{{- if .Values.podDisruptionBudgets.governanceApi.enabled -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "skeinrank.fullname" . }}-governance-api
+  labels:
+    {{- include "skeinrank.labels" . | nindent 4 }}
+    app.kubernetes.io/component: governance-api
+spec:
+  {{- if .Values.podDisruptionBudgets.governanceApi.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudgets.governanceApi.minAvailable }}
+  {{- else if .Values.podDisruptionBudgets.governanceApi.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudgets.governanceApi.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skeinrank.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: governance-api
+---
+{{- end }}
+{{- if .Values.podDisruptionBudgets.governanceWorker.enabled -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "skeinrank.fullname" . }}-governance-worker
+  labels:
+    {{- include "skeinrank.labels" . | nindent 4 }}
+    app.kubernetes.io/component: governance-worker
+spec:
+  {{- if .Values.podDisruptionBudgets.governanceWorker.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudgets.governanceWorker.minAvailable }}
+  {{- else if .Values.podDisruptionBudgets.governanceWorker.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudgets.governanceWorker.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skeinrank.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: governance-worker
+---
+{{- end }}
+{{- if .Values.podDisruptionBudgets.ui.enabled -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "skeinrank.fullname" . }}-ui
+  labels:
+    {{- include "skeinrank.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+spec:
+  {{- if .Values.podDisruptionBudgets.ui.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudgets.ui.minAvailable }}
+  {{- else if .Values.podDisruptionBudgets.ui.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudgets.ui.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skeinrank.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ui
+{{- end }}

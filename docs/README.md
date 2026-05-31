@@ -16,6 +16,11 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`pilots/troubleshooting-bundle-export.md`](pilots/troubleshooting-bundle-export.md) — 54B sanitized support bundle export for pilot troubleshooting.
 - [`pilots/support-bundle-production.md`](pilots/support-bundle-production.md) — 56B production-style support bundle with logs, config inventory, health snapshots, alert/degraded-state snapshots, and last agent runs.
 - [`deployment/alerting-hooks-degraded-state-reports.md`](deployment/alerting-hooks-degraded-state-reports.md) — 56A read-only alerting hook payload previews and degraded-state reports.
+- [`deployment/docker-images.md`](deployment/docker-images.md) — GHCR image publishing for release tags and manual rebuilds.
+- [`deployment/release-compose.md`](deployment/release-compose.md) — release Compose runbook using published GHCR images.
+- [`deployment/helm-chart.md`](deployment/helm-chart.md) — alpha Helm chart for Kubernetes installs using external PostgreSQL, RabbitMQ, and Elasticsearch/OpenSearch.
+- [`deployment/helm-production.md`](deployment/helm-production.md) — production-oriented Helm values, ingress, PDB, resources, and secret strategy.
+- [`deployment/helm-smoke-test.md`](deployment/helm-smoke-test.md) — optional kind smoke test for validating the Helm chart against a live Kubernetes API server.
 
 - [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
 - [`concepts/terminology-control-plane.md`](concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.

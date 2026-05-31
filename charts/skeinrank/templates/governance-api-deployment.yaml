@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "skeinrank.fullname" . }}-governance-api
+  labels:
+    {{- include "skeinrank.labels" . | nindent 4 }}
+    app.kubernetes.io/component: governance-api
+spec:
+  replicas: {{ .Values.governanceApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "skeinrank.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: governance-api
+  template:
+    metadata:
+      labels:
+        {{- include "skeinrank.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: governance-api
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "skeinrank.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.governanceApi.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: governance-api
+          image: {{ include "skeinrank.image" (dict "root" . "repository" .Values.governanceApi.image.repository) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["skeinrank-governance-api"]
+          args: ["--host", "0.0.0.0", "--port", "{{ .Values.governanceApi.containerPort }}"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.governanceApi.containerPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "skeinrank.fullname" . }}-config
+            - secretRef:
+                name: {{ include "skeinrank.secretName" . }}
+          {{- with .Values.governanceApi.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.governanceApi.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.governanceApi.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.governanceApi.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.governanceApi.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.governanceApi.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.governanceApi.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,125 @@
+# Production-oriented override example for the SkeinRank Helm chart.
+#
+# Copy this file and replace all example hosts, Secret names, and resource values
+# before applying it to a real cluster. The chart still expects external
+# PostgreSQL, RabbitMQ, and Elasticsearch/OpenSearch services.
+
+image:
+  tag: v0.10.0-beta.1
+  pullPolicy: IfNotPresent
+
+config:
+  env: production
+  apiEnv: production
+  logLevel: info
+  logFormat: json
+  accessLogEnabled: true
+  authEnabled: true
+  bootstrapAdmin: false
+  corsOrigins: "https://skeinrank.example.com"
+  elasticsearchUrl: "https://opensearch.example.com:9200"
+  elasticsearchTimeoutSeconds: "10"
+  enrichmentJobsBackend: celery
+  celeryTaskQueue: skeinrank.enrichment
+  observabilityEnabled: true
+  metricsEnabled: true
+  metricsPath: /metrics
+  requestIdHeader: X-Request-ID
+  tracingEnabled: false
+  otelTracesExporter: none
+  otelExporterOtlpEndpoint: "http://otel-collector.observability:4317"
+  uiGovernanceApiUrl: "https://api.skeinrank.example.com"
+
+secrets:
+  # Recommended for production. The chart will not render Secret stringData when this is set.
+  existingSecret: skeinrank-runtime-secrets
+
+governanceApi:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  livenessProbe:
+    httpGet:
+      path: /livez
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+governanceWorker:
+  replicaCount: 1
+  pool: solo
+  concurrency: "1"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+ui:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+migrations:
+  enabled: true
+  hook:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+  ui:
+    enabled: true
+    host: skeinrank.example.com
+    path: /
+    pathType: Prefix
+    tlsSecretName: skeinrank-ui-tls
+  api:
+    enabled: true
+    host: api.skeinrank.example.com
+    path: /
+    pathType: Prefix
+    tlsSecretName: skeinrank-api-tls
+  tls: []
+
+podDisruptionBudgets:
+  governanceApi:
+    enabled: true
+    minAvailable: 1
+  governanceWorker:
+    enabled: false
+    minAvailable: 1
+  ui:
+    enabled: true
+    minAvailable: 1

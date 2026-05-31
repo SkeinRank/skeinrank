@@ -85,6 +85,8 @@ Set `SKEINRANK_IMAGE_TAG` in `.env` to select the release tag. See
 
 Most users should not need to run `docker pull` directly. Release Compose and
 Helm values should reference the images and Docker will pull them automatically.
+See [`helm-chart.md`](helm-chart.md) for the alpha Kubernetes chart. Use [`helm-smoke-test.md`](helm-smoke-test.md) when you want to validate Helm rendering against a temporary kind cluster.
+For production-oriented chart values, see [`helm-production.md`](helm-production.md).
 Manual pulls are useful for debugging:
 
 ```bash
