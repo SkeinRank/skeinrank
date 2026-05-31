@@ -68,6 +68,19 @@ docker build -f deploy/docker/governance-api.Dockerfile -t skeinrank-governance-
 docker build -f deploy/docker/ui.Dockerfile -t skeinrank-ui:local .
 ```
 
+
+## Running the release stack
+
+After images are published, the default Compose entrypoint pulls them automatically:
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+Set `SKEINRANK_IMAGE_TAG` in `.env` to select the release tag. See
+[`release-compose.md`](release-compose.md) for the complete public beta runbook.
+
 ## Pulling images manually
 
 Most users should not need to run `docker pull` directly. Release Compose and
