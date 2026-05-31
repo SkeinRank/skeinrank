@@ -57,6 +57,7 @@ This directory keeps repository-level documentation for developers, operators, a
 
 ## Deployment
 
+- [`deployment/docker-images.md`](deployment/docker-images.md) — GHCR image publishing, automatic tag builds, and manual rebuilds for existing tags.
 - [`deployment/docker-compose.md`](deployment/docker-compose.md) — full Docker Compose dev stack.
 - [`deployment/headless-quickstart.md`](deployment/headless-quickstart.md) — API/PostgreSQL-only golden path for headless integrations.
 - [`deployment/gitops-delivery-runbook.md`](deployment/gitops-delivery-runbook.md) — GitLab CI / ArgoCD / Flux delivery runbook for Terminology-as-Code runtime artifacts.

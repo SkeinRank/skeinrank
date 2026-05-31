@@ -391,6 +391,7 @@ Start here:
 
 Deployment docs:
 
+- [`docs/deployment/docker-images.md`](docs/deployment/docker-images.md) — GHCR image publishing, automatic tag builds, and manual rebuilds for existing tags.
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md)
 - [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md)
 - [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md)
@@ -439,6 +440,10 @@ poetry run pytest -q
 ```
 
 The GitHub Actions workflow runs Ruff, package tests, UI type checks/tests/builds, and Docker/deployment smoke checks.
+
+## Docker images and Compose
+
+Release images are published to GHCR by `.github/workflows/docker-publish.yml`. The workflow runs automatically for `v*` git tags and can be launched manually for an existing tag such as `v0.10.0-beta.1`. See [`docs/deployment/docker-images.md`](docs/deployment/docker-images.md).
 
 ## Docker Compose dev stack
 
