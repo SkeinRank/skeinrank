@@ -1,0 +1,191 @@
+# SkeinRank Helm chart alpha values.
+#
+# This chart installs the SkeinRank control-plane services only:
+# - governance API
+# - governance worker
+# - React UI
+# - migration Job
+#
+# It intentionally does not deploy PostgreSQL, RabbitMQ, or Elasticsearch.
+# Point the chart at managed/external services through config values or an existing Secret.
+
+image:
+  registry: ghcr.io
+  namespace: skeinrank
+  tag: v0.10.0-beta.1
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+imagePullSecrets: []
+
+config:
+  env: production
+  apiEnv: production
+  logLevel: info
+  logFormat: json
+  accessLogEnabled: true
+  authEnabled: true
+  bootstrapAdmin: true
+  adminUsername: admin
+  adminDisplayName: SkeinRank Admin
+  corsOrigins: "http://localhost:5173"
+  elasticsearchUrl: "http://elasticsearch:9200"
+  elasticsearchTimeoutSeconds: "10"
+  enrichmentJobsBackend: celery
+  celeryTaskQueue: skeinrank.enrichment
+  enrichmentChunkSize: "500"
+  observabilityEnabled: true
+  metricsEnabled: true
+  metricsPath: /metrics
+  requestIdHeader: X-Request-ID
+  tracingEnabled: false
+  otelServiceName: skeinrank-governance-api
+  otelTracesExporter: none
+  otelExporterOtlpEndpoint: "http://otel-collector:4317"
+  otelSamplingRatio: "1.0"
+  otelCaptureQueryText: false
+  uiGovernanceApiUrl: "http://localhost:8010"
+
+secrets:
+  # Use existingSecret in production. When set, stringData below is not rendered.
+  existingSecret: ""
+  keys:
+    databaseUrl: SKEINRANK_GOVERNANCE_API_DATABASE_URL
+    adminPassword: SKEINRANK_GOVERNANCE_API_ADMIN_PASSWORD
+    celeryBrokerUrl: SKEINRANK_GOVERNANCE_API_CELERY_BROKER_URL
+    elasticsearchUsername: SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_USERNAME
+    elasticsearchPassword: SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_PASSWORD
+    elasticsearchApiKey: SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY
+  # Alpha defaults are intentionally local/demo oriented. Override before production use.
+  databaseUrl: "postgresql+psycopg://app_user:skeinrank_dev_password@postgres:5432/app_db"
+  adminPassword: "change-me"
+  celeryBrokerUrl: "amqp://skeinrank:skeinrank_dev_password@rabbitmq:5672//"
+  elasticsearchUsername: ""
+  elasticsearchPassword: ""
+  elasticsearchApiKey: ""
+
+governanceApi:
+  replicaCount: 1
+  image:
+    repository: skeinrank-governance-api
+  service:
+    type: ClusterIP
+    port: 8010
+  containerPort: 8010
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+  livenessProbe:
+    httpGet:
+      path: /livez
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+governanceWorker:
+  replicaCount: 1
+  image:
+    repository: skeinrank-governance-worker
+  logLevel: info
+  pool: solo
+  concurrency: "1"
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+
+ui:
+  replicaCount: 1
+  image:
+    repository: skeinrank-ui
+  service:
+    type: ClusterIP
+    port: 5173
+  containerPort: 5173
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 6
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+migrations:
+  enabled: true
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  # Hook mode is available but disabled by default in the alpha chart so the
+  # migration Job remains a regular release resource that can reference the
+  # chart-managed ConfigMap and Secret.
+  hook:
+    enabled: false
+    deletePolicy: before-hook-creation,hook-succeeded
+  resources: {}
+
+# Ingress stays disabled in the alpha chart. Add an ingress controller and host values before enabling.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: skeinrank.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

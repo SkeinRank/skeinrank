@@ -1,0 +1,19 @@
+apiVersion: v2
+name: skeinrank
+description: SkeinRank Domain Language Control Plane for search, RAG, and AI agents.
+type: application
+version: 0.1.0
+appVersion: "v0.10.0-beta.1"
+home: https://skeinrank.github.io
+sources:
+  - https://github.com/SkeinRank/skeinrank
+keywords:
+  - skeinrank
+  - search
+  - rag
+  - terminology
+  - governance
+  - mcp
+maintainers:
+  - name: SkeinRank maintainers
+    url: https://github.com/SkeinRank

@@ -1,0 +1,45 @@
+{{- if .Values.migrations.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "skeinrank.fullname" . }}-governance-migrate
+  labels:
+    {{- include "skeinrank.labels" . | nindent 4 }}
+    app.kubernetes.io/component: governance-migrate
+  {{- if .Values.migrations.hook.enabled }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": {{ .Values.migrations.hook.deletePolicy | quote }}
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "skeinrank.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: governance-migrate
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "skeinrank.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: governance-migrate
+          image: {{ include "skeinrank.image" (dict "root" . "repository" .Values.governanceApi.image.repository) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "skeinrank_governance_api.migrations", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "skeinrank.fullname" . }}-config
+            - secretRef:
+                name: {{ include "skeinrank.secretName" . }}
+          {{- with .Values.migrations.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

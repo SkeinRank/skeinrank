@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "skeinrank.fullname" . }}-config
+  labels:
+    {{- include "skeinrank.labels" . | nindent 4 }}
+data:
+  SKEINRANK_ENV: {{ .Values.config.env | quote }}
+  SKEINRANK_GOVERNANCE_API_ENV: {{ .Values.config.apiEnv | quote }}
+  SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_URL: {{ .Values.config.elasticsearchUrl | quote }}
+  SKEINRANK_GOVERNANCE_API_AUTH_ENABLED: {{ .Values.config.authEnabled | quote }}
+  SKEINRANK_GOVERNANCE_API_BOOTSTRAP_ADMIN: {{ .Values.config.bootstrapAdmin | quote }}
+  SKEINRANK_GOVERNANCE_API_ADMIN_USERNAME: {{ .Values.config.adminUsername | quote }}
+  SKEINRANK_GOVERNANCE_API_ADMIN_DISPLAY_NAME: {{ .Values.config.adminDisplayName | quote }}
+  SKEINRANK_GOVERNANCE_API_CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
+  SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_TIMEOUT_SECONDS: {{ .Values.config.elasticsearchTimeoutSeconds | quote }}
+  SKEINRANK_GOVERNANCE_API_ENRICHMENT_JOBS_BACKEND: {{ .Values.config.enrichmentJobsBackend | quote }}
+  SKEINRANK_GOVERNANCE_API_CELERY_TASK_QUEUE: {{ .Values.config.celeryTaskQueue | quote }}
+  SKEINRANK_GOVERNANCE_API_ENRICHMENT_CHUNK_SIZE: {{ .Values.config.enrichmentChunkSize | quote }}
+  SKEINRANK_GOVERNANCE_API_OBSERVABILITY_ENABLED: {{ .Values.config.observabilityEnabled | quote }}
+  SKEINRANK_GOVERNANCE_API_LOG_FORMAT: {{ .Values.config.logFormat | quote }}
+  SKEINRANK_GOVERNANCE_API_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  SKEINRANK_GOVERNANCE_API_ACCESS_LOG_ENABLED: {{ .Values.config.accessLogEnabled | quote }}
+  SKEINRANK_GOVERNANCE_API_REQUEST_ID_HEADER: {{ .Values.config.requestIdHeader | quote }}
+  SKEINRANK_GOVERNANCE_API_METRICS_ENABLED: {{ .Values.config.metricsEnabled | quote }}
+  SKEINRANK_GOVERNANCE_API_METRICS_PATH: {{ .Values.config.metricsPath | quote }}
+  SKEINRANK_GOVERNANCE_API_TRACING_ENABLED: {{ .Values.config.tracingEnabled | quote }}
+  SKEINRANK_GOVERNANCE_API_OTEL_SERVICE_NAME: {{ .Values.config.otelServiceName | quote }}
+  SKEINRANK_GOVERNANCE_API_OTEL_TRACES_EXPORTER: {{ .Values.config.otelTracesExporter | quote }}
+  SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelExporterOtlpEndpoint | quote }}
+  SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO: {{ .Values.config.otelSamplingRatio | quote }}
+  SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT: {{ .Values.config.otelCaptureQueryText | quote }}
+  VITE_SKEINRANK_GOVERNANCE_API_URL: {{ .Values.config.uiGovernanceApiUrl | quote }}
