@@ -6,7 +6,135 @@ on:
     branches: [main]
 
 jobs:
+  changes:
+    name: route changed files
+    runs-on: ubuntu-latest
+    outputs:
+      force_all: ${{ steps.filter.outputs.force_all }}
+      python_any: ${{ steps.filter.outputs.python_any }}
+      docs_contracts: ${{ steps.filter.outputs.docs_contracts }}
+      core: ${{ steps.filter.outputs.core }}
+      server: ${{ steps.filter.outputs.server }}
+      provider_elasticsearch: ${{ steps.filter.outputs.provider_elasticsearch }}
+      governance: ${{ steps.filter.outputs.governance }}
+      governance_api: ${{ steps.filter.outputs.governance_api }}
+      ui: ${{ steps.filter.outputs.ui }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: filter
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          zero_sha="0000000000000000000000000000000000000000"
+          head_sha="$GITHUB_SHA"
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+          elif [[ -n "${GITHUB_EVENT_BEFORE:-}" && "$GITHUB_EVENT_BEFORE" != "$zero_sha" ]]; then
+            base_sha="$GITHUB_EVENT_BEFORE"
+          else
+            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-list --max-parents=0 "$head_sha")"
+          fi
+
+          git diff --name-only "$base_sha" "$head_sha" > /tmp/skeinrank-changed-files.txt
+          echo "Changed files:"
+          sed 's/^/  - /' /tmp/skeinrank-changed-files.txt
+
+          python - <<'PY'
+          from pathlib import Path
+
+          changed = [
+              line.strip()
+              for line in Path("/tmp/skeinrank-changed-files.txt").read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+
+          def matches(*prefixes: str, exact: tuple[str, ...] = ()) -> bool:
+              return any(path.startswith(prefixes) or path in exact for path in changed)
+
+          force_all = matches(
+              ".github/workflows/ci.yml",
+              exact=(
+                  "ruff.toml",
+                  "requirements-dev.txt",
+                  ".pre-commit-config.yaml",
+              ),
+          )
+
+          core = matches("packages/skeinrank-core/")
+          server = matches("packages/skeinrank-server/")
+          provider_elasticsearch = matches("packages/skeinrank-provider-elasticsearch/")
+          governance = matches("packages/skeinrank-governance/")
+          governance_api = matches("packages/skeinrank-governance-api/")
+          ui = matches("packages/skeinrank-ui/", "deploy/docker/ui.Dockerfile")
+
+          docs_contracts = matches(
+              "docs/",
+              "deploy/",
+              "charts/",
+              "examples/",
+              "scripts/",
+              ".github/ISSUE_TEMPLATE/",
+              exact=(
+                  "README.md",
+                  "CHANGELOG.md",
+                  "CONTRIBUTING.md",
+                  "SECURITY.md",
+                  "CODE_OF_CONDUCT.md",
+                  "docker-compose.yml",
+                  "docker-compose.dev.yml",
+                  "docker-compose.prod.yml",
+                  "docker-compose.headless.yml",
+                  ".dockerignore",
+                  ".github/PULL_REQUEST_TEMPLATE.md",
+                  ".github/labels.yml",
+                  ".github/workflows/docker-publish.yml",
+                  ".github/workflows/helm-chart.yml",
+                  ".github/workflows/helm-smoke.yml",
+              ),
+          )
+
+          python_any = any(
+              (
+                  core,
+                  server,
+                  provider_elasticsearch,
+                  governance,
+                  governance_api,
+                  docs_contracts,
+              )
+          )
+
+          outputs = {
+              "force_all": force_all,
+              "python_any": python_any,
+              "docs_contracts": docs_contracts,
+              "core": core,
+              "server": server,
+              "provider_elasticsearch": provider_elasticsearch,
+              "governance": governance,
+              "governance_api": governance_api,
+              "ui": ui,
+          }
+
+          with Path(__import__("os").environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as fh:
+              for key, value in outputs.items():
+                  fh.write(f"{key}={'true' if value or force_all else 'false'}\n")
+          PY
+
   lint:
+    needs: changes
+    if: needs.changes.outputs.python_any == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +167,7 @@ jobs:
             packages/skeinrank-governance-api/skeinrank_governance_api packages/skeinrank-governance-api/tests
 
   test:
+    needs: changes
     runs-on: ubuntu-latest
 
     strategy:
@@ -55,24 +184,77 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Decide whether this package test should run
+        id: package_route
+        shell: bash
+        env:
+          PACKAGE: ${{ matrix.package }}
+          FORCE_ALL: ${{ needs.changes.outputs.force_all }}
+          CORE_CHANGED: ${{ needs.changes.outputs.core }}
+          SERVER_CHANGED: ${{ needs.changes.outputs.server }}
+          PROVIDER_ELASTICSEARCH_CHANGED: ${{ needs.changes.outputs.provider_elasticsearch }}
+          GOVERNANCE_CHANGED: ${{ needs.changes.outputs.governance }}
+          GOVERNANCE_API_CHANGED: ${{ needs.changes.outputs.governance_api }}
+          DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
+        run: |
+          set -euo pipefail
+          run_tests=false
+
+          case "$PACKAGE" in
+            packages/skeinrank-core)
+              [[ "$CORE_CHANGED" == "true" ]] && run_tests=true
+              ;;
+            packages/skeinrank-server)
+              [[ "$SERVER_CHANGED" == "true" ]] && run_tests=true
+              ;;
+            packages/skeinrank-provider-elasticsearch)
+              [[ "$PROVIDER_ELASTICSEARCH_CHANGED" == "true" ]] && run_tests=true
+              ;;
+            packages/skeinrank-governance)
+              [[ "$GOVERNANCE_CHANGED" == "true" ]] && run_tests=true
+              ;;
+            packages/skeinrank-governance-api)
+              if [[ "$GOVERNANCE_API_CHANGED" == "true" || "$DOCS_CONTRACTS_CHANGED" == "true" ]]; then
+                run_tests=true
+              fi
+              ;;
+          esac
+
+          if [[ "$FORCE_ALL" == "true" ]]; then
+            run_tests=true
+          fi
+
+          echo "run_tests=$run_tests" >> "$GITHUB_OUTPUT"
+          echo "Package route for $PACKAGE: run_tests=$run_tests"
+
       - uses: actions/setup-python@v5
+        if: steps.package_route.outputs.run_tests == 'true'
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
+        if: steps.package_route.outputs.run_tests == 'true'
         run: |
           python -m pip install --upgrade pip
           python -m pip install poetry
 
       - name: Install dependencies
+        if: steps.package_route.outputs.run_tests == 'true'
         working-directory: ${{ matrix.package }}
         run: poetry install --no-interaction
 
       - name: Run tests
+        if: steps.package_route.outputs.run_tests == 'true'
         working-directory: ${{ matrix.package }}
         run: poetry run pytest -q
 
+      - name: Skip package tests
+        if: steps.package_route.outputs.run_tests != 'true'
+        run: echo "No relevant changes for ${{ matrix.package }}; skipping package install and tests."
+
   ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -97,3 +279,41 @@ jobs:
       - name: Build UI
         working-directory: packages/skeinrank-ui
         run: npm run build
+
+  ci-required:
+    name: ci-required
+    needs:
+      - changes
+      - lint
+      - test
+      - ui
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check routed CI jobs
+        shell: bash
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          UI_RESULT: ${{ needs.ui.result }}
+        run: |
+          set -euo pipefail
+          for item in \
+            "changes:$CHANGES_RESULT" \
+            "lint:$LINT_RESULT" \
+            "test:$TEST_RESULT" \
+            "ui:$UI_RESULT"
+          do
+            name="${item%%:*}"
+            result="${item#*:}"
+            case "$result" in
+              success|skipped)
+                echo "$name result: $result"
+                ;;
+              *)
+                echo "$name failed with result: $result" >&2
+                exit 1
+                ;;
+            esac
+          done
