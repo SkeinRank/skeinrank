@@ -393,6 +393,7 @@ Deployment docs:
 
 - [`docs/deployment/docker-images.md`](docs/deployment/docker-images.md) — GHCR image publishing, automatic tag builds, and manual rebuilds for existing tags.
 - [`docs/deployment/helm-chart.md`](docs/deployment/helm-chart.md) — alpha Helm chart for Kubernetes installs using the published GHCR images.
+- [`docs/deployment/helm-production.md`](docs/deployment/helm-production.md) — production-oriented Helm values, ingress, PDB, resources, and secret strategy.
 - [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md)
 - [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md)
 - [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md)

@@ -6,14 +6,18 @@ on:
       - "charts/**"
       - ".github/workflows/helm-chart.yml"
       - "docs/deployment/helm-chart.md"
+      - "docs/deployment/helm-production.md"
       - "packages/skeinrank-governance-api/tests/test_helm_chart_alpha.py"
+      - "packages/skeinrank-governance-api/tests/test_helm_values_production_notes.py"
   push:
     branches: [main]
     paths:
       - "charts/**"
       - ".github/workflows/helm-chart.yml"
       - "docs/deployment/helm-chart.md"
+      - "docs/deployment/helm-production.md"
       - "packages/skeinrank-governance-api/tests/test_helm_chart_alpha.py"
+      - "packages/skeinrank-governance-api/tests/test_helm_values_production_notes.py"
   workflow_dispatch:
 
 jobs:
@@ -32,7 +36,7 @@ jobs:
       - name: Lint chart
         run: helm lint charts/skeinrank
 
-      - name: Render chart
+      - name: Render default chart
         run: |
           helm template skeinrank charts/skeinrank \
             --namespace skeinrank \
@@ -42,6 +46,13 @@ jobs:
             --set config.uiGovernanceApiUrl='http://localhost:8010' \
             > /tmp/skeinrank-chart.yaml
 
+      - name: Render production values example
+        run: |
+          helm template skeinrank charts/skeinrank \
+            --namespace skeinrank \
+            -f charts/skeinrank/values-production.example.yaml \
+            > /tmp/skeinrank-chart-production.yaml
+
       - name: Check rendered core resources
         run: |
           grep -q 'kind: Deployment' /tmp/skeinrank-chart.yaml
@@ -49,3 +60,6 @@ jobs:
           grep -q 'skeinrank-governance-worker' /tmp/skeinrank-chart.yaml
           grep -q 'skeinrank-ui' /tmp/skeinrank-chart.yaml
           grep -q 'kind: Job' /tmp/skeinrank-chart.yaml
+          grep -q 'kind: Ingress' /tmp/skeinrank-chart-production.yaml
+          grep -q 'kind: PodDisruptionBudget' /tmp/skeinrank-chart-production.yaml
+          grep -q 'skeinrank-runtime-secrets' /tmp/skeinrank-chart-production.yaml

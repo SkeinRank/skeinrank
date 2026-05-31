@@ -24,8 +24,8 @@ The chart lives under [`charts/skeinrank`](../../charts/skeinrank) and renders:
 - A `ServiceAccount` by default.
 
 It does **not** deploy PostgreSQL, RabbitMQ, Elasticsearch, OpenSearch,
-Prometheus, Grafana, or Ingress resources yet. Those remain production-specific
-choices until the chart is hardened.
+Prometheus, or Grafana. Ingress and PodDisruptionBudget resources are optional
+and disabled by default.
 
 ## Render locally
 
@@ -101,6 +101,11 @@ open http://127.0.0.1:5173
 | `config.elasticsearchUrl` | Elasticsearch/OpenSearch endpoint seen from the cluster. |
 | `config.corsOrigins` | Browser origins allowed to call the Governance API. |
 | `config.uiGovernanceApiUrl` | Governance API URL used by the UI. |
+| `governanceApi.resources` | API CPU/memory requests and limits. |
+| `governanceWorker.resources` | Worker CPU/memory requests and limits. |
+| `ui.resources` | UI CPU/memory requests and limits. |
+| `ingress.enabled` | Optional ingress for the UI and Governance API. |
+| `podDisruptionBudgets.*.enabled` | Optional PDBs for multi-node clusters. |
 | `governanceApi.service.type` | Service type for the API; defaults to `ClusterIP`. |
 | `ui.service.type` | Service type for the UI; defaults to `ClusterIP`. |
 
@@ -120,11 +125,29 @@ SKEINRANK_GOVERNANCE_API_ELASTICSEARCH_API_KEY
 The Elasticsearch username, password, and API key values may be empty when the
 cluster does not require authentication.
 
+## Production-oriented values
+
+A production-oriented override example is available at:
+
+```text
+charts/skeinrank/values-production.example.yaml
+```
+
+It demonstrates:
+
+- `secrets.existingSecret` for externally managed runtime secrets.
+- resource requests and limits for API, worker, UI, and migration job.
+- optional UI/API ingress hosts.
+- optional PodDisruptionBudgets for multi-node clusters.
+
+See [`helm-production.md`](helm-production.md) for the production values guide and
+preflight checklist.
+
 ## Current alpha limitations
 
 - External dependencies are required; the chart does not bundle databases or search backends.
-- Ingress is not rendered yet.
 - No persistent volumes are rendered by this chart.
+- Ingress is optional but still requires your own controller, DNS, and TLS strategy.
 - The migration job is rendered as a regular release resource by default; Helm hook mode is available but disabled in alpha values.
 - The chart is validated with `helm lint` and `helm template`; full kind/k3d smoke tests are planned separately.
 

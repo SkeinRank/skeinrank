@@ -30,6 +30,8 @@ def test_helm_chart_alpha_has_expected_file_layout() -> None:
         TEMPLATES / "governance-worker-deployment.yaml",
         TEMPLATES / "ui-deployment.yaml",
         TEMPLATES / "ui-service.yaml",
+        TEMPLATES / "ingress.yaml",
+        TEMPLATES / "poddisruptionbudgets.yaml",
         TEMPLATES / "NOTES.txt",
     }
 

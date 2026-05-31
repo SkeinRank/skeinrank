@@ -1,0 +1,57 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "skeinrank.fullname" . }}
+  labels:
+    {{- include "skeinrank.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- else if or .Values.ingress.ui.tlsSecretName .Values.ingress.api.tlsSecretName }}
+  tls:
+    {{- if and .Values.ingress.ui.enabled .Values.ingress.ui.tlsSecretName }}
+    - hosts:
+        - {{ .Values.ingress.ui.host | quote }}
+      secretName: {{ .Values.ingress.ui.tlsSecretName | quote }}
+    {{- end }}
+    {{- if and .Values.ingress.api.enabled .Values.ingress.api.tlsSecretName }}
+    - hosts:
+        - {{ .Values.ingress.api.host | quote }}
+      secretName: {{ .Values.ingress.api.tlsSecretName | quote }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- if .Values.ingress.ui.enabled }}
+    - host: {{ .Values.ingress.ui.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.ui.path | quote }}
+            pathType: {{ .Values.ingress.ui.pathType | quote }}
+            backend:
+              service:
+                name: {{ include "skeinrank.fullname" . }}-ui
+                port:
+                  number: {{ .Values.ui.service.port }}
+    {{- end }}
+    {{- if .Values.ingress.api.enabled }}
+    - host: {{ .Values.ingress.api.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.api.path | quote }}
+            pathType: {{ .Values.ingress.api.pathType | quote }}
+            backend:
+              service:
+                name: {{ include "skeinrank.fullname" . }}-governance-api
+                port:
+                  number: {{ .Values.governanceApi.service.port }}
+    {{- end }}
+{{- end }}
