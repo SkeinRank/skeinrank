@@ -441,6 +441,15 @@ poetry run pytest -q
 
 The GitHub Actions workflow runs Ruff, package tests, UI type checks/tests/builds, and Docker/deployment smoke checks.
 
+## Docker Compose dev stack
+
+Use the dev stack when you want to build SkeinRank from source and run the full local preview with PostgreSQL, Elasticsearch, RabbitMQ, the Governance API, worker, and UI. See [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) for the full install flow, [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md) for common local failures, [`docs/deployment/security.md`](docs/deployment/security.md) for deployment/security notes, and [`docker-compose.prod.yml`](docker-compose.prod.yml) for the production-oriented Compose template.
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
 ## Docker images and Compose
 
 Release images are published to GHCR by `.github/workflows/docker-publish.yml`. The workflow runs automatically for `v*` git tags and can be launched manually for an existing tag such as `v0.10.0-beta.1`. See [`docs/deployment/docker-images.md`](docs/deployment/docker-images.md).
