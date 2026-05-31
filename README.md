@@ -442,7 +442,7 @@ poetry install
 poetry run pytest -q
 ```
 
-The GitHub Actions workflow runs Ruff, package tests, UI type checks/tests/builds, and Docker/deployment smoke checks.
+The GitHub Actions workflow uses path-aware routing so docs/deployment changes do not run unrelated package installs, while package and UI changes still run their own checks. See [`docs/deployment/ci-routing.md`](docs/deployment/ci-routing.md).
 
 ## Docker Compose dev stack
 
