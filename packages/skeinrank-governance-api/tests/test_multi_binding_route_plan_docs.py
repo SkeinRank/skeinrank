@@ -46,6 +46,10 @@ def test_route_plan_docs_are_discoverable() -> None:
     package_readme = _read(ROOT / "packages" / "skeinrank-governance-api" / "README.md")
 
     for content in (root_readme, docs_index, package_readme):
-        assert "Patch 63C" in content
         assert "route-plan" in content
-        assert "multi-binding" in content.lower()
+        assert (
+            "multi-binding" in content.lower()
+            or "selected/rejected bindings" in content.lower()
+        )
+
+    assert "Patch 63" not in root_readme
