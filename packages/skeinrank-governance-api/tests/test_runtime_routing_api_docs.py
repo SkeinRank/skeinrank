@@ -64,10 +64,14 @@ def test_runtime_routing_docs_are_discoverable() -> None:
     api_docs = _read(DOCS / "api" / "governance-api.md")
     package_readme = _read(ROOT / "packages" / "skeinrank-governance-api" / "README.md")
 
-    for content in (docs_index, root_readme, api_docs, package_readme):
-        assert "Patch 63A" in content
-        assert "Patch 63C" in content
+    for content in (root_readme, api_docs):
+        assert "POST /v1/text/canonicalize" in content
+        assert "POST /v1/query/route-plan" in content
         assert "binding-aware" in content.lower()
 
+    assert "binding-aware" in package_readme.lower()
+    assert "runtime-routing-api.md" in package_readme
     assert "guides/runtime-routing-api.md" in docs_index
+    assert "runtime-routing-api.md" in root_readme
     assert "examples/runtime-routing-api" in root_readme
+    assert "Patch 63" not in root_readme
