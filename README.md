@@ -42,7 +42,7 @@
 
 <p align="center">
   <img
-    src="docs/assets/architecture/skeinrank-sidecar-architecture.png"
+    src="docs/assets/architecture/skeinrank-sidecar-architecture.jpeg"
     alt="SkeinRank sidecar architecture for search, RAG, and AI agents"
     width="920"
   />
@@ -285,7 +285,7 @@ Docs and examples: [`docs/deployment/mcp-integration-kit.md`](docs/deployment/mc
 
 | Path | Use when | Start here |
 | --- | --- | --- |
-| Release stack | You want to run the public beta from prebuilt GHCR images. | `cp .env.example .env` then `docker compose up -d`; [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md) |
+| Release stack | You want to run the public beta from prebuilt GHCR images. | `cp .env.example .env` then `docker compose up -d`; [`docs/deployment/release-cлompose.md`](docs/deployment/release-compose.md) |
 | Full dev stack | You want to build from source with PostgreSQL, Elasticsearch, RabbitMQ, Governance API, worker, and UI. | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) |
 | Headless runtime | You want API/PostgreSQL dictionary apply/export and snapshot artifact smoke tests. | [`docker-compose.headless.yml`](docker-compose.headless.yml), [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) |
 | Kubernetes alpha | You want a Helm chart using the published GHCR images. | [`charts/skeinrank`](charts/skeinrank), [`docs/deployment/helm-chart.md`](docs/deployment/helm-chart.md) |

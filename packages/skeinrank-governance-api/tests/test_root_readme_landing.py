@@ -9,7 +9,7 @@ ARCHITECTURE_IMAGE = (
     / "docs"
     / "assets"
     / "architecture"
-    / "skeinrank-sidecar-architecture.png"
+    / "skeinrank-sidecar-architecture.jpeg"
 )
 
 
@@ -21,7 +21,9 @@ def test_root_readme_has_fast_pain_hook_and_sidecar_positioning() -> None:
     assert "company's language is a mess" in first_screen
     assert "Terminology Control Plane" in first_screen
     assert "binding-aware runtime context" in first_screen
-    assert "docs/assets/architecture/skeinrank-sidecar-architecture.png" in first_screen
+    assert (
+        "docs/assets/architecture/skeinrank-sidecar-architecture.jpeg" in first_screen
+    )
     assert "Drop SkeinRank into your stack as a terminology sidecar" in first_screen
 
 
