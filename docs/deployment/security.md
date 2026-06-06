@@ -4,7 +4,7 @@ This page documents the production security baseline for running SkeinRank with 
 
 The development stack in `docker-compose.dev.yml` is intentionally permissive. It disables Elasticsearch security, uses simple local credentials, and binds services to `127.0.0.1` for smoke testing. Do not expose the development stack directly to the internet.
 
-Use `docker-compose.prod.yml` as the production-oriented starting point. See `docs/deployment/production-compose.md` for the 46A Compose profile, ops services, and smoke helper. See `docs/deployment/env-and-secrets.md` for the 46B environment validator and secrets checklist.
+Use `docker-compose.prod.yml` as the production-oriented starting point. See `docs/deployment/production-compose.md` for the Compose profile, ops services, and smoke helper. See `docs/deployment/env-and-secrets.md` for the environment validator and secrets checklist.
 
 ## Security model
 
@@ -28,7 +28,7 @@ Create a production environment file:
 cp .env.production.example .env
 ```
 
-Edit `.env` and replace every `CHANGE_ME` value with a real secret. Then run the 46B preflight validator:
+Edit `.env` and replace every `CHANGE_ME` value with a real secret. Then run the production environment preflight validator:
 
 ```bash
 make prod-env-check
@@ -122,7 +122,7 @@ postgres:16.4-alpine
 rabbitmq:3.13.7-management
 ```
 
-Do not use broad production tags such as `rabbitmq:3-management`. Bump image versions intentionally in a dedicated dependency update patch after checking compatibility and release notes. Digest pinning can be added later for stricter release builds.
+Do not use broad production tags such as `rabbitmq:3-management`. Bump image versions intentionally after checking compatibility and release notes. Digest pinning can be added later for stricter release builds.
 
 ## Network exposure
 

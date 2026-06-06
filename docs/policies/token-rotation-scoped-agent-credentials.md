@@ -1,9 +1,8 @@
 # Token rotation and scoped agent credentials
 
-Patch 55C adds a safe rotation path for service-account tokens and documents the
-least-privilege credential shapes recommended for agent workflows.
+SkeinRank agents should use least-privilege service-account tokens. Agent credentials are designed for proposal-first workflows: validate terminology, create reviewable proposals, track runs, and inspect safe reports. They should not approve proposals, apply batches, publish snapshots, or mutate runtime state.
 
-The goal is to keep agents proposal-only by default:
+The default production boundary is:
 
 ```text
 agent -> validate/propose/track
@@ -11,11 +10,13 @@ reviewer -> approve/reject
 admin -> apply/publish/rotate credentials
 ```
 
-No auto-apply is introduced by this patch.
-
 ## Read the scoped-agent credential policy
 
-Admins can inspect the recommended service-account profiles:
+Admins can inspect recommended service-account profiles:
+
+```http
+GET /v1/auth/scoped-agent-credentials
+```
 
 ```bash
 curl http://127.0.0.1:8010/v1/auth/scoped-agent-credentials \
@@ -37,8 +38,7 @@ Recommended profiles:
 | `agent-proposal-writer` | `contributor` | Validate candidates and submit pending suggestions. |
 | `agent-tracking-writer` | `contributor` | Register runs and persist tracking metadata. |
 
-All recommended agent credentials use the `contributor` role. They cannot
-approve, batch-apply, publish snapshots, or mutate runtime state.
+All recommended agent credentials use the `contributor` role. They cannot approve, batch-apply, publish snapshots, or mutate runtime state.
 
 ## Create a scoped agent service account
 
@@ -79,12 +79,9 @@ curl -X POST http://127.0.0.1:8010/v1/auth/service-accounts/agent-proposal-write
   | python -m json.tool
 ```
 
-The plaintext `access_token` is returned once. Store it in a secret manager or a
-local uncommitted `.env` file and do not log it.
+The plaintext `access_token` is returned once. Store it in a secret manager or a local uncommitted `.env` file and do not log it.
 
 ## Rotate a service-account token
-
-Patch 55C adds:
 
 ```http
 POST /v1/auth/service-accounts/{account_name}/tokens/{token_id}/rotate
@@ -112,15 +109,19 @@ Rotation behavior:
 - rejects rotation of already revoked tokens;
 - rejects rotation through the wrong service-account owner path.
 
-This gives a simple verified rotation path for emergency token replacement and
-scheduled credential rotation.
+This provides a verified path for emergency token replacement and scheduled credential rotation.
 
-## Safety notes
+## Safety guarantees
 
-- Admin role is required to read the scoped credential policy and rotate service
-  account tokens.
+- Admin role is required to read the scoped credential policy and rotate service-account tokens.
 - The old plaintext token is never returned.
-- List endpoints continue to return only token metadata and token prefixes.
+- List endpoints return only token metadata and token prefixes.
 - Recommended agent credentials use `contributor`, not `admin`.
-- Runtime mutation, batch apply, and snapshot publishing remain outside agent
-  credentials.
+- Runtime mutation, batch apply, and snapshot publishing remain outside agent credentials.
+
+## Related docs
+
+- [`role-boundaries.md`](role-boundaries.md)
+- [`apply-policy-risk-levels.md`](apply-policy-risk-levels.md)
+- [`../security/agent-tool-safety.md`](../security/agent-tool-safety.md)
+- [`../deployment/security.md`](../deployment/security.md)
