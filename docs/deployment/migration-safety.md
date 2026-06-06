@@ -4,7 +4,7 @@ SkeinRank uses Alembic migrations for the Governance API database. Production-li
 
 ## Safety model
 
-Patch 43D and later expose three layers of migration safety:
+The migration safety model has three operator-facing checks:
 
 ```text
 python -m skeinrank_governance_api.migrations check
@@ -12,7 +12,7 @@ GET /schema/health
 GET /readyz
 ```
 
-`/schema/health` is the most direct schema check. It verifies:
+`GET /schema/health` is the most direct schema check. It verifies:
 
 - whether `alembic_version` exists;
 - current database revision;
@@ -20,6 +20,8 @@ GET /readyz
 - whether current revision matches head;
 - whether multiple Alembic heads exist;
 - which SQLAlchemy metadata tables are missing.
+
+`GET /readyz` remains the deployment gate. It becomes degraded when the schema is not safe for the API to serve production-like traffic.
 
 ## Local CLI check
 
@@ -40,7 +42,7 @@ missing_tables=
 
 ## Compose schema check
 
-For production-ish Compose:
+For production-style Compose:
 
 ```bash
 make prod-schema-check

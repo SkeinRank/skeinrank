@@ -1,7 +1,8 @@
 # Backup/restore verified scenario
 
-Patch 54C adds a disposable backup/restore drill for first-company pilot operators.
-It verifies the portable JSON backup path end-to-end without touching a live
+This guide provides a disposable backup/restore drill for first-company pilot
+operators. It verifies the portable JSON backup path end-to-end without touching
+a live
 pilot database.
 
 The drill creates two local SQLite databases under an ignored reports directory:

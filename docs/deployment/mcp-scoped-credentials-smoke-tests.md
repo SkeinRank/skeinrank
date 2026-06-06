@@ -1,11 +1,9 @@
 # MCP scoped credentials and smoke tests
 
-Patch 62B documents the least-privilege credential path for `skeinrank-mcp` and
-adds an offline smoke-test command for agent integration packaging.
-
-The MCP adapter remains a thin stdio bridge over the Governance API. It does not
-own proposal business logic, approve suggestions, publish snapshots, or mutate
-runtime terminology directly.
+SkeinRank MCP deployments should use least-privilege service-account tokens. The
+`skeinrank-mcp` adapter remains a thin stdio bridge over the Governance API: it
+does not own proposal business logic, approve suggestions, publish snapshots, or
+mutate runtime terminology directly.
 
 ## Credential model
 
@@ -23,8 +21,8 @@ Response schema:
 skeinrank.scoped_agent_credentials.v1
 ```
 
-The MCP integration manifest also embeds the same credential policy so agent
-client packaging can discover recommended profiles without inventing scope names:
+The MCP integration manifest embeds the same credential policy so agent client
+packaging can discover recommended profiles without inventing scope names:
 
 ```bash
 poetry run skeinrank-mcp --print-tool-manifest
@@ -36,10 +34,10 @@ Look for:
 credentials.recommended_credentials
 ```
 
-Recommended MCP deployments should use a `contributor` service account with the
-`agent-proposal-writer` profile when the agent may submit proposals. That profile
-can validate aliases and create pending suggestions, but it cannot approve,
-apply, publish snapshots, or mutate runtime state.
+Recommended proposal-writing deployments use a `contributor` service account
+with the `agent-proposal-writer` profile. That profile can read tool metadata,
+explain queries, validate aliases, and create pending suggestions. It cannot
+approve, apply, publish snapshots, or mutate runtime state.
 
 ## Create a proposal-writer service account
 
@@ -99,12 +97,12 @@ token is returned once.
 ```bash
 export SKEINRANK_MCP_GOVERNANCE_API_URL=http://127.0.0.1:8010
 export SKEINRANK_MCP_ROLE=contributor
-export SKEINRANK_MCP_API_TOKEN=sk_sat_...
+export SKEINRANK_MCP_API_TOKEN=<scoped-service-account-token>
 export SKEINRANK_MCP_TIMEOUT_SECONDS=10.0
 poetry run skeinrank-mcp
 ```
 
-`SKEINRANK_MCP_ROLE` is still useful for local no-auth deployments. When auth is
+`SKEINRANK_MCP_ROLE` is useful for local no-auth deployments. When auth is
 enabled, the Bearer token determines the authenticated service account and the
 API enforces scopes through existing `require_scopes(...)` checks.
 
@@ -143,7 +141,7 @@ The old token is revoked by default.
 
 ## Offline smoke test
 
-Patch 62B adds an offline smoke-test helper:
+Run the packaged smoke test before attaching the adapter to an MCP client:
 
 ```bash
 poetry run skeinrank-mcp --smoke-test
@@ -195,7 +193,6 @@ GET  /v1/governance/profiles/{profile_name}/suggestions
 
 A proposal submitted by MCP is still pending review. Runtime changes require the
 normal governance flow: review, apply, snapshot publication, and deployment.
-
 
 Client-specific setup docs for Claude Desktop, Cursor/IDE agents, and
 LangGraph-style agents live in:

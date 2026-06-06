@@ -1,15 +1,15 @@
 # Cost, latency, and throughput report
 
-Patch 53C adds an offline performance report for the `platform_ops_v1` benchmark
-family. It combines the generated 5k synthetic smoke manifest with optional
-OpenRouter live-pilot usage JSON and an explicit elapsed-time value to estimate
-operator-facing cost, latency, throughput, savings, and simple scale projection
-numbers.
+The cost, latency, and throughput report is an offline performance estimate for
+the `platform_ops_v1` benchmark family. It combines the generated 5k synthetic
+smoke manifest with optional OpenRouter live-pilot usage JSON and an explicit
+elapsed-time value to estimate operator-facing cost, latency, throughput,
+savings, and simple scale projection numbers.
 
 This report is intentionally an **offline estimate**. It does not claim to be a
 real production worker measurement unless you pass elapsed time and usage from a
 real run. Use it as a stable report format before wiring long-running worker
-measurements in later patches.
+measurements.
 
 ## What it reports
 
@@ -60,8 +60,8 @@ Default report path:
 examples/benchmarks/platform_ops_v1/reports/platform_ops_v1-cost-latency-throughput-report.json
 ```
 
-The report is a generated local artifact under `examples/benchmarks/platform_ops_v1/reports/`
-and should not be committed.
+The report is a generated local artifact under
+`examples/benchmarks/platform_ops_v1/reports/` and should not be committed.
 
 ## Passing live usage
 
@@ -121,11 +121,11 @@ It reads JSON files and writes a local report only. It does not submit proposals
 approve/apply changes, publish snapshots, call LLM providers, call Elasticsearch,
 or touch the governance database.
 
-## Why this is separate from 53B
+## How to interpret the report
 
-Patch 53B generates a stable 5k corpus shape and manifest. Patch 53C turns that
-manifest plus optional usage/timing inputs into an operator-facing report that
-answers practical pilot questions:
+The synthetic smoke generator creates a stable large-corpus shape and manifest.
+The performance report turns that manifest plus optional usage/timing inputs into
+an operator-facing estimate that answers practical pilot questions:
 
 ```text
 How many docs/min can this run handle?

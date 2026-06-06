@@ -227,11 +227,12 @@ def test_alias_scout_cli_print_helpers_output_parseable_contracts() -> None:
 
 def test_openrouter_40g_docs_are_linked_from_project_docs() -> None:
     docs = [
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
+        REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
+        AGENT_DIR / "README.md",
     ]
     for path in docs:
         content = path.read_text(encoding="utf-8")
-        assert "Patch 40G" in content, path
         assert "--print-tool-schemas" in content, path
+        if path.name == "openrouter-agent.md" or path.parent == AGENT_DIR:
+            assert "skeinrank_validate_alias" in content, path

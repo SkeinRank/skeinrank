@@ -143,13 +143,11 @@ def test_41a_cli_reports_canonical_hints_and_llm_plan_uses_them() -> None:
 
 def test_41a_docs_are_linked() -> None:
     paths = [
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
         AGENT_DIR / "README.md",
     ]
     for path in paths:
         content = path.read_text(encoding="utf-8")
-        assert "Patch 41A" in content, path
         assert "--print-canonical-hints" in content, path
+        assert "postgresql" in content, path

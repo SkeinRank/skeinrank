@@ -1,8 +1,8 @@
 # Enrichment pause, resume, and checkpointing
 
-Patch 61C polishes the Elasticsearch enrichment beta path for long-running
-Celery jobs. It adds operator-facing pause/resume controls and makes chunked
-checkpoint metadata visible in the existing job response.
+The Elasticsearch enrichment beta path supports long-running
+Celery jobs with operator-facing pause/resume controls and chunked
+checkpoint metadata in the existing job response.
 
 The goal is not to introduce a new scheduler or a new worker backend. The goal
 is to make the existing Celery/RabbitMQ enrichment path safer to operate when a
@@ -11,7 +11,7 @@ resume from the last completed chunk instead of restarting the whole job.
 
 ## Scope
 
-61C applies to the existing Elasticsearch enrichment job model:
+This guide applies to the existing Elasticsearch enrichment job model:
 
 ```text
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs

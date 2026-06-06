@@ -1,6 +1,6 @@
 # Alerting hooks and degraded-state reports
 
-Patch 56A adds a read-only alerting layer for operator workflows.
+The read-only alerting layer turns operator health signals into degraded-state reports.
 
 The goal is to convert existing health, troubleshooting, and profile-isolation
 signals into a compact degraded-state report that can be copied into an

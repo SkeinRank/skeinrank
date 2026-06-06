@@ -1,6 +1,6 @@
 # First company pilot runbook
 
-Patch 54A turns the benchmark and pilot pieces into a repeatable first-company
+This runbook turns the benchmark and pilot pieces into a repeatable first-company
 pilot path. Use this runbook when a team already has a small Elasticsearch or
 OpenSearch index and wants to check whether SkeinRank can improve terminology
 normalization, evidence discovery, and runtime query planning before any
@@ -32,7 +32,7 @@ skeinrank.pilot.integration_report.v1
 
 ## Safety boundaries
 
-Default 54A pilot boundaries:
+Default pilot boundaries:
 
 ```text
 OpenRouter calls: false
@@ -259,7 +259,7 @@ no Elasticsearch writes were performed
 no proposals were auto-applied
 reviewer understands evidence and runtime query results
 cost/latency estimate is documented if live agent usage was tested
-next action is written down: tune dictionary, add evidence checks, or plan 54B
+next action is written down: tune dictionary, add evidence checks, or prepare a support bundle
 ```
 
 ## Troubleshooting

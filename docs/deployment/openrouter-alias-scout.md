@@ -1,9 +1,6 @@
 # OpenRouter alias scout deployment recipe
 
-Patch 40O adds a deployable reference recipe for the OpenRouter alias scout. The
-recipe is intentionally conservative: the default Docker Compose command writes
-an offline evaluation report and does not call OpenRouter, SkeinRank, or
-Elasticsearch.
+This deployment recipe packages the OpenRouter alias scout as a conservative Docker Compose service. The default command writes an offline evaluation report and does not call OpenRouter, SkeinRank, or Elasticsearch.
 
 ## Files
 
@@ -59,8 +56,7 @@ It does not submit proposals and does not mutate runtime snapshots.
 
 ## Live LLM review
 
-For live review, copy the env example outside Git and provide a bounded
-OpenRouter key:
+For live review, copy the env example outside Git and provide a bounded OpenRouter key:
 
 ```bash
 cp deploy/docker/openrouter-alias-scout.env.example /tmp/openrouter-alias-scout.env
@@ -82,6 +78,4 @@ docker compose \
   --max-run-cost-usd 0.01
 ```
 
-Proposal submission remains disabled in the reference config. Treat the agent as
-a discovery/review worker; approved terminology changes still go through the
-SkeinRank proposal, validation, review, and snapshot lifecycle.
+Proposal submission remains disabled in the reference config. Treat the agent as a discovery/review worker; approved terminology changes still go through the SkeinRank proposal, validation, review, and snapshot lifecycle.

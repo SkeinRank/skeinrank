@@ -1,6 +1,6 @@
 # OpenRouter agent full Docker Compose demo
 
-Patch 42D adds a full local Docker Compose demo scenario for the OpenRouter alias scout. It combines the existing development stack with a one-shot agent service that indexes validation documents into Elasticsearch and writes standard agent artifacts.
+The full local demo combines the development stack with a one-shot OpenRouter alias scout service. It indexes validation documents into an isolated Elasticsearch index and writes standard agent artifacts for inspection.
 
 The scenario is intended for local validation and demos. It is not a production security profile.
 

@@ -1,28 +1,33 @@
 # Model provider abstraction
 
-Patch 57A introduces the first model-provider seam for the OpenRouter alias scout.
+The OpenRouter alias scout uses a small model-provider interface instead of
+hard-wiring the workflow to one concrete client. The default hosted adapter is
+OpenRouter, while tests and offline planning use deterministic providers. The
+same interface also supports private company endpoints through the local
+endpoint adapter.
 
-The goal is not to replace OpenRouter yet. The goal is to stop hard-wiring the
-agent workflow to one concrete client class. The workflow now accepts a minimal
-chat-completion provider interface while preserving the existing OpenRouter
-adapter and report fields for backward compatibility.
+## Goals
 
-## What changed
+- Keep the governed alias-scout workflow provider-agnostic.
+- Preserve existing OpenRouter behavior and report fields for compatibility.
+- Let operators inspect provider configuration without network calls.
+- Keep live model calls behind explicit CLI flags.
+- Avoid printing secret values in plans or reports.
 
-New file:
+## Implementation location
 
 ```text
 examples/agents/openrouter_alias_scout/model_provider.py
 ```
 
-New offline CLI preview:
+Offline CLI preview:
 
 ```bash
 python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --print-model-provider-plan
 ```
 
-The plan returns schema:
+The plan returns:
 
 ```text
 skeinrank.model_provider_plan.v1
@@ -32,7 +37,7 @@ It does not call a model provider and does not include secret values.
 
 ## Provider interface
 
-A provider only needs to implement an OpenAI-compatible method:
+A provider implements an OpenAI-compatible method:
 
 ```python
 create_chat_completion(
@@ -46,27 +51,26 @@ create_chat_completion(
 )
 ```
 
-The current production adapter is:
+The production hosted adapter is:
 
 ```text
 OpenRouterChatProvider
 ```
 
-It wraps the existing dependency-light `OpenRouterClient`, so existing live pilot
-behavior remains unchanged.
+It wraps the dependency-light `OpenRouterClient`, so existing live pilot behavior
+remains unchanged.
 
-The test/offline adapter is:
+The deterministic test/offline adapter is:
 
 ```text
 MockChatProvider
 ```
 
-It returns deterministic OpenAI-compatible responses and is used by tests instead
-of making network calls.
+It returns OpenAI-compatible responses without making network calls.
 
 ## Configuration
 
-The alias scout example config now includes a provider block:
+Default config shape:
 
 ```json
 {
@@ -80,33 +84,34 @@ The alias scout example config now includes a provider block:
 }
 ```
 
-For Patch 57A, the initial runtime provider types were:
+Supported provider types:
 
 ```text
 openrouter
 mock
+local_endpoint
 ```
 
-Patch 57B adds the production-facing `local_endpoint` adapter for private
-self-hosted `/chat/completions` servers. See
-[`model-provider-adapters.md`](model-provider-adapters.md).
+Use [`model-provider-adapters.md`](model-provider-adapters.md) for adapter-specific
+configuration and [`company-model-integration.md`](company-model-integration.md)
+for private model endpoint rollout.
 
-## Safety
+## Safety model
 
-Patch 57A is intentionally behavior-preserving:
-
-- no OpenRouter calls are made by the provider plan command;
-- tests use `MockChatProvider` and do not call external providers;
-- existing `--llm-review` / live pilot commands keep the same explicit live flags;
-- secret values are not printed in provider plans;
-- proposal approval/apply and snapshot publishing are unchanged.
+- The provider plan command is offline.
+- Tests use `MockChatProvider` or local test transports.
+- Live model calls require explicit live flags such as `--llm-review` or the live
+  pilot commands.
+- Secret values are not printed in provider plans.
+- Proposal approval, apply, and snapshot publication are handled by the
+  Governance API workflow, not by the model provider layer.
 
 ## Why this matters
 
-This prepares SkeinRank for company environments where OpenRouter may not be the
-final provider. The local endpoint adapter can target a self-hosted OpenAI-compatible model
-server while keeping the same governed agent workflow:
+Companies often start with a hosted model provider and later move some review
+traffic to a private model endpoint. The provider interface keeps that migration
+inside the same governed workflow:
 
 ```text
-candidate evidence → model provider → structured judgment → validation → review
+candidate evidence -> model provider -> structured judgment -> validation -> review
 ```

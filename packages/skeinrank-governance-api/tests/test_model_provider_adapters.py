@@ -47,7 +47,7 @@ def _local_propose_response() -> dict[str, Any]:
     }
 
 
-def test_57b_local_endpoint_docs_and_config_exist() -> None:
+def test_local_endpoint_docs_and_config_exist() -> None:
     config = json.loads((AGENT_DIR / "agent_config.example.json").read_text())
     assert config["model_provider"]["provider_type"] == "openrouter"
     local_config = config["local_model_provider_example"]
@@ -55,15 +55,23 @@ def test_57b_local_endpoint_docs_and_config_exist() -> None:
     assert local_config["base_url"].endswith("/v1")
     assert local_config["require_api_key"] is False
 
-    for path in (
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
-        AGENT_DIR / "README.md",
-        REPO_ROOT / "docs" / "deployment" / "model-provider-adapters.md",
-    ):
-        content = path.read_text(encoding="utf-8")
-        assert "Patch 57B" in content, path
-        assert "local endpoint" in content.lower(), path
+    docs_index = (REPO_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    package_readme = (
+        REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md"
+    ).read_text(encoding="utf-8")
+    agent_readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
+    adapter_doc = (
+        REPO_ROOT / "docs" / "deployment" / "model-provider-adapters.md"
+    ).read_text(encoding="utf-8")
+
+    for content in (docs_index, package_readme, agent_readme, adapter_doc):
+        assert "Patch" not in content
+
+    assert "deployment/model-provider-adapters.md" in docs_index
+    assert "docs/deployment/model-provider-adapters.md" in package_readme
+    assert "local endpoint" in adapter_doc.lower()
+    assert "local_endpoint" in adapter_doc
+    assert "--print-model-provider-plan" in agent_readme
 
 
 def test_model_provider_plan_supports_local_endpoint_without_network_calls(

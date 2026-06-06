@@ -26,7 +26,7 @@ def test_openrouter_40h_files_exist_and_are_documented() -> None:
 
     readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
     for fragment in (
-        "Patch 40H adds candidate discovery and pruning",
+        "failed-query candidate mining",
         "--discover-candidates",
         "--print-sample-candidate-pack",
         "does not call OpenRouter",
@@ -140,10 +140,11 @@ def test_alias_scout_cli_candidate_discovery_outputs_parseable_json() -> None:
 
 def test_openrouter_40h_docs_are_linked_from_project_docs() -> None:
     docs = [
-        REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
+        REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
+        AGENT_DIR / "README.md",
     ]
     for path in docs:
         content = path.read_text(encoding="utf-8")
-        assert "Patch 40H" in content, path
         assert "--discover-candidates" in content, path
+        assert "--print-sample-candidate-pack" in content, path

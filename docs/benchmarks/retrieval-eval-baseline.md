@@ -1,11 +1,10 @@
 # Retrieval eval baseline
 
-Patch 50A added the first retrieval-quality baseline for the `platform_ops_v1`
-benchmark. Patch 50B expanded that same harness to a 200-document corpus with
-hard negatives, and Patch 53A expands it again into a 500-document corpus for
-small-pilot scale validation. SkeinRank changes can now be evaluated with
-ranking metrics, noise/leakage checks, and a larger candidate-free background
-corpus instead of only proposal/runtime checks.
+The retrieval evaluation baseline measures whether SkeinRank canonicalization and
+alias expansion improve ranking quality for the `platform_ops_v1` benchmark. It
+uses a 500-document corpus with graded relevance labels, hard negatives, and
+query-hygiene diagnostics so retrieval changes can be evaluated with ranking
+metrics instead of proposal/runtime checks alone.
 
 This layer answers a different question than the agent workflow benchmark:
 
@@ -31,9 +30,9 @@ examples/benchmarks/platform_ops_v1/
 expansions, and descriptions. `qrels.jsonl` contains graded relevance labels for
 benchmark documents. `hard_negatives.jsonl` marks intentionally confusing
 documents that share alias-like terms but should not be treated as relevant.
-`corpus_manifest.json` records the 53A corpus shape: 500 documents total, 300
-added documents, 70 added labeled hard negatives, plus semantic-noise,
-near-duplicate, and weak platform-adjacent rows.
+`corpus_manifest.json` records the 500-document corpus shape: total documents,
+added documents, labeled hard negatives, semantic-noise rows, near-duplicates,
+and weak platform-adjacent rows.
 
 The baseline run uses literal query terms. The SkeinRank run expands known
 aliases and canonicals from the benchmark dictionary and expected alias map, for
@@ -84,9 +83,9 @@ The report schema is `skeinrank.retrieval_eval_report.v1`. It contains:
 - `skeinrank` — SkeinRank-expanded lexical retrieval metrics;
 - `delta` — SkeinRank minus baseline;
 - `per_query[]` — query-level rankings, matched terms, relevant documents, and metric deltas;
-- `quality_gates[]` — regression gates for the first retrieval baseline.
+- `quality_gates[]` — regression gates for the retrieval baseline.
 
-50A reports:
+The core ranking metrics are:
 
 ```text
 NDCG@10
@@ -95,7 +94,7 @@ Recall@10
 Precision@10
 ```
 
-50B adds:
+The hard-negative diagnostics are:
 
 ```text
 hard_negative_leakage@10
@@ -103,7 +102,7 @@ hard-negative leakage delta
 per-result hard_negative flags
 ```
 
-50B.1 adds query-hygiene diagnostics and safer expansion semantics:
+The query-hygiene diagnostics are:
 
 ```text
 generic_token_noise@10
@@ -113,26 +112,28 @@ per-result noise_penalty
 ```
 
 A successful retrieval baseline should show positive `delta.ndcg@10` and
-`delta.recall@10` while keeping `delta.mrr@10` non-negative. With 50B, it should
-also avoid increasing `hard_negative_leakage@10`; the expanded run is allowed to
+`delta.recall@10` while keeping `delta.mrr@10` non-negative. It should also
+avoid increasing `hard_negative_leakage@10`; the expanded run is allowed to
 operate in a noisy corpus, but hard-negative leakage must stay within the
-configured ceiling and should not materially regress versus baseline. With
-50B.1, SkeinRank expansion should also avoid amplifying generic-token noise and
-should expand observed aliases toward canonical values rather than expanding
-canonical terms back to ambiguous short aliases such as `service -> svc` or
-`namespace -> ns`. This is still a deterministic benchmark harness, not a
-production-scale search study. Patch 53A makes the default corpus a
-500-document corpus suitable for a small controlled quality benchmark;
-provider-backed and 5k smoke evaluations can build on this layer.
+configured ceiling and should not materially regress versus baseline.
+SkeinRank expansion should also avoid amplifying generic-token noise and should
+expand observed aliases toward canonical values rather than expanding canonical
+terms back to ambiguous short aliases such as `service -> svc` or
+`namespace -> ns`.
+
+This is a deterministic benchmark harness, not a production-scale search study.
+The default corpus is suitable for a small controlled quality benchmark;
+provider-backed and large smoke evaluations can build on this layer.
 
 ## Safety
 
-50A/50B/50B.1/53A do not call OpenRouter, Elasticsearch, or the database. It does not submit
-proposals, approve/apply changes, publish snapshots, or mutate runtime state.
+This evaluator does not call OpenRouter, Elasticsearch, or the database. It does
+not submit proposals, approve/apply changes, publish snapshots, or mutate runtime
+state.
 
 ## Retrieval comparison report
 
-Patch 50C adds an operator-facing retrieval comparison report for benchmark,
+The retrieval comparison report is an operator-facing summary for benchmark,
 pilot, and company-index runs. It consumes any
 `skeinrank.retrieval_eval_report.v1` file and writes
 `skeinrank.retrieval_comparison_report.v1` without calling OpenRouter,

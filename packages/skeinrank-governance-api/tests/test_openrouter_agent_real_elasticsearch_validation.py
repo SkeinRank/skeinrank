@@ -81,7 +81,7 @@ def test_real_elasticsearch_validation_files_are_present_and_documented() -> Non
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 42B" in content
+        assert "--print-real-elasticsearch-validation-plan" in content
         assert "--print-real-elasticsearch-validation-plan" in content
         assert "--run-real-elasticsearch-validation" in content
 

@@ -1,8 +1,10 @@
 # Profile isolation checks
 
-Patch 55D adds a read-only isolation report for the current production safety model.
+SkeinRank uses profiles and runtime bindings as the current production safety boundary. A profile owns terminology. A binding applies a profile to a specific search context such as an index, text fields, target field, filters, and pinned snapshot.
 
-SkeinRank does not claim full tenant isolation yet. The current safe boundary is the terminology profile plus optional runtime binding. The report verifies that binding-scoped rows do not cross profile boundaries and that existing request guards reject mismatched `profile_name` / `binding_id` pairs.
+The isolation report verifies that binding-scoped data remains aligned with the profile it belongs to and that request guards reject mismatched `profile_name` / `binding_id` pairs before runtime work starts.
+
+SkeinRank does not claim full tenant isolation in this model. The report is a production health check for the current profile/binding boundary.
 
 ## Endpoint
 
@@ -16,13 +18,13 @@ Response schema:
 skeinrank.profile_isolation.v1
 ```
 
-The endpoint is read-only. It does not call OpenRouter, Elasticsearch, workers, or runtime mutation APIs.
+The endpoint is read-only. It does not call OpenRouter, Elasticsearch/OpenSearch, workers, model providers, or runtime mutation APIs.
 
 ## What is checked
 
 The report verifies alignment for:
 
-- Elasticsearch bindings and their profiles;
+- Elasticsearch/OpenSearch bindings and their profiles;
 - proposal suggestions with `binding_id`;
 - binding policies;
 - enrichment jobs;
@@ -53,7 +55,7 @@ If mismatched rows are detected, `status` becomes `degraded` and each failed che
 
 ## Guarded request examples
 
-A request with a `binding_id` from one profile and a different `profile_name` must be rejected before runtime work starts:
+A request with a `binding_id` from one profile and a different `profile_name` must be rejected:
 
 ```json
 {
@@ -63,14 +65,29 @@ A request with a `binding_id` from one profile and a different `profile_name` mu
 }
 ```
 
-The same rule applies to agent tools and proposal creation.
+The same rule applies to agent tools and proposal creation. Runtime APIs should use the binding as the production context and should not infer profile ownership from free-form query text.
 
-## Safety notes
+## Operator guidance
 
-- No migrations are introduced.
-- No tenant column is added.
+Use this report when:
+
+- preparing a support bundle;
+- validating a production-like environment after imports or migrations;
+- checking a failed runtime request that references both a profile and a binding;
+- reviewing unexpected agent proposals that were tied to a binding.
+
+A degraded report should be investigated before publishing a new runtime snapshot for affected profiles or bindings.
+
+## Safety guarantees
+
+- No migrations are introduced by the report.
+- No tenant columns are created.
 - No runtime writes are performed.
 - No provider calls are made.
 - Existing profile and binding guards remain the source of truth.
 
-This patch is a production safety check for the current profile/binding model. Full multi-tenant isolation can be added later as a separate feature.
+## Related docs
+
+- [`role-boundaries.md`](role-boundaries.md)
+- [`../api/governance-api.md`](../api/governance-api.md)
+- [`../security/rag-context-boundaries.md`](../security/rag-context-boundaries.md)

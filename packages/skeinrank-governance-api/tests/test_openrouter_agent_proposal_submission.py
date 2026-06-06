@@ -92,8 +92,8 @@ def test_proposal_submission_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, docs):
-        assert "Patch 41B" in content
-        assert "Patch 41C" in content
+        assert "--validate-ready-proposals" in content
+        assert "Validation statuses are classified" in content
         assert "--validate-ready-proposals" in content
         assert "--submit-ready-proposals" in content
 

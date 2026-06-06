@@ -28,7 +28,7 @@ def test_agent_run_tracking_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 41F" in content
+        assert "--print-agent-tracking-plan" in content
         assert "--print-agent-tracking-plan" in content
         assert "--append-agent-tracking-ledger" in content
 

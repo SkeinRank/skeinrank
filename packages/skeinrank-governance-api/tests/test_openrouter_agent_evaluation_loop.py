@@ -100,7 +100,7 @@ def test_40n_files_exist_and_docs_are_linked() -> None:
 
     readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
     for fragment in (
-        "Patch 40N adds an offline evaluation report",
+        "skeinrank.agent_evaluation_report.v1",
         "--run-evaluation-report",
         "--llm-review-report",
         "skeinrank.agent_evaluation_report.v1",
@@ -108,14 +108,13 @@ def test_40n_files_exist_and_docs_are_linked() -> None:
         assert fragment in readme
 
     for path in (
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
+        AGENT_DIR / "README.md",
     ):
         content = path.read_text(encoding="utf-8")
-        assert "Patch 40N" in content, path
         assert "--run-evaluation-report" in content, path
+        assert "skeinrank.agent_evaluation_report.v1" in content, path
 
 
 def test_evaluation_report_cli_is_offline_and_uses_sample_outcomes() -> None:

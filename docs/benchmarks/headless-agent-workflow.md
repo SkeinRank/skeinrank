@@ -1,22 +1,24 @@
 # Headless agent workflow benchmark
 
-Patch 48A adds a deterministic benchmark for the governed agent proposal workflow.
-It is designed to answer a different question than ordinary unit tests:
+The headless agent workflow benchmark is the stable offline quality gate for
+SkeinRank's governed proposal lifecycle. It answers a question that ordinary
+unit tests cannot answer on their own:
 
 ```text
 Did the headless agent workflow become better, worse, or noisier over time?
 ```
 
-The benchmark is intentionally offline. It does not call OpenRouter and it does
-not require Elasticsearch. It uses a dry-run binding as the runtime context and
-exercises the database-backed governance workflow end to end.
+The benchmark is deterministic and offline. It does not call OpenRouter, does
+not require Elasticsearch, and does not depend on the UI. It uses a dry-run
+binding as the runtime context and exercises the database-backed governance
+workflow end to end.
 
 ## What it covers
 
 The default fixture lives in `examples/benchmarks/platform_ops_v1` and includes:
 
 - a seed dictionary for `platform_ops_benchmark`;
-- 50 synthetic platform operations documents;
+- synthetic platform operations documents;
 - incidents, runbooks, support tickets, and noisy docs;
 - previously seen unchanged documents;
 - changed documents that must be revisited;
@@ -94,7 +96,7 @@ The report schema is `skeinrank.benchmark_report.v1`. Important fields:
 - `scores.noise_rate` — unexpected proposal aliases divided by created proposal aliases;
 - `counts.visit_statuses` — document visit decisions such as `unchanged_seen`;
 - `counts.idempotent_noops` — existing aliases correctly treated as no-ops;
-- `quality` — expanded 49A quality report with proposal counts, warnings, blocked aliases, snapshot status, and quality gates;
+- `quality` — quality report with proposal counts, warnings, blocked aliases, snapshot status, and quality gates;
 - `checks[]` — named pass/fail checks with details.
 
 A successful report should show:
@@ -109,7 +111,12 @@ noise_rate = 0.0
 
 ## Quality report
 
-Patch 49A expands the benchmark from a small happy-path fixture into a 50-document quality benchmark. Patch 49B adds proposal-level quality metrics so prompt, validator, and candidate-filter changes can be compared by alias class, source type, expected action, and outcome. Patch 49C adds agent decision diagnostics that explain why each document/candidate was scanned, skipped, blocked, submitted, or treated as idempotent. The report includes:
+The quality report turns the fixture into an operator-facing regression signal.
+It compares proposal counts, validator outcomes, candidate-filter behavior,
+expected alias coverage, blocked noisy aliases, idempotent no-ops, runtime
+canonicalization, and snapshot publication.
+
+The report includes:
 
 ```text
 proposal_precision_like
@@ -143,11 +150,15 @@ agent_decision_diagnostics.skipped_candidate_decisions[]
 agent_decision_diagnostics.missing_alias_diagnostics[]
 ```
 
-These signals are intended to make prompt/rule/validator changes measurable: a patch should not increase unexpected aliases, reduce skipped unchanged documents, or reduce runtime canonicalization accuracy.
+These signals make prompt, rule, and validator changes measurable. A change
+should not increase unexpected aliases, reduce skipped unchanged documents, or
+reduce runtime canonicalization accuracy.
 
 ## Proposal quality metrics
 
-Patch 49B adds a top-level `proposal_quality` section with schema `skeinrank.proposal_quality_metrics.v1`. It is designed for tuning agent behavior, not just checking whether the benchmark passed. The section includes:
+The top-level `proposal_quality` section uses schema
+`skeinrank.proposal_quality_metrics.v1`. It is designed for tuning agent
+behavior, not just checking whether the benchmark passed. The section includes:
 
 - `totals` — candidate observations, LLM reviews, proposal attempts, submitted proposals, approved suggestions, and idempotent no-ops;
 - `rates` — precision-like, recall-like, submission, approval, blocked, warning, idempotent, evidence-window, LLM-review, and proposal-attempt coverage;
@@ -157,7 +168,7 @@ Patch 49B adds a top-level `proposal_quality` section with schema `skeinrank.pro
 - `alias_outcomes[]` — per-alias rows with source id, slot, validation status, outcome, confidence, submission state, and evidence window count;
 - `quality_gates[]` — proposal-quality gates that are also included in the report-level `checks[]` list.
 
-Useful 49B metrics for regression tracking:
+Useful metrics for regression tracking:
 
 ```text
 proposal_quality.rates.proposal_precision_like
@@ -174,12 +185,17 @@ agent_decision_diagnostics.skipped_candidate_decisions[]
 agent_decision_diagnostics.missing_alias_diagnostics[]
 ```
 
-These metrics answer questions like: did a prompt change create more unexpected aliases, did validators block the intended noisy candidates, did idempotent aliases stay no-op, and did every candidate retain evidence for reviewer inspection?
-
+These metrics answer questions such as: did a prompt change create more
+unexpected aliases, did validators block the intended noisy candidates, did
+idempotent aliases stay no-op, and did every candidate retain evidence for
+reviewer inspection?
 
 ## Agent decision diagnostics
 
-Patch 49C adds a top-level `agent_decision_diagnostics` section with schema `skeinrank.agent_decision_diagnostics.v1`. It is designed for the next tuning loop: when proposal quality changes, operators can inspect *why* the deterministic agent made each decision.
+The top-level `agent_decision_diagnostics` section uses schema
+`skeinrank.agent_decision_diagnostics.v1`. It explains why the deterministic
+agent scanned, skipped, blocked, submitted, or treated each candidate as
+idempotent.
 
 The section includes:
 
@@ -190,7 +206,7 @@ The section includes:
 - `missing_alias_diagnostics[]` — explanations for expected/idempotent aliases missing from proposal-quality coverage, for example `elastic` being intentionally absent because `runbook-elastic-unchanged` was skipped as unchanged;
 - `quality_gates[]` — diagnostic gates for decision-reason coverage and explained missing aliases.
 
-Useful 49C fields:
+Useful fields:
 
 ```text
 agent_decision_diagnostics.summary.decision_reason_coverage
@@ -201,12 +217,19 @@ agent_decision_diagnostics.candidate_decisions[].validator_reason
 agent_decision_diagnostics.missing_alias_diagnostics[]
 ```
 
-This makes benchmark failures actionable: instead of seeing only that an alias was missed, the report can say whether it was skipped due to unchanged content, blocked by a validator, treated as an existing alias, or never observed.
-
+This makes benchmark failures actionable: instead of seeing only that an alias
+was missed, the report can say whether it was skipped due to unchanged content,
+blocked by a validator, treated as an existing alias, or never observed.
 
 ## Retrieval evaluation baseline
 
-Patch 50A adds `retrieval_queries.jsonl` and `qrels.jsonl`; Patch 50B expands the fixture to 200 documents and adds `hard_negatives.jsonl`; Patch 50B.1 adds query-hygiene scoring so alias expansion stays alias-to-canonical and reports `generic_token_noise@10`; Patch 53A expands the fixture to 500 documents and adds `corpus_manifest.json`. The retrieval evaluator compares a literal lexical baseline with a SkeinRank-expanded run and reports `NDCG@10`, `MRR@10`, `Recall@10`, `Precision@10`, `hard_negative_leakage@10`, `generic_token_noise@10`, and per-query deltas.
+The retrieval evaluator compares a literal lexical baseline with a
+SkeinRank-expanded run. The fixture includes `retrieval_queries.jsonl`,
+`qrels.jsonl`, `hard_negatives.jsonl`, query-hygiene scoring,
+`generic_token_noise@10`, and `corpus_manifest.json` for the default
+500-document corpus. The report includes `NDCG@10`, `MRR@10`, `Recall@10`,
+`Precision@10`, `hard_negative_leakage@10`, `generic_token_noise@10`, and
+per-query deltas.
 
 ```bash
 make benchmark-retrieval-plan
@@ -215,27 +238,27 @@ make benchmark-retrieval-report
 make benchmark-retrieval-clean
 ```
 
-This is the first quality layer that checks whether canonicalization/alias expansion improves ranking, not only whether proposals and snapshots are correct. See `docs/benchmarks/retrieval-eval-baseline.md`.
+This quality layer checks whether canonicalization and alias expansion improve
+ranking, not only whether proposals and snapshots are correct. See
+[`retrieval-eval-baseline.md`](retrieval-eval-baseline.md).
 
 ## Why OpenRouter is not used here
 
-48A is the stable CI/local layer. It proves the backend contract and lifecycle
-without external latency, cost, or nondeterministic model output.
+This benchmark is the stable CI/local layer. It proves the backend contract and
+lifecycle without external latency, cost, or nondeterministic model output.
 
-Live OpenRouter execution belongs in the next layer:
-
-```text
-48B — OpenRouter live agent pilot mode
-```
-
-That mode should stay opt-in, cost-bounded, and dry-run by default.
+Live OpenRouter execution belongs in the opt-in live pilot layer. That mode
+should stay cost-bounded and dry-run by default. See
+[`openrouter-live-pilot.md`](openrouter-live-pilot.md).
 
 ## Full-stack integration layer
 
-The next layer is the 48C containerized stack benchmark. It uses the same `platform_ops_v1` fixture, but runs against Docker Compose PostgreSQL, Governance API, and Elasticsearch evidence endpoints:
+The containerized stack benchmark uses the same `platform_ops_v1` fixture, but
+runs against Docker Compose PostgreSQL, Governance API, and Elasticsearch
+evidence endpoints:
 
 ```bash
 make benchmark-stack-run
 ```
 
-See `docs/benchmarks/containerized-benchmark-integration.md`.
+See [`containerized-benchmark-integration.md`](containerized-benchmark-integration.md).

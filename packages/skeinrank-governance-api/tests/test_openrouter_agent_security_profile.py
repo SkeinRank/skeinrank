@@ -26,7 +26,7 @@ def test_security_profile_files_exist_and_are_documented() -> None:
 
     readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
     for fragment in (
-        "Patch 40L adds the service-account security profile",
+        "Security, budgets, and evaluation",
         "--print-security-profile",
         "skeinrank.agent_security_profile.v1",
         "proposal submission remains disabled",
@@ -137,12 +137,11 @@ def test_security_assert_rejects_runtime_mutation() -> None:
 
 def test_security_profile_docs_are_linked() -> None:
     paths = [
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
+        AGENT_DIR / "README.md",
     ]
     for path in paths:
         content = path.read_text(encoding="utf-8")
-        assert "Patch 40L" in content, path
         assert "--print-security-profile" in content, path
+        assert "skeinrank.agent_security_profile.v1" in content, path

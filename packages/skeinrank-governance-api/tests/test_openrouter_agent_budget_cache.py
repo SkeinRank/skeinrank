@@ -64,7 +64,7 @@ def test_40m_files_exist_and_docs_are_linked() -> None:
 
     readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
     for fragment in (
-        "Patch 40M adds run budgets and response caching",
+        "--print-budget-cache-plan",
         "--print-budget-cache-plan",
         "--clear-llm-cache",
         "--max-llm-calls",

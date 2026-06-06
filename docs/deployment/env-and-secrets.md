@@ -1,6 +1,6 @@
 # Environment validation and secrets
 
-Patch 46B adds a file-based environment preflight for the production-ish Docker Compose profile. It is designed to catch unsafe `.env` values before containers start.
+The file-based environment preflight catches unsafe `.env` values for the production-oriented Docker Compose profile before containers start.
 
 The validator is side-effect free: it reads a `.env` file, checks required settings, checks common placeholder secrets, and prints a JSON report. It does not connect to PostgreSQL, RabbitMQ, Elasticsearch/OpenSearch, or the Governance API.
 
@@ -82,7 +82,7 @@ postgres:16.4-alpine
 rabbitmq:3.13.7-management
 ```
 
-Keep these versions stable for a pilot/release cycle and bump them deliberately in a separate dependency update patch.
+Keep these versions stable for a pilot/release cycle and bump them deliberately in a separate dependency update.
 
 ## Secrets policy
 

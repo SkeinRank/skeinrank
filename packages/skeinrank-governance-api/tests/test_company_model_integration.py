@@ -21,7 +21,7 @@ def _load_module(name: str, path: Path) -> Any:
     return module
 
 
-def test_57c_company_model_integration_docs_and_cli_exist() -> None:
+def test_company_model_integration_docs_and_cli_exist() -> None:
     assert (AGENT_DIR / "company_model_integration.py").exists()
     docs = [
         REPO_ROOT / "docs" / "README.md",
@@ -30,10 +30,27 @@ def test_57c_company_model_integration_docs_and_cli_exist() -> None:
         REPO_ROOT / "docs" / "deployment" / "company-model-integration.md",
         REPO_ROOT / "docs" / "deployment" / "model-provider-adapters.md",
     ]
-    for path in docs:
-        content = path.read_text(encoding="utf-8")
-        assert "Patch 57C" in content, path
-        assert "local_endpoint" in content, path
+    contents = {path: path.read_text(encoding="utf-8") for path in docs}
+    for path, content in contents.items():
+        assert "Patch" not in content, path
+
+    assert (
+        "deployment/company-model-integration.md"
+        in contents[REPO_ROOT / "docs" / "README.md"]
+    )
+    assert (
+        "docs/deployment/company-model-integration.md"
+        in contents[REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md"]
+    )
+    assert "--print-company-model-integration-plan" in contents[AGENT_DIR / "README.md"]
+    assert (
+        "local_endpoint"
+        in contents[REPO_ROOT / "docs" / "deployment" / "company-model-integration.md"]
+    )
+    assert (
+        "local_endpoint"
+        in contents[REPO_ROOT / "docs" / "deployment" / "model-provider-adapters.md"]
+    )
 
     runner = (AGENT_DIR / "run_alias_scout.py").read_text(encoding="utf-8")
     assert "--print-company-model-integration-plan" in runner

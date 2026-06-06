@@ -1,14 +1,13 @@
 # Company model integration
 
-Patch 57C adds a company-model integration plan for the alias scout.
-
-The goal is to help a company connect an internal model endpoint without guessing
-which commands are safe to run. The integration plan is offline: it does not call
-OpenRouter, the local model endpoint, Elasticsearch, or the Governance API.
+This runbook helps a company connect an internal model endpoint to the alias
+scout without guessing which commands are safe. The integration plan is offline:
+it does not call OpenRouter, the local model endpoint, Elasticsearch, or the
+Governance API.
 
 ## Supported provider modes
 
-The operator-facing provider modes remain intentionally small:
+The operator-facing provider modes are intentionally small:
 
 ```text
 openrouter
@@ -85,8 +84,8 @@ Expected fields for a local endpoint:
 
 ## One-call smoke
 
-After the local endpoint is actually running, use the existing live pilot command
-with very small limits:
+After the local endpoint is running, use the existing live pilot command with
+very small limits:
 
 ```bash
 python examples/agents/openrouter_alias_scout/run_alias_scout.py \
@@ -113,8 +112,8 @@ proposals_submitted == 0
 
 ## Validated pilot
 
-Before a validated pilot, seed or select a real SkeinRank profile/binding. Then
-run:
+Before a validated pilot, seed or select a real SkeinRank profile and binding.
+Then run:
 
 ```bash
 python examples/agents/openrouter_alias_scout/run_alias_scout.py \
@@ -137,17 +136,15 @@ validation_blocked
 
 ## Troubleshooting
 
-Common problems:
-
 | Symptom | Likely cause | Check |
-|---|---|---|
+| --- | --- | --- |
 | provider plan says `openrouter` | env override not exported in the current shell | `echo $SKEINRANK_MODEL_PROVIDER_TYPE` |
 | local endpoint call fails | model server is not running or base URL is wrong | confirm `/v1/chat/completions` route on the server |
-| validated pilot fails before provider call | profile/binding not seeded | run the benchmark/pilot seed flow or pass existing `--profile-name` / `--binding-id` |
+| validated pilot fails before provider call | profile or binding not seeded | run the benchmark/pilot seed flow or pass existing `--profile-name` / `--binding-id` |
 | output is not JSON | model endpoint ignored JSON response format | lower temperature, improve endpoint prompt policy, or use a stronger model |
 
-## Safety
+## Safety model
 
-Patch 57C does not add auto-apply. Company model runs still prepare proposal
-payloads only. Governance validation, reviewer approval, admin apply, and
-snapshot publishing stay separate.
+Company model runs prepare proposal payloads only. Governance validation,
+reviewer approval, admin apply, and snapshot publishing stay separate. The model
+provider layer never auto-applies terminology changes.

@@ -35,7 +35,7 @@ def test_integration_smoke_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 42A" in content
+        assert "--print-integration-smoke-plan" in content
         assert "--print-integration-smoke-plan" in content
         assert "--write-integration-smoke-report" in content
 

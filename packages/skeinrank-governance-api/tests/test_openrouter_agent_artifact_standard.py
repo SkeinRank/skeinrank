@@ -28,7 +28,7 @@ def test_artifact_standard_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 42C" in content
+        assert "--print-artifacts-standard-plan" in content
         assert "--print-artifacts-standard-plan" in content
         assert "manifest.json" in content
 

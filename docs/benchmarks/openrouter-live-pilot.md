@@ -1,7 +1,9 @@
 # OpenRouter live agent pilot mode
 
-Patch 48B adds a guarded live pilot mode for the reference OpenRouter alias scout.
-It is the live counterpart to the deterministic 48A headless benchmark.
+The OpenRouter live agent pilot is the opt-in provider-backed check for the
+reference OpenRouter alias scout. It complements the deterministic headless
+benchmark by verifying that a real model can produce useful, contract-safe
+proposal payloads under explicit cost and mutation guardrails.
 
 The pilot is intentionally opt-in:
 
@@ -69,8 +71,8 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --max-run-cost-usd 0.01
 ```
 
-The command prints a short operator summary to stdout and writes the full report to disk.
-The report schema is:
+The command prints a short operator summary to stdout and writes the full report
+to disk. The report schema is:
 
 ```text
 skeinrank.openrouter_live_pilot_report.v1
@@ -89,9 +91,10 @@ safety.agent_may_mutate_runtime = false
 
 ## Optional SkeinRank validation
 
-Once the Governance API is running, the pilot can validate ready proposals through
-`/v1/tools/validate-alias`. The validation target preflights `/livez` before any
-OpenRouter call, so a stopped API fails fast without spending model budget:
+Once the Governance API is running, the pilot can validate ready proposals
+through `/v1/tools/validate-alias`. The validation target preflights `/livez`
+before any OpenRouter call, so a stopped API fails fast without spending model
+budget:
 
 ```bash
 OPENROUTER_API_KEY="sk-or-..." \
@@ -124,16 +127,15 @@ This creates pending suggestions only when the agent security profile and scoped
 credentials allow it. It still does not approve/apply proposals and does not
 publish snapshots.
 
-## Relationship to 48A
+## Relationship to the offline benchmark
 
-- 48A proves the headless workflow deterministically without external services.
-- 48B checks whether a real OpenRouter model can produce useful, contract-safe
-  proposal payloads under explicit cost and mutation guardrails.
+- The headless workflow benchmark proves the proposal lifecycle deterministically without external services.
+- The live pilot checks whether a real OpenRouter model can produce useful, contract-safe proposal payloads under explicit cost and mutation guardrails.
 
 ## Benchmark-style live aliases
 
-Patch 48B.2 adds Makefile aliases so the live pilot sits next to the offline and
-containerized benchmark commands:
+Makefile aliases place the live pilot next to the offline and containerized
+benchmark commands:
 
 ```bash
 make benchmark-agent-live-plan
@@ -149,12 +151,11 @@ These are wrappers around the lower-level `agent-openrouter-pilot-*` commands.
 that proposed aliases can be validated through SkeinRank before the report is
 written. Neither command approves/applies proposals or publishes snapshots.
 
-## 49D validated pilot flow
+## Validated pilot flow
 
-Patch 49D makes the live validation path explicit. It is still safe by default:
-OpenRouter may prepare proposal payloads, SkeinRank validates those payloads, but
-no pending suggestions are submitted unless `--pilot-submit-proposals` is passed
-manually.
+The validated pilot path is safe by default: OpenRouter may prepare proposal
+payloads, SkeinRank validates those payloads, but no pending suggestions are
+submitted unless `--pilot-submit-proposals` is passed manually.
 
 Plan the validated pilot without network calls:
 
@@ -181,7 +182,6 @@ make benchmark-agent-live-validated-pilot-stack
 The stack target bootstraps a temporary benchmark-stack admin login token and
 passes it to the agent as `SKEINRANK_AGENT_API_TOKEN`, so validation checks run
 against the authenticated Governance API before any optional proposal submission.
-
 
 The default validation target is the benchmark profile:
 

@@ -1,8 +1,6 @@
 # Model provider adapters
 
-Patch 57B adds concrete model-provider adapters for the alias scout workflow.
-
-The production-facing provider modes are intentionally small:
+The alias scout supports three provider modes:
 
 ```text
 openrouter
@@ -10,11 +8,10 @@ local_endpoint
 mock
 ```
 
-`openrouter` remains the default hosted adapter. `local_endpoint` is for a
-self-hosted OpenAI-compatible `/chat/completions` endpoint, for example a vLLM,
-LM Studio, or Ollama-compatible gateway. The user-facing provider name is local
-endpoint because the expected company use case is a local or private endpoint,
-not a generic OpenAI-compatible SaaS provider.
+`openrouter` remains the default hosted adapter. `local_endpoint` targets a
+self-hosted OpenAI-compatible `/chat/completions` endpoint, such as a vLLM, LM
+Studio, Ollama-compatible gateway, or company-hosted model proxy. `mock` is for
+deterministic tests and offline examples.
 
 ## Preview provider configuration
 
@@ -93,23 +90,25 @@ export SKEINRANK_LOCAL_MODEL_API_KEY=...
 
 and set `require_api_key` to `true` in config.
 
-## Safety
+## Safety model
 
-Patch 57B does not change proposal apply, snapshot publishing, or runtime
-mutation behavior.
-
-- Tests use mock/local transports and do not call external providers.
+- Tests use mock providers or local transports and do not call external providers.
 - Provider plans do not make network calls.
-- Secret values are not printed.
+- Secret values are redacted from plan output.
 - Local endpoint calls only happen behind the same explicit live model flags as
-  the existing OpenRouter path.
+  the OpenRouter path.
+- Proposal apply, snapshot publishing, and runtime mutation stay in the
+  Governance API workflow.
 
 ## Compatibility
 
-OpenRouter report fields remain for backward compatibility. New report metadata
-also includes `model_provider` entries so operators can see whether a run used
+OpenRouter report fields remain for backward compatibility. Report metadata also
+includes `model_provider` entries so operators can see whether a run used
 OpenRouter, a local endpoint, or the mock provider.
 
 ## Company integration
 
-Patch 57C adds a company-model integration plan and checklist for using the `local_endpoint` adapter with private model servers. See [`company-model-integration.md`](company-model-integration.md).
+Use [`company-model-integration.md`](company-model-integration.md) when connecting
+a private model server to the alias scout. It documents the offline integration
+plan, the one-call smoke path, and the validated pilot sequence for
+`local_endpoint` providers.

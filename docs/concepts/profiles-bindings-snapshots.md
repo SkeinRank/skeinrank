@@ -24,6 +24,13 @@ legal_terms
 
 A profile owns canonical terms, aliases, slots, profile-local guardrails, suggestions, and exported snapshots.
 
+Use a profile when the question is about terminology meaning:
+
+- Which canonical terms exist?
+- Which aliases are approved?
+- Which stop-list entries protect this domain?
+- Which suggestions are pending review?
+
 ## Binding
 
 A binding applies a profile to a concrete search context.
@@ -42,9 +49,9 @@ A binding can include:
 A simple case looks like this:
 
 ```text
-profile = infra_incidents
-index   = incidents-2026
-fields  = title, body, summary
+profile  = infra_incidents
+index    = incidents-2026
+fields   = title, body, summary
 snapshot = infra_incidents / S42
 ```
 
@@ -94,10 +101,7 @@ For production search paths, prefer:
 
 A development or preview flow can still use `profile_name`, but a real runtime search path needs binding information because the binding knows the index, fields, filters, and pinned snapshot.
 
-Patch 63A allows production callers to use either numeric `binding_id` or stable
-`binding_name`. Runtime responses include `runtime_context`, which records the
-resolved binding, snapshot source, Elasticsearch fields, optional discriminator
-filter, and any caller-provided `application_scope` metadata.
+Production callers can use numeric `binding_id` or stable `binding_name`. Runtime responses include `runtime_context`, which records the resolved binding, snapshot source, Elasticsearch fields, optional discriminator filter, and any caller-provided `application_scope` metadata.
 
 ## Multi-binding search
 
@@ -111,11 +115,8 @@ query -> binding 3 canonicalization -> search index C
 
 The results can then be merged. This is safer than assuming one global dictionary, because the same alias can have different meaning across domains.
 
-## Patch 63C — route before fan-out
+## Route before fan-out
 
-For `All docs` search, applications can ask SkeinRank for a read-only
-multi-binding route plan via `POST /v1/query/route-plan`. The request supplies
-candidate bindings, and the response ranks them using alias matches,
-context-trigger matches, application-scope hints, and snapshot context. The
-application still owns the final decision to call `/v1/search` or
-`/v1/search/multi`.
+For `All docs` search, applications can ask SkeinRank for a read-only multi-binding route plan via `POST /v1/query/route-plan`. The request supplies `candidate_binding_ids`, and the response ranks them using alias matches, context-trigger matches, application-scope hints, and snapshot context.
+
+The application still owns the final decision to call `/v1/search` or `/v1/search/multi`. Route planning is useful when the application wants an explainable routing decision before running a fan-out search.

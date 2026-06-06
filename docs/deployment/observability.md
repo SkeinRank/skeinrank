@@ -1,34 +1,51 @@
 # Observability
 
-## Observability foundation
+SkeinRank ships a vendor-neutral observability layer for the Governance API and workers. It is designed for local debugging, production smoke checks, and operator dashboards without forcing a specific monitoring vendor.
 
-SkeinRank includes a vendor-neutral observability layer for the Governance API and Celery worker.
-
-The current stack covers:
+The stack covers:
 
 - request IDs and structured logs;
 - Prometheus-compatible metrics at `GET /metrics`;
-- optional Prometheus + Grafana services for the Docker Compose dev stack;
-- a pre-provisioned Grafana dashboard for API, runtime search, and enrichment job signals;
-- optional OpenTelemetry tracing hooks for HTTP requests, runtime search, and Celery enrichment tasks.
+- optional Prometheus, Grafana, and OpenTelemetry Collector services for Docker Compose;
+- a provisioned Grafana dashboard for API, runtime search, enrichment jobs, health, and agent-run signals;
+- optional OpenTelemetry tracing hooks for HTTP requests, runtime search, and Celery enrichment tasks;
+- sanitized troubleshooting reports for support and restore drills.
 
-Optional Sentry reporting is intentionally left for a later patch.
+Sentry or another hosted error-reporting backend is not bundled. Teams can add one outside the core runtime if their production environment requires it.
 
-## Request IDs and logs
+## Observability foundation
 
-Patch 31A added:
+The API and worker use the same logging and request-context model:
 
-- request IDs for API calls;
-- `X-Request-ID` response header;
-- structured JSON logs or plain text logs;
-- HTTP access logs with method, path, status code, duration, client host, and request id;
-- exception logs with request id and request metadata;
-- job lifecycle logs for enrichment start, chunk queueing, preparation failures, and success;
-- shared logging setup for the API process and Celery worker.
+- inbound API calls receive or generate a request id;
+- the response includes the configured request-id header;
+- logs can be emitted as plain text or JSON;
+- HTTP access logs include method, path, status code, duration, client host, and request id;
+- exception logs include request metadata without request bodies;
+- enrichment jobs emit lifecycle logs for start, chunk queueing, preparation failures, and completion.
+
+The default request id header is:
+
+```text
+X-Request-ID
+```
+
+If a client provides the header, SkeinRank preserves it. If not, SkeinRank generates a request id and returns it in the same header.
+
+```bash
+curl -i http://127.0.0.1:8010/livez \
+  -H "X-Request-ID: local-smoke-1"
+```
+
+Expected response header:
+
+```text
+X-Request-ID: local-smoke-1
+```
 
 ## Prometheus metrics
 
-Patch 31B adds a dependency-free Prometheus text endpoint:
+Metrics are exposed as Prometheus text:
 
 ```http
 GET /metrics
@@ -40,11 +57,9 @@ Example:
 curl http://127.0.0.1:8010/metrics
 ```
 
-The endpoint is enabled by default in the dev and production Compose templates.
+The endpoint is enabled by default in the development and production Compose templates. It can be disabled or moved with environment variables listed below.
 
 ### Metric groups
-
-The built-in metrics include:
 
 | Metric | Type | Description |
 | --- | --- | --- |
@@ -86,7 +101,12 @@ The built-in metrics include:
 
 ### Operational refresh behavior
 
-Patch 45A refreshes deployment-health and agent-tracking gauges during Prometheus scrapes. The refresh is best-effort: `/metrics` still returns Prometheus text if the database, schema, or Elasticsearch dependency is degraded. Failures are reflected through `skeinrank_operational_metrics_refresh_total{status="failed"}` and `skeinrank_operational_metrics_last_refresh_success`.
+Prometheus scrapes refresh deployment-health and agent-tracking gauges on a best-effort basis. `GET /metrics` still returns Prometheus text if the database, schema, or Elasticsearch dependency is degraded. Refresh failures are reflected through:
+
+```text
+skeinrank_operational_metrics_refresh_total{status="failed"}
+skeinrank_operational_metrics_last_refresh_success
+```
 
 The health gauges intentionally mirror the operator-facing endpoints:
 
@@ -97,7 +117,7 @@ GET /schema/health
 GET /metrics
 ```
 
-`/readyz` remains the deployment gate. The gauges make the same status visible to Prometheus/Grafana without requiring operators to parse JSON responses.
+`GET /readyz` remains the deployment gate. Metrics make the same status visible to Prometheus and Grafana without requiring operators to parse JSON responses.
 
 ## Environment variables
 
@@ -137,23 +157,6 @@ SKEINRANK_OTEL_CAPTURE_QUERY_TEXT
 
 The `SKEINRANK_GOVERNANCE_API_*` variables take precedence.
 
-## Request IDs
-
-If the client sends a request id, SkeinRank preserves it:
-
-```bash
-curl -i http://127.0.0.1:8010/livez \
-  -H "X-Request-ID: local-smoke-1"
-```
-
-Expected response header:
-
-```text
-X-Request-ID: local-smoke-1
-```
-
-If the client does not send a request id, SkeinRank generates one and returns it in the same header.
-
 ## JSON logs
 
 Set:
@@ -185,7 +188,7 @@ Example event shape:
 
 ## Troubleshooting reports
 
-Patch 45B adds a sanitized operator report for support/debug sessions:
+The Governance API exposes a sanitized operator report for support/debug sessions:
 
 ```bash
 curl http://127.0.0.1:8010/v1/ops/troubleshooting/report \
@@ -196,22 +199,28 @@ poetry run python -m skeinrank_governance_api.troubleshooting report
 
 The report includes service metadata, deployment environment, sanitized config, database/schema/Elasticsearch/observability checks, selected table counts, and recommendations. It does not include credentials, API tokens, request bodies, query text, or document snippets.
 
-For backup/restore drills and incident runbooks, see `docs/deployment/backup-restore.md`.
+For backup/restore drills and incident runbooks, see [`backup-restore.md`](backup-restore.md) (`docs/deployment/backup-restore.md`).
 
 For API tokens, use the `ops:reports:read` scope. Session login and local-dev mode remain role-based.
 
 ## Docker Compose observability profile
 
-Start the normal dev stack:
+Start the normal development stack:
 
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-Start the dev stack with Prometheus and Grafana:
+Start the development stack with Prometheus and Grafana:
 
 ```bash
 docker compose -f docker-compose.dev.yml --profile observability up --build
+```
+
+Start the production-style observability profile:
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml --profile observability up -d prometheus grafana
 ```
 
 Available endpoints:
@@ -222,7 +231,7 @@ Available endpoints:
 | Grafana | `http://127.0.0.1:3000` |
 | Governance API metrics | `http://127.0.0.1:8010/metrics` |
 
-Default dev Grafana login:
+Default local Grafana login:
 
 ```text
 admin / admin
@@ -241,10 +250,11 @@ deploy/grafana/provisioning/
 deploy/grafana/dashboards/skeinrank-overview.json
 ```
 
+The Compose profile reuses the same Prometheus config and Grafana dashboard for local and production-style deployments. Keep Prometheus and Grafana bound to `127.0.0.1` or expose them only through a protected operator network.
 
 ## OpenTelemetry tracing
 
-Patch 31C adds dependency-optional OpenTelemetry tracing hooks. The core package does not require OTEL libraries at import time. If tracing is enabled but OpenTelemetry packages are not installed, the API logs a warning and continues with no-op spans.
+Tracing hooks are optional. The core package does not require OpenTelemetry libraries at import time. If tracing is enabled but OpenTelemetry packages are not installed, the API logs a warning and continues with no-op spans.
 
 To enable tracing in an environment that has OpenTelemetry SDK/exporter packages installed:
 
@@ -255,7 +265,7 @@ SKEINRANK_GOVERNANCE_API_OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 SKEINRANK_GOVERNANCE_API_OTEL_SAMPLING_RATIO=1.0
 ```
 
-The dev Compose observability profile includes an OpenTelemetry Collector config at:
+The Compose observability profile includes an OpenTelemetry Collector config at:
 
 ```text
 deploy/otel/collector.yml
@@ -269,7 +279,7 @@ Tracing spans are emitted for:
 - Celery enrichment coordinator tasks;
 - Celery enrichment chunk tasks.
 
-By default, raw query text is not added to spans. Set this only for safe test environments:
+By default, raw query text is not added to spans. Enable query-text capture only in safe test environments:
 
 ```text
 SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT=true
@@ -277,23 +287,14 @@ SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT=true
 
 ## Privacy baseline
 
-The foundation does not log request bodies or document snippets. Runtime query text and document contents remain out of logs and spans by default. OpenTelemetry query text capture is opt-in through `SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT=true` and should only be used in safe environments.
+The observability layer does not log request bodies or document snippets. Runtime query text and document contents remain out of logs and spans by default. OpenTelemetry query text capture is opt-in through `SKEINRANK_GOVERNANCE_API_OTEL_CAPTURE_QUERY_TEXT=true` and should only be used in safe environments.
 
-## Future integrations
+## Operational checklist
 
-The next observability patches can build on this foundation:
+Before exposing observability endpoints outside a developer workstation:
 
-- backup/restore smoke reports through `python -m skeinrank_governance_api.backup_restore`;
-- optional Sentry error reporting;
-- deployment dashboards for enrichment jobs and runtime search.
-
-
-## Production Compose observability profile
-
-Patch 46A adds an optional `observability` profile to `docker-compose.prod.yml`:
-
-```bash
-docker compose --env-file .env -f docker-compose.prod.yml --profile observability up -d prometheus grafana
-```
-
-It reuses `deploy/prometheus/prometheus.yml`, `deploy/grafana/provisioning/`, and `deploy/grafana/dashboards/skeinrank-overview.json`. Keep Prometheus and Grafana bound to `127.0.0.1` or expose them only through a protected operator network.
+- keep `/metrics`, Prometheus, Grafana, and OTLP endpoints on an internal operator network;
+- set `SKEINRANK_GOVERNANCE_API_LOG_FORMAT=json` for machine-parsable logs;
+- keep query-text tracing disabled unless the environment is explicitly safe;
+- give troubleshooting report tokens the `ops:reports:read` scope only;
+- run backup/restore drills with the troubleshooting report and schema checks documented in [`backup-restore.md`](backup-restore.md) (`docs/deployment/backup-restore.md`) and [`migration-safety.md`](migration-safety.md).

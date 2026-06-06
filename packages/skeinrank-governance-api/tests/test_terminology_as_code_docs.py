@@ -37,7 +37,9 @@ def test_terminology_as_code_docs_are_discoverable() -> None:
     assert "guides/dictionary-cli-planning.md" in docs
     assert "Terminology-as-Code import/export map" in api
     assert "../guides/terminology-as-code.md" in spec
-    assert "Patch 60A documents the Terminology-as-Code" in package_readme
+    assert "docs/guides/terminology-as-code.md" in package_readme
+    assert "docs/guides/dictionary-cli-planning.md" in package_readme
+    assert "docs/deployment/gitops-delivery-runbook.md" in package_readme
 
 
 def test_terminology_as_code_guide_uses_existing_cli_and_api_surfaces() -> None:
@@ -61,7 +63,8 @@ def test_terminology_as_code_guide_uses_existing_cli_and_api_surfaces() -> None:
         "skeinrank-migrate lint",
         "skeinrank-migrate plan --output plan.json",
         "skeinrank-migrate apply --plan-output applied-plan.json",
-        "Patch 60B adds",
+        "dictionary-cli-planning.md",
+        "gitops-delivery-runbook.md",
     )
     for fragment in expected_fragments:
         assert fragment in doc

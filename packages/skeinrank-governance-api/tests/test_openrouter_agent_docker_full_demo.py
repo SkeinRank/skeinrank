@@ -45,7 +45,7 @@ def test_42d_files_exist_and_docs_are_linked() -> None:
         AGENT_DIR / "README.md",
     ):
         content = path.read_text(encoding="utf-8")
-        assert "42D" in content, path
+        assert "openrouter-agent-full-demo" in content, path
         assert "openrouter-agent-full-demo" in content, path
 
 

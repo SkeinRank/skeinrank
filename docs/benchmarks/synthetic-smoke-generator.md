@@ -1,9 +1,9 @@
 # 5k synthetic smoke generator
 
-Patch 53B adds a deterministic 5,000-document smoke generator for the
-`platform_ops_v1` benchmark family. This layer is not a hand-labeled retrieval
-quality benchmark. It is a scale smoke fixture for checking that local tooling,
-batching, skip/unchanged accounting, report plumbing, and future worker/job
+The synthetic smoke generator creates a deterministic 5,000-document corpus for
+the `platform_ops_v1` benchmark family. This layer is not a hand-labeled
+retrieval quality benchmark. It is a scale smoke fixture for checking that local
+tooling, batching, skip/unchanged accounting, report plumbing, and worker/job
 flows can handle a larger corpus shape without paying for model calls.
 
 The generator creates a JSONL corpus and a compact manifest under
@@ -105,13 +105,14 @@ database calls: false
 runtime mutation: false
 ```
 
-It does not submit proposals, approve/apply changes, publish snapshots, call
-LLM providers, call Elasticsearch, or touch the governance database. It only
-writes local generated JSON files when `generate` is invoked.
+It does not submit proposals, approve/apply changes, publish snapshots, call LLM
+providers, call Elasticsearch, or touch the governance database. It only writes
+local generated JSON files when `generate` is invoked.
 
-## Why this is separate from the 500-document corpus
+## Relationship to the 500-document corpus
 
-Patch 53A made the default corpus a 500-document quality benchmark with qrels
-and hard-negative labels. Patch 53B intentionally does not try to label all
-5,000 generated documents. It provides a repeatable larger corpus shape for
-scale smoke checks before moving into cost, latency, and throughput reporting.
+The default 500-document corpus is the quality benchmark with qrels and
+hard-negative labels. The 5,000-document synthetic corpus intentionally does not
+try to label every generated document. It provides a repeatable larger corpus
+shape for scale smoke checks before moving into cost, latency, and throughput
+reporting.

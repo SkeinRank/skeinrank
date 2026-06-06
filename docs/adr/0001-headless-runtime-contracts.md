@@ -6,9 +6,9 @@ Date: 2026-05-23
 
 ## Context
 
-SkeinRank started as a terminology governance platform with a console, Elasticsearch evidence workflows, enrichment jobs, and runtime endpoints. The next product direction is headless-first: teams should be able to connect SkeinRank from CI/CD, internal services, RAG pipelines, and agents without depending on the UI as the primary write path.
+SkeinRank started as a terminology governance platform with a console, Elasticsearch evidence workflows, enrichment jobs, and runtime endpoints. The product direction is headless-first: teams should be able to connect SkeinRank from CI/CD, internal services, RAG pipelines, and agents without depending on the UI as the primary write path.
 
-This ADR consolidates the runtime contract names that future patches should use. It does not introduce new API behavior by itself. It documents the current and intended boundaries so that future headless, proposal, MCP, and UI work can evolve without renaming the core model every few patches.
+This ADR consolidates the runtime contract names that future changes should use. It does not introduce new API behavior by itself. It documents the current and intended boundaries so that headless, proposal, MCP, and UI work can evolve without renaming the core model across releases.
 
 ## Decision
 
@@ -37,7 +37,7 @@ The write side accepts and validates changes:
 
 - dictionary validation and import/export;
 - governance CRUD for profiles, terms, aliases, stop lists, bindings, and suggestions;
-- proposal intake and validation in future patches;
+- proposal intake and validation;
 - evidence snapshots and reviewer decisions;
 - snapshot metadata and publication state.
 
@@ -52,7 +52,7 @@ The read side serves stable runtime context:
 - binding-aware search;
 - multi-binding search fan-out;
 - enrichment jobs that use a pinned snapshot;
-- future artifact-loaded workers.
+- artifact-loaded workers.
 
 Read-side clients should not depend on live mutable edits. They should use a binding and the binding's pinned snapshot or a compiled artifact produced from it.
 
@@ -81,18 +81,18 @@ The current platform already contains several pieces aligned with this ADR:
 - snapshot state under `/v1/snapshots/summary`;
 - service health and observability under `/livez`, `/readyz`, and `/metrics`.
 
-Future headless facade endpoints may wrap existing console routes, but should preserve these contract names and the binding-first runtime rule.
+Headless facade endpoints may wrap existing console routes, but should preserve these contract names and the binding-first runtime rule.
 
 ## Consequences
 
-Future patches should avoid introducing parallel names for the same concepts. In particular:
+Future changes should avoid introducing parallel names for the same concepts. In particular:
 
 - do not use `profile_name` as the primary production runtime context when `binding_id` is available;
 - do not let agents apply aliases directly to the active profile without proposal validation;
 - do not make runtime workers depend on mutable draft state;
 - do not make the UI the only supported path for dictionary application, snapshot publication, or query debugging.
 
-This ADR makes the next phases explicit:
+This ADR makes the operating model explicit:
 
 ```text
 Headless API / CLI -> proposals and validators -> snapshot artifacts -> runtime readers -> thin audit UI

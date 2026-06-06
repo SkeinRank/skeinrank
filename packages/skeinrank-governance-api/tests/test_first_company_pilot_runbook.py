@@ -17,8 +17,9 @@ def _read(path: Path | str) -> str:
 def test_first_company_pilot_runbook_exists_and_documents_safety_boundaries() -> None:
     runbook = _read(RUNBOOK)
 
-    assert "Patch 54A" in runbook
+    assert "This runbook turns the benchmark and pilot pieces" in runbook
     assert "skeinrank.pilot.integration_report.v1" in runbook
+    assert "Patch" not in runbook
     for fragment in [
         "OpenRouter calls: false",
         "proposal submission: false",

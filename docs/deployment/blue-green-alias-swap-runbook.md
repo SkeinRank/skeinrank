@@ -1,13 +1,13 @@
 # Blue/green alias-swap runbook
 
-Patch 61B documents the production-oriented Elasticsearch enrichment rollout path
+This runbook documents the production-oriented Elasticsearch enrichment rollout path
 that already exists in the governance API: `reindex_alias_swap` jobs create a new
 target index, enrich that index, then atomically move the serving alias after the
 job succeeds.
 
 The runbook is intentionally operator-focused. It does not introduce a new
 scheduler, worker backend, CLI, or Elasticsearch endpoint. It uses the existing
-61A preflight, enrichment job, job inspection, cancellation, and rollback APIs.
+preflight, enrichment job, job inspection, cancellation, and rollback APIs.
 
 ## Mental model
 
@@ -70,7 +70,7 @@ Before running blue/green enrichment, verify that:
 7. The requested `target_index_name` is not the serving alias.
 8. Only one active enrichment job exists per binding.
 
-Patch 61A preflight enforces the dangerous cases before a job is created.
+The enrichment preflight enforces the dangerous cases before a job is created.
 
 ## Step 1 — Inspect connection and mappings
 
@@ -269,7 +269,7 @@ A short checklist is available in
 
 ## What this runbook does not add
 
-Patch 61B does not add:
+This runbook does not add:
 
 - a new API endpoint for alias swap;
 - a new CLI command;
@@ -279,8 +279,9 @@ Patch 61B does not add:
 - a Terraform provider;
 - an Elasticsearch index delete endpoint.
 
-Those remain separate operator or future-product concerns. Patch 61C is reserved
-for pause/resume/checkpointing polish.
+Those remain separate operator or future-product concerns. Pause, resume, and
+checkpointing behavior is documented in
+[`../guides/enrichment-pause-resume-checkpointing.md`](../guides/enrichment-pause-resume-checkpointing.md).
 
 
 ## Pause/resume during long runs

@@ -1,9 +1,8 @@
-# Patch 54B — Troubleshooting bundle export
+# Troubleshooting bundle export
 
-Patch 54B adds a read-only support bundle exporter for first-company pilots.
-The goal is to collect enough diagnostic context to debug a pilot without asking
-an operator to copy dozens of logs, reports, configs, and health snapshots by
-hand.
+The read-only support bundle exporter helps first-company pilot operators collect
+enough diagnostic context to debug a pilot without copying dozens of logs,
+reports, configs, and health snapshots by hand.
 
 The exporter is intentionally conservative:
 
@@ -139,8 +138,10 @@ make support-bundle-export
 make support-bundle-inspect
 ```
 
-## Follow-up
+## Production bundle path
 
-Patch 54B is a local support bundle. A later production support bundle can add
-container logs, API-authenticated recent run summaries, and stricter tenant/profile
-isolation checks once the production deployment shape is finalized.
+For production-oriented operator artifacts, use
+[`support-bundle-production.md`](support-bundle-production.md). The production
+variant keeps the same read-only and redaction guarantees while adding API health
+snapshots, recent run summaries, and degraded-state signals when an operator
+provides a Governance API URL.

@@ -16,9 +16,9 @@ Use the Inbox when a reviewer needs to decide whether an agent proposal should b
 
 The UI does not auto-apply proposals, publish snapshots, run enrichment jobs, or refresh evidence for every row.
 
-## 58A–58B scope
+## Detail panel scope
 
-Patch 58A introduced the `AI Inbox` route and proposal cards. Patch 58B expands the detail panel so reviewers can inspect a selected proposal without jumping back to the old Suggestions screen.
+The `AI Inbox` route combines proposal cards with a detail panel so reviewers can inspect a selected proposal without jumping back to the legacy Suggestions screen.
 
 The detail panel includes:
 

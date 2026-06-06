@@ -1,6 +1,6 @@
 # Production-oriented Docker Compose profile
 
-`docker-compose.prod.yml` is the production-ish Compose profile for the Enterprise MVP track. It is still a Compose-based deployment, not a replacement for Kubernetes, managed PostgreSQL backups, or an organization-specific ingress/secrets system.
+`docker-compose.prod.yml` is the production-oriented Compose profile for evaluation and controlled rollout environments. It is still a Compose-based deployment, not a replacement for Kubernetes, managed PostgreSQL backups, or an organization-specific ingress/secrets system.
 
 Use it when you want a reproducible pilot stack with:
 
@@ -80,7 +80,7 @@ PostgreSQL: postgres:16.4-alpine
 RabbitMQ:   rabbitmq:3.13.7-management
 ```
 
-Update these image versions intentionally in a dedicated dependency bump patch instead of relying on broad tags such as `rabbitmq:3-management`.
+Update these image versions intentionally in a dedicated dependency bump instead of relying on broad tags such as `rabbitmq:3-management`.
 
 Published ports are bound to localhost by default:
 
@@ -154,7 +154,7 @@ deploy/grafana/dashboards/skeinrank-overview.json
 
 ## Operational notes
 
-- `governance-api` container health checks use `GET /healthz` so optional external services do not block the first local production-ish bootstrap. Use `deploy/docker/scripts/prod-smoke-test.sh --strict` when `/readyz` must be fully `ok`.
+- `governance-api` container health checks use `GET /healthz` so optional external services do not block the first local production-oriented bootstrap. Use `deploy/docker/scripts/prod-smoke-test.sh --strict` when `/readyz` must be fully `ok`.
 - PostgreSQL and RabbitMQ are not published to host ports in the production profile.
 - Docker json-file log rotation is configured through `DOCKER_LOG_MAX_SIZE` and `DOCKER_LOG_MAX_FILE`.
 - `governance-backup-export` is CLI-only by design; no HTTP restore endpoint is exposed.
@@ -162,7 +162,7 @@ deploy/grafana/dashboards/skeinrank-overview.json
 
 ## Upgrade path
 
-Patch 46C adds Makefile targets and a preflight script for safe production-ish upgrades:
+Use the Makefile targets and preflight script for safe production-oriented upgrades:
 
 ```bash
 make prod-upgrade-check

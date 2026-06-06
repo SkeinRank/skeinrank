@@ -1,6 +1,6 @@
 # Terminology-as-Code export/import workflow
 
-Patch 60A documents the safe file-based workflow for moving terminology between
+Terminology-as-Code is the safe file-based workflow for moving terminology between
 Git, the Governance API, PostgreSQL, and runtime snapshot artifacts.
 
 SkeinRank uses a simple rule:
@@ -139,7 +139,7 @@ binding has not published a runtime snapshot yet.
 
 ## Recommended CI shape
 
-After 60B, prefer an explicit lint/plan/apply sequence:
+Prefer an explicit lint/plan/apply sequence:
 
 ```text
 pull request changes dictionary file
@@ -156,9 +156,9 @@ SkeinRank is the manager of terminology state. GitLab CI, Jenkins, ArgoCD, Flux,
 or another GitOps tool should deliver the approved file or runtime artifact to
 serving workers. SkeinRank should not pretend to replace CI/CD.
 
-Patch 60B adds [`dictionary-cli-planning.md`](dictionary-cli-planning.md) with
-local `lint`, server-backed `plan`, and `apply --plan-output` guidance. Patch
-60C adds [`../deployment/gitops-delivery-runbook.md`](../deployment/gitops-delivery-runbook.md)
+Use [`dictionary-cli-planning.md`](dictionary-cli-planning.md) for
+local `lint`, server-backed `plan`, and `apply --plan-output` guidance. Use
+[`../deployment/gitops-delivery-runbook.md`](../deployment/gitops-delivery-runbook.md)
 for GitLab CI, ArgoCD, Flux, and runtime artifact delivery examples. Use
 `validate`, `export`, `snapshot-export`, `snapshot-inspect`, and `snapshot-eval`
 for the rest of the existing flow.
