@@ -183,10 +183,10 @@ POST /v1/query/route-plan
 Elasticsearch/OpenSearch enrichment operations:
 
 ```text
-POST /v1/enrichment/jobs/preflight
-POST /v1/enrichment/jobs
-POST /v1/enrichment/jobs/{job_id}/pause
-POST /v1/enrichment/jobs/{job_id}/resume
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
+POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+POST /v1/governance/elasticsearch/jobs/{job_id}/pause
+POST /v1/governance/elasticsearch/jobs/{job_id}/resume
 ```
 
 Operational reports:
@@ -394,6 +394,7 @@ Useful docs:
 - [`docs/guides/elasticsearch-enrichment.md`](../../docs/guides/elasticsearch-enrichment.md)
 - [`docs/guides/enrichment-beta-hardening.md`](../../docs/guides/enrichment-beta-hardening.md)
 - [`docs/guides/enrichment-pause-resume-checkpointing.md`](../../docs/guides/enrichment-pause-resume-checkpointing.md)
+- [`examples/enrichment-pause-resume`](../../examples/enrichment-pause-resume)
 - [`docs/deployment/blue-green-alias-swap-runbook.md`](../../docs/deployment/blue-green-alias-swap-runbook.md)
 - [`examples/blue-green-alias-swap`](../../examples/blue-green-alias-swap)
 
@@ -423,6 +424,8 @@ Related docs:
 - [`docs/deployment/mcp-cursor-agents.md`](../../docs/deployment/mcp-cursor-agents.md)
 - [`docs/deployment/mcp-langgraph-agents.md`](../../docs/deployment/mcp-langgraph-agents.md)
 - [`docs/deployment/mcp-scoped-credentials-smoke-tests.md`](../../docs/deployment/mcp-scoped-credentials-smoke-tests.md)
+- [`examples/mcp-integration-kit`](../../examples/mcp-integration-kit)
+- [`examples/mcp-agent-docs`](../../examples/mcp-agent-docs)
 - [`docs/security/mcp-tool-guardrails.md`](../../docs/security/mcp-tool-guardrails.md)
 
 ## OpenRouter alias scout and model providers
