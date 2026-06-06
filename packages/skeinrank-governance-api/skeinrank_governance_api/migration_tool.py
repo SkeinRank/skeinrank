@@ -21,6 +21,7 @@ from .dictionary_spec import (
     load_mapping_document,
     resolve_dictionary_schema_version,
 )
+from .prompt_injection import scan_untrusted_payload
 from .runtime_snapshots import (
     RuntimeSnapshotArtifactCache,
     runtime_snapshot_artifact_summary,
@@ -185,6 +186,7 @@ def lint_dictionary_payload(
         "conflicts": 0,
         "errors": 0,
         "warnings": 0,
+        "prompt_like_instruction_findings": 0,
     }
     errors: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
@@ -425,6 +427,31 @@ def lint_dictionary_payload(
         add_issue=add_issue,
     )
 
+    risk_findings = scan_untrusted_payload(payload, base_path="$")
+    summary["prompt_like_instruction_findings"] = len(risk_findings)
+    for finding in risk_findings:
+        add_issue(
+            warnings,
+            code=finding.risk_code,
+            message=(
+                "Prompt-like instruction risk in untrusted dictionary input: "
+                f"{finding.message}"
+            ),
+            path=finding.path,
+            severity="warning",
+        )
+    if risk_findings:
+        add_issue(
+            warnings,
+            code="prompt_injection_review_required",
+            message=(
+                "Dictionary input contains prompt-like or tool-like text. "
+                "Review findings before promotion to runtime snapshots."
+            ),
+            path=None,
+            severity="warning",
+        )
+
     status = "valid" if not errors else "invalid"
     return {
         "schema_version": DICTIONARY_LINT_SCHEMA_VERSION,
@@ -437,6 +464,7 @@ def lint_dictionary_payload(
         "summary": summary,
         "errors": errors,
         "warnings": warnings,
+        "risk_findings": [finding.to_dict() for finding in risk_findings],
         "checks": {
             "local_only": True,
             "server_state_checked": False,

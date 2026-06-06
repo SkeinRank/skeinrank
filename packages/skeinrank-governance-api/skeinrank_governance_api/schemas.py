@@ -750,6 +750,17 @@ class ElasticsearchEvidenceRequest(BaseModel):
     context_chars: int = Field(default=80, ge=20, le=240)
 
 
+class PromptInjectionRiskFindingResponse(BaseModel):
+    """One prompt-like instruction risk finding in untrusted text."""
+
+    risk_code: str
+    category: str
+    severity: str
+    message: str
+    path: str
+    matched_text: str
+
+
 class ElasticsearchEvidenceDocument(BaseModel):
     """One bounded evidence fragment found in Elasticsearch."""
 
@@ -773,6 +784,9 @@ class ElasticsearchEvidenceResponse(BaseModel):
     max_documents: int
     documents: list[ElasticsearchEvidenceDocument]
     warnings: list[str] = Field(default_factory=list)
+    risk_findings: list[PromptInjectionRiskFindingResponse] = Field(
+        default_factory=list
+    )
 
 
 class ConflictEntityResponse(BaseModel):
@@ -1714,6 +1728,7 @@ class ConsoleDictionarySummary(BaseModel):
     blocked_by_stop_list: int = 0
     errors: int = 0
     warnings: int = 0
+    prompt_like_instruction_findings: int = 0
 
 
 class ConsoleDictionaryReport(BaseModel):
@@ -1728,6 +1743,9 @@ class ConsoleDictionaryReport(BaseModel):
     summary: ConsoleDictionarySummary
     errors: list[ConsoleDictionaryIssue] = Field(default_factory=list)
     warnings: list[ConsoleDictionaryIssue] = Field(default_factory=list)
+    risk_findings: list[PromptInjectionRiskFindingResponse] = Field(
+        default_factory=list
+    )
 
 
 class ConsoleDictionaryExportResponse(BaseModel):

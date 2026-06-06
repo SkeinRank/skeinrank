@@ -30,6 +30,10 @@ from ..dictionary_spec import (
     is_supported_dictionary_schema_version,
     resolve_dictionary_schema_version,
 )
+from ..prompt_injection import (
+    build_prompt_injection_risk_summary,
+    scan_untrusted_payload,
+)
 from ..schemas import (
     ConsoleDictionaryAliasInput,
     ConsoleDictionaryExportResponse,
@@ -321,6 +325,11 @@ def _build_console_dictionary_report(
         summary=summary,
         mode=request.mode,
     )
+    risk_findings = scan_untrusted_payload(
+        request.model_dump(mode="json", exclude_none=True),
+        base_path="$",
+    )
+    _add_prompt_injection_warnings(warnings, summary, risk_findings)
     _set_issue_totals(summary, errors, warnings)
     return ConsoleDictionaryReport(
         status="applied" if applied else ("valid" if not errors else "invalid"),
@@ -332,6 +341,7 @@ def _build_console_dictionary_report(
         summary=summary,
         errors=errors,
         warnings=warnings,
+        risk_findings=[finding.to_dict() for finding in risk_findings],
     )
 
 
@@ -1040,6 +1050,41 @@ def _add_error(
         summary.conflicts += 1
     if blocked:
         summary.blocked_by_stop_list += 1
+
+
+def _add_prompt_injection_warnings(
+    warnings: list[ConsoleDictionaryIssue],
+    summary: ConsoleDictionarySummary,
+    findings,
+) -> None:
+    if not findings:
+        return
+    summary.prompt_like_instruction_findings = len(findings)
+    risk_summary = build_prompt_injection_risk_summary(findings)
+    for finding in findings:
+        warnings.append(
+            ConsoleDictionaryIssue(
+                code=finding.risk_code,
+                message=(
+                    f"Prompt-like instruction risk in untrusted dictionary input: "
+                    f"{finding.message}"
+                ),
+                path=finding.path,
+                severity="warning",
+            )
+        )
+    if risk_summary.get("status") == "review_required":
+        warnings.append(
+            ConsoleDictionaryIssue(
+                code="prompt_injection_review_required",
+                message=(
+                    "Dictionary input contains prompt-like or tool-like text. "
+                    "Review findings before promotion to runtime snapshots."
+                ),
+                path=None,
+                severity="warning",
+            )
+        )
 
 
 def _add_warning(

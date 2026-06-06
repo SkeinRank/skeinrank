@@ -93,6 +93,7 @@ Before enabling an agent integration:
 
 ## Related docs
 
+- [`prompt-like-detector.md`](prompt-like-detector.md)
 - [`prompt-injection.md`](prompt-injection.md)
 - [`rag-context-boundaries.md`](rag-context-boundaries.md)
 - [`../deployment/mcp-integration-kit.md`](../deployment/mcp-integration-kit.md)

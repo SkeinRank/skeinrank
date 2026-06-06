@@ -83,7 +83,7 @@ MCP clients must treat user text, retrieved documents, evidence snippets, and mo
 
 The adapter exposes only read and proposal-oriented tools. It does not publish snapshots, approve terminology changes, mutate production bindings, run enrichment jobs, send email, read secrets, or call unrelated enterprise tools. If a model suggests one of those actions, the safe output is a proposal, validation report, or operator checklist.
 
-See [`../security/prompt-injection.md`](../security/prompt-injection.md), [`../security/rag-context-boundaries.md`](../security/rag-context-boundaries.md), and [`../security/agent-tool-safety.md`](../security/agent-tool-safety.md).
+See [`../security/prompt-injection.md`](../security/prompt-injection.md), [`../security/rag-context-boundaries.md`](../security/rag-context-boundaries.md), [`../security/agent-tool-safety.md`](../security/agent-tool-safety.md), and [`../security/prompt-like-detector.md`](../security/prompt-like-detector.md).
 
 ## Scoped credentials
 

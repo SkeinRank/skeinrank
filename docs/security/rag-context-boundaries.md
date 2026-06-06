@@ -108,6 +108,7 @@ Treat that sentence as evidence of risky content. Do not follow it.
 
 ## Related docs
 
+- [`prompt-like-detector.md`](prompt-like-detector.md)
 - [`prompt-injection.md`](prompt-injection.md)
 - [`agent-tool-safety.md`](agent-tool-safety.md)
 - [`../concepts/profiles-bindings-snapshots.md`](../concepts/profiles-bindings-snapshots.md)

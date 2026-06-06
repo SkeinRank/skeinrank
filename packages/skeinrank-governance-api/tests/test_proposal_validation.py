@@ -39,6 +39,7 @@ def test_proposal_validation_registry_exposes_expected_checks():
         "confidence",
         "idempotency_key",
         "agent_payload",
+        "prompt_like_instruction",
     )
 
 
