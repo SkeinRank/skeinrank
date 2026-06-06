@@ -687,3 +687,7 @@ This package provides:
 - benchmark, pilot, support-bundle, backup/restore, alerting, and migration CLIs;
 - deployment docs for Docker Compose, Helm, GitOps, security, observability,
   upgrade, backup/restore, and operational runbooks.
+
+## Related documentation
+
+- [Headless Compose quickstart](../../docs/deployment/headless-quickstart.md) — run the API/PostgreSQL headless runtime contract with `docker-compose.headless.yml`.

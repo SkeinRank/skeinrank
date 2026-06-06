@@ -5,7 +5,7 @@ This example shows a safe agent-assisted terminology discovery workflow for Skei
 The safety rule stays unchanged:
 
 ```text
-LLM / agent -> proposal -> validation -> review / policy -> snapshot -> runtime
+LLM / agent -> proposal -> validation -> review/policy -> snapshot -> runtime
 ```
 
 Agents must not mutate production terminology directly. They can only validate aliases, explain queries, and submit pending proposals through the `/v1/tools/*` facade when submission is explicitly enabled.
@@ -284,3 +284,4 @@ local_endpoint
 ```
 
 Local evidence mode has no Elasticsearch calls, no OpenRouter calls, and no proposal submission by default.
+The local foundation path does not call OpenRouter yet; live model calls are enabled only through the guarded live-pilot commands below.

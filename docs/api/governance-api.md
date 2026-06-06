@@ -354,6 +354,7 @@ MCP client guides:
 - `docs/deployment/mcp-claude-desktop.md`
 - `docs/deployment/mcp-cursor-agents.md`
 - `docs/deployment/mcp-langgraph-agents.md`
+- `examples/agents/openrouter_alias_scout`
 - `examples/mcp-agent-docs`
 
 Scoped MCP credentials and smoke tests:
