@@ -29,8 +29,8 @@ def test_benchmark_docs_and_fixtures_are_discoverable() -> None:
     package_readme = _read("packages/skeinrank-governance-api/README.md")
     pyproject = _read("packages/skeinrank-governance-api/pyproject.toml")
 
-    assert "48A" in docs
-    assert "49A" in docs
+    assert "stable offline quality gate" in docs
+    assert "quality report" in docs
     assert "make benchmark-eval" in docs
     assert "proposal_precision_like" in docs
     assert "proposal_quality" in docs

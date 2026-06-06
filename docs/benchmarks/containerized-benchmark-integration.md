@@ -1,16 +1,17 @@
 # Containerized benchmark integration harness
 
-Patch 48C adds a full-stack benchmark harness for the existing `platform_ops_v1`
-fixture. It answers a different question than the deterministic 48A benchmark:
+The containerized benchmark integration harness proves that the benchmark
+workflow can run through the local Docker Compose stack with PostgreSQL, Governance API, and Elasticsearch evidence checks. It complements the offline
+headless benchmark by exercising real service boundaries while keeping the run
+deterministic and provider-free.
 
 ```text
-Can the benchmark workflow run against the Docker Compose stack with
-PostgreSQL, Governance API, and Elasticsearch evidence checks?
+Can the benchmark workflow run against PostgreSQL, Governance API, and Elasticsearch evidence checks without using an external model provider?
 ```
 
-The harness still does **not** call OpenRouter. It uses the deterministic 48A
-agent workflow, but runs it against the containerized PostgreSQL database and
-checks HTTP endpoints plus Elasticsearch evidence retrieval.
+The harness does **not** call OpenRouter. It reuses the deterministic agent
+workflow, stores benchmark state in the containerized PostgreSQL database, checks
+HTTP endpoints, and verifies Elasticsearch evidence retrieval.
 
 ## Stack flow
 
@@ -58,7 +59,7 @@ The UI and worker are not required for this benchmark.
 
 The stack report schema is `skeinrank.benchmark_stack_report.v1`. It includes:
 
-- the base deterministic 48A/49A benchmark scores, quality report, 49B proposal quality metrics, and 49C agent decision diagnostics;
+- the base deterministic benchmark scores, quality report, proposal quality metrics, and agent decision diagnostics;
 - `/healthz` API check;
 - `/schema/health` Alembic/schema check;
 - `/metrics` availability check;
@@ -77,7 +78,11 @@ unchanged_skip_rate = 1.0
 noise_rate = 0.0
 ```
 
-and all stack checks should have `status = passed`. The nested `base_benchmark.proposal_quality` and `base_benchmark.agent_decision_diagnostics` sections mirror the offline benchmark so the containerized run exposes the same proposal quality metrics, per-alias decisions, skipped-document reasons, and missing-alias explanations.
+and all stack checks should have `status = passed`. The nested
+`base_benchmark.proposal_quality` and
+`base_benchmark.agent_decision_diagnostics` sections mirror the offline
+benchmark so the containerized run exposes the same proposal quality metrics,
+per-alias decisions, skipped-document reasons, and missing-alias explanations.
 
 ## Defaults
 
@@ -140,31 +145,36 @@ make benchmark-stack-down
 when you want to stop the Compose stack. It does not pass `-v`, so Docker volumes
 are preserved unless you remove them explicitly.
 
-## Relationship to 48A and 48B
+## When to use each benchmark layer
 
 ```text
-48A = deterministic in-process benchmark
-48B = guarded OpenRouter live pilot
-48C = Docker Compose + DB + API + Elasticsearch integration benchmark
+Offline headless benchmark = fastest local and CI regression check
+OpenRouter live pilot = opt-in provider check for model-generated proposal payloads
+Containerized stack benchmark = Docker Compose + DB + API + Elasticsearch integration check
 ```
 
-Run 48A first when you want a fast local regression check. Run 48C when you want
-to prove that the same workflow works through the containerized stack and evidence
-surfaces.
+Run the offline benchmark first when you want a fast local regression check. Run
+the containerized stack benchmark when you want to prove that the same workflow
+works through the containerized stack and evidence surfaces.
 
+## Benchmark stack troubleshooting
 
-### Benchmark stack troubleshooting
-
-If `benchmark-stack-up` reports a Docker container name conflict for `skeinrank-*-dev`, the stack target now prunes the fixed dev-stack benchmark containers before startup:
+If `benchmark-stack-up` reports a Docker container name conflict for
+`skeinrank-*-dev`, the stack target prunes the fixed dev-stack benchmark
+containers before startup:
 
 ```bash
 make benchmark-stack-prune-containers
 make benchmark-stack-up
 ```
 
-The prune step removes containers only; named volumes are not deleted. Use `docker compose -f docker-compose.dev.yml down -v` only when you intentionally want to remove persisted dev volumes.
+The prune step removes containers only; named volumes are not deleted. Use
+`docker compose -f docker-compose.dev.yml down -v` only when you intentionally
+want to remove persisted dev volumes.
 
-The stack benchmark connects to PostgreSQL from the local Poetry environment, so run `cd packages/skeinrank-governance-api && poetry install` after applying dependency changes.
+The stack benchmark connects to PostgreSQL from the local Poetry environment, so
+run `cd packages/skeinrank-governance-api && poetry install` after applying
+dependency changes.
 
 ## Isolation and stale Docker state
 
@@ -174,15 +184,20 @@ The stack uses a deterministic benchmark Compose environment file:
 deploy/docker/benchmark.env.example
 ```
 
-The Makefile forces a dedicated Compose project name (`skeinrank-benchmark`) and fixed local credentials for the benchmark stack. This avoids accidental reuse of production `.env` values.
+The Makefile forces a dedicated Compose project name (`skeinrank-benchmark`) and
+fixed local credentials for the benchmark stack. This avoids accidental reuse of
+production `.env` values.
 
-If Postgres reports `password authentication failed`, an old Docker volume was probably created with different `POSTGRES_*` values. Run:
+If Postgres reports `password authentication failed`, an old Docker volume was
+probably created with different `POSTGRES_*` values. Run:
 
 ```bash
 make benchmark-stack-prune-containers
 make benchmark-stack-up
 ```
 
-`benchmark-stack-prune-containers` removes the benchmark containers and benchmark volumes, so it is destructive for the local benchmark stack by design.
+`benchmark-stack-prune-containers` removes the benchmark containers and benchmark
+volumes, so it is destructive for the local benchmark stack by design.
 
-If `/healthz` briefly closes the connection during startup, `benchmark-stack-wait` retries until the API and Elasticsearch are ready.
+If `/healthz` briefly closes the connection during startup,
+`benchmark-stack-wait` retries until the API and Elasticsearch are ready.
