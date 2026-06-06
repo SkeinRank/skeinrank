@@ -63,20 +63,28 @@ def _load_inputs() -> tuple[Any, Any, list[dict[str, Any]], list[dict[str, Any]]
     return runner, config, failed_queries, evidence_records
 
 
-def test_57a_model_provider_files_docs_and_config_exist() -> None:
+def test_model_provider_abstraction_docs_and_config_exist() -> None:
     assert (AGENT_DIR / "model_provider.py").exists()
     config = json.loads((AGENT_DIR / "agent_config.example.json").read_text())
     assert config["model_provider"]["provider_type"] == "openrouter"
 
-    for path in (
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
-        AGENT_DIR / "README.md",
-        REPO_ROOT / "docs" / "deployment" / "model-provider-abstraction.md",
-    ):
-        content = path.read_text(encoding="utf-8")
-        assert "Patch 57A" in content, path
-        assert "model provider" in content.lower(), path
+    docs_index = (REPO_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    package_readme = (
+        REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md"
+    ).read_text(encoding="utf-8")
+    agent_readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
+    provider_doc = (
+        REPO_ROOT / "docs" / "deployment" / "model-provider-abstraction.md"
+    ).read_text(encoding="utf-8")
+
+    for content in (docs_index, package_readme, agent_readme, provider_doc):
+        assert "Patch" not in content
+
+    assert "deployment/model-provider-abstraction.md" in docs_index
+    assert "docs/deployment/model-provider-abstraction.md" in package_readme
+    assert "--print-model-provider-plan" in agent_readme
+    assert "model provider" in provider_doc.lower()
+    assert "skeinrank.model_provider_plan.v1" in provider_doc
 
 
 def test_model_provider_plan_cli_is_offline() -> None:
