@@ -180,6 +180,8 @@ POST /v1/text/canonicalize
 POST /v1/query/route-plan
 ```
 
+`route-plan` is a read-only multi-binding planning surface for selected/rejected bindings before search fan-out.
+
 Elasticsearch/OpenSearch enrichment operations:
 
 ```text

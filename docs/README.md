@@ -27,7 +27,7 @@ Use this section to prove value without serving production traffic.
 ## Core concepts
 
 - [Coverage framework](concepts/coverage-framework.md) — slots, tags, ambiguous aliases, binding policies, and evaluation guardrails.
-- [Runtime routing API guide](guides/runtime-routing-api.md) — binding-aware canonicalization, query planning, route plans, and search requests.
+- [Runtime routing API guide](guides/runtime-routing-api.md) — binding-aware canonicalization, query planning, read-only multi-binding `route-plan`, and search requests.
 - [Context-trigger disambiguation](guides/context-trigger-disambiguation.md) — context rules for resolving ambiguous aliases without introducing new endpoints.
 - [Coverage workflow guide](guides/coverage-framework.md) — headless workflow for tags, conflicts, ambiguous candidates, policies, and before/after evaluation.
 

@@ -309,6 +309,8 @@ Runtime routes serve binding-aware canonicalization and search. Production calle
 | POST | `/v1/search` | Execute search for one binding. |
 | POST | `/v1/search/multi` | Fan out search across several bindings and merge results. |
 
+`POST /v1/query/route-plan` is read-only. Requests provide `candidate_binding_ids`; responses return `mode = "route_plan_only"` with `selected_bindings`, `rejected_bindings`, and `failed_bindings` so applications can explain routing before deciding whether to call `/v1/search` or `/v1/search/multi`.
+
 Production guidance:
 
 ```json
