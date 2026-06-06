@@ -12,7 +12,7 @@
 
 <p align="center">
   Open-source <strong>Terminology Control Plane</strong> for enterprise search, RAG, and AI-agent workflows.<br/>
-  SkeinRank canonicalizes messy internal language — aliases, acronyms, incident shorthand, and ambiguous names — into governed, versioned, binding-aware runtime context.
+  SkeinRank canonicalizes aliases, acronyms, incident shorthand, and ambiguous names into governed, versioned, binding-aware runtime context.
 </p>
 
 <p align="center">
@@ -54,7 +54,7 @@
 
 ---
 
-## See it in 30 seconds
+## Try it locally
 
 A user types team slang. SkeinRank turns it into something your search engine, RAG workflow, or agent can use safely:
 
@@ -64,7 +64,7 @@ canonical query:  "kubernetes postgresql timeout"
 runtime context:  binding + profile + fields + pinned snapshot
 ```
 
-Try the lightweight SDK/CLI path from a repository checkout:
+Use the lightweight SDK/CLI path when you want a deterministic local check from a repository checkout:
 
 ```bash
 cd packages/skeinrank-core
@@ -85,7 +85,7 @@ result = extract_terms("k8s rollout uses pg database", dictionary=dictionary)
 print(result.canonical_values)  # ["kubernetes", "postgresql"]
 ```
 
-Want the full platform preview with UI, Governance API, Elasticsearch, RabbitMQ, and AI Inbox?
+For the full platform preview with UI, Governance API, Elasticsearch, RabbitMQ, and AI Inbox:
 
 ```bash
 cp .env.example .env
@@ -99,7 +99,7 @@ make demo-tour-smoke
 
 Default local URLs: UI `http://127.0.0.1:5173`, Governance API `http://127.0.0.1:8010`, Elasticsearch `http://127.0.0.1:19200`, RabbitMQ Management `http://127.0.0.1:15672`.
 
-See [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md), [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md), and [`examples/platform_ops_demo`](examples/platform_ops_demo).
+Start with [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md), [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md), and [`examples/platform_ops_demo`](examples/platform_ops_demo).
 
 ## The problem
 
@@ -129,7 +129,7 @@ It does not replace your search engine. It sits beside your application stack an
 | Serve | Expose API, SDK, CLI, and MCP tools for search, RAG, and agents. |
 | Evaluate | Compare retrieval behavior before and after terminology changes. |
 
-There is **not a direct production CRUD console** by design. Production terminology changes are expected to flow through `proposal -> validation -> risk policy -> review -> snapshot -> rollout` — the same safety posture as `proposal, validation, risk policy, review, snapshots`, and GitOps-style rollout.
+SkeinRank is **not a direct production CRUD console** by design. Production terminology changes flow through `proposal -> validation -> risk policy -> review -> snapshot -> rollout`. The product model is intentionally proposal, validation, risk policy, review, snapshots, and GitOps-style rollout.
 
 See [`docs/product-positioning.md`](docs/product-positioning.md) for the product narrative and public-beta checklist.
 
@@ -139,7 +139,7 @@ Every search engine has a synonym list. But a synonym list is configuration, not
 
 At scale, teams need to answer questions a flat config file cannot answer:
 
-- which version of the terminology is live right now;
+- which terminology version is live right now;
 - who approved an alias and what evidence supported it;
 - how to roll back a bad terminology change;
 - why `pg timeout` should resolve differently from `pg layout`;
@@ -193,7 +193,18 @@ AI Inbox -> review evidence-backed agent proposals
 Schema & Snapshots -> inspect profiles, bindings, aliases, and snapshot state
 ```
 
-## Runtime API
+## Quickstart paths
+
+| Path | Use when | Start here |
+| --- | --- | --- |
+| Release stack | You want to run the public beta from prebuilt GHCR images. | `cp .env.example .env` then `docker compose up -d`; [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md) |
+| Full dev stack | You want to build from source with PostgreSQL, Elasticsearch, RabbitMQ, Governance API, worker, and UI. | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) |
+| Headless runtime | You want API/PostgreSQL dictionary apply/export and snapshot artifact smoke tests. | [`docker-compose.headless.yml`](docker-compose.headless.yml), [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) |
+| Kubernetes alpha | You want a Helm chart using the published GHCR images. | [`charts/skeinrank`](charts/skeinrank), [`docs/deployment/helm-chart.md`](docs/deployment/helm-chart.md) |
+| Production-oriented Compose | You want a hardened Compose template and security notes. | [`docker-compose.prod.yml`](docker-compose.prod.yml), [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md) |
+
+<details>
+<summary>Runtime API</summary>
 
 SkeinRank exposes binding-aware runtime endpoints for canonicalization, query planning, and search integration:
 
@@ -209,7 +220,10 @@ POST /v1/search/multi
 
 Start here: [`docs/guides/runtime-routing-api.md`](docs/guides/runtime-routing-api.md), [`docs/guides/context-trigger-disambiguation.md`](docs/guides/context-trigger-disambiguation.md), [`examples/runtime-routing-api`](examples/runtime-routing-api).
 
-## Results and benchmarks
+</details>
+
+<details>
+<summary>Benchmark workflows</summary>
 
 SkeinRank includes deterministic benchmark and pilot workflows that do not require OpenRouter or production data by default.
 
@@ -222,7 +236,10 @@ SkeinRank includes deterministic benchmark and pilot workflows that do not requi
 | Performance report | `make benchmark-performance-report`; [`docs/benchmarks/cost-latency-throughput-report.md`](docs/benchmarks/cost-latency-throughput-report.md) |
 | First-company pilot | `make pilot-plan`; [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md) |
 
-## Terminology-as-Code and GitOps
+</details>
+
+<details>
+<summary>Terminology-as-Code and GitOps</summary>
 
 SkeinRank supports a safe file-based workflow for teams that manage terminology in Git.
 
@@ -240,7 +257,10 @@ poetry run skeinrank-migrate snapshot-eval --before before.json --after after.js
 
 Docs and examples: [`docs/guides/terminology-as-code.md`](docs/guides/terminology-as-code.md), [`docs/guides/dictionary-cli-planning.md`](docs/guides/dictionary-cli-planning.md), [`docs/deployment/gitops-delivery-runbook.md`](docs/deployment/gitops-delivery-runbook.md), [`examples/terminology-as-code`](examples/terminology-as-code), [`examples/gitops-delivery`](examples/gitops-delivery).
 
-## Enrichment safety
+</details>
+
+<details>
+<summary>Enrichment safety</summary>
 
 Elasticsearch/OpenSearch enrichment is treated as an operator workflow, not a casual UI action. Use preflight and blue/green alias swap for production-like runs.
 
@@ -258,7 +278,10 @@ POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
 
 Runbooks: [`docs/guides/elasticsearch-enrichment.md`](docs/guides/elasticsearch-enrichment.md), [`docs/guides/enrichment-beta-hardening.md`](docs/guides/enrichment-beta-hardening.md), [`docs/deployment/blue-green-alias-swap-runbook.md`](docs/deployment/blue-green-alias-swap-runbook.md), [`docs/guides/enrichment-pause-resume-checkpointing.md`](docs/guides/enrichment-pause-resume-checkpointing.md), [`examples/blue-green-alias-swap`](examples/blue-green-alias-swap).
 
-## MCP and agent integration
+</details>
+
+<details>
+<summary>MCP and agent integration</summary>
 
 SkeinRank includes a dependency-light MCP stdio adapter. It exposes only proposal-safe tools: agents can inspect, validate, and submit pending proposals, but they do not publish snapshots or mutate runtime directly.
 
@@ -281,15 +304,10 @@ skeinrank_get_proposal_status
 
 Docs and examples: [`docs/deployment/mcp-integration-kit.md`](docs/deployment/mcp-integration-kit.md), [`docs/deployment/mcp-scoped-credentials-smoke-tests.md`](docs/deployment/mcp-scoped-credentials-smoke-tests.md), [`docs/deployment/mcp-claude-desktop.md`](docs/deployment/mcp-claude-desktop.md), [`docs/deployment/mcp-cursor-agents.md`](docs/deployment/mcp-cursor-agents.md), [`docs/deployment/mcp-langgraph-agents.md`](docs/deployment/mcp-langgraph-agents.md), [`examples/mcp-integration-kit`](examples/mcp-integration-kit), [`examples/mcp-scoped-credentials`](examples/mcp-scoped-credentials), [`examples/mcp-agent-docs`](examples/mcp-agent-docs), [`examples/agents/openrouter_alias_scout`](examples/agents/openrouter_alias_scout), [`docs/guides/openrouter-agent.md`](docs/guides/openrouter-agent.md).
 
-## Quickstart paths
+</details>
 
-| Path | Use when | Start here |
-| --- | --- | --- |
-| Release stack | You want to run the public beta from prebuilt GHCR images. | `cp .env.example .env` then `docker compose up -d`; [`docs/deployment/release-cлompose.md`](docs/deployment/release-compose.md) |
-| Full dev stack | You want to build from source with PostgreSQL, Elasticsearch, RabbitMQ, Governance API, worker, and UI. | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) |
-| Headless runtime | You want API/PostgreSQL dictionary apply/export and snapshot artifact smoke tests. | [`docker-compose.headless.yml`](docker-compose.headless.yml), [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) |
-| Kubernetes alpha | You want a Helm chart using the published GHCR images. | [`charts/skeinrank`](charts/skeinrank), [`docs/deployment/helm-chart.md`](docs/deployment/helm-chart.md) |
-| Production-oriented Compose | You want a hardened Compose template and security notes. | [`docker-compose.prod.yml`](docker-compose.prod.yml), [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md) |
+<details>
+<summary>Docker, Kubernetes, and operations</summary>
 
 ## Docker Compose dev stack
 
@@ -314,8 +332,14 @@ Main references:
 - [`docs/deployment/helm-production.md`](docs/deployment/helm-production.md) — production-oriented Helm values, ingress, PDB, resources, and secret strategy.
 - [`docs/deployment/helm-smoke-test.md`](docs/deployment/helm-smoke-test.md) — optional kind smoke test for the alpha Helm chart.
 - [`docs/deployment/ci-routing.md`](docs/deployment/ci-routing.md) — path-aware CI routing and the `ci-required` gate.
+- [`docs/deployment/release-checklist.md`](docs/deployment/release-checklist.md) — release validation checklist.
 
-## Documentation
+Operational runbooks: [`docs/deployment/observability.md`](docs/deployment/observability.md), [`docs/deployment/env-and-secrets.md`](docs/deployment/env-and-secrets.md), [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md), [`docs/deployment/upgrade-guide.md`](docs/deployment/upgrade-guide.md), [`docs/deployment/migration-safety.md`](docs/deployment/migration-safety.md), [`docs/deployment/alerting-hooks-degraded-state-reports.md`](docs/deployment/alerting-hooks-degraded-state-reports.md), [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md), [`docs/pilots/support-bundle-production.md`](docs/pilots/support-bundle-production.md).
+
+</details>
+
+<details>
+<summary>Documentation map</summary>
 
 | Topic | Start here |
 | --- | --- |
@@ -324,11 +348,15 @@ Main references:
 | Dictionary and coverage | [`docs/concepts/dictionary-spec-v1.md`](docs/concepts/dictionary-spec-v1.md), [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md), [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md), [`examples/coverage-framework`](examples/coverage-framework) |
 | API and UI | [`docs/api/governance-api.md`](docs/api/governance-api.md), [`docs/guides/governance-console.md`](docs/guides/governance-console.md), [`docs/guides/proposal-inbox-ui.md`](docs/guides/proposal-inbox-ui.md) |
 | AI safety | [`docs/security/prompt-injection.md`](docs/security/prompt-injection.md), [`docs/security/rag-context-boundaries.md`](docs/security/rag-context-boundaries.md), [`docs/security/agent-tool-safety.md`](docs/security/agent-tool-safety.md), [`docs/security/mcp-tool-guardrails.md`](docs/security/mcp-tool-guardrails.md), [`docs/security/prompt-like-detector.md`](docs/security/prompt-like-detector.md), [`docs/security/prompt-injection-regression-corpus.md`](docs/security/prompt-injection-regression-corpus.md) |
-| Deployment | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md), [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md), [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md), [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md), [`docs/deployment/dev-stack-troubleshooting.md`](docs/deployment/dev-stack-troubleshooting.md), [`docs/deployment/security.md`](docs/deployment/security.md), [`docs/deployment/env-and-secrets.md`](docs/deployment/env-and-secrets.md), [`docs/deployment/observability.md`](docs/deployment/observability.md), [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md), [`docs/deployment/upgrade-guide.md`](docs/deployment/upgrade-guide.md), [`docs/deployment/migration-safety.md`](docs/deployment/migration-safety.md), [`docs/deployment/release-checklist.md`](docs/deployment/release-checklist.md) |
-| Pilots | [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md), [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md), [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md), [`docs/pilots/troubleshooting-bundle-export.md`](docs/pilots/troubleshooting-bundle-export.md), [`docs/pilots/support-bundle-production.md`](docs/pilots/support-bundle-production.md) |
+| Deployment | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md), [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md), [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md), [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md), [`docs/deployment/security.md`](docs/deployment/security.md), [`docs/deployment/observability.md`](docs/deployment/observability.md) |
+| Pilots | [`docs/pilots/first-company-pilot-runbook.md`](docs/pilots/first-company-pilot-runbook.md), [`examples/pilots/first_company_pilot_checklist.md`](examples/pilots/first_company_pilot_checklist.md), [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md) |
+| Community | [`docs/community/discussions.md`](docs/community/discussions.md), [`docs/community/github-labels.md`](docs/community/github-labels.md) |
 | Development | [`docs/guides/development.md`](docs/guides/development.md), [`docs/deployment/ci-routing.md`](docs/deployment/ci-routing.md) |
 
-## Repository layout
+</details>
+
+<details>
+<summary>Repository layout and development checks</summary>
 
 ```text
 packages/skeinrank-core                    Python SDK, CLI, extraction, canonicalization
@@ -345,8 +373,6 @@ deploy/                                    Dockerfiles, Prometheus, Grafana, Ope
 docs/                                      Product, concept, guide, API, and deployment docs
 charts/skeinrank                           Alpha Helm chart
 ```
-
-## Development checks
 
 Run repository-level hygiene from the root:
 
@@ -366,6 +392,8 @@ poetry run pytest -q
 ```
 
 The GitHub Actions workflow uses path-aware routing so docs/deployment changes do not run unrelated package installs, while package and UI changes still run their own checks. See [`docs/deployment/ci-routing.md`](docs/deployment/ci-routing.md).
+
+</details>
 
 ## Community
 
