@@ -122,7 +122,7 @@ For a screenshot-ready console, seed the local stack with a platform-operations 
 make demo-reset
 ```
 
-This runs `examples/platform_ops_demo/seed_platform_demo.py`. It creates the `platform_ops` profile, loads `platform_knowledge_base`, creates a binding, adds evidence-backed AI Inbox proposals, refreshes evidence snapshots, starts an enrichment job, and prints the 59A guided Control Plane walkthrough. See [`../guides/seeded-demo-walkthrough.md`](../guides/seeded-demo-walkthrough.md) for the product tour.
+This runs `examples/platform_ops_demo/seed_platform_demo.py`. It creates the `platform_ops` profile, loads `platform_knowledge_base`, creates a binding, adds evidence-backed AI Inbox proposals, refreshes evidence snapshots, starts an enrichment job, and prints the guided Control Plane walkthrough. See [`../guides/seeded-demo-walkthrough.md`](../guides/seeded-demo-walkthrough.md) for the product tour.
 
 Use the non-destructive variant after the first run:
 
