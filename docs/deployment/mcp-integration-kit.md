@@ -1,8 +1,6 @@
 # MCP packaging and agent integration kit
 
-Patch 62A packages the existing `skeinrank-mcp` stdio adapter as a small agent
-integration kit. The goal is to make the MCP path discoverable and testable
-without adding a second business-logic layer.
+The `skeinrank-mcp` stdio adapter packages the existing safe tool facade as a small agent integration kit. The goal is to make the MCP path discoverable and testable without adding a second business-logic layer.
 
 ## Boundary
 
@@ -64,6 +62,8 @@ The manifest schema is:
 skeinrank.mcp_integration_manifest.v1
 ```
 
+The manifest also includes `tool_policy` with schema `skeinrank.mcp_tool_safety_policy.v1`. The policy lists allowed tools, forbidden runtime actions, allowed REST surfaces, forbidden REST surfaces, and the top-level argument keys each tool may accept.
+
 Print a shell-friendly env template:
 
 ```bash
@@ -78,6 +78,16 @@ poetry run skeinrank-mcp --smoke-test
 
 These helpers are packaging-only. They do not call the Governance API, create
 proposals, or mutate runtime terminology.
+
+## Prompt injection and tool-injection boundary
+
+MCP clients must treat user text, retrieved documents, evidence snippets, and model output as untrusted data. Text found inside a document can describe an instruction, but it must not change the MCP tool policy or cause runtime mutation.
+
+The adapter exposes only read and proposal-oriented tools. It does not publish snapshots, approve terminology changes, mutate production bindings, run enrichment jobs, send email, read secrets, or call unrelated enterprise tools. If a model suggests one of those actions, the safe output is a proposal, validation report, or operator checklist.
+
+The adapter also rejects unknown MCP tool names and top-level proxy-style arguments such as `endpoint`, `url`, `method`, `command`, `tool`, `tool_name`, `operation`, and `runtime_action`. This keeps the adapter from becoming a generic HTTP or tool proxy.
+
+See [`../security/prompt-injection.md`](../security/prompt-injection.md), [`../security/rag-context-boundaries.md`](../security/rag-context-boundaries.md), [`../security/agent-tool-safety.md`](../security/agent-tool-safety.md), [`../security/mcp-tool-guardrails.md`](../security/mcp-tool-guardrails.md), [`../security/prompt-like-detector.md`](../security/prompt-like-detector.md), and [`../security/prompt-injection-regression-corpus.md`](../security/prompt-injection-regression-corpus.md).
 
 ## Scoped credentials
 

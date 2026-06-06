@@ -25,6 +25,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .apply_policy import ensure_apply_policy_summary
+from .prompt_injection import (
+    build_prompt_injection_risk_summary,
+    prompt_injection_risk_flags,
+    scan_untrusted_payload,
+)
 
 PROPOSAL_VALIDATION_SCHEMA_VERSION = "skeinrank.proposal_validation.v1"
 PROPOSAL_CHECK_STATUSES = ("passed", "warning", "blocked", "skipped")
@@ -456,6 +461,43 @@ def _check_agent_payload(context: ProposalValidationContext) -> ProposalCheckRes
     )
 
 
+def _check_prompt_like_instruction(
+    context: ProposalValidationContext,
+) -> ProposalCheckResult:
+    payload = {
+        "canonical_value": context.canonical_value,
+        "alias_value": context.alias_value,
+        "slot": context.slot,
+        "source_payload": context.source_payload or {},
+    }
+    findings = scan_untrusted_payload(payload, base_path="proposal")
+    if not findings:
+        return ProposalCheckResult(
+            name="prompt_like_instruction",
+            status="passed",
+            severity="info",
+            message="No prompt-like instruction signals were found in proposal values.",
+        )
+
+    risk_summary = build_prompt_injection_risk_summary(findings)
+    return ProposalCheckResult(
+        name="prompt_like_instruction",
+        status="warning",
+        severity="warning",
+        message=(
+            "Prompt-like or tool-like instruction text was found in untrusted "
+            "proposal values. Review before approval or snapshot publication."
+        ),
+        details={
+            "schema_version": risk_summary["schema_version"],
+            "status": risk_summary["status"],
+            "risk_flags": prompt_injection_risk_flags(findings),
+            "findings_total": risk_summary["findings_total"],
+            "findings": risk_summary["findings"],
+        },
+    )
+
+
 def _find_canonical_term(context: ProposalValidationContext) -> CanonicalTerm | None:
     return context.session.scalar(
         select(CanonicalTerm).where(
@@ -482,6 +524,7 @@ PROPOSAL_CHECK_REGISTRY: tuple[ProposalChecker, ...] = (
     _check_confidence,
     _check_idempotency_key,
     _check_agent_payload,
+    _check_prompt_like_instruction,
 )
 
 PROPOSAL_CHECK_NAMES = (
@@ -493,4 +536,5 @@ PROPOSAL_CHECK_NAMES = (
     "confidence",
     "idempotency_key",
     "agent_payload",
+    "prompt_like_instruction",
 )

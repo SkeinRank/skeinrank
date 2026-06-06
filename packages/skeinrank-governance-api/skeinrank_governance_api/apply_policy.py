@@ -32,6 +32,12 @@ _HIGH_RISK_FLAGS = {
     "unsafe",
     "short_alias",
     "manual_block",
+    "prompt_like_instruction",
+    "hidden_prompt_request",
+    "secret_exfiltration_request",
+    "tool_injection_request",
+    "destructive_action_request",
+    "html_instruction_comment",
 }
 
 
@@ -84,7 +90,7 @@ def build_apply_policy_summary(
     checks = summary.get("checks") if isinstance(summary, Mapping) else None
     blocked_checks = _checks_with_status(checks, "blocked")
     warning_checks = _checks_with_status(checks, "warning")
-    risk_flags = _risk_flags(source_payload)
+    risk_flags = _risk_flags(source_payload) | _risk_flags_from_checks(checks)
     high_risk_flags = sorted(flag for flag in risk_flags if flag in _HIGH_RISK_FLAGS)
     normalized_alias = normalize_value(alias_value or "") if alias_value else None
     normalized_canonical = normalize_value(canonical_value)
@@ -285,6 +291,26 @@ def _risk_flags(source_payload: Mapping[str, Any] | None) -> set[str]:
         raw = judgment.get("risk_flags")
         if isinstance(raw, list):
             values.extend(raw)
+    return {str(value).strip().lower() for value in values if str(value).strip()}
+
+
+def _risk_flags_from_checks(checks: object) -> set[str]:
+    if not isinstance(checks, Mapping):
+        return set()
+    values: list[Any] = []
+    for check in checks.values():
+        if not isinstance(check, Mapping):
+            continue
+        details = check.get("details")
+        if isinstance(details, Mapping):
+            raw = details.get("risk_flags")
+            if isinstance(raw, list):
+                values.extend(raw)
+            risk_summary = details.get("prompt_injection_risk")
+            if isinstance(risk_summary, Mapping):
+                raw = risk_summary.get("risk_flags")
+                if isinstance(raw, list):
+                    values.extend(raw)
     return {str(value).strip().lower() for value in values if str(value).strip()}
 
 

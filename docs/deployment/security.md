@@ -10,6 +10,8 @@ Use `docker-compose.prod.yml` as the production-oriented starting point. See `do
 
 A production deployment should treat the Governance API and UI as the only user-facing surfaces.
 
+AI and agent integrations add another boundary: retrieved documents, evidence snippets, dictionary imports, and model outputs are untrusted data. They should never override system/tool policy or mutate production directly. See `docs/security/prompt-injection.md`, `docs/security/rag-context-boundaries.md`, `docs/security/agent-tool-safety.md`, `docs/security/prompt-like-detector.md`, and `docs/security/prompt-injection-regression-corpus.md` for the prompt-injection and tool-safety model.
+
 PostgreSQL, RabbitMQ, and Elasticsearch should not be exposed directly to end users.
 
 ```text
@@ -180,6 +182,9 @@ Back up Elasticsearch indices according to your organization's search/data reten
 - `deploy/docker/README.md`
 - `docs/deployment/production-compose.md`
 - `docs/deployment/env-and-secrets.md`
+- `docs/security/prompt-injection.md`
+- `docs/security/rag-context-boundaries.md`
+- `docs/security/agent-tool-safety.md`
 
 ## Observability privacy baseline
 
@@ -204,3 +209,16 @@ make prod-smoke
 ```
 
 Migration-specific operational guardrails are documented in `docs/deployment/migration-safety.md`.
+
+## Prompt-like instruction detection
+
+SkeinRank surfaces prompt-like instruction risks in dictionary imports, proposal
+validation, and Elasticsearch/OpenSearch evidence snippets. Findings are returned
+as review metadata rather than silently rewriting source text. Use the findings to
+stop-list unsafe values, reject risky proposals, or keep suspicious snippets
+inside the untrusted evidence boundary.
+
+See [`../security/prompt-like-detector.md`](../security/prompt-like-detector.md)
+and [`../security/prompt-injection-regression-corpus.md`](../security/prompt-injection-regression-corpus.md)
+for detector behavior, review semantics, and corpus-backed regression coverage.
+

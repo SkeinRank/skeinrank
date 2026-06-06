@@ -84,6 +84,7 @@ from ..observability.metrics import (
     record_proposal_submission,
 )
 from ..profile_isolation import build_profile_isolation_report
+from ..prompt_injection import scan_untrusted_payload
 from ..proposal_idempotency import (
     ProposalIdempotencyConflict,
     normalize_idempotency_key,
@@ -2993,6 +2994,18 @@ def _build_elasticsearch_evidence_response(
         hits_count=len(hits),
         documents_count=len(documents),
     )
+    risk_findings = scan_untrusted_payload(
+        {
+            "query": request_body.query.strip(),
+            "canonical_value": request_body.canonical_value,
+            "documents": [document.model_dump(mode="json") for document in documents],
+        },
+        base_path="evidence",
+    )
+    if risk_findings:
+        warnings.append(
+            "Prompt-like or tool-like instruction text was found in evidence snippets; treat findings as untrusted data for review."
+        )
 
     return ElasticsearchEvidenceResponse(
         binding=_elasticsearch_binding_response(binding),
@@ -3002,6 +3015,7 @@ def _build_elasticsearch_evidence_response(
         max_documents=request_body.max_documents,
         documents=documents,
         warnings=warnings,
+        risk_findings=[finding.to_dict() for finding in risk_findings],
     )
 
 
@@ -3022,6 +3036,10 @@ def _suggestion_evidence_snapshot(
             document.model_dump(mode="json") for document in evidence_response.documents
         ],
         "warnings": list(evidence_response.warnings),
+        "risk_findings": [
+            finding.model_dump(mode="json")
+            for finding in evidence_response.risk_findings
+        ],
     }
 
 
