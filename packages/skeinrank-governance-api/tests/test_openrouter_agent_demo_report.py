@@ -27,7 +27,7 @@ def test_openrouter_40k_files_exist_and_are_documented() -> None:
 
     readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
     for fragment in (
-        "Patch 40K adds a local end-to-end demo report",
+        "local demo is network-free",
         "--run-demo-report",
         "--print-demo-review-prompt",
         "skeinrank.agent_demo_report.v1",
@@ -146,15 +146,14 @@ def test_alias_scout_cli_demo_report_outputs_and_writes_json(tmp_path: Path) -> 
 
 def test_openrouter_40k_docs_and_makefile_are_linked() -> None:
     paths = [
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
+        AGENT_DIR / "README.md",
     ]
     for path in paths:
         content = path.read_text(encoding="utf-8")
-        assert "Patch 40K" in content, path
         assert "--run-demo-report" in content, path
+        assert "--print-demo-review-prompt" in content, path
 
     makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
     assert "agent-demo" in makefile

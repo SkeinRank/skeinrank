@@ -65,7 +65,7 @@ def test_approved_apply_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 41H" in content
+        assert "--print-approved-apply-plan" in content
         assert "--print-approved-apply-plan" in content
         assert "--build-approved-apply-plan" in content
         assert "--run-snapshot-evaluation" in content

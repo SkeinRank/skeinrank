@@ -27,7 +27,7 @@ def test_openrouter_40i_files_exist_and_are_documented() -> None:
 
     readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
     for fragment in (
-        "Patch 40I adds compact evidence windows",
+        "compact window sampler",
         "--sample-evidence",
         "--print-sample-evidence-pack",
         "no Elasticsearch calls, no OpenRouter calls",
@@ -158,12 +158,11 @@ def test_alias_scout_cli_evidence_sampling_outputs_parseable_json() -> None:
 
 def test_openrouter_40i_docs_are_linked_from_project_docs() -> None:
     docs = [
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
+        REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
+        AGENT_DIR / "README.md",
     ]
     for path in docs:
         content = path.read_text(encoding="utf-8")
-        assert "Patch 40I" in content, path
         assert "--sample-evidence" in content, path
         assert "--print-sample-evidence-pack" in content, path

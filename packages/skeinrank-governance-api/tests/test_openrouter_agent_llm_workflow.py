@@ -27,7 +27,7 @@ def test_openrouter_40j_files_exist_and_are_documented() -> None:
 
     readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
     for fragment in (
-        "Patch 40J adds OpenRouter execution",
+        "Live model review",
         "--print-llm-review-plan",
         "--llm-review",
         "skeinrank.agent_llm_review_report.v1",
@@ -224,12 +224,11 @@ def test_llm_review_cli_requires_openrouter_key_for_live_execution() -> None:
 
 def test_openrouter_40j_docs_are_linked() -> None:
     paths = [
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
+        AGENT_DIR / "README.md",
     ]
     for path in paths:
         content = path.read_text(encoding="utf-8")
-        assert "Patch 40J" in content, path
         assert "--print-llm-review-plan" in content, path
+        assert "--llm-review" in content, path

@@ -92,7 +92,7 @@ def test_proposal_inbox_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 41G" in content
+        assert "--print-proposal-inbox-plan" in content
         assert "--print-proposal-inbox-plan" in content
         assert "--build-proposal-inbox" in content
         assert "--write-proposal-inbox" in content

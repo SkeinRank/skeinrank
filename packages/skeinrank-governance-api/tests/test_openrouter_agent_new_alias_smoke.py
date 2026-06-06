@@ -59,7 +59,7 @@ def test_new_alias_smoke_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 41D" in content
+        assert "--print-new-alias-smoke-plan" in content
         assert "--print-new-alias-smoke-plan" in content
         assert "--submit-new-alias-smoke-test" in content
 

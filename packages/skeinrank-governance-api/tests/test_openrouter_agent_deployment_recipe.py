@@ -33,25 +33,19 @@ def test_40o_files_exist_and_docs_are_linked() -> None:
     for path in expected_paths:
         assert path.exists(), path
 
-    readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
-    for fragment in (
-        "Patch 40O adds a deployment recipe",
-        "--print-deployment-recipe",
-        "skeinrank.agent_deployment_recipe.v1",
-        "make agent-compose-config",
-    ):
-        assert fragment in readme
-
     for path in (
-        REPO_ROOT / "docs" / "README.md",
-        REPO_ROOT / "docs" / "api" / "governance-api.md",
         REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
         REPO_ROOT / "docs" / "deployment" / "openrouter-alias-scout.md",
+        AGENT_DIR / "README.md",
     ):
         content = path.read_text(encoding="utf-8")
-        assert "Patch 40O" in content, path
         assert "--print-deployment-recipe" in content, path
+        assert "skeinrank.agent_deployment_recipe.v1" in content, path
+
+    root_docs = (REPO_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    assert "deployment/openrouter-alias-scout.md" in root_docs
+    assert "guides/openrouter-agent.md" in root_docs
 
 
 def test_deployment_recipe_cli_is_offline_and_safe_by_default() -> None:

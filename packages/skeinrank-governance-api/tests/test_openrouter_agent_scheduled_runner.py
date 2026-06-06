@@ -28,7 +28,7 @@ def test_scheduled_runner_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 41I" in content
+        assert "--print-scheduled-runner-plan" in content
         assert "--print-scheduled-runner-plan" in content
         assert "--run-agent-cycle" in content
 

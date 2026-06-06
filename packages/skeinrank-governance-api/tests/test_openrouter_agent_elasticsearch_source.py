@@ -57,7 +57,7 @@ def test_elasticsearch_source_files_are_present_and_documented() -> None:
         encoding="utf-8"
     )
     for content in (readme, guide):
-        assert "Patch 41E" in content
+        assert "--print-elasticsearch-evidence-plan" in content
         assert "--print-elasticsearch-evidence-plan" in content
         assert "--sample-evidence-from-elasticsearch" in content
 

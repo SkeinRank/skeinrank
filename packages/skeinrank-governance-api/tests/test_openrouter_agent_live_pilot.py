@@ -84,7 +84,7 @@ def test_48b_live_pilot_files_and_docs_are_linked() -> None:
 
     readme = (AGENT_DIR / "README.md").read_text(encoding="utf-8")
     for fragment in (
-        "Patch 48B adds OpenRouter live pilot mode",
+        "Live pilot",
         "--print-openrouter-live-pilot-plan",
         "--run-openrouter-live-pilot",
         "skeinrank.openrouter_live_pilot_report.v1",

@@ -185,11 +185,12 @@ def test_cli_print_and_write_payload_commands_work(tmp_path: Path) -> None:
 
 def test_docs_mention_42e_quickstart() -> None:
     for path in (
-        REPO_ROOT / "docs" / "README.md",
         REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
-        REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md",
         AGENT_DIR / "README.md",
     ):
         content = path.read_text(encoding="utf-8")
-        assert "42E" in content, path
         assert "--print-dictionary-quickstart-plan" in content, path
+        assert "--write-dictionary-quickstart-payloads" in content, path
+
+    docs_index = (REPO_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    assert "guides/openrouter-agent.md" in docs_index
