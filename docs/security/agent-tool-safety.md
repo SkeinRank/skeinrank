@@ -35,6 +35,18 @@ Agents should not receive tools or credentials that allow them to:
 If an AI workflow needs one of these actions, it should produce a proposal,
 report, or operator checklist for a human reviewer.
 
+## Enforced MCP guardrails
+
+The `skeinrank-mcp` adapter enforces the published tool policy before forwarding tool calls to the Governance API:
+
+- unknown tool names are rejected;
+- forbidden runtime-mutation tool names are rejected;
+- each tool accepts only its declared top-level arguments;
+- proxy-style top-level keys such as `endpoint`, `url`, `method`, `command`, `tool`, and `runtime_action` are rejected;
+- the tool manifest publishes `skeinrank.mcp_tool_safety_policy.v1` for client inspection.
+
+See [`mcp-tool-guardrails.md`](mcp-tool-guardrails.md) for the enforced contract.
+
 ## Tool-injection boundary
 
 Tool injection happens when untrusted text asks an agent to call tools outside
@@ -94,6 +106,7 @@ Before enabling an agent integration:
 ## Related docs
 
 - [`prompt-like-detector.md`](prompt-like-detector.md)
+- [`mcp-tool-guardrails.md`](mcp-tool-guardrails.md)
 - [`prompt-injection.md`](prompt-injection.md)
 - [`rag-context-boundaries.md`](rag-context-boundaries.md)
 - [`../deployment/mcp-integration-kit.md`](../deployment/mcp-integration-kit.md)

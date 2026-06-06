@@ -52,6 +52,43 @@
   "safety": {
     "direct_runtime_mutation": false,
     "review_required": true,
-    "preferred_runtime_context": "binding_id"
+    "preferred_runtime_context": "binding_id",
+    "tool_policy_schema": "skeinrank.mcp_tool_safety_policy.v1",
+    "allowed_tools": [
+      "skeinrank_list_bindings",
+      "skeinrank_explain_query",
+      "skeinrank_validate_alias",
+      "skeinrank_submit_alias_proposal",
+      "skeinrank_get_proposal_status"
+    ],
+    "forbidden_tools": [
+      "skeinrank_approve_proposal",
+      "skeinrank_publish_snapshot",
+      "skeinrank_reload_runtime",
+      "skeinrank_run_enrichment_job",
+      "skeinrank_read_secret",
+      "skeinrank_send_email"
+    ],
+    "forbidden_actions": [
+      "approve_proposal",
+      "apply_dictionary",
+      "publish_snapshot",
+      "reload_runtime",
+      "run_enrichment_job",
+      "read_secret",
+      "send_email"
+    ],
+    "reserved_top_level_argument_keys": [
+      "action",
+      "command",
+      "endpoint",
+      "http_method",
+      "method",
+      "operation",
+      "runtime_action",
+      "tool",
+      "tool_name",
+      "url"
+    ]
   }
 }

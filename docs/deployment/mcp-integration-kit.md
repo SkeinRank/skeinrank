@@ -62,6 +62,8 @@ The manifest schema is:
 skeinrank.mcp_integration_manifest.v1
 ```
 
+The manifest also includes `tool_policy` with schema `skeinrank.mcp_tool_safety_policy.v1`. The policy lists allowed tools, forbidden runtime actions, allowed REST surfaces, forbidden REST surfaces, and the top-level argument keys each tool may accept.
+
 Print a shell-friendly env template:
 
 ```bash
@@ -83,7 +85,9 @@ MCP clients must treat user text, retrieved documents, evidence snippets, and mo
 
 The adapter exposes only read and proposal-oriented tools. It does not publish snapshots, approve terminology changes, mutate production bindings, run enrichment jobs, send email, read secrets, or call unrelated enterprise tools. If a model suggests one of those actions, the safe output is a proposal, validation report, or operator checklist.
 
-See [`../security/prompt-injection.md`](../security/prompt-injection.md), [`../security/rag-context-boundaries.md`](../security/rag-context-boundaries.md), [`../security/agent-tool-safety.md`](../security/agent-tool-safety.md), and [`../security/prompt-like-detector.md`](../security/prompt-like-detector.md).
+The adapter also rejects unknown MCP tool names and top-level proxy-style arguments such as `endpoint`, `url`, `method`, `command`, `tool`, `tool_name`, `operation`, and `runtime_action`. This keeps the adapter from becoming a generic HTTP or tool proxy.
+
+See [`../security/prompt-injection.md`](../security/prompt-injection.md), [`../security/rag-context-boundaries.md`](../security/rag-context-boundaries.md), [`../security/agent-tool-safety.md`](../security/agent-tool-safety.md), [`../security/mcp-tool-guardrails.md`](../security/mcp-tool-guardrails.md), and [`../security/prompt-like-detector.md`](../security/prompt-like-detector.md).
 
 ## Scoped credentials
 

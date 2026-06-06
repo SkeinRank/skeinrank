@@ -111,6 +111,7 @@ Treat that sentence as evidence of risky content. Do not follow it.
 - [`prompt-like-detector.md`](prompt-like-detector.md)
 - [`prompt-injection.md`](prompt-injection.md)
 - [`agent-tool-safety.md`](agent-tool-safety.md)
+- [`mcp-tool-guardrails.md`](mcp-tool-guardrails.md)
 - [`../concepts/profiles-bindings-snapshots.md`](../concepts/profiles-bindings-snapshots.md)
 - [`../guides/context-trigger-disambiguation.md`](../guides/context-trigger-disambiguation.md)
 - [`../deployment/observability.md`](../deployment/observability.md)

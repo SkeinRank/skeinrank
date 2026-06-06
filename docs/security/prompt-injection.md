@@ -111,6 +111,7 @@ search, RAG, and agent workflows.
 - [`prompt-like-detector.md`](prompt-like-detector.md)
 - [`rag-context-boundaries.md`](rag-context-boundaries.md)
 - [`agent-tool-safety.md`](agent-tool-safety.md)
+- [`mcp-tool-guardrails.md`](mcp-tool-guardrails.md)
 - [`../deployment/mcp-integration-kit.md`](../deployment/mcp-integration-kit.md)
 - [`../policies/role-boundaries.md`](../policies/role-boundaries.md)
 - [`../policies/token-rotation-scoped-agent-credentials.md`](../policies/token-rotation-scoped-agent-credentials.md)

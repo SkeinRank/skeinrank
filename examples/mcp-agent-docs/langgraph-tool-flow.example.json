@@ -24,8 +24,24 @@
     "approve_proposal",
     "apply_dictionary",
     "publish_snapshot",
-    "reload_runtime"
+    "reload_runtime",
+    "run_enrichment_job",
+    "read_secret",
+    "send_email",
+    "call_external_tool"
   ],
   "runtime_mutation_directly_allowed": false,
-  "human_review_required": true
+  "human_review_required": true,
+  "tool_policy_schema": "skeinrank.mcp_tool_safety_policy.v1",
+  "reserved_top_level_argument_keys": [
+    "action",
+    "command",
+    "endpoint",
+    "method",
+    "operation",
+    "runtime_action",
+    "tool",
+    "tool_name",
+    "url"
+  ]
 }

@@ -18,6 +18,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from .mcp_guardrails import (
+    McpToolGuardrailError,
+    build_mcp_tool_safety_policy,
+    mcp_tool_annotations,
+    validate_mcp_tool_call,
+)
 from .scoped_agent_credentials import build_scoped_agent_credentials_policy
 
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -161,6 +167,7 @@ def tool_definitions() -> list[JsonDict]:
                 },
                 "additionalProperties": False,
             },
+            "annotations": mcp_tool_annotations("skeinrank_list_bindings"),
         },
         {
             "name": "skeinrank_explain_query",
@@ -177,8 +184,9 @@ def tool_definitions() -> list[JsonDict]:
                     "include_evidence": {"type": "boolean", "default": True},
                 },
                 "required": ["query"],
-                "additionalProperties": True,
+                "additionalProperties": False,
             },
+            "annotations": mcp_tool_annotations("skeinrank_explain_query"),
         },
         {
             "name": "skeinrank_validate_alias",
@@ -197,8 +205,9 @@ def tool_definitions() -> list[JsonDict]:
                     "source_payload": {"type": "object"},
                 },
                 "required": ["canonical_value", "alias_value", "slot"],
-                "additionalProperties": True,
+                "additionalProperties": False,
             },
+            "annotations": mcp_tool_annotations("skeinrank_validate_alias"),
         },
         {
             "name": "skeinrank_submit_alias_proposal",
@@ -222,8 +231,9 @@ def tool_definitions() -> list[JsonDict]:
                     "source_payload": {"type": "object"},
                 },
                 "required": ["canonical_value", "alias_value", "slot"],
-                "additionalProperties": True,
+                "additionalProperties": False,
             },
+            "annotations": mcp_tool_annotations("skeinrank_submit_alias_proposal"),
         },
         {
             "name": "skeinrank_get_proposal_status",
@@ -239,6 +249,7 @@ def tool_definitions() -> list[JsonDict]:
                 "required": ["profile_name", "suggestion_id"],
                 "additionalProperties": False,
             },
+            "annotations": mcp_tool_annotations("skeinrank_get_proposal_status"),
         },
     ]
 
@@ -292,8 +303,10 @@ def integration_manifest() -> JsonDict:
                 "The MCP adapter does not own business logic.",
                 "Alias changes go through existing /v1/tools/* validation and review APIs.",
                 "Use binding_id for production runtime context when available.",
+                "The published tool policy rejects unknown tools and top-level proxy arguments.",
             ],
         },
+        "tool_policy": build_mcp_tool_safety_policy(),
         "tools": tool_definitions(),
     }
 
@@ -348,6 +361,10 @@ def smoke_test_report() -> JsonDict:
         "credential_policy_present": (
             manifest.get("credentials", {}).get("schema_version")
             == "skeinrank.scoped_agent_credentials.v1"
+        ),
+        "tool_policy_present": (
+            manifest.get("tool_policy", {}).get("schema_version")
+            == "skeinrank.mcp_tool_safety_policy.v1"
         ),
     }
     return {
@@ -411,6 +428,9 @@ class SkeinRankMcpServer:
             arguments = params.get("arguments") or {}
             if not isinstance(arguments, Mapping):
                 raise ValueError("tools/call arguments must be an object.")
+            safety_check = validate_mcp_tool_call(name, arguments)
+            if not safety_check.allowed:
+                raise McpToolGuardrailError(safety_check)
             if name not in self._tool_handlers:
                 raise KeyError(f"Unknown SkeinRank MCP tool: {name}")
             result = self._tool_handlers[name](**dict(arguments))
@@ -427,6 +447,8 @@ class SkeinRankMcpServer:
 
 
 def _json_rpc_error(exc: Exception) -> JsonDict:
+    if isinstance(exc, McpToolGuardrailError):
+        return {"code": -32001, "message": str(exc), "data": exc.check.to_dict()}
     if isinstance(exc, SkeinRankApiError):
         return {"code": -32000, "message": str(exc), "data": exc.detail}
     if isinstance(exc, KeyError):

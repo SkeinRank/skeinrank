@@ -25,6 +25,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`security/prompt-injection.md`](security/prompt-injection.md) — prompt injection taxonomy for terminology governance, evidence, agents, and runtime context.
 - [`security/rag-context-boundaries.md`](security/rag-context-boundaries.md) — trust boundaries for RAG prompts, retrieved snippets, and binding-aware context.
 - [`security/agent-tool-safety.md`](security/agent-tool-safety.md) — proposal-first tool safety model for MCP and agent integrations.
+- [`security/mcp-tool-guardrails.md`](security/mcp-tool-guardrails.md) — enforced MCP tool policy, forbidden runtime tools, and closed tool schemas.
 
 - [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
 - [`concepts/terminology-control-plane.md`](concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.
@@ -66,6 +67,7 @@ This directory keeps repository-level documentation for developers, operators, a
 - [Prompt injection risk taxonomy](security/prompt-injection.md) — AI-safety boundary for untrusted data, evidence, proposals, and runtime context.
 - [RAG context boundaries](security/rag-context-boundaries.md) — prompt assembly guidance that keeps retrieved text as data, not instructions.
 - [Agent tool safety](security/agent-tool-safety.md) — MCP/tool policy for proposal-only agent writes and scoped credentials.
+- [MCP tool guardrails](security/mcp-tool-guardrails.md) — manifest-published allowed tools, forbidden actions, and reserved argument keys.
 
 ## Deployment
 
