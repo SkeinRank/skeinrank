@@ -383,7 +383,8 @@ POST /v1/query/route-plan
 
 Use `binding_id` for production behavior. Profile-only calls remain useful for
 preview/dev workflows. See
-[`docs/guides/runtime-routing-api.md`](../../docs/guides/runtime-routing-api.md)
+[`docs/guides/runtime-routing-api.md`](../../docs/guides/runtime-routing-api.md),
+[`docs/guides/context-trigger-disambiguation.md`](../../docs/guides/context-trigger-disambiguation.md),
 and [`examples/runtime-routing-api`](../../examples/runtime-routing-api).
 
 ## Elasticsearch/OpenSearch enrichment

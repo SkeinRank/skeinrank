@@ -1,8 +1,8 @@
 # Enrichment Beta hardening
 
-Patch 61A tightens the Elasticsearch enrichment beta path without changing the
-underlying worker architecture. The goal is to make write-mode enrichment harder
-to start accidentally and easier to inspect before a job is queued.
+The Elasticsearch enrichment beta path is designed to make write-mode enrichment harder
+to start accidentally and easier to inspect before a job is queued, without changing the
+underlying worker architecture.
 
 ## Safety model
 
@@ -126,9 +126,9 @@ Roll back a completed reindex alias-swap job when rollback metadata is available
 POST /v1/governance/elasticsearch/jobs/{job_id}/rollback
 ```
 
-## What this patch does not do
+## What this guide does not cover
 
-Patch 61A does not add a new worker backend, a scheduler, a new Elasticsearch
+This guide does not add or assume a new worker backend, a scheduler, a new Elasticsearch
 provider, or a new production deployment mechanism. Blue/green alias-swap operator details are documented in
 [`../deployment/blue-green-alias-swap-runbook.md`](../deployment/blue-green-alias-swap-runbook.md).
 Pause/resume/checkpointing is covered by [`enrichment-pause-resume-checkpointing.md`](enrichment-pause-resume-checkpointing.md).

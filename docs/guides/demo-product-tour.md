@@ -1,8 +1,8 @@
 # Demo smoke command and one-command product tour
 
-Patch 59B adds a small product-tour smoke command for the seeded `platform_ops` demo.
+The product-tour smoke command validates the seeded `platform_ops` demo after the local Docker stack is running.
 
-The command is designed for screenshots, demos, and release checks after the local Docker stack is running. It verifies that the seeded 59A walkthrough is actually usable in the focused Control Plane UI.
+Use it for screenshots, demos, and release checks when you need to prove that the guided walkthrough is usable in the focused Control Plane UI.
 
 ## Commands
 

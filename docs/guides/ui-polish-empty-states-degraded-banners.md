@@ -1,12 +1,12 @@
 # UI polish, empty states, and degraded banners
 
-Patch 58E keeps the Control Plane UI focused on the three enterprise review/debug surfaces:
+The Control Plane UI stays focused on three enterprise review/debug surfaces:
 
 - AI Proposals Inbox
 - Search Playground
 - Schema & Snapshots
 
-The patch adds a global degraded-state banner and clearer empty states without adding new write workflows or operational dashboards.
+The UI includes a global degraded-state banner and clear empty states without adding new write workflows or operational dashboards.
 
 ## Global degraded-state banner
 
@@ -40,7 +40,7 @@ These states reinforce the product model: write-heavy setup stays in headless/AP
 
 ## Scope
 
-Patch 58E does not add:
+This UI layer does not add:
 
 - manual terminology CRUD;
 - enrichment triggers;

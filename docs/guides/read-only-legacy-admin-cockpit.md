@@ -1,6 +1,6 @@
 # Read-only legacy/admin cockpit lockdown
 
-Patch 58G makes legacy/admin UI surfaces read-only by default.
+Legacy/admin UI surfaces are read-only by default.
 
 SkeinRank's production UI is a Control Plane for review, debugging, and audit. Direct edits to live terminology, bindings, guardrails, or enrichment state can create configuration drift between GitOps/YAML state, the control-plane database, immutable snapshots, and local runtime agents. For that reason, the primary path for changes is:
 

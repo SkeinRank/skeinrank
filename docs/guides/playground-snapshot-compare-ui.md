@@ -1,6 +1,6 @@
 # Playground snapshot compare UI
 
-Patch 58C turns Search Playground into the second focused Control Plane UI surface: a binding-aware query lab with an optional split-screen compare mode.
+Search Playground is a focused Control Plane UI surface: a binding-aware query lab with an optional split-screen compare mode.
 
 The page stays headless-first. It does not introduce a new backend endpoint and it does not edit dictionaries, bindings, snapshots, enrichment jobs, or runtime state.
 

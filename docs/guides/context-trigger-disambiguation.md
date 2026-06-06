@@ -1,7 +1,7 @@
 # Context-trigger disambiguation for aliases
 
-Patch 63B adds a lightweight runtime guard for noisy aliases: `context_triggers`.
-The goal is to support intent-aware canonicalization without adding an LLM router
+`context_triggers` are a lightweight runtime guard for noisy aliases.
+They support intent-aware canonicalization without adding an LLM router
 or new runtime endpoints.
 
 ## Problem
@@ -92,7 +92,7 @@ POST /v1/search
 POST /v1/search/multi
 ```
 
-No new endpoint is introduced. Patch 63B only extends the existing alias model,
+No new endpoint is introduced. The feature extends the existing alias model,
 dictionary import/export shape, runtime snapshots, and explanation payloads.
 
 ## Safety posture

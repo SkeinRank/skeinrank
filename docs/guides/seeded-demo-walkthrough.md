@@ -1,6 +1,6 @@
 # Seeded demo scenario and guided product walkthrough
 
-Patch 59A upgrades the existing `examples/platform_ops_demo` seed into a guided product walkthrough for the focused three-tab Control Plane UI.
+The `examples/platform_ops_demo` seed provides a guided product walkthrough for the focused three-tab Control Plane UI.
 
 The goal is not to create a new write surface. The seed gives operators a screenshot-ready local state that demonstrates the production-safe workflow:
 

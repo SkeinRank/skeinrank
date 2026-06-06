@@ -1,6 +1,6 @@
 # Dictionary CLI lint and apply planning
 
-Patch 60B adds two safe planning steps to `skeinrank-migrate` for JSON/YAML
+`skeinrank-migrate` provides two safe planning steps for JSON/YAML
 Terminology-as-Code files:
 
 ```text
@@ -99,7 +99,7 @@ With `--plan-output`, the CLI validates first, writes the apply plan, and blocks
 before import when `safe_to_apply` is false. This keeps `apply` explicit and
 auditable without inventing a new API endpoint.
 
-## Recommended CI sequence for 60B
+## Recommended CI sequence
 
 ```text
 pull request changes dictionary file
@@ -116,8 +116,8 @@ remains the only write step in this part of the flow.
 
 ## Delivery after apply
 
-After a reviewed apply, use the existing export commands and the 60C GitOps
-runbook to deliver runtime artifacts:
+After a reviewed apply, use the existing export commands and the GitOps
+delivery runbook to deliver runtime artifacts:
 
 ```bash
 poetry run skeinrank-migrate export --profile-name "$SKEINRANK_PROFILE_NAME" --output reports/governed-dictionary.json

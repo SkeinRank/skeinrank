@@ -63,7 +63,8 @@ def test_terminology_as_code_guide_uses_existing_cli_and_api_surfaces() -> None:
         "skeinrank-migrate lint",
         "skeinrank-migrate plan --output plan.json",
         "skeinrank-migrate apply --plan-output applied-plan.json",
-        "Patch 60B adds",
+        "dictionary-cli-planning.md",
+        "gitops-delivery-runbook.md",
     )
     for fragment in expected_fragments:
         assert fragment in doc

@@ -1,12 +1,12 @@
 # Control Plane navigation slim-down
 
-Patch 58F keeps the SkeinRank UI focused on the three screens that matter for a production-style human-in-the-loop control plane:
+The SkeinRank UI keeps the primary navigation focused on the three screens that matter for a production-style human-in-the-loop control plane:
 
 1. **Playground** — debug query canonicalization and compare snapshot behavior.
 2. **AI Inbox** — review agent-submitted proposals with evidence, validation, and risk context.
 3. **Schema & Snapshots** — inspect schema, bindings, terminology hierarchy, and snapshot history.
 
-The patch does **not** delete legacy pages or remove backend capabilities. It only moves low-level pages out of the primary navigation and into utility groups.
+This navigation model does not delete legacy pages or remove backend capabilities. It moves low-level pages out of the primary navigation and into utility groups.
 
 ## Primary navigation contract
 
@@ -45,7 +45,7 @@ The UI now opens on **Playground** by default. This makes the first screen an im
 
 ## Safety and scope
 
-This is a frontend navigation-only patch:
+This is a frontend navigation-only guide:
 
 - no backend endpoints are added;
 - no routes/pages are deleted;

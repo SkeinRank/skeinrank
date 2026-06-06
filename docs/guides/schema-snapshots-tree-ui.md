@@ -1,6 +1,6 @@
 # Schema & Snapshots Tree UI
 
-Patch 58D adds a read-heavy **Schema & Snapshots** workspace to the governance console.
+**Schema & Snapshots** is a read-heavy workspace in the governance console.
 
 The goal is to give operators and knowledge managers a compact way to inspect how runtime contexts, profiles, canonical terms, aliases, and snapshots fit together without turning the UI back into a broad manual CRUD console.
 
@@ -13,7 +13,7 @@ The screen is intentionally read-heavy and uses existing governance API calls:
 - `GET /v1/governance/elasticsearch/bindings`
 - `GET /v1/governance/profiles/{profile_name}/terms`
 
-No new backend endpoint is introduced by this UI patch.
+No new backend endpoint is introduced by this UI surface.
 
 ## Layout
 

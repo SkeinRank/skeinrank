@@ -1,6 +1,6 @@
 # Binding-aware runtime canonicalization API
 
-Patch 63A makes the runtime API explicitly binding-aware. The goal is to let an
+The runtime API is explicitly binding-aware. The goal is to let an
 application route a query to the correct SkeinRank runtime context without asking
 SkeinRank to guess the user's intent from text alone.
 
@@ -138,19 +138,15 @@ profile state instead of a binding-pinned snapshot. A binding without a pinned
 runtime snapshot returns `runtime_context.mode = "binding_latest_profile"` plus
 a warning. Do not rely on either preview shape for production search paths.
 
-## What this patch does not do
+## Runtime boundaries
 
-Patch 63A made the binding-aware contract explicit. Patch 63B adds deterministic
-`context_triggers` for aliases so noisy surfaces can be gated by nearby query
-terms without introducing an LLM router. Patch 63C adds a read-only multi-binding
-route planner for global-search and fan-out scenarios.
+Binding-aware canonicalization does not introduce an LLM router and does not try to infer every search context from text alone. Use deterministic `context_triggers` for noisy aliases that should match only with nearby domain terms, and use route planning for global-search and fan-out scenarios.
 
 See also: [`context-trigger-disambiguation.md`](context-trigger-disambiguation.md).
 
+## Multi-binding route plan API
 
-## Patch 63C — Multi-binding route plan API
-
-Patch 63C adds a read-only route planner for callers that already know a set of
+The route-plan endpoint is read-only. It is for callers that already know a set of
 candidate runtime contexts but need SkeinRank to rank which binding should handle
 a query.
 
