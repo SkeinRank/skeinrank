@@ -424,6 +424,7 @@ Related docs:
 - [`docs/deployment/mcp-cursor-agents.md`](../../docs/deployment/mcp-cursor-agents.md)
 - [`docs/deployment/mcp-langgraph-agents.md`](../../docs/deployment/mcp-langgraph-agents.md)
 - [`docs/deployment/mcp-scoped-credentials-smoke-tests.md`](../../docs/deployment/mcp-scoped-credentials-smoke-tests.md)
+- [`examples/mcp-scoped-credentials`](../../examples/mcp-scoped-credentials)
 - [`examples/mcp-integration-kit`](../../examples/mcp-integration-kit)
 - [`examples/mcp-agent-docs`](../../examples/mcp-agent-docs)
 - [`docs/security/mcp-tool-guardrails.md`](../../docs/security/mcp-tool-guardrails.md)
