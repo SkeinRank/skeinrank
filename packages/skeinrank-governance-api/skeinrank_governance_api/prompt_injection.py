@@ -28,6 +28,55 @@ _MAX_SCAN_TEXT_CHARS = 20000
 _MAX_FINDINGS = 50
 
 
+PROMPT_INJECTION_REGRESSION_CASE_SCHEMA_VERSION = (
+    "skeinrank.prompt_injection_regression_case.v1"
+)
+
+
+def evaluate_prompt_injection_regression_case(
+    record: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Evaluate one stable prompt-injection regression corpus record.
+
+    Records may provide either a plain ``text`` value or a JSON-like ``payload``
+    value. The evaluator is intentionally deterministic so the example corpus can
+    be used in docs, local tests, and CI without external services.
+    """
+
+    case_id = str(record.get("id") or "")
+    expected_status = str(record.get("expected_status") or "clear")
+    expected_risk_codes = tuple(
+        str(code) for code in record.get("expected_risk_codes", ())
+    )
+    base_path = str(record.get("base_path") or "$")
+
+    if "payload" in record:
+        findings = scan_untrusted_payload(record["payload"], base_path=base_path)
+    else:
+        findings = detect_prompt_like_instructions(record.get("text"), path=base_path)
+
+    summary = build_prompt_injection_risk_summary(findings)
+    actual_risk_codes = tuple(summary["risk_flags"])
+    expected_code_set = set(expected_risk_codes)
+    actual_code_set = set(actual_risk_codes)
+    status_matches = summary["status"] == expected_status
+    codes_match = expected_code_set.issubset(actual_code_set)
+    expected_min_findings = int(record.get("expected_min_findings") or 0)
+    min_findings_match = summary["findings_total"] >= expected_min_findings
+
+    return {
+        "schema_version": "skeinrank.prompt_injection_regression_result.v1",
+        "case_id": case_id,
+        "expected_status": expected_status,
+        "actual_status": summary["status"],
+        "expected_risk_codes": list(expected_risk_codes),
+        "actual_risk_codes": list(actual_risk_codes),
+        "findings_total": summary["findings_total"],
+        "passed": status_matches and codes_match and min_findings_match,
+        "summary": summary,
+    }
+
+
 @dataclass(frozen=True)
 class PromptInjectionPattern:
     """Compiled prompt-like signal pattern."""

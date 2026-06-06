@@ -87,7 +87,7 @@ The adapter exposes only read and proposal-oriented tools. It does not publish s
 
 The adapter also rejects unknown MCP tool names and top-level proxy-style arguments such as `endpoint`, `url`, `method`, `command`, `tool`, `tool_name`, `operation`, and `runtime_action`. This keeps the adapter from becoming a generic HTTP or tool proxy.
 
-See [`../security/prompt-injection.md`](../security/prompt-injection.md), [`../security/rag-context-boundaries.md`](../security/rag-context-boundaries.md), [`../security/agent-tool-safety.md`](../security/agent-tool-safety.md), [`../security/mcp-tool-guardrails.md`](../security/mcp-tool-guardrails.md), and [`../security/prompt-like-detector.md`](../security/prompt-like-detector.md).
+See [`../security/prompt-injection.md`](../security/prompt-injection.md), [`../security/rag-context-boundaries.md`](../security/rag-context-boundaries.md), [`../security/agent-tool-safety.md`](../security/agent-tool-safety.md), [`../security/mcp-tool-guardrails.md`](../security/mcp-tool-guardrails.md), [`../security/prompt-like-detector.md`](../security/prompt-like-detector.md), and [`../security/prompt-injection-regression-corpus.md`](../security/prompt-injection-regression-corpus.md).
 
 ## Scoped credentials
 

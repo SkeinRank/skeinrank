@@ -10,6 +10,7 @@ PROMPT_INJECTION_DOC = SECURITY_DOCS / "prompt-injection.md"
 RAG_BOUNDARIES_DOC = SECURITY_DOCS / "rag-context-boundaries.md"
 AGENT_TOOL_SAFETY_DOC = SECURITY_DOCS / "agent-tool-safety.md"
 PROMPT_LIKE_DETECTOR_DOC = SECURITY_DOCS / "prompt-like-detector.md"
+PROMPT_REGRESSION_CORPUS_DOC = SECURITY_DOCS / "prompt-injection-regression-corpus.md"
 
 
 def _read(path: Path) -> str:
@@ -21,6 +22,7 @@ def test_prompt_injection_security_docs_exist() -> None:
     assert RAG_BOUNDARIES_DOC.exists()
     assert AGENT_TOOL_SAFETY_DOC.exists()
     assert PROMPT_LIKE_DETECTOR_DOC.exists()
+    assert PROMPT_REGRESSION_CORPUS_DOC.exists()
 
 
 def test_prompt_injection_taxonomy_is_product_facing() -> None:
@@ -142,8 +144,10 @@ def test_security_docs_are_linked_from_readme_and_docs_index() -> None:
         assert link in mcp_kit
 
     assert "docs/security/prompt-like-detector.md" in root_readme
+    assert "docs/security/prompt-injection-regression-corpus.md" in root_readme
     assert "docs/security/prompt-like-detector.md" in deployment_security
     assert "../security/prompt-like-detector.md" in mcp_kit
+    assert "../security/prompt-injection-regression-corpus.md" in mcp_kit
     assert "prompt-like-detector.md" in _read(PROMPT_INJECTION_DOC)
 
 

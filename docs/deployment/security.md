@@ -10,7 +10,7 @@ Use `docker-compose.prod.yml` as the production-oriented starting point. See `do
 
 A production deployment should treat the Governance API and UI as the only user-facing surfaces.
 
-AI and agent integrations add another boundary: retrieved documents, evidence snippets, dictionary imports, and model outputs are untrusted data. They should never override system/tool policy or mutate production directly. See `docs/security/prompt-injection.md`, `docs/security/rag-context-boundaries.md`, `docs/security/agent-tool-safety.md`, and `docs/security/prompt-like-detector.md` for the prompt-injection and tool-safety model.
+AI and agent integrations add another boundary: retrieved documents, evidence snippets, dictionary imports, and model outputs are untrusted data. They should never override system/tool policy or mutate production directly. See `docs/security/prompt-injection.md`, `docs/security/rag-context-boundaries.md`, `docs/security/agent-tool-safety.md`, `docs/security/prompt-like-detector.md`, and `docs/security/prompt-injection-regression-corpus.md` for the prompt-injection and tool-safety model.
 
 PostgreSQL, RabbitMQ, and Elasticsearch should not be exposed directly to end users.
 
@@ -219,5 +219,6 @@ stop-list unsafe values, reject risky proposals, or keep suspicious snippets
 inside the untrusted evidence boundary.
 
 See [`../security/prompt-like-detector.md`](../security/prompt-like-detector.md)
-for detector behavior and review semantics.
+and [`../security/prompt-injection-regression-corpus.md`](../security/prompt-injection-regression-corpus.md)
+for detector behavior, review semantics, and corpus-backed regression coverage.
 

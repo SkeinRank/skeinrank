@@ -68,6 +68,8 @@ This directory keeps repository-level documentation for developers, operators, a
 - [RAG context boundaries](security/rag-context-boundaries.md) — prompt assembly guidance that keeps retrieved text as data, not instructions.
 - [Agent tool safety](security/agent-tool-safety.md) — MCP/tool policy for proposal-only agent writes and scoped credentials.
 - [MCP tool guardrails](security/mcp-tool-guardrails.md) — manifest-published allowed tools, forbidden actions, and reserved argument keys.
+- [Prompt-like detector](security/prompt-like-detector.md) — deterministic review signal for suspicious evidence, imports, and proposals.
+- [Prompt injection regression corpus](security/prompt-injection-regression-corpus.md) — stable JSONL coverage for prompt-like, tool-like, destructive, and benign examples.
 
 ## Deployment
 

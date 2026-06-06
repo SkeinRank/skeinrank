@@ -34,7 +34,7 @@ Each match is returned as a structured finding with:
 - compact `matched_text`;
 - reviewer-facing message.
 
-The stable schema is `skeinrank.prompt_injection_risk.v1`.
+The stable schema is `skeinrank.prompt_injection_risk.v1`. Regression coverage lives in [`prompt-injection-regression-corpus.md`](prompt-injection-regression-corpus.md) and `examples/security/prompt_injection_corpus.jsonl`.
 
 ## Where it runs
 
@@ -103,6 +103,7 @@ can keep it outside the instruction boundary.
 ## Related docs
 
 - [`prompt-injection.md`](prompt-injection.md)
+- [`prompt-injection-regression-corpus.md`](prompt-injection-regression-corpus.md)
 - [`rag-context-boundaries.md`](rag-context-boundaries.md)
 - [`agent-tool-safety.md`](agent-tool-safety.md)
 - [`../deployment/security.md`](../deployment/security.md)
