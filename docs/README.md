@@ -22,6 +22,9 @@ This directory keeps repository-level documentation for developers, operators, a
 - [`deployment/helm-production.md`](deployment/helm-production.md) — production-oriented Helm values, ingress, PDB, resources, and secret strategy.
 - [`deployment/helm-smoke-test.md`](deployment/helm-smoke-test.md) — optional kind smoke test for validating the Helm chart against a live Kubernetes API server.
 - [`deployment/ci-routing.md`](deployment/ci-routing.md) — path-aware GitHub Actions routing for package, UI, docs/deployment, Docker, and Helm changes.
+- [`security/prompt-injection.md`](security/prompt-injection.md) — prompt injection taxonomy for terminology governance, evidence, agents, and runtime context.
+- [`security/rag-context-boundaries.md`](security/rag-context-boundaries.md) — trust boundaries for RAG prompts, retrieved snippets, and binding-aware context.
+- [`security/agent-tool-safety.md`](security/agent-tool-safety.md) — proposal-first tool safety model for MCP and agent integrations.
 
 - [`overview.md`](overview.md) — what SkeinRank is, what it solves, and how the repository is organized.
 - [`concepts/terminology-control-plane.md`](concepts/terminology-control-plane.md) — terminology, aliases, guardrails, evidence, and snapshots.
@@ -60,6 +63,9 @@ This directory keeps repository-level documentation for developers, operators, a
 - [Role boundaries](policies/role-boundaries.md) — explicit agent/reviewer/admin boundaries for production human-in-the-loop workflows.
 - [Profile isolation checks](policies/profile-isolation-checks.md) — read-only profile/binding alignment checks for production safety.
 - [Alerting hooks and degraded-state reports](deployment/alerting-hooks-degraded-state-reports.md) — read-only operator alerts from troubleshooting and isolation state.
+- [Prompt injection risk taxonomy](security/prompt-injection.md) — AI-safety boundary for untrusted data, evidence, proposals, and runtime context.
+- [RAG context boundaries](security/rag-context-boundaries.md) — prompt assembly guidance that keeps retrieved text as data, not instructions.
+- [Agent tool safety](security/agent-tool-safety.md) — MCP/tool policy for proposal-only agent writes and scoped credentials.
 
 ## Deployment
 
