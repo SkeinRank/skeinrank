@@ -65,7 +65,7 @@ docs/deployment/security.md
 docs/deployment/production-compose.md
 ```
 
-The production profile enables fail-fast configuration checks when `SKEINRANK_ENV=production` or `SKEINRANK_GOVERNANCE_API_ENV=production`. It does not publish PostgreSQL or RabbitMQ ports, requires auth, rejects wildcard CORS, refuses unsafe default secrets, and can optionally validate a configured Elasticsearch/OpenSearch URL through `/readyz`. Patch 46A adds a production env example, ops one-shot services, optional Prometheus/Grafana, Docker log rotation, and `deploy/docker/scripts/prod-smoke-test.sh`.
+The production profile enables fail-fast configuration checks when `SKEINRANK_ENV=production` or `SKEINRANK_GOVERNANCE_API_ENV=production`. It does not publish PostgreSQL or RabbitMQ ports, requires auth, rejects wildcard CORS, refuses unsafe default secrets, and can optionally validate a configured Elasticsearch/OpenSearch URL through `/readyz`. It also includes a production environment example, ops one-shot services, optional Prometheus/Grafana, Docker log rotation, and `deploy/docker/scripts/prod-smoke-test.sh`.
 
 ## What the dev stack starts
 

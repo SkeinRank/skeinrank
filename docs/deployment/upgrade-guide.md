@@ -1,6 +1,6 @@
-# Production-ish upgrade guide
+# Production-oriented upgrade guide
 
-Patch 46C defines the safe upgrade path for the Docker Compose based Enterprise MVP track.
+This guide defines the safe upgrade path for the Docker Compose based production-oriented evaluation track.
 
 The goal is not to hide migrations behind magic. The goal is to make the operator sequence explicit:
 

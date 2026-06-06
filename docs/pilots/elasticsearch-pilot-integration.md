@@ -1,8 +1,8 @@
 # Elasticsearch pilot integration path
 
-Patch 49E adds a repeatable first-company pilot path for teams that already have
-an Elasticsearch/OpenSearch index and want to try SkeinRank without committing to
-a production rollout.
+This guide provides a repeatable first-company pilot path for teams that already
+have an Elasticsearch/OpenSearch index and want to try SkeinRank without
+committing to a production rollout.
 
 The flow is intentionally conservative:
 

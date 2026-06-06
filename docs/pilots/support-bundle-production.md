@@ -1,6 +1,6 @@
 # Support bundle: logs, config, health, and last runs
 
-Patch 56B extends the sanitized support bundle from the first-company pilot runbook into a production-style operator artifact.
+This guide extends the sanitized first-company pilot support bundle into a production-oriented operator artifact.
 
 The bundle remains read-only. It does not send webhooks, call OpenRouter, call Elasticsearch, mutate the database, apply proposals, or publish snapshots. It collects local files and optional HTTP snapshots only when an operator explicitly passes a Governance API URL.
 

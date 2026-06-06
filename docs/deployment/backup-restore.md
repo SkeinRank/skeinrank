@@ -1,6 +1,6 @@
 # Backup, restore, and operational runbooks
 
-Patch 45C adds a lightweight, portable backup/restore workflow for the SkeinRank Governance API control-plane database.
+SkeinRank provides a lightweight, portable backup/restore workflow for the Governance API control-plane database.
 
 The built-in backup format is JSON and SQLAlchemy-metadata driven. It is intended for local development, demos, pilot environments, and pre-upgrade safety snapshots. For large production PostgreSQL deployments, keep using native database backups such as `pg_dump`, managed database snapshots, or volume-level snapshots as the primary recovery mechanism.
 
@@ -192,7 +192,7 @@ The portable JSON backup is useful for support/debug portability and small pilot
 
 ## Docker Compose production backup helper
 
-Patch 46A adds an ops one-shot service to `docker-compose.prod.yml` that exports a timestamped portable JSON backup into the `skeinrank_postgres_backups` Docker volume:
+The production Compose profile includes an ops one-shot service that exports a timestamped portable JSON backup into the `skeinrank_postgres_backups` Docker volume:
 
 ```bash
 docker compose --env-file .env -f docker-compose.prod.yml --profile ops run --rm governance-backup-export
@@ -202,7 +202,7 @@ This helper uses the same `python -m skeinrank_governance_api.backup_restore exp
 
 ## Upgrade integration
 
-For production-ish Compose upgrades, use the 46C upgrade flow:
+For production-oriented Compose upgrades, use the safe upgrade flow:
 
 ```bash
 make prod-preflight
@@ -213,8 +213,8 @@ The full sequence is documented in `docs/deployment/upgrade-guide.md` and schema
 
 ## Verified restore drill helper
 
-Patch 54C adds a disposable verified scenario that exercises the portable JSON
-backup path end-to-end without touching a live database:
+The verified restore drill exercises the portable JSON backup path end-to-end
+without touching a live database:
 
 ```bash
 make backup-restore-drill-plan
