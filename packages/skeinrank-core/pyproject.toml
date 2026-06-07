@@ -37,17 +37,8 @@ python = ">=3.10,<4.0"
 pydantic = ">=2.6,<3"
 typing-extensions = {version = ">=4.7", markers = "python_version < '3.11'"}
 
-# Optional heavy ML deps are grouped behind extras.
-torch = {version = ">=2.1", optional = true}
-transformers = {version = ">=4.40,<5", optional = true}
-gliner = {version = ">=0.2", optional = true}
-sentence-transformers = {version = ">=2.6,<4", optional = true}
-keybert = {version = ">=0.8,<1", optional = true}
-
-
-[tool.poetry.extras]
-torch = ["torch", "transformers"]
-attribute-models = ["gliner", "sentence-transformers", "keybert"]
+# The core SDK intentionally has no ML runtime dependencies.
+# Legacy reranking experiments live in source modules, but are not exposed as install extras.
 
 [tool.poetry.scripts]
 skeinrank = "skeinrank.cli:entrypoint"
