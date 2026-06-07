@@ -169,3 +169,25 @@ def test_cli_returns_error_for_missing_document(tmp_path: Path, capsys):
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "Document does not exist" in captured.err
+
+
+def test_cli_extract_can_use_builtin_demo_dictionary(capsys):
+    exit_code = main(
+        [
+            "extract",
+            "k8s pg timeout",
+            "--text",
+            "--compact",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["canonical_values"] == ["kubernetes", "postgresql", "timeout"]
+
+
+def test_cli_canonicalize_can_use_builtin_demo_dictionary(capsys):
+    exit_code = main(["canonicalize", "k8s pg timeout", "--text"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.strip() == "kubernetes postgresql timeout"

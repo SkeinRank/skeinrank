@@ -17,6 +17,7 @@ from .documents import (
     extract_document_text,
     extract_terms_from_document,
 )
+from .facade import demo_dictionary
 from .sdk import canonicalize_text, extract_terms, load_dictionary, validate_dictionary
 
 _DEFAULT_CONTEXT_CHARS = 48
@@ -167,8 +168,11 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
 def _add_dictionary_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--dictionary",
-        required=True,
-        help="Path to SkeinRank dictionary JSON/YAML.",
+        default=None,
+        help=(
+            "Path to SkeinRank dictionary JSON/YAML. "
+            "Omit to use the built-in platform-ops demo dictionary."
+        ),
     )
 
 
@@ -197,8 +201,14 @@ def _handle_validate_dictionary(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_runtime_dictionary(source: str | None):
+    if source:
+        return load_dictionary(source)
+    return demo_dictionary()
+
+
 def _handle_extract(args: argparse.Namespace) -> int:
-    dictionary = load_dictionary(args.dictionary)
+    dictionary = _load_runtime_dictionary(args.dictionary)
     if args.text:
         result = extract_terms(
             args.source,
@@ -220,7 +230,7 @@ def _handle_extract(args: argparse.Namespace) -> int:
 
 
 def _handle_canonicalize(args: argparse.Namespace) -> int:
-    dictionary = load_dictionary(args.dictionary)
+    dictionary = _load_runtime_dictionary(args.dictionary)
     source_text = args.source if args.text else extract_document_text(args.source).text
     result = canonicalize_text(
         source_text,
