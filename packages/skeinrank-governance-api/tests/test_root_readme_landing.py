@@ -41,8 +41,8 @@ def test_root_readme_keeps_product_model_without_stale_dashboard_preview() -> No
     )
     assert "Binding-aware runtime" in readme
     assert "AI Inbox -> review evidence-backed agent proposals" in readme
-    assert "## Try it locally" in readme
-    assert "## See it in 30 seconds" not in readme
+    assert "## See it in 30 seconds" in readme
+    assert 'skeinrank.canonicalize("k8s pg timeout")' in readme
     assert "TODO" not in readme
     assert "Patch 63" not in readme
     assert "dashboard-runtime-control-center-dark.png" not in readme
@@ -65,12 +65,12 @@ def test_root_readme_keeps_agent_entry_points_without_legacy_patch_markers() -> 
     assert "--discover-candidates" not in readme
 
 
-def test_root_readme_is_productized_and_not_overpromising_fast_demo() -> None:
+def test_root_readme_documents_zero_friction_sdk_demo() -> None:
     readme = ROOT_README.read_text(encoding="utf-8")
 
-    assert "## Try it locally" in readme
-    assert "Use the lightweight SDK/CLI path" in readme
-    assert "See it in 30 seconds" not in readme
+    assert "## See it in 30 seconds" in readme
+    assert "without Docker, OpenRouter, Elasticsearch, or a dictionary file" in readme
+    assert 'poetry run skeinrank canonicalize "k8s pg timeout" --text' in readme
     assert "release-cлompose" not in readme
     assert "release-compose.md" in readme
     assert "<details>" in readme

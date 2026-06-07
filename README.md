@@ -54,7 +54,7 @@
 
 ---
 
-## Try it locally
+## See it in 30 seconds
 
 A user types team slang. SkeinRank turns it into something your search engine, RAG workflow, or agent can use safely:
 
@@ -64,25 +64,25 @@ canonical query:  "kubernetes postgresql timeout"
 runtime context:  binding + profile + fields + pinned snapshot
 ```
 
-Use the lightweight SDK/CLI path when you want a deterministic local check from a repository checkout:
+The lightweight SDK works without Docker, OpenRouter, Elasticsearch, or a dictionary file:
+
+```python
+import skeinrank
+
+print(skeinrank.canonicalize("k8s pg timeout"))
+# kubernetes postgresql timeout
+
+print(skeinrank.extract("sev1 on kube after deploy"))
+# ['critical incident', 'kubernetes', 'deployment']
+```
+
+From a source checkout, the same zero-config path is available through the CLI:
 
 ```bash
 cd packages/skeinrank-core
 poetry install
-poetry run skeinrank extract "k8s rollout uses pg database" \
-  --text \
-  --dictionary ../../examples/migration/console_dictionary.example.json
-```
-
-Python SDK:
-
-```python
-from skeinrank import load_dictionary, extract_terms
-
-dictionary = load_dictionary("examples/migration/console_dictionary.example.json")
-result = extract_terms("k8s rollout uses pg database", dictionary=dictionary)
-
-print(result.canonical_values)  # ["kubernetes", "postgresql"]
+poetry run skeinrank canonicalize "k8s pg timeout" --text
+poetry run skeinrank extract "sev1 on kube after deploy" --text --compact
 ```
 
 For the full platform preview with UI, Governance API, Elasticsearch, RabbitMQ, and AI Inbox:
@@ -99,7 +99,7 @@ make demo-tour-smoke
 
 Default local URLs: UI `http://127.0.0.1:5173`, Governance API `http://127.0.0.1:8010`, Elasticsearch `http://127.0.0.1:19200`, RabbitMQ Management `http://127.0.0.1:15672`.
 
-Start with [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md), [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md), and [`examples/platform_ops_demo`](examples/platform_ops_demo).
+Start with [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md), [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md), [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md), and [`examples/platform_ops_demo`](examples/platform_ops_demo).
 
 ## The problem
 
