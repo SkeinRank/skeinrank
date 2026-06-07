@@ -16,7 +16,22 @@ print(skeinrank.extract("sev1 on kube after deploy"))
 # ['critical incident', 'kubernetes', 'deployment']
 ```
 
-The module-level helpers use a built-in `platform_ops_demo` dictionary so the first call works without a file.
+The module-level helpers use a built-in `platform_ops_demo` dictionary so the first call works without a file. The demo dictionary is small enough to inspect, but expressive enough to show infrastructure, incidents, CI/CD, search, RAG, and context-shaped company language.
+
+The same built-in dictionary also demonstrates why context matters:
+
+```python
+import skeinrank
+
+print(skeinrank.canonicalize("pg timeout"))
+# postgresql timeout
+
+print(skeinrank.canonicalize("pg layout"))
+# page layout
+
+print(skeinrank.canonicalize("pg dashboard"))
+# product group
+```
 
 CLI from a source checkout:
 
@@ -73,6 +88,26 @@ sr = SkeinRank.from_file("company.dictionary.yaml")
 print(sr.canonicalize("k8s rollout uses pg database"))
 ```
 
+
+## Built-in demo dictionary and examples
+
+The built-in `platform_ops_demo` dictionary contains more than 30 canonical terms and more than 80 aliases across platform operations, incidents, CI/CD, search, RAG, and SkeinRank concepts. It is intentionally not a production vocabulary; it is a compact first-touch dictionary for demos, tests, tutorials, and screenshots.
+
+Useful demo phrases:
+
+| Input | Output |
+| --- | --- |
+| `k8s pg timeout` | `kubernetes postgresql timeout` |
+| `sev1 on kube after pg migration` | `critical incident on kubernetes after postgresql database migration` |
+| `gha deploy hit rmq latency spike` | `github actions`, `deployment`, `message queue`, `latency` |
+| `pg layout` | `page layout` |
+| `pg dashboard` | `product group` |
+
+Examples live in [`../../examples/sdk`](../../examples/sdk):
+
+- [`zero_friction_demo.py`](../../examples/sdk/zero_friction_demo.py) runs the facade from Python.
+- [`platform_ops_demo.dictionary.json`](../../examples/sdk/platform_ops_demo.dictionary.json) exports the built-in dictionary in the public dictionary shape.
+
 ## Dictionary-first SDK
 
 The lower-level dictionary SDK remains available for callers that already use the governance export or `skeinrank-migrate` dictionary shape.
@@ -98,7 +133,7 @@ print(canonicalized.text)  # kubernetes rollout uses postgresql database
 
 Stable dictionary exports include:
 
-- `SkeinRank`, `canonicalize(...)`, `extract(...)`, `demo_dictionary(...)`
+- `SkeinRank`, `canonicalize(...)`, `extract(...)`, `demo_dictionary(...)`, `demo_dictionary_payload(...)`
 - `Dictionary`, `DictionaryTerm`, `DictionaryAlias`, `DictionaryStopListEntry`
 - `load_dictionary(...)`, `validate_dictionary(...)`
 - `extract_terms(...)`, `canonicalize_text(...)`
@@ -145,6 +180,19 @@ Run zero-config demo extraction/canonicalization:
 ```bash
 poetry run skeinrank extract "k8s rollout uses pg database" --text --compact
 poetry run skeinrank canonicalize "k8s rollout uses pg database" --text
+```
+
+Print or export the built-in demo dictionary:
+
+```bash
+poetry run skeinrank demo-dictionary --compact
+poetry run skeinrank demo-dictionary --output ../../examples/sdk/platform_ops_demo.dictionary.json
+```
+
+Run the example script:
+
+```bash
+poetry run python ../../examples/sdk/zero_friction_demo.py
 ```
 
 Run against a specific dictionary file:

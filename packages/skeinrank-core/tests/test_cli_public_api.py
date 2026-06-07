@@ -191,3 +191,20 @@ def test_cli_canonicalize_can_use_builtin_demo_dictionary(capsys):
 
     assert exit_code == 0
     assert capsys.readouterr().out.strip() == "kubernetes postgresql timeout"
+
+
+def test_cli_demo_dictionary_prints_builtin_payload(capsys, tmp_path: Path):
+    exit_code = main(["demo-dictionary", "--compact"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["profile_name"] == "platform_ops_demo"
+    assert len(payload["terms"]) >= 30
+
+    output_path = tmp_path / "platform_ops_demo.dictionary.json"
+    exit_code = main(["demo-dictionary", "--output", str(output_path)])
+
+    assert exit_code == 0
+    written = json.loads(output_path.read_text(encoding="utf-8"))
+    assert written["profile_name"] == "platform_ops_demo"
+    assert len(written["terms"]) >= 30

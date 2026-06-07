@@ -71,6 +71,9 @@ def test_root_readme_documents_zero_friction_sdk_demo() -> None:
     assert "## See it in 30 seconds" in readme
     assert "without Docker, OpenRouter, Elasticsearch, or a dictionary file" in readme
     assert 'poetry run skeinrank canonicalize "k8s pg timeout" --text' in readme
+    assert 'skeinrank.canonicalize("pg layout")' in readme
+    assert "examples/sdk" in readme
+    assert "platform_ops_demo" in readme
     assert "release-cлompose" not in readme
     assert "release-compose.md" in readme
     assert "<details>" in readme

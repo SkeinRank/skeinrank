@@ -76,6 +76,16 @@ print(skeinrank.extract("sev1 on kube after deploy"))
 # ['critical incident', 'kubernetes', 'deployment']
 ```
 
+The built-in `platform_ops_demo` dictionary is intentionally small but shows the product idea: company slang, incidents, CI/CD, search, RAG, and context-shaped phrases:
+
+```python
+print(skeinrank.canonicalize("pg timeout"))
+# postgresql timeout
+
+print(skeinrank.canonicalize("pg layout"))
+# page layout
+```
+
 From a source checkout, the same zero-config path is available through the CLI:
 
 ```bash
@@ -99,7 +109,7 @@ make demo-tour-smoke
 
 Default local URLs: UI `http://127.0.0.1:5173`, Governance API `http://127.0.0.1:8010`, Elasticsearch `http://127.0.0.1:19200`, RabbitMQ Management `http://127.0.0.1:15672`.
 
-Start with [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md), [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md), [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md), and [`examples/platform_ops_demo`](examples/platform_ops_demo).
+Start with [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md), [`examples/sdk`](examples/sdk), [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md), [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md), and [`examples/platform_ops_demo`](examples/platform_ops_demo).
 
 ## The problem
 
@@ -366,6 +376,7 @@ packages/skeinrank-governance              SQLAlchemy/Alembic governance foundat
 packages/skeinrank-governance-api          FastAPI governance/control-plane API, workers, MCP adapter
 packages/skeinrank-ui                      React/TypeScript governance console
 examples/platform_ops_demo                 Local preview seed data and guided tour automation
+examples/sdk                               Zero-friction SDK demo script and exported demo dictionary
 examples/migration                         Example dictionary import/export payloads
 examples/coverage-framework                Tags, ambiguous alias, binding policy, and evaluation examples
 examples/agents/openrouter_alias_scout     Offline alias scout for agent-driven terminology discovery

@@ -17,7 +17,7 @@ from .documents import (
     extract_document_text,
     extract_terms_from_document,
 )
-from .facade import demo_dictionary
+from .facade import demo_dictionary, demo_dictionary_payload
 from .sdk import canonicalize_text, extract_terms, load_dictionary, validate_dictionary
 
 _DEFAULT_CONTEXT_CHARS = 48
@@ -125,6 +125,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Characters to include around each replacement evidence fragment.",
     )
     canonicalize_parser.set_defaults(handler=_handle_canonicalize)
+
+    demo_dictionary_parser = subparsers.add_parser(
+        "demo-dictionary",
+        help="Print the built-in platform-ops demo dictionary as JSON.",
+    )
+    demo_dictionary_parser.add_argument(
+        "--output",
+        help="Write the dictionary JSON to this file instead of stdout.",
+    )
+    demo_dictionary_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON instead of pretty-printed JSON.",
+    )
+    demo_dictionary_parser.set_defaults(handler=_handle_demo_dictionary)
 
     document_text_parser = subparsers.add_parser(
         "document-text",
@@ -246,6 +261,15 @@ def _handle_canonicalize(args: argparse.Namespace) -> int:
         )
     else:
         _write_text(result.text, output_path=args.output)
+    return 0
+
+
+def _handle_demo_dictionary(args: argparse.Namespace) -> int:
+    _write_json(
+        demo_dictionary_payload(),
+        output_path=args.output,
+        compact=args.compact,
+    )
     return 0
 
 
