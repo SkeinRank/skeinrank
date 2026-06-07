@@ -10,8 +10,12 @@ from skeinrank import (
     DictionaryValidationIssue,
     DictionaryValidationReport,
     ExtractionResult,
+    SkeinRank,
     TermMatch,
+    canonicalize,
     canonicalize_text,
+    demo_dictionary,
+    extract,
     extract_terms,
     load_dictionary,
     validate_dictionary,
@@ -62,6 +66,10 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert callable(validate_dictionary)
     assert callable(extract_terms)
     assert callable(canonicalize_text)
+    assert SkeinRank is not None
+    assert callable(canonicalize)
+    assert callable(extract)
+    assert callable(demo_dictionary)
 
 
 def test_load_dictionary_from_console_migration_payload():

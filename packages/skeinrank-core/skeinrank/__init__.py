@@ -56,6 +56,13 @@ from .domain.types import (
     RerankResult,
     ScoreResult,
 )
+from .facade import (
+    SkeinRank,
+    canonicalize,
+    demo_dictionary,
+    demo_dictionary_payload,
+    extract,
+)
 from .sdk import (
     CanonicalizedText,
     Dictionary,
@@ -136,6 +143,11 @@ __all__ = [
     "validate_dictionary",
     "extract_terms",
     "canonicalize_text",
+    "SkeinRank",
+    "canonicalize",
+    "extract",
+    "demo_dictionary",
+    "demo_dictionary_payload",
     "SkeinRankError",
     "ContractError",
     "ModelUnavailable",

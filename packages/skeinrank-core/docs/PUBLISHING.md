@@ -81,5 +81,5 @@ Configure a trusted publisher for the real PyPI project before running the PyPI 
 
 - The default package remains lightweight and does not require FastAPI, SQLAlchemy, Elasticsearch, Celery, or ML dependencies.
 - Install `pypdf` separately when PDF extraction is needed.
-- Heavy model dependencies remain behind existing extras such as `attribute-models` and `torch`.
+- Heavy model dependencies are not part of the lightweight core install. Legacy reranking experiments should be packaged separately if they are revived.
 - Never publish directly to PyPI without a successful TestPyPI install smoke test.

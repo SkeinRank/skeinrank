@@ -1,0 +1,542 @@
+{
+  "schema_version": "skeinrank.dictionary.v1",
+  "profile_name": "platform_ops_demo",
+  "profile_description": "Built-in platform operations terminology for zero-friction SkeinRank SDK examples. The dictionary is intentionally compact, but it covers infrastructure, incidents, CI/CD, search, RAG, and ambiguous company-language surfaces.",
+  "terms": [
+    {
+      "canonical_value": "kubernetes",
+      "slot": "TECHNOLOGY",
+      "description": "Container orchestration platform.",
+      "tags": [
+        "cloud-native",
+        "infrastructure",
+        "orchestration"
+      ],
+      "aliases": [
+        "k8s",
+        "kube",
+        "kuber",
+        "kube cluster"
+      ]
+    },
+    {
+      "canonical_value": "postgresql",
+      "slot": "DATABASE",
+      "description": "PostgreSQL relational database.",
+      "tags": [
+        "database",
+        "storage"
+      ],
+      "aliases": [
+        "pg",
+        "postgres",
+        "psql",
+        "postgres db"
+      ]
+    },
+    {
+      "canonical_value": "redis",
+      "slot": "CACHE",
+      "description": "Redis cache or key-value store.",
+      "tags": [
+        "cache",
+        "storage"
+      ],
+      "aliases": [
+        "redis cache",
+        "cache"
+      ]
+    },
+    {
+      "canonical_value": "elasticsearch",
+      "slot": "SEARCH_BACKEND",
+      "description": "Elasticsearch search backend.",
+      "tags": [
+        "index",
+        "search"
+      ],
+      "aliases": [
+        "es",
+        "elastic",
+        "elastic search"
+      ]
+    },
+    {
+      "canonical_value": "opensearch",
+      "slot": "SEARCH_BACKEND",
+      "description": "OpenSearch search backend.",
+      "tags": [
+        "index",
+        "search"
+      ],
+      "aliases": [
+        "os search",
+        "open search"
+      ]
+    },
+    {
+      "canonical_value": "vector database",
+      "slot": "SEARCH_BACKEND",
+      "description": "Vector or embedding store used by RAG workflows.",
+      "tags": [
+        "embeddings",
+        "rag",
+        "search"
+      ],
+      "aliases": [
+        "vector db",
+        "vdb",
+        "embedding store"
+      ]
+    },
+    {
+      "canonical_value": "rag pipeline",
+      "slot": "AI_WORKFLOW",
+      "description": "Retrieval-augmented generation workflow.",
+      "tags": [
+        "ai",
+        "rag",
+        "retrieval"
+      ],
+      "aliases": [
+        "rag",
+        "retrieval augmented generation"
+      ]
+    },
+    {
+      "canonical_value": "llm agent",
+      "slot": "AI_WORKFLOW",
+      "description": "Tool-using or agentic LLM workflow.",
+      "tags": [
+        "agent",
+        "ai",
+        "tools"
+      ],
+      "aliases": [
+        "ai agent",
+        "agentic workflow",
+        "tool-using agent"
+      ]
+    },
+    {
+      "canonical_value": "api server",
+      "slot": "COMPONENT",
+      "description": "Backend API service component.",
+      "tags": [
+        "backend",
+        "service"
+      ],
+      "aliases": [
+        "api-server",
+        "apiserver",
+        "api svc"
+      ]
+    },
+    {
+      "canonical_value": "background worker",
+      "slot": "COMPONENT",
+      "description": "Asynchronous worker or job processor.",
+      "tags": [
+        "backend",
+        "jobs"
+      ],
+      "aliases": [
+        "worker",
+        "job worker",
+        "async worker"
+      ]
+    },
+    {
+      "canonical_value": "message queue",
+      "slot": "COMPONENT",
+      "description": "Queue used for asynchronous processing.",
+      "tags": [
+        "backend",
+        "messaging"
+      ],
+      "aliases": [
+        "rabbitmq",
+        "rmq",
+        "queue"
+      ]
+    },
+    {
+      "canonical_value": "authentication",
+      "slot": "SECURITY_CONCEPT",
+      "description": "Identity verification.",
+      "tags": [
+        "identity",
+        "security"
+      ],
+      "aliases": [
+        "authn",
+        "login auth"
+      ]
+    },
+    {
+      "canonical_value": "authorization",
+      "slot": "SECURITY_CONCEPT",
+      "description": "Permission and access checks.",
+      "tags": [
+        "identity",
+        "security"
+      ],
+      "aliases": [
+        "authz",
+        "permission check"
+      ]
+    },
+    {
+      "canonical_value": "identity service",
+      "slot": "SERVICE",
+      "description": "Authentication or identity provider service.",
+      "tags": [
+        "identity",
+        "service"
+      ],
+      "aliases": [
+        "auth service",
+        "idp",
+        "identity provider"
+      ]
+    },
+    {
+      "canonical_value": "billing service",
+      "slot": "SERVICE",
+      "description": "Billing or payments service.",
+      "tags": [
+        "payments",
+        "service"
+      ],
+      "aliases": [
+        "billing api",
+        "payments service",
+        "billing svc"
+      ]
+    },
+    {
+      "canonical_value": "github actions",
+      "slot": "CI_SYSTEM",
+      "description": "GitHub Actions CI/CD system.",
+      "tags": [
+        "automation",
+        "ci"
+      ],
+      "aliases": [
+        "gh actions",
+        "gha"
+      ]
+    },
+    {
+      "canonical_value": "continuous integration",
+      "slot": "CI_CONCEPT",
+      "description": "Automated build and test workflow.",
+      "tags": [
+        "automation",
+        "ci"
+      ],
+      "aliases": [
+        "ci",
+        "build pipeline"
+      ]
+    },
+    {
+      "canonical_value": "deployment",
+      "slot": "CHANGE_TYPE",
+      "description": "Production rollout or release deployment.",
+      "tags": [
+        "operations",
+        "release"
+      ],
+      "aliases": [
+        "deploy",
+        "rollout",
+        "release rollout"
+      ]
+    },
+    {
+      "canonical_value": "rollback",
+      "slot": "CHANGE_ACTION",
+      "description": "Revert a deployment or runtime change.",
+      "tags": [
+        "operations",
+        "release"
+      ],
+      "aliases": [
+        "revert",
+        "roll back"
+      ]
+    },
+    {
+      "canonical_value": "database migration",
+      "slot": "CHANGE_TYPE",
+      "description": "Schema or data migration for a database.",
+      "tags": [
+        "database",
+        "release"
+      ],
+      "aliases": [
+        "db migration",
+        "schema migration",
+        "migration"
+      ]
+    },
+    {
+      "canonical_value": "critical incident",
+      "slot": "SEVERITY",
+      "description": "Highest-severity production incident.",
+      "tags": [
+        "incident",
+        "priority"
+      ],
+      "aliases": [
+        "sev1",
+        "sev-1",
+        "p0",
+        "major incident"
+      ]
+    },
+    {
+      "canonical_value": "high priority incident",
+      "slot": "SEVERITY",
+      "description": "High-priority but non-critical incident.",
+      "tags": [
+        "incident",
+        "priority"
+      ],
+      "aliases": [
+        "sev2",
+        "sev-2",
+        "p1"
+      ]
+    },
+    {
+      "canonical_value": "timeout",
+      "slot": "SYMPTOM",
+      "description": "Request or job timed out.",
+      "tags": [
+        "incident",
+        "latency"
+      ],
+      "aliases": [
+        "timed out",
+        "time out"
+      ]
+    },
+    {
+      "canonical_value": "latency",
+      "slot": "SYMPTOM",
+      "description": "Slow response or performance degradation.",
+      "tags": [
+        "incident",
+        "performance"
+      ],
+      "aliases": [
+        "slow",
+        "slowness",
+        "latency spike"
+      ]
+    },
+    {
+      "canonical_value": "outage",
+      "slot": "SYMPTOM",
+      "description": "Service unavailable or down.",
+      "tags": [
+        "incident",
+        "availability"
+      ],
+      "aliases": [
+        "down",
+        "service down",
+        "incident outage"
+      ]
+    },
+    {
+      "canonical_value": "runbook",
+      "slot": "DOCUMENT_TYPE",
+      "description": "Operational remediation guide.",
+      "tags": [
+        "docs",
+        "operations"
+      ],
+      "aliases": [
+        "playbook",
+        "ops guide"
+      ]
+    },
+    {
+      "canonical_value": "postmortem",
+      "slot": "DOCUMENT_TYPE",
+      "description": "Incident review document.",
+      "tags": [
+        "docs",
+        "incident"
+      ],
+      "aliases": [
+        "post-mortem",
+        "incident review"
+      ]
+    },
+    {
+      "canonical_value": "service level objective",
+      "slot": "RELIABILITY_CONCEPT",
+      "description": "Reliability target for a service.",
+      "tags": [
+        "reliability",
+        "slo"
+      ],
+      "aliases": [
+        "slo",
+        "service objective"
+      ]
+    },
+    {
+      "canonical_value": "on-call rotation",
+      "slot": "RELIABILITY_CONCEPT",
+      "description": "Scheduled incident-response ownership.",
+      "tags": [
+        "incident",
+        "operations"
+      ],
+      "aliases": [
+        "oncall",
+        "on-call"
+      ]
+    },
+    {
+      "canonical_value": "feature flag",
+      "slot": "RELEASE_CONCEPT",
+      "description": "Feature toggle used during rollout.",
+      "tags": [
+        "release",
+        "runtime"
+      ],
+      "aliases": [
+        "ff",
+        "feature toggle"
+      ]
+    },
+    {
+      "canonical_value": "search index",
+      "slot": "SEARCH_CONCEPT",
+      "description": "Search collection or backend index.",
+      "tags": [
+        "index",
+        "search"
+      ],
+      "aliases": [
+        "search alias",
+        "index alias"
+      ]
+    },
+    {
+      "canonical_value": "read replica",
+      "slot": "DATABASE_CONCEPT",
+      "description": "Read-only database replica.",
+      "tags": [
+        "database",
+        "replication"
+      ],
+      "aliases": [
+        "replica",
+        "db replica",
+        "reader"
+      ]
+    },
+    {
+      "canonical_value": "index shard",
+      "slot": "SEARCH_CONCEPT",
+      "description": "Search-index shard or partition.",
+      "tags": [
+        "index",
+        "search"
+      ],
+      "aliases": [
+        "shard",
+        "sharding"
+      ]
+    },
+    {
+      "canonical_value": "runtime snapshot",
+      "slot": "SKEINRANK_CONCEPT",
+      "description": "Immutable terminology artifact served at runtime.",
+      "tags": [
+        "governance",
+        "runtime"
+      ],
+      "aliases": [
+        "snapshot",
+        "pinned snapshot"
+      ]
+    },
+    {
+      "canonical_value": "ai inbox",
+      "slot": "SKEINRANK_CONCEPT",
+      "description": "Review queue for evidence-backed terminology proposals.",
+      "tags": [
+        "governance",
+        "review"
+      ],
+      "aliases": [
+        "proposal inbox",
+        "review inbox"
+      ]
+    },
+    {
+      "canonical_value": "governance api",
+      "slot": "SKEINRANK_COMPONENT",
+      "description": "SkeinRank control-plane API.",
+      "tags": [
+        "api",
+        "governance"
+      ],
+      "aliases": [
+        "control plane api",
+        "governance api"
+      ]
+    },
+    {
+      "canonical_value": "page layout",
+      "slot": "DOCUMENT_CONCEPT",
+      "description": "Page layout or frontend template context for ambiguous pg examples.",
+      "tags": [
+        "docs",
+        "frontend"
+      ],
+      "aliases": [
+        "pg layout",
+        "page template"
+      ]
+    },
+    {
+      "canonical_value": "product group",
+      "slot": "ORG_UNIT",
+      "description": "Product group context for ambiguous pg examples.",
+      "tags": [
+        "org",
+        "product"
+      ],
+      "aliases": [
+        "prod group",
+        "pg dashboard"
+      ]
+    }
+  ],
+  "profile_stop_list": [
+    {
+      "value": "app",
+      "target": "alias",
+      "reason": "too generic for the built-in demo matcher"
+    },
+    {
+      "value": "service",
+      "target": "alias",
+      "reason": "too generic for the built-in demo matcher"
+    },
+    {
+      "value": "platform",
+      "target": "alias",
+      "reason": "too generic for the built-in demo matcher"
+    }
+  ]
+}
