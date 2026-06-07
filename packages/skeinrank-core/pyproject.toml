@@ -51,6 +51,7 @@ skeinrank-init-profile = "skeinrank.attributes.cli:init_profile_main"
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.4"
 pytest-cov = ">=4.1"
+exceptiongroup = {version = ">=1.2,<2", markers = "python_version < \"3.11\""}
 
 [tool.poetry.urls]
 Homepage = "https://github.com/SkeinRank"
