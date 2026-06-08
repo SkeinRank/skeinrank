@@ -1,7 +1,7 @@
-"""Deterministic benchmark harness for headless agent workflow E2E checks.
+"""Deterministic benchmark harness for headless agent workflow checks.
 
-The 48A benchmark is intentionally offline: it does not call OpenRouter and it
-uses a dry-run Elasticsearch binding only as a runtime context. The goal is to
+The benchmark is intentionally offline: it does not call OpenRouter and it uses
+a dry-run Elasticsearch binding only as a runtime context. The goal is to
 exercise the governed agent workflow end-to-end with repeatable sample data:
 
     seed dictionary -> record agent visits -> deterministic candidate reviews
@@ -877,11 +877,10 @@ def _build_proposal_quality_metrics(
 ) -> dict[str, Any]:
     """Build proposal-level quality metrics for benchmark tuning.
 
-    49A answers whether the benchmark passed. 49B adds operator-facing
-    instrumentation that explains *why*: which aliases were useful, which were
-    blocked, which were idempotent no-ops, and how proposal attempts are
-    distributed by slot/action/status.  The structure is deterministic and does
-    not depend on external LLM calls.
+    The metrics explain *why* a benchmark passed or needs review: which aliases
+    were useful, which were blocked, which were idempotent no-ops, and how
+    proposal attempts are distributed by slot/action/status. The structure is
+    deterministic and does not depend on external LLM calls.
     """
 
     thresholds = _require_mapping(
@@ -1137,10 +1136,10 @@ def _build_agent_decision_diagnostics(
 ) -> dict[str, Any]:
     """Explain why the deterministic benchmark agent made each decision.
 
-    49B exposes proposal quality numbers. 49C adds the diagnostic layer operators
-    need when those numbers drift: document skip/revisit reasons, proposal
-    decision reasons, validator messages, and explanations for expected aliases
-    that are intentionally absent because their source document was skipped.
+    The diagnostics help operators understand metric drift: document skip/revisit
+    reasons, proposal decision reasons, validator messages, and explanations for
+    expected aliases that are intentionally absent because their source document
+    was skipped.
     """
 
     expected_skipped = set(expected_payload.get("expected_skipped_sources") or [])

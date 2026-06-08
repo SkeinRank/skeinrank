@@ -198,9 +198,9 @@ def run_openrouter_llm_review_workflow(
 ) -> JsonDict:
     """Run model review for ready candidates and return a structured report.
 
-    This is the first live OpenRouter execution path. It deliberately stops at
-    proposal payload preparation; later security/budget/evaluation patches can
-    decide when to validate or submit proposals to SkeinRank.
+    The workflow deliberately stops at proposal payload preparation unless
+    explicit submission is enabled. Budget, security, and evaluation controls
+    remain part of the governed review boundary.
     """
 
     cfg = llm_config or LlmReviewConfig()

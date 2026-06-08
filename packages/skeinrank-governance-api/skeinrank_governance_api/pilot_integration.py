@@ -1,7 +1,7 @@
-"""Pilot import/integration path for real Elasticsearch indices.
+"""Pilot import and integration path for real Elasticsearch indices.
 
 This CLI is intentionally dependency-light and HTTP-only. It gives operators a
-repeatable path for the first company pilot:
+repeatable validation path for a company Elasticsearch environment:
 
 1. check the Governance API and Elasticsearch connection;
 2. validate/apply a small seed dictionary;
@@ -9,8 +9,8 @@ repeatable path for the first company pilot:
 4. run read-only evidence and query-plan checks;
 5. write a JSON report that can be shared with reviewers.
 
-No OpenRouter calls are made here and no proposals are approved/applied. The
-live OpenRouter validated pilot remains the separate 49D flow.
+No OpenRouter calls are made here and no proposals are approved/applied. Live
+agent validation remains a separate, opt-in workflow.
 """
 
 from __future__ import annotations

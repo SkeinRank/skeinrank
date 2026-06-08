@@ -280,7 +280,7 @@ class ElasticsearchDiscoveryClient:
     ) -> dict[str, Any]:
         """Create a target index for a reindex+alias-swap enrichment job.
 
-        The MVP implementation copies the source mapping when available. It is
+        The implementation copies the source mapping when available. It is
         intentionally small and dependency-free; companies can still manage
         templates/settings externally for production clusters.
         """

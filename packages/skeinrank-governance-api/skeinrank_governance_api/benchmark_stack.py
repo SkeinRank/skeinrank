@@ -1,8 +1,8 @@
 """Containerized benchmark integration harness for platform ops fixtures.
 
-The deterministic 48A benchmark proves the governed agent workflow in-process.
-This 48C harness adds full-stack integration checks for the Docker Compose dev
-stack: PostgreSQL, Governance API, and Elasticsearch/OpenSearch.
+The benchmark stack runs full-stack integration checks against the Docker
+Compose development services: PostgreSQL, Governance API, and
+Elasticsearch/OpenSearch.
 
 No OpenRouter calls are made here. The harness seeds benchmark state into the
 containerized database, indexes benchmark documents into Elasticsearch, exercises

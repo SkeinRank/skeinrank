@@ -50,8 +50,8 @@ def build_conflict_report(
 
     The scanner focuses on conflicts that can exist even with database uniqueness
     constraints in place: cross-profile surface reuse, stop-list drift, and
-    pending proposal collisions. Per-conflict review state and severity are added
-    in later coverage-framework patches.
+    pending proposal collisions. Per-conflict review state and severity are
+    included when the stored governance metadata is available.
     """
 
     profile = _get_profile(session, profile_name) if profile_name else None

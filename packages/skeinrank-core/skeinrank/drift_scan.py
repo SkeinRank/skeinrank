@@ -207,7 +207,7 @@ def scan_dictionary_drift(
 ) -> TerminologyDriftReport:
     """Scan local documents for terminology not covered by a dictionary.
 
-    The current MVP emits ``alias_drift`` findings for significant unmatched
+    The scanner emits ``alias_drift`` findings for significant unmatched
     candidates, ``stale_term`` findings for dictionary terms with little or no
     evidence in the scanned corpus, optional ``binding_lag`` findings, and
     conservative ``ambiguity_signal`` findings for short aliases that appear in

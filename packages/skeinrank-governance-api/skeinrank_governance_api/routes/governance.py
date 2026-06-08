@@ -3452,7 +3452,7 @@ def _job_alias_name(
 
 
 def _default_reindex_target_name(binding: ElasticsearchBinding, job_id: int) -> str:
-    """Build a deterministic target index name for MVP reindex jobs."""
+    """Build a deterministic target index name for reindex jobs."""
 
     safe_source_index = binding.index_name.strip().lower().replace(" ", "_")
     return f"{safe_source_index}__skeinrank_job_{job_id}"
@@ -3466,7 +3466,7 @@ def _execute_elasticsearch_enrichment_job(
     job: ElasticsearchEnrichmentJob,
     max_documents: int,
 ) -> dict[str, object]:
-    """Execute one synchronous MVP Elasticsearch enrichment job."""
+    """Execute one synchronous Elasticsearch enrichment job."""
 
     if binding.write_strategy == "reindex_alias_swap":
         if not job.target_index:
