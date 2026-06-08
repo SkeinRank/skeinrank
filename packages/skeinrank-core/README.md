@@ -229,6 +229,8 @@ result.save("drift.dictionary-draft.json")
 
 Only `alias_drift` findings become draft candidates. Stale terms, binding lag, and ambiguity signals are preserved as review findings so a human can decide whether to create dictionary proposals, context rules, or rollout tasks later.
 
+See [`../../docs/guides/terminology-drift-report.md`](../../docs/guides/terminology-drift-report.md) and [`../../examples/drift-scan`](../../examples/drift-scan) for the complete local workflow, Python examples, report fields, and safety boundary.
+
 ## Local CLI
 
 Validate a dictionary exported from the governance API or used by `skeinrank-migrate`:

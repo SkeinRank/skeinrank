@@ -44,6 +44,7 @@ Use this section to prove value without serving production traffic.
 - [Core SDK and CLI](guides/core-sdk-and-cli.md) — local dictionary validation, extraction, canonicalization, and document extraction.
 - [Import existing dictionaries](guides/import-dictionary.md) and [reference examples](../examples/import-dictionary) — convert CSV, JSON, and Elasticsearch/OpenSearch synonym lists into reviewable dictionary candidates.
 - [Agent dictionary assistant](guides/agent-dictionary-assistant.md), [deterministic suggestion examples](../examples/suggest-dictionary), and [assistant examples](../examples/agent-dictionary-assistant) — create reviewable drafts from local documents with or without OpenRouter.
+- [Terminology drift report](guides/terminology-drift-report.md) and [drift scan examples](../examples/drift-scan) — compare a dictionary with local corpus samples, review uncovered aliases, stale terms, binding lag, and ambiguity signals.
 - [Governance console](guides/governance-console.md) — API and UI workflow for review-first operations.
 - [Runtime routing examples](../examples/runtime-routing-api) — request examples for canonicalization, route planning, and binding-aware search.
 

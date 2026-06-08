@@ -208,6 +208,7 @@ Schema & Snapshots -> inspect profiles, bindings, aliases, and snapshot state
 | Path | Use when | Start here |
 | --- | --- | --- |
 | SDK and dictionary onboarding | You want to try the Python SDK, import an existing synonym file, or draft a dictionary from local docs. | [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md), [`docs/guides/import-dictionary.md`](docs/guides/import-dictionary.md), [`docs/guides/agent-dictionary-assistant.md`](docs/guides/agent-dictionary-assistant.md) |
+| Terminology drift reports | You want to check whether a dictionary still covers recent docs, incident notes, or runbooks before creating proposals. | [`docs/guides/terminology-drift-report.md`](docs/guides/terminology-drift-report.md), [`examples/drift-scan`](examples/drift-scan) |
 | Release stack | You want to run the public beta from prebuilt GHCR images. | `cp .env.example .env` then `docker compose up -d`; [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md) |
 | Full dev stack | You want to build from source with PostgreSQL, Elasticsearch, RabbitMQ, Governance API, worker, and UI. | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) |
 | Headless runtime | You want API/PostgreSQL dictionary apply/export and snapshot artifact smoke tests. | [`docker-compose.headless.yml`](docker-compose.headless.yml), [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) |
