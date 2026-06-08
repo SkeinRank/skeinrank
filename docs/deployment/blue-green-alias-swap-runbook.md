@@ -1,13 +1,8 @@
 # Blue/green alias-swap runbook
 
-This runbook documents the production-oriented Elasticsearch enrichment rollout path
-that already exists in the governance API: `reindex_alias_swap` jobs create a new
-target index, enrich that index, then atomically move the serving alias after the
-job succeeds.
+This runbook documents the production-oriented Elasticsearch/OpenSearch delivery path that already exists in the governance API: `reindex_alias_swap` jobs create a new target index, publish SkeinRank-derived terminology enrichment into that index, then atomically move the serving alias after the job succeeds.
 
-The runbook is intentionally operator-focused. It does not introduce a new
-scheduler, worker backend, CLI, or Elasticsearch endpoint. It uses the existing
-preflight, enrichment job, job inspection, cancellation, and rollback APIs.
+The runbook is intentionally operator-focused. It does not introduce a new scheduler, worker backend, CLI, or Elasticsearch/OpenSearch endpoint. It uses the existing preflight, delivery job, job inspection, cancellation, and rollback APIs. SkeinRank owns governed terminology artifacts; the search engine remains the retrieval backend.
 
 ## Mental model
 
@@ -59,7 +54,7 @@ successful `reindex_alias_swap` enrichment job.
 
 ## Preconditions
 
-Before running blue/green enrichment, verify that:
+Before running blue/green delivery, verify that:
 
 1. Elasticsearch is configured and reachable.
 2. The binding is enabled and uses `mode = write`.
@@ -70,7 +65,7 @@ Before running blue/green enrichment, verify that:
 7. The requested `target_index_name` is not the serving alias.
 8. Only one active enrichment job exists per binding.
 
-The enrichment preflight enforces the dangerous cases before a job is created.
+The delivery preflight enforces the dangerous cases before a job is created and returns the per-run `confirmation_token` that must be echoed in the start request.
 
 ## Step 1 — Inspect connection and mappings
 
@@ -155,8 +150,7 @@ you reviewed into `examples/blue-green-alias-swap/start-job-request.json`.
 
 ## Step 4 — Start the enrichment job
 
-Use the reviewed request shape from preflight and include its current
-`confirmation_token`:
+Use the reviewed request shape from preflight and include its current `confirmation_token`:
 
 ```bash
 curl -sS -X POST \
@@ -166,10 +160,7 @@ curl -sS -X POST \
   -d @examples/blue-green-alias-swap/start-job-request.json
 ```
 
-The start endpoint runs the same safety checks again. If the token is missing
-or stale, or if another job is already `queued`, `running`, or
-`cancel_requested` for the binding, the request returns `409` instead of
-creating a rollout.
+The start endpoint runs the same safety checks again. If the token is missing or stale, or if another job is already `queued`, `running`, or `cancel_requested` for the binding, the request returns `409` instead of creating a rollout.
 
 ## Step 5 — Monitor job state
 

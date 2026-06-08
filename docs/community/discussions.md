@@ -78,7 +78,7 @@ Current themes:
 - Terminology-as-Code and GitOps delivery
 - Evidence-backed terminology discovery and validation
 - MCP integration for Claude Desktop, Cursor, and LangGraph-style agents
-- Enrichment safety, blue/green alias swaps, and checkpointing
+- Operator-controlled search delivery, blue/green alias swaps, and checkpointing
 - Search quality regression checks before terminology rollout
 
 Use this thread for roadmap feedback and category-level direction. Use Issues for scoped implementation tasks.

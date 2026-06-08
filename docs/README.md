@@ -68,10 +68,10 @@ Use this section to prove value without serving production traffic.
 
 ## Elasticsearch and enrichment
 
-- [Elasticsearch enrichment](guides/elasticsearch-enrichment.md) — enrichment dry run, evidence, jobs, and cancellation.
-- [Enrichment beta hardening](guides/enrichment-beta-hardening.md) — preflight, concurrency guard, and beta safety rules.
+- [Elasticsearch/OpenSearch delivery](guides/elasticsearch-enrichment.md) — operator-controlled dry run, evidence, jobs, confirmation, and cancellation.
+- [Operator-controlled search delivery hardening](guides/enrichment-beta-hardening.md) — preflight, per-run confirmation, concurrency guard, and delivery safety rules.
 - [Pause/resume checkpointing](guides/enrichment-pause-resume-checkpointing.md) — Celery-backed enrichment job checkpoint metadata.
-- [Blue/green alias swap runbook](deployment/blue-green-alias-swap-runbook.md) and [blue/green examples](../examples/blue-green-alias-swap) — alias publish, cancellation, and rollback flow.
+- [Blue/green alias swap runbook](deployment/blue-green-alias-swap-runbook.md) and [blue/green examples](../examples/blue-green-alias-swap) — operator-reviewed alias publish, cancellation, and rollback flow.
 
 ## Deployment and operations
 

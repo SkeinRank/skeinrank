@@ -164,7 +164,7 @@ SkeinRank treats terminology as a governed, auditable, versioned asset across th
 | Context-trigger disambiguation | Keep ambiguous aliases safe: `pg timeout` can map differently than `pg layout`. |
 | Terminology-as-Code | Lint, plan, apply, export, and snapshot dictionaries through CI/GitOps workflows. |
 | Evidence-assisted review | Check aliases against Elasticsearch/OpenSearch evidence before accepting changes. |
-| Enrichment safety | Preflight, blue/green alias swap, rollback, pause/resume, and chunk checkpointing. |
+| Operator-controlled search delivery | Publish terminology-derived enrichment artifacts with preflight, per-run confirmation, blue/green alias swap, rollback, pause/resume, and chunk checkpointing. |
 | MCP integration | Let Claude Desktop, Cursor-style IDE agents, and LangGraph-style agents inspect and submit proposals safely. |
 
 ## Core model
@@ -272,9 +272,9 @@ Docs and examples: [`docs/guides/terminology-as-code.md`](docs/guides/terminolog
 </details>
 
 <details>
-<summary>Enrichment safety</summary>
+<summary>Operator-controlled search delivery</summary>
 
-Elasticsearch/OpenSearch enrichment is treated as an operator workflow, not a casual UI action. Use preflight and blue/green alias swap for production-like runs.
+Elasticsearch/OpenSearch delivery is an advanced operator-controlled workflow. SkeinRank owns governed terminology artifacts; the search engine remains the retrieval backend. Use preflight, per-run confirmation tokens, and blue/green alias swap for production-like runs.
 
 Important surfaces include:
 
@@ -421,7 +421,7 @@ The GitHub Actions workflow uses path-aware routing so docs/deployment changes d
 
 ## Project status
 
-SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, and Elasticsearch/OpenSearch enrichment safety.
+SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, terminology drift reports, and operator-controlled Elasticsearch/OpenSearch delivery.
 
 ## License
 

@@ -1,10 +1,10 @@
-# Elasticsearch enrichment
+# Elasticsearch/OpenSearch delivery
 
-SkeinRank can enrich an existing Elasticsearch index with canonical terminology context.
+SkeinRank can publish canonical terminology context into an existing Elasticsearch/OpenSearch index as a derived enrichment field. SkeinRank remains the source of truth for profiles, snapshots, bindings, review state, and terminology drift reports; the search engine remains the retrieval backend.
 
-The enrichment path is intentionally explicit: users provide the index, text fields, and target field. Start with dry-run mode and use write mode only after the preview is correct.
+The delivery path is intentionally explicit: operators provide the index, text fields, and target field. Start with dry-run mode and use write mode only after the preview and preflight plan are correct.
 
-## CLI enrichment
+## Provider CLI
 
 ```bash
 cd packages/skeinrank-provider-elasticsearch
@@ -39,7 +39,7 @@ poetry run skeinrank-es-enrich \
 
 For safety, the CLI requires either `--dry-run` or `--write`; it never writes by default.
 
-## Enrichment payload
+## Delivery payload
 
 The compact default payload stores:
 
@@ -92,7 +92,7 @@ POST /v1/governance/elasticsearch/bindings/{binding_id}/dry-run
 
 Dry-run reads a small sample, extracts text from configured fields, matches active aliases, and returns the payload that would be written. It never writes to Elasticsearch.
 
-## Enrichment jobs
+## Operator-controlled delivery jobs
 
 Run a read-only safety preflight before starting a write job:
 
@@ -104,12 +104,11 @@ The preflight returns `ready`, `blocking_issues`, `warnings`,
 `recommended_request`, `confirmation_token`, `confirmation_token_fields`, and
 safety metadata. It does not create jobs, write documents, reindex, or swap
 aliases. See
-[`enrichment-beta-hardening.md`](enrichment-beta-hardening.md) for the beta
-hardening contract and
+[`enrichment-beta-hardening.md`](enrichment-beta-hardening.md) for the operator-controlled delivery contract and
 [`../deployment/blue-green-alias-swap-runbook.md`](../deployment/blue-green-alias-swap-runbook.md)
 for the operator rollout path.
 
-Start a write-mode enrichment job after preflight passes and include the current
+Start a write-mode delivery job after preflight passes and include the current
 `confirmation_token` from that preflight response:
 
 ```text
@@ -145,7 +144,7 @@ succeeded
 failed
 ```
 
-The local/default backend can run synchronously for development. A Celery/RabbitMQ backend can queue jobs and process chunks with multiple workers.
+The local/default backend can run synchronously for development. A Celery/RabbitMQ backend can queue jobs and process chunks with multiple workers. The job writes only the configured derived target field or a staged index for alias-swap delivery; it is not a general search-engine configuration manager.
 
 ## Async worker mode
 

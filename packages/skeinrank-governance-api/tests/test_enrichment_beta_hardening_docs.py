@@ -22,15 +22,18 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_enrichment_beta_hardening_docs_are_discoverable() -> None:
+def test_operator_controlled_search_delivery_docs_are_discoverable() -> None:
     assert DOC.exists()
     assert "docs/guides/enrichment-beta-hardening.md" in _read(ROOT_README)
+    assert "Operator-controlled search delivery" in _read(ROOT_README)
     assert "guides/enrichment-beta-hardening.md" in _read(DOCS_README)
+    assert "Operator-controlled search delivery hardening" in _read(DOCS_README)
     assert "enrichment-beta-hardening.md" in _read(ENRICHMENT_DOC)
+    assert "SkeinRank remains the source of truth" in _read(ENRICHMENT_DOC)
     assert "docs/guides/enrichment-beta-hardening.md" in _read(GOVERNANCE_API_README)
 
 
-def test_enrichment_beta_hardening_documents_real_api_surface() -> None:
+def test_operator_controlled_search_delivery_documents_real_api_surface() -> None:
     doc = _read(DOC)
     api_doc = _read(API_DOC)
     routes = _read(ROUTES)
@@ -48,6 +51,8 @@ def test_enrichment_beta_hardening_documents_real_api_surface() -> None:
         "cancel_requested",
         "reindex_alias_swap",
         "in_place",
+        "Operator-controlled delivery",
+        "SkeinRank owns governed terminology artifacts",
     )
     for fragment in expected_fragments:
         assert fragment in doc
@@ -58,6 +63,8 @@ def test_enrichment_beta_hardening_documents_real_api_surface() -> None:
     assert "ElasticsearchEnrichmentPreflightResponse" in schemas
     assert "confirmation_token" in schemas
     assert "/elasticsearch/bindings/{binding_id}/jobs/preflight" in api_doc
+    assert "operator-controlled delivery jobs" in api_doc
+    assert "not reversible by alias rollback" in api_doc
 
     forbidden_fragments = (
         "/v1/enrichment/reload",
@@ -67,3 +74,26 @@ def test_enrichment_beta_hardening_documents_real_api_surface() -> None:
     )
     for fragment in forbidden_fragments:
         assert fragment not in doc
+
+
+def test_operator_controlled_delivery_docs_avoid_dev_and_management_positioning() -> (
+    None
+):
+    docs = {
+        "root": _read(ROOT_README),
+        "hardening": _read(DOC),
+        "enrichment": _read(ENRICHMENT_DOC),
+        "docs_index": _read(DOCS_README),
+        "governance_readme": _read(GOVERNANCE_API_README),
+    }
+
+    for name, content in docs.items():
+        assert "Enrichment safety" not in content, name
+        assert "61B operator runbook" not in content, name
+        assert "Patch" not in content, name
+
+    hardening = docs["hardening"]
+    assert "Search engines execute retrieval" in hardening
+    assert "general Elasticsearch/OpenSearch management layer" in hardening
+    assert "Every delivery run confirms one concrete plan" in hardening
+    assert "UI remains an inspection and review surface" in hardening
