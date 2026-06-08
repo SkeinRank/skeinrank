@@ -1,0 +1,5 @@
+# Elasticsearch/OpenSearch synonym-list style input
+k8s, kube => kubernetes
+pg, postgres => postgresql
+ci, gha => github actions
+sev1, p0 => critical incident

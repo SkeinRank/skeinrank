@@ -4,6 +4,13 @@ Only symbols exported from this module are considered **stable public API**.
 Internal modules may change without notice.
 """
 
+from .agent import (
+    OpenRouterAssistantError,
+    OpenRouterDictionaryAssistantConfig,
+    OpenRouterDictionaryAssistantResult,
+    build_dictionary_from_docs,
+    build_dictionary_from_documents,
+)
 from .app.engine import RerankEngine, rerank, rerank_many, score
 from .app.profiles import get_profile, list_profiles, validate_profile
 from .attributes import (
@@ -39,6 +46,15 @@ from .attributes import (
     write_attribute_profile_template,
     write_jsonl,
 )
+from .candidates import (
+    CandidateDiscoveryConfig,
+    CandidateDiscoveryDocument,
+    CandidateDiscoveryReport,
+    CandidateEvidence,
+    DiscoveredCandidate,
+    discover_candidates,
+    discover_candidates_from_documents,
+)
 from .documents import (
     DocumentExtractionError,
     DocumentExtractionResult,
@@ -56,12 +72,49 @@ from .domain.types import (
     RerankResult,
     ScoreResult,
 )
+from .drafts import (
+    DictionaryDraft,
+    DraftCandidate,
+    DraftFinding,
+    EvidenceSnippet,
+)
+from .drift import (
+    DRIFT_REPORT_SCHEMA_VERSION,
+    DriftEvidence,
+    DriftFinding,
+    DriftFindingType,
+    DriftReportSummary,
+    DriftSeverity,
+    TerminologyDriftReport,
+)
+from .drift_proposals import (
+    DriftDraftConfig,
+    DriftDraftResult,
+    drift_report_to_dictionary_draft,
+)
+from .drift_scan import (
+    BindingLagMetadata,
+    DriftScanConfig,
+    load_binding_metadata,
+    merge_binding_metadata,
+    scan_dictionary_drift,
+    scan_dictionary_drift_from_documents,
+)
 from .facade import (
     SkeinRank,
     canonicalize,
     demo_dictionary,
     demo_dictionary_payload,
     extract,
+)
+from .importing import (
+    ImportReport,
+    ImportResult,
+    ImportWarning,
+    RawMapping,
+    Severity,
+    import_dictionary,
+    validate_imported_dictionary,
 )
 from .sdk import (
     CanonicalizedText,
@@ -77,6 +130,13 @@ from .sdk import (
     extract_terms,
     load_dictionary,
     validate_dictionary,
+)
+from .suggestions import (
+    DictionarySuggestionConfig,
+    DictionarySuggestionResult,
+    expand_document_paths,
+    suggest_dictionary,
+    suggest_dictionary_from_documents,
 )
 
 __all__ = [
@@ -124,6 +184,43 @@ __all__ = [
     "AttributeStageStatus",
     "AttributePassport",
     "AttributePack",
+    "OpenRouterAssistantError",
+    "OpenRouterDictionaryAssistantConfig",
+    "OpenRouterDictionaryAssistantResult",
+    "build_dictionary_from_docs",
+    "build_dictionary_from_documents",
+    "CandidateDiscoveryConfig",
+    "CandidateDiscoveryDocument",
+    "CandidateDiscoveryReport",
+    "CandidateEvidence",
+    "DiscoveredCandidate",
+    "discover_candidates",
+    "discover_candidates_from_documents",
+    "DictionarySuggestionConfig",
+    "DictionarySuggestionResult",
+    "expand_document_paths",
+    "suggest_dictionary",
+    "suggest_dictionary_from_documents",
+    "TerminologyDriftReport",
+    "BindingLagMetadata",
+    "DriftScanConfig",
+    "load_binding_metadata",
+    "merge_binding_metadata",
+    "scan_dictionary_drift",
+    "scan_dictionary_drift_from_documents",
+    "DriftDraftConfig",
+    "DriftDraftResult",
+    "drift_report_to_dictionary_draft",
+    "DriftSeverity",
+    "DriftReportSummary",
+    "DriftFindingType",
+    "DriftFinding",
+    "DriftEvidence",
+    "DRIFT_REPORT_SCHEMA_VERSION",
+    "DictionaryDraft",
+    "DraftCandidate",
+    "DraftFinding",
+    "EvidenceSnippet",
     "DocumentText",
     "DocumentExtractionResult",
     "DocumentExtractionError",
@@ -148,9 +245,16 @@ __all__ = [
     "extract",
     "demo_dictionary",
     "demo_dictionary_payload",
+    "ImportReport",
+    "ImportResult",
+    "ImportWarning",
+    "RawMapping",
+    "Severity",
+    "import_dictionary",
+    "validate_imported_dictionary",
     "SkeinRankError",
     "ContractError",
     "ModelUnavailable",
 ]
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"

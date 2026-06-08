@@ -138,6 +138,9 @@ Stable dictionary exports include:
 - `load_dictionary(...)`, `validate_dictionary(...)`
 - `extract_terms(...)`, `canonicalize_text(...)`
 - `ExtractionResult`, `TermMatch`, `CanonicalizedText`
+- `DictionaryDraft`, `DraftCandidate`, `DraftFinding`, `EvidenceSnippet`
+- `DictionarySuggestionConfig`, `DictionarySuggestionResult`, `suggest_dictionary(...)`, `suggest_dictionary_from_documents(...)`
+- `TerminologyDriftReport`, `DriftFinding`, `DriftEvidence`, `DriftSeverity`, `DriftFindingType`
 
 The matcher is deterministic and local. It honors active/deprecated term and alias statuses, profile/global stop lists, returns offsets, and includes evidence snippets with `<mark>...</mark>` highlights.
 
@@ -166,6 +169,68 @@ Supported formats without extra dependencies:
 
 PDF extraction is supported when the caller installs `pypdf` in the environment. The core package does not require it by default.
 
+## Local terminology drift reports
+
+Compare a dictionary with local documents to see which significant terms are not covered yet. This is a report-only workflow: it does not create proposals, publish snapshots, change bindings, or mutate runtime state.
+
+```bash
+poetry run skeinrank drift scan \
+  --dictionary ../../examples/drift-scan/company.dictionary.json \
+  --docs ../../examples/drift-scan/docs \
+  --out ../../examples/drift-scan/drift-report.json \
+  --markdown ../../examples/drift-scan/drift-report.md
+```
+
+The report uses the versioned `TerminologyDriftReport` schema and includes `alias_drift` findings for uncovered terminology, `stale_term` findings for dictionary entries that no longer appear in the scanned corpus, optional `binding_lag` findings for pinned-vs-latest snapshot metadata, and conservative `ambiguity_signal` findings when an existing short alias appears in unfamiliar contexts. It also includes evidence snippets and `unknown_alias_rate`. It is intentionally a local terminology drift report, not a real-time monitor or search observability system.
+
+Ambiguity signals are review hints, not automatic meaning changes. Disable them with `--no-ambiguity-signals` when you only want uncovered aliases, stale terms, and binding lag.
+
+Add optional binding metadata when you want the report to show snapshot lag without connecting to the Governance API:
+
+```bash
+poetry run skeinrank drift scan \
+  --dictionary ../../examples/drift-scan/company.dictionary.json \
+  --docs ../../examples/drift-scan/docs \
+  --binding-metadata ../../examples/drift-scan/binding-metadata.json
+```
+
+```python
+from skeinrank import DriftScanConfig, scan_dictionary_drift
+
+report = scan_dictionary_drift(
+    dictionary="company.dictionary.json",
+    docs=["./docs"],
+    config=DriftScanConfig(
+        binding_id="infra_incidents_prod",
+        pinned_snapshot_version="S42",
+        latest_snapshot_version="S47",
+        discovery={"min_frequency": 2},
+    ),
+)
+
+print(report.to_markdown())
+```
+
+After review, turn alias-drift findings into a local dictionary draft without mutating production state:
+
+```bash
+poetry run skeinrank drift export-draft ../../examples/drift-scan/drift-report.json \
+  --out ../../examples/drift-scan/drift.dictionary-draft.json \
+  --review ../../examples/drift-scan/drift.dictionary-draft.md
+```
+
+```python
+from skeinrank import drift_report_to_dictionary_draft
+
+result = drift_report_to_dictionary_draft("drift-report.json")
+print(result.review_markdown())
+result.save("drift.dictionary-draft.json")
+```
+
+Only `alias_drift` findings become draft candidates. Stale terms, binding lag, and ambiguity signals are preserved as review findings so a human can decide whether to create dictionary proposals, context rules, or rollout tasks later.
+
+See [`../../docs/guides/terminology-drift-report.md`](../../docs/guides/terminology-drift-report.md) and [`../../examples/drift-scan`](../../examples/drift-scan) for the complete local workflow, Python examples, report fields, and safety boundary.
+
 ## Local CLI
 
 Validate a dictionary exported from the governance API or used by `skeinrank-migrate`:
@@ -188,6 +253,75 @@ Print or export the built-in demo dictionary:
 poetry run skeinrank demo-dictionary --compact
 poetry run skeinrank demo-dictionary --output ../../examples/sdk/platform_ops_demo.dictionary.json
 ```
+
+Convert existing term lists into a SkeinRank dictionary candidate:
+
+```bash
+poetry run skeinrank import-dictionary ../../examples/import-dictionary/company_terms.csv \
+  --name platform_ops_import \
+  --out ../../examples/import-dictionary/company_terms.dictionary.json
+
+poetry run skeinrank import-dictionary ../../examples/import-dictionary/es_synonyms.txt \
+  --format es-synonyms \
+  --name platform_ops_import \
+  --out ../../examples/import-dictionary/es_synonyms.dictionary.json
+```
+
+The import path accepts simple JSON dictionaries, CSV files with canonical/alias columns, and Elasticsearch/OpenSearch synonym-list files. It writes a local candidate dictionary and prints a review report; it does not mutate governance state, snapshots, bindings, or runtime search.
+
+The review report also runs the imported candidate through the same lightweight dictionary validator used by `validate-dictionary`. Validator findings are surfaced in the import report so risky aliases, runtime collisions, and short ambiguous forms can be reviewed before the candidate is used. Use `--no-validate` when you only want a raw conversion report, or `--strict-validate` when validator errors should block the generated file.
+
+Write a reviewable draft when the imported file should go through an explicit human review step before becoming a runtime dictionary:
+
+```bash
+poetry run skeinrank import-dictionary ../../examples/import-dictionary/es_synonyms.txt \
+  --format es-synonyms \
+  --name platform_ops_import \
+  --draft-out ../../examples/import-dictionary/es_synonyms.dictionary-draft.json
+```
+
+Drafts keep imported candidates in `proposed` status. In Python, reviewers can inspect the draft, accept candidates, and only then explicitly export a runtime dictionary:
+
+```python
+from skeinrank import DictionaryDraft
+
+draft = DictionaryDraft.from_file("company.dictionary-draft.json")
+print(draft.review_markdown())
+
+runtime_dictionary = draft.accept_all().to_dictionary()
+```
+
+Suggest a reviewable draft directly from local documents when there is no dictionary yet:
+
+```bash
+poetry run skeinrank suggest-dictionary ../../examples/suggest-dictionary/docs \
+  --profile-name platform_candidates \
+  --min-frequency 2 \
+  --out ../../examples/suggest-dictionary/platform_candidates.dictionary-draft.json \
+  --review ../../examples/suggest-dictionary/platform_candidates.review.md
+```
+
+The suggestion path is deterministic and local. It uses the same candidate discovery engine described below, filters known dictionary terms when `--dictionary` is provided, and keeps all suggestions in `proposed` status for review.
+
+Optionally ask OpenRouter to group and name the deterministic candidates. The assistant receives only evidence-backed candidate summaries, not production credentials or runtime state, and returns a reviewable draft. Runtime canonicalization remains deterministic after review:
+
+```bash
+export OPENROUTER_API_KEY="..."
+export OPENROUTER_MODEL="provider/model"
+
+poetry run skeinrank assist-dictionary ../../examples/agent-dictionary-assistant/docs \
+  --model "$OPENROUTER_MODEL" \
+  --profile-name platform_assisted_terms \
+  --out ../../examples/agent-dictionary-assistant/platform_assisted.dictionary-draft.json \
+  --review ../../examples/agent-dictionary-assistant/platform_assisted.review.md
+```
+
+The OpenRouter-assisted path does not publish snapshots, mutate bindings, or write runtime dictionaries automatically. It only improves a local draft for human review.
+
+Detailed guides and runnable examples:
+
+- [Import existing dictionaries](../../docs/guides/import-dictionary.md) and [examples/import-dictionary](../../examples/import-dictionary) for CSV, JSON, and Elasticsearch/OpenSearch synonym lists.
+- [Agent dictionary assistant](../../docs/guides/agent-dictionary-assistant.md), [examples/suggest-dictionary](../../examples/suggest-dictionary), and [examples/agent-dictionary-assistant](../../examples/agent-dictionary-assistant) for deterministic and optional OpenRouter-assisted draft creation.
 
 Run the example script:
 
@@ -214,6 +348,109 @@ poetry run skeinrank document-text incident-runbook.docx --output incident-runbo
 ```
 
 The CLI returns JSON for `extract`, raw text by default for `canonicalize` and `document-text`, and supports `--output`, `--compact`, `--max-matches`, and `--context-chars` where relevant.
+
+
+## Candidate discovery engine
+
+The core package also includes a deterministic candidate discovery engine for cold-start dictionary suggestions and future terminology drift reports. It scans local text, filters known dictionary terms, ranks unmatched technical candidates, and returns evidence snippets for review.
+
+```python
+from skeinrank import CandidateDiscoveryConfig, discover_candidates, demo_dictionary
+
+report = discover_candidates(
+    [
+        {"source": "incident-1.md", "text": "Kubelet OOM after pg migration"},
+        {"source": "incident-2.md", "text": "Kubelet OOM returned during deploy"},
+    ],
+    dictionary=demo_dictionary(),
+    config=CandidateDiscoveryConfig(min_frequency=2),
+)
+
+for candidate in report.top_candidates(5):
+    print(candidate.value, candidate.mention_count, candidate.evidence[0].text)
+```
+
+Candidate discovery does not create runtime terminology, mutate snapshots, or publish bindings. It is a shared local engine that later workflows can use to build reviewable drafts, import reports, and drift scans.
+
+Build a reviewable draft from documents in Python:
+
+```python
+from skeinrank import suggest_dictionary_from_documents
+
+result = suggest_dictionary_from_documents(
+    ["../../examples/suggest-dictionary/docs"],
+    config={
+        "profile_name": "platform_candidates",
+        "discovery": {"min_frequency": 2},
+    },
+)
+
+result.save("platform_candidates.dictionary-draft.json")
+print(result.review_markdown())
+```
+
+The draft is a local review artifact, not a production dictionary. Reviewers can accept or reject candidates and explicitly convert accepted candidates for preview when needed.
+
+Use OpenRouter as an optional grouping layer after deterministic discovery:
+
+```python
+import os
+from skeinrank import build_dictionary_from_docs
+
+result = build_dictionary_from_docs(
+    ["../../examples/agent-dictionary-assistant/docs"],
+    model=os.environ["OPENROUTER_MODEL"],
+)
+
+result.save("platform_assisted.dictionary-draft.json")
+print(result.review_markdown())
+```
+
+Every assistant candidate must map back to deterministic local evidence. Aliases without evidence are dropped, and candidates without evidence are ignored.
+
+
+## Terminology drift report schema
+
+The core package exposes a versioned terminology drift report schema for future drift scans and governance review flows. It is intentionally data-only: creating or saving a report does not scan documents, create proposals, publish snapshots, update bindings, or mutate production runtime state.
+
+```python
+from skeinrank import (
+    DriftEvidence,
+    DriftFinding,
+    DriftFindingType,
+    DriftSeverity,
+    TerminologyDriftReport,
+)
+
+report = TerminologyDriftReport(
+    profile_name="infra_incidents",
+    binding_id="infra_incidents_prod",
+    pinned_snapshot_version="S42",
+    latest_snapshot_version="S47",
+    metrics={"unknown_alias_rate": 0.118},
+    findings=[
+        DriftFinding(
+            finding_type=DriftFindingType.ALIAS_DRIFT,
+            severity=DriftSeverity.WARN,
+            title="New candidate alias detected",
+            value="kubelet oom",
+            evidence=[
+                DriftEvidence(
+                    source="incident-1.md",
+                    line=7,
+                    text="Kubelet OOM after the node pool upgrade.",
+                )
+            ],
+        )
+    ],
+)
+
+print(report.summary().unknown_alias_rate)
+print(report.to_markdown())
+report.save("terminology-drift-report.json")
+```
+
+The schema currently covers review signals for new unmatched aliases, stale terms, binding snapshot lag, and ambiguity signals. Later scanner commands can emit this report shape while keeping the same review-first principle: detect automatically, approve manually, serve deterministically.
 
 ## Attribute extraction and enrichment
 

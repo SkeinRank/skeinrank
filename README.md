@@ -207,6 +207,8 @@ Schema & Snapshots -> inspect profiles, bindings, aliases, and snapshot state
 
 | Path | Use when | Start here |
 | --- | --- | --- |
+| SDK and dictionary onboarding | You want to try the Python SDK, import an existing synonym file, or draft a dictionary from local docs. | [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md), [`docs/guides/import-dictionary.md`](docs/guides/import-dictionary.md), [`docs/guides/agent-dictionary-assistant.md`](docs/guides/agent-dictionary-assistant.md) |
+| Terminology drift reports | You want to check whether a dictionary still covers recent docs, incident notes, or runbooks before creating proposals. | [`docs/guides/terminology-drift-report.md`](docs/guides/terminology-drift-report.md), [`examples/drift-scan`](examples/drift-scan) |
 | Release stack | You want to run the public beta from prebuilt GHCR images. | `cp .env.example .env` then `docker compose up -d`; [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md) |
 | Full dev stack | You want to build from source with PostgreSQL, Elasticsearch, RabbitMQ, Governance API, worker, and UI. | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) |
 | Headless runtime | You want API/PostgreSQL dictionary apply/export and snapshot artifact smoke tests. | [`docker-compose.headless.yml`](docker-compose.headless.yml), [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md) |
@@ -356,6 +358,7 @@ Operational runbooks: [`docs/deployment/observability.md`](docs/deployment/obser
 | Product overview | [`docs/overview.md`](docs/overview.md), [`docs/product-positioning.md`](docs/product-positioning.md) |
 | Core concepts | [`docs/concepts/terminology-control-plane.md`](docs/concepts/terminology-control-plane.md), [`docs/concepts/profiles-bindings-snapshots.md`](docs/concepts/profiles-bindings-snapshots.md), [`docs/concepts/headless-runtime-contracts.md`](docs/concepts/headless-runtime-contracts.md), [`docs/adr/0001-headless-runtime-contracts.md`](docs/adr/0001-headless-runtime-contracts.md) |
 | Dictionary and coverage | [`docs/concepts/dictionary-spec-v1.md`](docs/concepts/dictionary-spec-v1.md), [`docs/concepts/coverage-framework.md`](docs/concepts/coverage-framework.md), [`docs/guides/coverage-framework.md`](docs/guides/coverage-framework.md), [`examples/coverage-framework`](examples/coverage-framework) |
+| SDK onboarding | [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md), [`docs/guides/import-dictionary.md`](docs/guides/import-dictionary.md), [`docs/guides/agent-dictionary-assistant.md`](docs/guides/agent-dictionary-assistant.md), [`examples/import-dictionary`](examples/import-dictionary), [`examples/suggest-dictionary`](examples/suggest-dictionary), [`examples/agent-dictionary-assistant`](examples/agent-dictionary-assistant) |
 | API and UI | [`docs/api/governance-api.md`](docs/api/governance-api.md), [`docs/guides/governance-console.md`](docs/guides/governance-console.md), [`docs/guides/proposal-inbox-ui.md`](docs/guides/proposal-inbox-ui.md) |
 | AI safety | [`docs/security/prompt-injection.md`](docs/security/prompt-injection.md), [`docs/security/rag-context-boundaries.md`](docs/security/rag-context-boundaries.md), [`docs/security/agent-tool-safety.md`](docs/security/agent-tool-safety.md), [`docs/security/mcp-tool-guardrails.md`](docs/security/mcp-tool-guardrails.md), [`docs/security/prompt-like-detector.md`](docs/security/prompt-like-detector.md), [`docs/security/prompt-injection-regression-corpus.md`](docs/security/prompt-injection-regression-corpus.md) |
 | Deployment | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md), [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md), [`docs/deployment/headless-quickstart.md`](docs/deployment/headless-quickstart.md), [`docs/deployment/production-compose.md`](docs/deployment/production-compose.md), [`docs/deployment/security.md`](docs/deployment/security.md), [`docs/deployment/observability.md`](docs/deployment/observability.md) |
@@ -379,7 +382,10 @@ examples/platform_ops_demo                 Local preview seed data and guided to
 examples/sdk                               Zero-friction SDK demo script and exported demo dictionary
 examples/migration                         Example dictionary import/export payloads
 examples/coverage-framework                Tags, ambiguous alias, binding policy, and evaluation examples
-examples/agents/openrouter_alias_scout     Offline alias scout for agent-driven terminology discovery
+examples/import-dictionary                 Convert CSV, JSON, and ES synonyms into dictionary candidates
+examples/suggest-dictionary                Build deterministic dictionary drafts from local documents
+examples/agent-dictionary-assistant        Optional OpenRouter-assisted draft grouping with offline demo
+examples/agents/openrouter_alias_scout       Offline alias scout for agent-driven terminology discovery
 deploy/                                    Dockerfiles, Prometheus, Grafana, OpenTelemetry config
 docs/                                      Product, concept, guide, API, and deployment docs
 charts/skeinrank                           Alpha Helm chart

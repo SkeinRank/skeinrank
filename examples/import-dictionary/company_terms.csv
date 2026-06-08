@@ -1,0 +1,5 @@
+canonical,alias,slot
+kubernetes,k8s,TOOL
+kubernetes,kube,TOOL
+postgresql,pg,DATABASE
+postgresql,postgres,DATABASE

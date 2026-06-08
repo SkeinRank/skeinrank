@@ -208,3 +208,247 @@ def test_cli_demo_dictionary_prints_builtin_payload(capsys, tmp_path: Path):
     written = json.loads(output_path.read_text(encoding="utf-8"))
     assert written["profile_name"] == "platform_ops_demo"
     assert len(written["terms"]) >= 30
+
+
+def test_cli_import_dictionary_from_es_synonyms_writes_candidate(
+    tmp_path: Path, capsys
+):
+    source = tmp_path / "synonyms.txt"
+    source.write_text(
+        "k8s, kube => kubernetes\n" "pg => postgresql\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "company.dictionary.json"
+
+    exit_code = main(
+        [
+            "import-dictionary",
+            str(source),
+            "--format",
+            "es-synonyms",
+            "--name",
+            "company_terms",
+            "--out",
+            str(out),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Dictionary import report" in captured.out
+    assert f"Wrote {out}" in captured.out
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["profile_name"] == "company_terms"
+    assert payload["terms"][0]["canonical_value"] == "kubernetes"
+
+
+def test_cli_import_dictionary_json_report_can_write_report_file(
+    tmp_path: Path, capsys
+):
+    source = tmp_path / "terms.json"
+    source.write_text(
+        json.dumps({"kubernetes": ["k8s"], "postgresql": ["pg"]}),
+        encoding="utf-8",
+    )
+    report_path = tmp_path / "report.json"
+
+    exit_code = main(
+        [
+            "import-dictionary",
+            str(source),
+            "--json-report",
+            "--compact",
+            "--report",
+            str(report_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == ""
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["detected_format"] == "json"
+    assert payload["canonical_count"] == 2
+    assert payload["alias_count"] == 2
+
+
+def test_cli_import_dictionary_returns_nonzero_for_fatal_input(tmp_path: Path, capsys):
+    source = tmp_path / "bad.csv"
+    source.write_text("name,value\nkubernetes,k8s\n", encoding="utf-8")
+
+    exit_code = main(["import-dictionary", str(source), "--format", "csv"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "csv.missing_columns" in output
+
+
+def test_cli_import_dictionary_no_validate_skips_validator_findings(
+    tmp_path: Path, capsys
+):
+    source = tmp_path / "terms.json"
+    source.write_text(json.dumps({"postgresql": ["pg"]}), encoding="utf-8")
+
+    exit_code = main(["import-dictionary", str(source), "--no-validate"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "validate.risky_short_alias" not in output
+    assert "No issues found" in output
+
+
+def test_cli_import_dictionary_strict_validate_blocks_runtime_collisions(
+    tmp_path: Path, capsys
+):
+    source = tmp_path / "synonyms.txt"
+    source.write_text("pg => postgresql\npg => page\n", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "import-dictionary",
+            str(source),
+            "--format",
+            "es-synonyms",
+            "--strict-validate",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "validate.alias_collision" in output
+    assert "fatal" in output
+
+
+def test_cli_import_dictionary_can_write_reviewable_draft(tmp_path: Path, capsys):
+    source = tmp_path / "terms.csv"
+    source.write_text("canonical,alias\nkubernetes,k8s\n", encoding="utf-8")
+    draft_path = tmp_path / "terms.dictionary-draft.json"
+
+    exit_code = main(
+        [
+            "import-dictionary",
+            str(source),
+            "--name",
+            "company_terms",
+            "--draft-out",
+            str(draft_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert f"Wrote {draft_path}" in capsys.readouterr().out
+    payload = json.loads(draft_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "skeinrank.dictionary_draft.v1"
+    assert payload["candidates"][0]["status"] == "proposed"
+
+
+def test_cli_suggest_dictionary_prints_review_markdown(tmp_path: Path, capsys):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "incident-1.md").write_text("KubeletOOM on EdgeGateway", encoding="utf-8")
+    (docs / "incident-2.md").write_text("KubeletOOM returned", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "suggest-dictionary",
+            str(docs),
+            "--profile-name",
+            "platform_candidates",
+            "--min-frequency",
+            "2",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Dictionary draft review" in output
+    assert "platform_candidates" in output
+    assert "KubeletOOM" in output
+
+
+def test_cli_suggest_dictionary_writes_draft_and_review_files(tmp_path: Path, capsys):
+    source = tmp_path / "incident.md"
+    source.write_text(
+        "RedisEvict happened\nRedisEvict happened again", encoding="utf-8"
+    )
+    draft_path = tmp_path / "suggested.dictionary-draft.json"
+    review_path = tmp_path / "suggested.review.md"
+
+    exit_code = main(
+        [
+            "suggest-dictionary",
+            str(source),
+            "--out",
+            str(draft_path),
+            "--review",
+            str(review_path),
+            "--min-frequency",
+            "2",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert f"Wrote {draft_path}" in output
+    assert f"Wrote {review_path}" in output
+    payload = json.loads(draft_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "skeinrank.dictionary_draft.v1"
+    assert any(
+        candidate["canonical_value"] == "RedisEvict"
+        for candidate in payload["candidates"]
+    )
+    assert "Dictionary draft review" in review_path.read_text(encoding="utf-8")
+
+
+def test_cli_suggest_dictionary_json_filters_known_terms(tmp_path: Path, capsys):
+    dictionary_path = _write_dictionary(tmp_path)
+    source = tmp_path / "incident.md"
+    source.write_text(
+        "k8s pg timeout with KubeletOOM\nKubeletOOM returned",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "suggest-dictionary",
+            str(source),
+            "--dictionary",
+            str(dictionary_path),
+            "--json",
+            "--compact",
+            "--min-frequency",
+            "2",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    values = {candidate["canonical_value"] for candidate in payload["candidates"]}
+    assert "KubeletOOM" in values
+    assert "k8s" not in {value.casefold() for value in values}
+    assert "pg" not in {value.casefold() for value in values}
+
+
+def test_cli_assist_dictionary_requires_openrouter_key(
+    tmp_path: Path, capsys, monkeypatch
+):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    source = tmp_path / "incident.md"
+    source.write_text(
+        "KubeletOOM happened\nKubeletOOM happened again", encoding="utf-8"
+    )
+
+    exit_code = main(
+        [
+            "assist-dictionary",
+            str(source),
+            "--model",
+            "test/model",
+            "--min-frequency",
+            "2",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "OpenRouter API key is required" in captured.err

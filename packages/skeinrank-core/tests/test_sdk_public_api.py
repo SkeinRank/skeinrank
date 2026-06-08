@@ -2,23 +2,62 @@ from pathlib import Path
 
 import pytest
 from skeinrank import (
+    DRIFT_REPORT_SCHEMA_VERSION,
+    BindingLagMetadata,
+    CandidateDiscoveryConfig,
+    CandidateDiscoveryDocument,
+    CandidateDiscoveryReport,
+    CandidateEvidence,
     CanonicalizedText,
     Dictionary,
     DictionaryAlias,
+    DictionaryDraft,
     DictionaryStopListEntry,
+    DictionarySuggestionConfig,
+    DictionarySuggestionResult,
     DictionaryTerm,
     DictionaryValidationIssue,
     DictionaryValidationReport,
+    DiscoveredCandidate,
+    DraftCandidate,
+    DraftFinding,
+    DriftDraftConfig,
+    DriftDraftResult,
+    DriftEvidence,
+    DriftFinding,
+    DriftFindingType,
+    DriftReportSummary,
+    DriftScanConfig,
+    DriftSeverity,
+    EvidenceSnippet,
     ExtractionResult,
+    OpenRouterAssistantError,
+    OpenRouterDictionaryAssistantConfig,
+    OpenRouterDictionaryAssistantResult,
     SkeinRank,
+    TerminologyDriftReport,
     TermMatch,
+    build_dictionary_from_docs,
+    build_dictionary_from_documents,
     canonicalize,
     canonicalize_text,
     demo_dictionary,
+    discover_candidates,
+    discover_candidates_from_documents,
+    drift_report_to_dictionary_draft,
+    expand_document_paths,
     extract,
     extract_terms,
+    import_dictionary,
+    load_binding_metadata,
     load_dictionary,
+    merge_binding_metadata,
+    scan_dictionary_drift,
+    scan_dictionary_drift_from_documents,
+    suggest_dictionary,
+    suggest_dictionary_from_documents,
     validate_dictionary,
+    validate_imported_dictionary,
 )
 
 
@@ -53,7 +92,18 @@ def _dictionary_payload():
 
 
 def test_sdk_symbols_are_exported_from_public_api():
+    assert CandidateDiscoveryConfig is not None
+    assert CandidateDiscoveryDocument is not None
+    assert CandidateDiscoveryReport is not None
+    assert CandidateEvidence is not None
+    assert DiscoveredCandidate is not None
+    assert callable(discover_candidates)
+    assert callable(discover_candidates_from_documents)
     assert Dictionary is not None
+    assert DictionaryDraft is not None
+    assert DraftCandidate is not None
+    assert DraftFinding is not None
+    assert EvidenceSnippet is not None
     assert DictionaryAlias is not None
     assert DictionaryTerm is not None
     assert DictionaryStopListEntry is not None
@@ -70,6 +120,34 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert callable(canonicalize)
     assert callable(extract)
     assert callable(demo_dictionary)
+    assert OpenRouterAssistantError is not None
+    assert OpenRouterDictionaryAssistantConfig is not None
+    assert OpenRouterDictionaryAssistantResult is not None
+    assert callable(build_dictionary_from_documents)
+    assert callable(build_dictionary_from_docs)
+    assert DictionarySuggestionConfig is not None
+    assert DictionarySuggestionResult is not None
+    assert callable(suggest_dictionary)
+    assert callable(suggest_dictionary_from_documents)
+    assert callable(expand_document_paths)
+    assert callable(import_dictionary)
+    assert callable(validate_imported_dictionary)
+    assert TerminologyDriftReport is not None
+    assert BindingLagMetadata is not None
+    assert DriftScanConfig is not None
+    assert DriftDraftConfig is not None
+    assert DriftDraftResult is not None
+    assert callable(drift_report_to_dictionary_draft)
+    assert callable(load_binding_metadata)
+    assert callable(merge_binding_metadata)
+    assert callable(scan_dictionary_drift)
+    assert callable(scan_dictionary_drift_from_documents)
+    assert DriftFinding is not None
+    assert DriftEvidence is not None
+    assert DriftFindingType is not None
+    assert DriftSeverity is not None
+    assert DriftReportSummary is not None
+    assert DRIFT_REPORT_SCHEMA_VERSION == "skeinrank.terminology_drift_report.v1"
 
 
 def test_load_dictionary_from_console_migration_payload():

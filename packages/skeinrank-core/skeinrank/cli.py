@@ -12,13 +12,27 @@ import sys
 from pathlib import Path
 from typing import Any, TextIO
 
+from .agent import (
+    OpenRouterAssistantError,
+    OpenRouterDictionaryAssistantConfig,
+    build_dictionary_from_docs,
+)
 from .documents import (
     DocumentExtractionError,
     extract_document_text,
     extract_terms_from_document,
 )
+from .drift_proposals import DriftDraftConfig, drift_report_to_dictionary_draft
+from .drift_scan import (
+    DriftScanConfig,
+    load_binding_metadata,
+    merge_binding_metadata,
+    scan_dictionary_drift,
+)
 from .facade import demo_dictionary, demo_dictionary_payload
+from .importing import import_dictionary
 from .sdk import canonicalize_text, extract_terms, load_dictionary, validate_dictionary
+from .suggestions import DictionarySuggestionConfig, suggest_dictionary_from_documents
 
 _DEFAULT_CONTEXT_CHARS = 48
 
@@ -33,7 +47,12 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:  # pragma: no cover - process-level behavior.
         _print_error("Interrupted")
         return 130
-    except (OSError, ValueError, DocumentExtractionError) as exc:
+    except (
+        OSError,
+        ValueError,
+        DocumentExtractionError,
+        OpenRouterAssistantError,
+    ) as exc:
         _print_error(str(exc))
         return 1
 
@@ -140,6 +159,423 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write compact JSON instead of pretty-printed JSON.",
     )
     demo_dictionary_parser.set_defaults(handler=_handle_demo_dictionary)
+
+    import_dictionary_parser = subparsers.add_parser(
+        "import-dictionary",
+        help=(
+            "Convert an existing JSON, CSV, or Elasticsearch/OpenSearch synonym "
+            "list into a SkeinRank dictionary candidate."
+        ),
+    )
+    import_dictionary_parser.add_argument(
+        "source",
+        help="Path to the JSON/CSV/synonym-list file to import.",
+    )
+    import_dictionary_parser.add_argument(
+        "--out",
+        help="Write the imported SkeinRank dictionary JSON to this file.",
+    )
+    import_dictionary_parser.add_argument(
+        "--draft-out",
+        help="Write a reviewable dictionary draft JSON to this file.",
+    )
+    import_dictionary_parser.add_argument(
+        "--format",
+        choices=["json", "csv", "es-synonyms"],
+        default=None,
+        help="Override format detection.",
+    )
+    import_dictionary_parser.add_argument(
+        "--name",
+        default="imported",
+        help="Profile name to use in the imported dictionary.",
+    )
+    import_dictionary_parser.add_argument(
+        "--report",
+        help="Write the markdown import report to this file.",
+    )
+    import_dictionary_parser.add_argument(
+        "--json-report",
+        action="store_true",
+        help="Print the import report as JSON instead of markdown.",
+    )
+    import_dictionary_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json-report is used.",
+    )
+    import_dictionary_parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="Skip the dictionary validator bridge pass.",
+    )
+    import_dictionary_parser.add_argument(
+        "--strict-validate",
+        action="store_true",
+        help="Treat validator errors as fatal import findings.",
+    )
+    import_dictionary_parser.set_defaults(handler=_handle_import_dictionary)
+
+    suggest_dictionary_parser = subparsers.add_parser(
+        "suggest-dictionary",
+        help=(
+            "Suggest a reviewable dictionary draft from local documents without "
+            "using an LLM."
+        ),
+    )
+    suggest_dictionary_parser.add_argument(
+        "sources",
+        nargs="+",
+        help="Document files or directories to scan for unmatched terminology.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--out",
+        help="Write the suggested dictionary draft JSON to this file.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--review",
+        help="Write a markdown review report to this file.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the suggested draft as JSON instead of markdown.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json is used.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--dictionary",
+        default=None,
+        help=(
+            "Optional existing dictionary JSON/YAML. Known canonicals and aliases "
+            "are filtered out of suggestions."
+        ),
+    )
+    suggest_dictionary_parser.add_argument(
+        "--profile-name",
+        default="suggested_terms",
+        help="Draft profile name to use in the suggested dictionary.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--slot",
+        default="TERM",
+        help="Default slot for suggested candidates.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--min-frequency",
+        type=int,
+        default=2,
+        help="Minimum total mentions required for a candidate.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--min-document-frequency",
+        type=int,
+        default=1,
+        help="Minimum number of documents a candidate must appear in.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=50,
+        help="Maximum candidates to include in the draft.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--no-phrases",
+        action="store_true",
+        help="Disable phrase candidate discovery.",
+    )
+    suggest_dictionary_parser.set_defaults(handler=_handle_suggest_dictionary)
+
+    assist_dictionary_parser = subparsers.add_parser(
+        "assist-dictionary",
+        help=(
+            "Use OpenRouter to group deterministic document candidates into a "
+            "reviewable dictionary draft."
+        ),
+    )
+    assist_dictionary_parser.add_argument(
+        "sources",
+        nargs="+",
+        help="Document files or directories to scan before the assistant step.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--model",
+        required=True,
+        help="OpenRouter model identifier to use for candidate grouping.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--api-key",
+        default=None,
+        help="OpenRouter API key. Defaults to OPENROUTER_API_KEY.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--api-base",
+        default="https://openrouter.ai/api/v1/chat/completions",
+        help="OpenRouter-compatible chat completions endpoint.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=30.0,
+        help="HTTP timeout for the OpenRouter request.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--out",
+        help="Write the assisted dictionary draft JSON to this file.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--review",
+        help="Write a markdown review report to this file.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the assisted draft as JSON instead of markdown.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json is used.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--dictionary",
+        default=None,
+        help=(
+            "Optional existing dictionary JSON/YAML. Known canonicals and aliases "
+            "are filtered out before the assistant step."
+        ),
+    )
+    assist_dictionary_parser.add_argument(
+        "--profile-name",
+        default="assisted_terms",
+        help="Draft profile name to use in the assisted dictionary.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--slot",
+        default="TERM",
+        help="Default slot for assistant-grouped candidates.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--min-frequency",
+        type=int,
+        default=2,
+        help="Minimum total mentions required before a candidate reaches OpenRouter.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--min-document-frequency",
+        type=int,
+        default=1,
+        help="Minimum number of documents a candidate must appear in.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=25,
+        help="Maximum deterministic candidates to send to OpenRouter.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--no-phrases",
+        action="store_true",
+        help="Disable phrase candidate discovery before the assistant step.",
+    )
+    assist_dictionary_parser.set_defaults(handler=_handle_assist_dictionary)
+
+    drift_parser = subparsers.add_parser(
+        "drift",
+        help="Create local terminology drift reports.",
+    )
+    drift_subparsers = drift_parser.add_subparsers(dest="drift_command", required=True)
+    drift_scan_parser = drift_subparsers.add_parser(
+        "scan",
+        help="Compare a dictionary with local documents and report uncovered terminology.",
+    )
+    drift_scan_parser.add_argument(
+        "--dictionary",
+        required=True,
+        help="Path to the SkeinRank dictionary JSON/YAML to compare against.",
+    )
+    drift_scan_parser.add_argument(
+        "--docs",
+        action="append",
+        required=True,
+        help="Document file or directory to scan. Repeat for multiple roots.",
+    )
+    drift_scan_parser.add_argument(
+        "--out",
+        help="Write the terminology drift report JSON to this file.",
+    )
+    drift_scan_parser.add_argument(
+        "--markdown",
+        help="Write a markdown review report to this file.",
+    )
+    drift_scan_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the drift report JSON to stdout.",
+    )
+    drift_scan_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json is used.",
+    )
+    drift_scan_parser.add_argument(
+        "--profile-name",
+        default=None,
+        help="Override the profile name shown in the report.",
+    )
+    drift_scan_parser.add_argument(
+        "--binding-id",
+        default=None,
+        help="Optional binding identifier to include as report metadata.",
+    )
+    drift_scan_parser.add_argument(
+        "--pinned-snapshot",
+        default=None,
+        help="Optional pinned snapshot version to include as report metadata.",
+    )
+    drift_scan_parser.add_argument(
+        "--latest-snapshot",
+        default=None,
+        help="Optional latest approved snapshot version to include as report metadata.",
+    )
+    drift_scan_parser.add_argument(
+        "--binding-metadata",
+        default=None,
+        help=(
+            "Optional local JSON metadata with binding_id, pinned_snapshot, and "
+            "latest_snapshot values. CLI flags override file values."
+        ),
+    )
+    drift_scan_parser.add_argument(
+        "--no-binding-lag",
+        action="store_true",
+        help="Disable binding-lag findings and only include binding metadata.",
+    )
+    drift_scan_parser.add_argument(
+        "--critical-binding-lag",
+        type=int,
+        default=5,
+        help="Mark binding lag critical at this parsed snapshot distance.",
+    )
+    drift_scan_parser.add_argument(
+        "--no-ambiguity-signals",
+        action="store_true",
+        help="Disable unfamiliar-context signals for existing short aliases.",
+    )
+    drift_scan_parser.add_argument(
+        "--ambiguity-min-mentions",
+        type=int,
+        default=2,
+        help="Minimum alias mentions required before ambiguity review signals are emitted.",
+    )
+    drift_scan_parser.add_argument(
+        "--ambiguity-min-document-count",
+        type=int,
+        default=1,
+        help="Minimum document coverage required for ambiguity review signals.",
+    )
+    drift_scan_parser.add_argument(
+        "--ambiguity-min-context-terms",
+        type=int,
+        default=2,
+        help="Minimum unfamiliar context terms required for an ambiguity review signal.",
+    )
+    drift_scan_parser.add_argument(
+        "--ambiguity-context-window",
+        type=int,
+        default=6,
+        help="Number of neighboring tokens to inspect around an existing alias.",
+    )
+    drift_scan_parser.add_argument(
+        "--min-frequency",
+        type=int,
+        default=2,
+        help="Minimum total mentions required for an unmatched candidate.",
+    )
+    drift_scan_parser.add_argument(
+        "--min-document-frequency",
+        type=int,
+        default=1,
+        help="Minimum number of documents an unmatched candidate must appear in.",
+    )
+    drift_scan_parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=50,
+        help="Maximum alias drift findings to include.",
+    )
+    drift_scan_parser.add_argument(
+        "--critical-min-mentions",
+        type=int,
+        default=10,
+        help="Mark an alias drift finding critical at this mention count.",
+    )
+    drift_scan_parser.add_argument(
+        "--stale-max-mentions",
+        type=int,
+        default=0,
+        help=(
+            "Report dictionary terms as stale when they have at most this many "
+            "matches in the scanned corpus."
+        ),
+    )
+    drift_scan_parser.add_argument(
+        "--no-stale-terms",
+        action="store_true",
+        help="Disable stale-term findings and only report unmatched alias candidates.",
+    )
+    drift_scan_parser.add_argument(
+        "--no-phrases",
+        action="store_true",
+        help="Disable phrase candidate discovery.",
+    )
+    drift_scan_parser.set_defaults(handler=_handle_drift_scan)
+
+    drift_export_draft_parser = drift_subparsers.add_parser(
+        "export-draft",
+        help="Convert a drift report into a reviewable dictionary draft.",
+    )
+    drift_export_draft_parser.add_argument(
+        "report",
+        help="Path to a terminology drift report JSON file.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--out",
+        help="Write the dictionary draft JSON to this file.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--review",
+        help="Write a markdown draft review report to this file.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the dictionary draft JSON to stdout.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json is used.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--profile-name",
+        default=None,
+        help="Override the profile name used in the dictionary draft.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--slot",
+        default="TERM",
+        help="Default slot for alias-drift draft candidates.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--no-report-findings",
+        action="store_true",
+        help="Do not copy drift findings into the draft review findings table.",
+    )
+    drift_export_draft_parser.set_defaults(handler=_handle_drift_export_draft)
 
     document_text_parser = subparsers.add_parser(
         "document-text",
@@ -270,6 +706,179 @@ def _handle_demo_dictionary(args: argparse.Namespace) -> int:
         output_path=args.output,
         compact=args.compact,
     )
+    return 0
+
+
+def _handle_import_dictionary(args: argparse.Namespace) -> int:
+    result = import_dictionary(
+        args.source,
+        fmt=args.format,
+        name=args.name,
+        run_validator=not args.no_validate,
+        strict_validator=args.strict_validate,
+    )
+    if args.json_report:
+        _write_json(
+            result.report.to_dict(),
+            output_path=args.report,
+            compact=args.compact,
+        )
+    else:
+        _write_text(result.report.to_markdown(), output_path=args.report)
+
+    if not result.report.is_ok:
+        return 1
+    if args.out:
+        result.save(args.out)
+        print(f"Wrote {args.out}")
+    if args.draft_out:
+        result.to_draft().save(args.draft_out)
+        print(f"Wrote {args.draft_out}")
+    return 0
+
+
+def _handle_suggest_dictionary(args: argparse.Namespace) -> int:
+    config = DictionarySuggestionConfig(
+        profile_name=args.profile_name,
+        default_slot=args.slot,
+        discovery={
+            "min_frequency": args.min_frequency,
+            "min_document_frequency": args.min_document_frequency,
+            "max_candidates": args.max_candidates,
+            "include_phrase_candidates": not args.no_phrases,
+        },
+    )
+    result = suggest_dictionary_from_documents(
+        args.sources,
+        dictionary=args.dictionary,
+        config=config,
+    )
+    if args.out:
+        result.save(args.out)
+        print(f"Wrote {args.out}")
+    if args.review:
+        Path(args.review).write_text(result.review_markdown(), encoding="utf-8")
+        print(f"Wrote {args.review}")
+    if args.json:
+        _write_json(
+            result.draft.model_dump(mode="json", exclude_none=True),
+            output_path=None,
+            compact=args.compact,
+        )
+    elif not args.out and not args.review:
+        _write_text(result.review_markdown(), output_path=None)
+    return 0
+
+
+def _handle_assist_dictionary(args: argparse.Namespace) -> int:
+    config = OpenRouterDictionaryAssistantConfig(
+        model=args.model,
+        api_key=args.api_key,
+        api_base=args.api_base,
+        timeout_seconds=args.timeout_seconds,
+        profile_name=args.profile_name,
+        default_slot=args.slot,
+        min_frequency=args.min_frequency,
+        min_document_frequency=args.min_document_frequency,
+        max_candidates=args.max_candidates,
+        include_phrase_candidates=not args.no_phrases,
+    )
+    result = build_dictionary_from_docs(
+        args.sources,
+        dictionary=args.dictionary,
+        config=config,
+    )
+    if args.out:
+        result.save(args.out)
+        print(f"Wrote {args.out}")
+    if args.review:
+        Path(args.review).write_text(result.review_markdown(), encoding="utf-8")
+        print(f"Wrote {args.review}")
+    if args.json:
+        _write_json(
+            result.draft.model_dump(mode="json", exclude_none=True),
+            output_path=None,
+            compact=args.compact,
+        )
+    elif not args.out and not args.review:
+        _write_text(result.review_markdown(), output_path=None)
+    return 0
+
+
+def _handle_drift_scan(args: argparse.Namespace) -> int:
+    metadata = (
+        load_binding_metadata(args.binding_metadata) if args.binding_metadata else None
+    )
+    config = merge_binding_metadata(
+        DriftScanConfig(
+            profile_name=args.profile_name,
+            binding_id=args.binding_id,
+            pinned_snapshot_version=args.pinned_snapshot,
+            latest_snapshot_version=args.latest_snapshot,
+            critical_min_mentions=args.critical_min_mentions,
+            stale_term_max_mentions=args.stale_max_mentions,
+            include_stale_terms=not args.no_stale_terms,
+            include_binding_lag=not args.no_binding_lag,
+            critical_binding_lag_snapshots=args.critical_binding_lag,
+            include_ambiguity_signals=not args.no_ambiguity_signals,
+            ambiguity_min_mentions=args.ambiguity_min_mentions,
+            ambiguity_min_document_count=args.ambiguity_min_document_count,
+            ambiguity_min_context_terms=args.ambiguity_min_context_terms,
+            ambiguity_context_window=args.ambiguity_context_window,
+            discovery={
+                "min_frequency": args.min_frequency,
+                "min_document_frequency": args.min_document_frequency,
+                "max_candidates": args.max_candidates,
+                "include_phrase_candidates": not args.no_phrases,
+            },
+        ),
+        metadata,
+    )
+    report = scan_dictionary_drift(
+        dictionary=args.dictionary,
+        docs=args.docs,
+        config=config,
+    )
+    if args.out:
+        report.save(args.out, indent=None if args.compact else 2)
+        print(f"Wrote {args.out}")
+    if args.markdown:
+        Path(args.markdown).write_text(report.to_markdown(), encoding="utf-8")
+        print(f"Wrote {args.markdown}")
+    if args.json:
+        _write_json(
+            report.model_dump(mode="json"),
+            output_path=None,
+            compact=args.compact,
+        )
+    elif not args.out and not args.markdown:
+        _write_text(report.to_markdown(), output_path=None)
+    return 0
+
+
+def _handle_drift_export_draft(args: argparse.Namespace) -> int:
+    result = drift_report_to_dictionary_draft(
+        args.report,
+        config=DriftDraftConfig(
+            profile_name=args.profile_name,
+            default_slot=args.slot,
+            include_report_findings=not args.no_report_findings,
+        ),
+    )
+    if args.out:
+        result.save(args.out)
+        print(f"Wrote {args.out}")
+    if args.review:
+        Path(args.review).write_text(result.review_markdown(), encoding="utf-8")
+        print(f"Wrote {args.review}")
+    if args.json:
+        _write_json(
+            result.draft.model_dump(mode="json", exclude_none=True),
+            output_path=None,
+            compact=args.compact,
+        )
+    elif not args.out and not args.review:
+        _write_text(result.review_markdown(), output_path=None)
     return 0
 
 
