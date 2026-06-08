@@ -2,9 +2,12 @@ import json
 from pathlib import Path
 
 from skeinrank import (
+    BindingLagMetadata,
     DriftFindingType,
     DriftScanConfig,
+    DriftSeverity,
     TerminologyDriftReport,
+    load_binding_metadata,
     scan_dictionary_drift,
     scan_dictionary_drift_from_documents,
 )
@@ -71,6 +74,8 @@ def test_scan_dictionary_drift_emits_alias_drift_report(tmp_path: Path):
     assert report.latest_snapshot_version == "S47"
     assert report.metrics["unknown_candidate_count"] >= 1
     assert report.summary().alias_drift_count >= 1
+    assert report.summary().binding_lag_count == 1
+    assert report.metrics["binding_snapshot_lag"] == 5
     assert 0 < report.summary().unknown_alias_rate <= 1
     assert any(finding.value == "KubeletOOM" for finding in report.findings)
     first = report.findings_by_type(DriftFindingType.ALIAS_DRIFT)[0]
@@ -135,6 +140,8 @@ def test_drift_scan_cli_writes_json_and_markdown(tmp_path: Path, capsys):
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "skeinrank.terminology_drift_report.v1"
     assert payload["binding_id"] == "infra_incidents_prod"
+    assert payload["metrics"]["binding_lag_count"] == 1
+    assert payload["metrics"]["binding_snapshot_lag"] == 5
     assert payload["findings"][0]["finding_type"] == "alias_drift"
     assert "Terminology drift report" in markdown.read_text(encoding="utf-8")
 
@@ -267,4 +274,197 @@ def test_drift_scan_cli_can_disable_stale_terms(tmp_path: Path, capsys):
     assert payload["metrics"]["stale_term_count"] == 0
     assert all(
         finding["finding_type"] != "stale_term" for finding in payload["findings"]
+    )
+
+
+def test_scan_dictionary_drift_does_not_emit_binding_lag_when_snapshots_match():
+    report = scan_dictionary_drift_from_documents(
+        dictionary=_dictionary_payload(),
+        documents=[
+            {
+                "source": "incident.md",
+                "text": "k8s pg KubeletOOM KubeletOOM",
+            }
+        ],
+        config={
+            "binding_id": "infra_incidents_prod",
+            "pinned_snapshot_version": "S47",
+            "latest_snapshot_version": "S47",
+            "discovery": {"min_frequency": 2},
+        },
+    )
+
+    assert report.summary().binding_lag_count == 0
+    assert report.metrics["binding_lag_count"] == 0
+    assert report.metrics["binding_snapshot_lag"] == 0
+    assert not report.findings_by_type(DriftFindingType.BINDING_LAG)
+
+
+def test_binding_metadata_file_can_fill_drift_scan_context(tmp_path: Path, capsys):
+    dictionary = _write_dictionary(tmp_path)
+    docs = _write_docs(tmp_path)
+    metadata = tmp_path / "binding-metadata.json"
+    metadata.write_text(
+        json.dumps(
+            {
+                "binding_id": "infra_incidents_prod",
+                "pinned_snapshot": "S42",
+                "latest_snapshot": "S47",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_binding_metadata(metadata)
+    assert isinstance(loaded, BindingLagMetadata)
+    assert loaded.binding_id == "infra_incidents_prod"
+    assert loaded.pinned_snapshot_version == "S42"
+    assert loaded.latest_snapshot_version == "S47"
+
+    exit_code = main(
+        [
+            "drift",
+            "scan",
+            "--dictionary",
+            str(dictionary),
+            "--docs",
+            str(docs),
+            "--binding-metadata",
+            str(metadata),
+            "--min-frequency",
+            "2",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["binding_id"] == "infra_incidents_prod"
+    assert payload["pinned_snapshot_version"] == "S42"
+    assert payload["latest_snapshot_version"] == "S47"
+    assert payload["metrics"]["binding_lag_count"] == 1
+    assert payload["metrics"]["binding_snapshot_lag"] == 5
+    binding_findings = [
+        finding
+        for finding in payload["findings"]
+        if finding["finding_type"] == "binding_lag"
+    ]
+    assert binding_findings
+    assert binding_findings[0]["severity"] == DriftSeverity.CRITICAL.value
+
+
+def test_drift_scan_cli_can_disable_binding_lag(tmp_path: Path, capsys):
+    dictionary = _write_dictionary(tmp_path)
+    docs = _write_docs(tmp_path)
+
+    exit_code = main(
+        [
+            "drift",
+            "scan",
+            "--dictionary",
+            str(dictionary),
+            "--docs",
+            str(docs),
+            "--binding-id",
+            "infra_incidents_prod",
+            "--pinned-snapshot",
+            "S42",
+            "--latest-snapshot",
+            "S47",
+            "--no-binding-lag",
+            "--min-frequency",
+            "2",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["metrics"]["binding_lag_count"] == 0
+    assert all(
+        finding["finding_type"] != "binding_lag" for finding in payload["findings"]
+    )
+
+
+def _dictionary_with_ambiguous_alias_context():
+    return {
+        "profile_name": "product_search",
+        "terms": [
+            {
+                "canonical_value": "postgresql",
+                "slot": "DATABASE",
+                "description": "Database connection timeout migration query planner.",
+                "tags": ["database", "storage"],
+                "aliases": ["pg", "postgres"],
+            }
+        ],
+    }
+
+
+def test_scan_dictionary_drift_emits_ambiguity_signal_for_unfamiliar_alias_contexts():
+    report = scan_dictionary_drift_from_documents(
+        dictionary=_dictionary_with_ambiguous_alias_context(),
+        documents=[
+            {
+                "source": "product-doc.md",
+                "text": (
+                    "The pg layout render broke the product dashboard.\n"
+                    "The pg layout caused a broken dashboard widget."
+                ),
+            }
+        ],
+        config={
+            "include_stale_terms": False,
+            "discovery": {"min_frequency": 3},
+            "ambiguity_min_mentions": 2,
+            "ambiguity_min_context_terms": 2,
+        },
+    )
+
+    findings = report.findings_by_type(DriftFindingType.AMBIGUITY_SIGNAL)
+    assert report.summary().ambiguity_signal_count == 1
+    assert report.metrics["ambiguity_signal_count"] == 1
+    assert findings[0].value == "pg"
+    assert findings[0].canonical_value == "postgresql"
+    assert findings[0].details["slot"] == "DATABASE"
+    assert "layout" in findings[0].details["novel_context_terms"]
+    assert "dashboard" in findings[0].details["novel_context_terms"]
+    assert "did not infer a new meaning" in findings[0].description
+    assert findings[0].recommended_action
+
+
+def test_drift_scan_cli_can_disable_ambiguity_signals(tmp_path: Path, capsys):
+    dictionary = tmp_path / "company.dictionary.json"
+    dictionary.write_text(
+        json.dumps(_dictionary_with_ambiguous_alias_context()),
+        encoding="utf-8",
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "product-doc.md").write_text(
+        "The pg layout render broke the dashboard. The pg layout broke the dashboard.",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "drift",
+            "scan",
+            "--dictionary",
+            str(dictionary),
+            "--docs",
+            str(docs),
+            "--min-frequency",
+            "3",
+            "--no-stale-terms",
+            "--no-ambiguity-signals",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["metrics"]["ambiguity_signal_count"] == 0
+    assert all(
+        finding["finding_type"] != "ambiguity_signal" for finding in payload["findings"]
     )

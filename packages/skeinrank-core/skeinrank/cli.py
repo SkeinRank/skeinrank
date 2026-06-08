@@ -22,7 +22,12 @@ from .documents import (
     extract_document_text,
     extract_terms_from_document,
 )
-from .drift_scan import DriftScanConfig, scan_dictionary_drift
+from .drift_scan import (
+    DriftScanConfig,
+    load_binding_metadata,
+    merge_binding_metadata,
+    scan_dictionary_drift,
+)
 from .facade import demo_dictionary, demo_dictionary_payload
 from .importing import import_dictionary
 from .sdk import canonicalize_text, extract_terms, load_dictionary, validate_dictionary
@@ -436,6 +441,54 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional latest approved snapshot version to include as report metadata.",
     )
     drift_scan_parser.add_argument(
+        "--binding-metadata",
+        default=None,
+        help=(
+            "Optional local JSON metadata with binding_id, pinned_snapshot, and "
+            "latest_snapshot values. CLI flags override file values."
+        ),
+    )
+    drift_scan_parser.add_argument(
+        "--no-binding-lag",
+        action="store_true",
+        help="Disable binding-lag findings and only include binding metadata.",
+    )
+    drift_scan_parser.add_argument(
+        "--critical-binding-lag",
+        type=int,
+        default=5,
+        help="Mark binding lag critical at this parsed snapshot distance.",
+    )
+    drift_scan_parser.add_argument(
+        "--no-ambiguity-signals",
+        action="store_true",
+        help="Disable unfamiliar-context signals for existing short aliases.",
+    )
+    drift_scan_parser.add_argument(
+        "--ambiguity-min-mentions",
+        type=int,
+        default=2,
+        help="Minimum alias mentions required before ambiguity review signals are emitted.",
+    )
+    drift_scan_parser.add_argument(
+        "--ambiguity-min-document-count",
+        type=int,
+        default=1,
+        help="Minimum document coverage required for ambiguity review signals.",
+    )
+    drift_scan_parser.add_argument(
+        "--ambiguity-min-context-terms",
+        type=int,
+        default=2,
+        help="Minimum unfamiliar context terms required for an ambiguity review signal.",
+    )
+    drift_scan_parser.add_argument(
+        "--ambiguity-context-window",
+        type=int,
+        default=6,
+        help="Number of neighboring tokens to inspect around an existing alias.",
+    )
+    drift_scan_parser.add_argument(
         "--min-frequency",
         type=int,
         default=2,
@@ -709,20 +762,33 @@ def _handle_assist_dictionary(args: argparse.Namespace) -> int:
 
 
 def _handle_drift_scan(args: argparse.Namespace) -> int:
-    config = DriftScanConfig(
-        profile_name=args.profile_name,
-        binding_id=args.binding_id,
-        pinned_snapshot_version=args.pinned_snapshot,
-        latest_snapshot_version=args.latest_snapshot,
-        critical_min_mentions=args.critical_min_mentions,
-        stale_term_max_mentions=args.stale_max_mentions,
-        include_stale_terms=not args.no_stale_terms,
-        discovery={
-            "min_frequency": args.min_frequency,
-            "min_document_frequency": args.min_document_frequency,
-            "max_candidates": args.max_candidates,
-            "include_phrase_candidates": not args.no_phrases,
-        },
+    metadata = (
+        load_binding_metadata(args.binding_metadata) if args.binding_metadata else None
+    )
+    config = merge_binding_metadata(
+        DriftScanConfig(
+            profile_name=args.profile_name,
+            binding_id=args.binding_id,
+            pinned_snapshot_version=args.pinned_snapshot,
+            latest_snapshot_version=args.latest_snapshot,
+            critical_min_mentions=args.critical_min_mentions,
+            stale_term_max_mentions=args.stale_max_mentions,
+            include_stale_terms=not args.no_stale_terms,
+            include_binding_lag=not args.no_binding_lag,
+            critical_binding_lag_snapshots=args.critical_binding_lag,
+            include_ambiguity_signals=not args.no_ambiguity_signals,
+            ambiguity_min_mentions=args.ambiguity_min_mentions,
+            ambiguity_min_document_count=args.ambiguity_min_document_count,
+            ambiguity_min_context_terms=args.ambiguity_min_context_terms,
+            ambiguity_context_window=args.ambiguity_context_window,
+            discovery={
+                "min_frequency": args.min_frequency,
+                "min_document_frequency": args.min_document_frequency,
+                "max_candidates": args.max_candidates,
+                "include_phrase_candidates": not args.no_phrases,
+            },
+        ),
+        metadata,
     )
     report = scan_dictionary_drift(
         dictionary=args.dictionary,

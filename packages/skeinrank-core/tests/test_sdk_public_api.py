@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from skeinrank import (
     DRIFT_REPORT_SCHEMA_VERSION,
+    BindingLagMetadata,
     CandidateDiscoveryConfig,
     CandidateDiscoveryDocument,
     CandidateDiscoveryReport,
@@ -45,7 +46,9 @@ from skeinrank import (
     extract,
     extract_terms,
     import_dictionary,
+    load_binding_metadata,
     load_dictionary,
+    merge_binding_metadata,
     scan_dictionary_drift,
     scan_dictionary_drift_from_documents,
     suggest_dictionary,
@@ -127,7 +130,10 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert callable(import_dictionary)
     assert callable(validate_imported_dictionary)
     assert TerminologyDriftReport is not None
+    assert BindingLagMetadata is not None
     assert DriftScanConfig is not None
+    assert callable(load_binding_metadata)
+    assert callable(merge_binding_metadata)
     assert callable(scan_dictionary_drift)
     assert callable(scan_dictionary_drift_from_documents)
     assert DriftFinding is not None

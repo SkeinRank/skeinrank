@@ -181,7 +181,18 @@ poetry run skeinrank drift scan \
   --markdown ../../examples/drift-scan/drift-report.md
 ```
 
-The report uses the versioned `TerminologyDriftReport` schema and includes `alias_drift` findings for uncovered terminology, `stale_term` findings for dictionary entries that no longer appear in the scanned corpus, evidence snippets, and `unknown_alias_rate`. It is intentionally a local terminology drift report, not a real-time monitor or search observability system.
+The report uses the versioned `TerminologyDriftReport` schema and includes `alias_drift` findings for uncovered terminology, `stale_term` findings for dictionary entries that no longer appear in the scanned corpus, optional `binding_lag` findings for pinned-vs-latest snapshot metadata, and conservative `ambiguity_signal` findings when an existing short alias appears in unfamiliar contexts. It also includes evidence snippets and `unknown_alias_rate`. It is intentionally a local terminology drift report, not a real-time monitor or search observability system.
+
+Ambiguity signals are review hints, not automatic meaning changes. Disable them with `--no-ambiguity-signals` when you only want uncovered aliases, stale terms, and binding lag.
+
+Add optional binding metadata when you want the report to show snapshot lag without connecting to the Governance API:
+
+```bash
+poetry run skeinrank drift scan \
+  --dictionary ../../examples/drift-scan/company.dictionary.json \
+  --docs ../../examples/drift-scan/docs \
+  --binding-metadata ../../examples/drift-scan/binding-metadata.json
+```
 
 ```python
 from skeinrank import DriftScanConfig, scan_dictionary_drift
@@ -189,7 +200,12 @@ from skeinrank import DriftScanConfig, scan_dictionary_drift
 report = scan_dictionary_drift(
     dictionary="company.dictionary.json",
     docs=["./docs"],
-    config=DriftScanConfig(discovery={"min_frequency": 2}),
+    config=DriftScanConfig(
+        binding_id="infra_incidents_prod",
+        pinned_snapshot_version="S42",
+        latest_snapshot_version="S47",
+        discovery={"min_frequency": 2},
+    ),
 )
 
 print(report.to_markdown())

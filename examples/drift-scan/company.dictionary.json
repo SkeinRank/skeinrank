@@ -17,6 +17,11 @@
       "aliases": [
         "pg",
         "postgres"
+      ],
+      "description": "Database connection timeout migration query planner.",
+      "tags": [
+        "database",
+        "storage"
       ]
     },
     {
