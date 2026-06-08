@@ -140,6 +140,7 @@ Stable dictionary exports include:
 - `ExtractionResult`, `TermMatch`, `CanonicalizedText`
 - `DictionaryDraft`, `DraftCandidate`, `DraftFinding`, `EvidenceSnippet`
 - `DictionarySuggestionConfig`, `DictionarySuggestionResult`, `suggest_dictionary(...)`, `suggest_dictionary_from_documents(...)`
+- `TerminologyDriftReport`, `DriftFinding`, `DriftEvidence`, `DriftSeverity`, `DriftFindingType`
 
 The matcher is deterministic and local. It honors active/deprecated term and alias statuses, profile/global stop lists, returns offsets, and includes evidence snippets with `<mark>...</mark>` highlights.
 
@@ -344,6 +345,50 @@ print(result.review_markdown())
 ```
 
 Every assistant candidate must map back to deterministic local evidence. Aliases without evidence are dropped, and candidates without evidence are ignored.
+
+
+## Terminology drift report schema
+
+The core package exposes a versioned terminology drift report schema for future drift scans and governance review flows. It is intentionally data-only: creating or saving a report does not scan documents, create proposals, publish snapshots, update bindings, or mutate production runtime state.
+
+```python
+from skeinrank import (
+    DriftEvidence,
+    DriftFinding,
+    DriftFindingType,
+    DriftSeverity,
+    TerminologyDriftReport,
+)
+
+report = TerminologyDriftReport(
+    profile_name="infra_incidents",
+    binding_id="infra_incidents_prod",
+    pinned_snapshot_version="S42",
+    latest_snapshot_version="S47",
+    metrics={"unknown_alias_rate": 0.118},
+    findings=[
+        DriftFinding(
+            finding_type=DriftFindingType.ALIAS_DRIFT,
+            severity=DriftSeverity.WARN,
+            title="New candidate alias detected",
+            value="kubelet oom",
+            evidence=[
+                DriftEvidence(
+                    source="incident-1.md",
+                    line=7,
+                    text="Kubelet OOM after the node pool upgrade.",
+                )
+            ],
+        )
+    ],
+)
+
+print(report.summary().unknown_alias_rate)
+print(report.to_markdown())
+report.save("terminology-drift-report.json")
+```
+
+The schema currently covers review signals for new unmatched aliases, stale terms, binding snapshot lag, and ambiguity signals. Later scanner commands can emit this report shape while keeping the same review-first principle: detect automatically, approve manually, serve deterministically.
 
 ## Attribute extraction and enrichment
 

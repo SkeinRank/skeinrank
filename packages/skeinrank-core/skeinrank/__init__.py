@@ -78,6 +78,15 @@ from .drafts import (
     DraftFinding,
     EvidenceSnippet,
 )
+from .drift import (
+    DRIFT_REPORT_SCHEMA_VERSION,
+    DriftEvidence,
+    DriftFinding,
+    DriftFindingType,
+    DriftReportSummary,
+    DriftSeverity,
+    TerminologyDriftReport,
+)
 from .facade import (
     SkeinRank,
     canonicalize,
@@ -179,6 +188,13 @@ __all__ = [
     "expand_document_paths",
     "suggest_dictionary",
     "suggest_dictionary_from_documents",
+    "TerminologyDriftReport",
+    "DriftSeverity",
+    "DriftReportSummary",
+    "DriftFindingType",
+    "DriftFinding",
+    "DriftEvidence",
+    "DRIFT_REPORT_SCHEMA_VERSION",
     "DictionaryDraft",
     "DraftCandidate",
     "DraftFinding",

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from skeinrank import (
+    DRIFT_REPORT_SCHEMA_VERSION,
     CandidateDiscoveryConfig,
     CandidateDiscoveryDocument,
     CandidateDiscoveryReport,
@@ -19,12 +20,18 @@ from skeinrank import (
     DiscoveredCandidate,
     DraftCandidate,
     DraftFinding,
+    DriftEvidence,
+    DriftFinding,
+    DriftFindingType,
+    DriftReportSummary,
+    DriftSeverity,
     EvidenceSnippet,
     ExtractionResult,
     OpenRouterAssistantError,
     OpenRouterDictionaryAssistantConfig,
     OpenRouterDictionaryAssistantResult,
     SkeinRank,
+    TerminologyDriftReport,
     TermMatch,
     build_dictionary_from_docs,
     build_dictionary_from_documents,
@@ -116,6 +123,13 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert callable(expand_document_paths)
     assert callable(import_dictionary)
     assert callable(validate_imported_dictionary)
+    assert TerminologyDriftReport is not None
+    assert DriftFinding is not None
+    assert DriftEvidence is not None
+    assert DriftFindingType is not None
+    assert DriftSeverity is not None
+    assert DriftReportSummary is not None
+    assert DRIFT_REPORT_SCHEMA_VERSION == "skeinrank.terminology_drift_report.v1"
 
 
 def test_load_dictionary_from_console_migration_payload():
