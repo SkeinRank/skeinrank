@@ -129,6 +129,6 @@ Use this section to prove value without serving production traffic.
 
 ## Community
 
-- [GitHub Discussions](community/discussions.md) — Q&A, announcements, ideas, integrations, and show-and-tell setup.
-- [GitHub labels](community/github-labels.md) — issue and PR label taxonomy.
+- [GitHub Discussions](community/discussions.md) — when to use Discussions vs Issues and how categories are organized.
+- [GitHub labels](community/github-labels.md) — compact issue and PR label taxonomy.
 - [Contributing](../CONTRIBUTING.md), [Security](../SECURITY.md), and [Code of Conduct](../CODE_OF_CONDUCT.md) — project participation and disclosure guidance.
