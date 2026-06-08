@@ -24,6 +24,7 @@ from skeinrank import (
     DriftFinding,
     DriftFindingType,
     DriftReportSummary,
+    DriftScanConfig,
     DriftSeverity,
     EvidenceSnippet,
     ExtractionResult,
@@ -45,6 +46,8 @@ from skeinrank import (
     extract_terms,
     import_dictionary,
     load_dictionary,
+    scan_dictionary_drift,
+    scan_dictionary_drift_from_documents,
     suggest_dictionary,
     suggest_dictionary_from_documents,
     validate_dictionary,
@@ -124,6 +127,9 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert callable(import_dictionary)
     assert callable(validate_imported_dictionary)
     assert TerminologyDriftReport is not None
+    assert DriftScanConfig is not None
+    assert callable(scan_dictionary_drift)
+    assert callable(scan_dictionary_drift_from_documents)
     assert DriftFinding is not None
     assert DriftEvidence is not None
     assert DriftFindingType is not None

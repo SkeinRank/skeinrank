@@ -22,6 +22,7 @@ from .documents import (
     extract_document_text,
     extract_terms_from_document,
 )
+from .drift_scan import DriftScanConfig, scan_dictionary_drift
 from .facade import demo_dictionary, demo_dictionary_payload
 from .importing import import_dictionary
 from .sdk import canonicalize_text, extract_terms, load_dictionary, validate_dictionary
@@ -376,6 +377,95 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     assist_dictionary_parser.set_defaults(handler=_handle_assist_dictionary)
 
+    drift_parser = subparsers.add_parser(
+        "drift",
+        help="Create local terminology drift reports.",
+    )
+    drift_subparsers = drift_parser.add_subparsers(dest="drift_command", required=True)
+    drift_scan_parser = drift_subparsers.add_parser(
+        "scan",
+        help="Compare a dictionary with local documents and report uncovered terminology.",
+    )
+    drift_scan_parser.add_argument(
+        "--dictionary",
+        required=True,
+        help="Path to the SkeinRank dictionary JSON/YAML to compare against.",
+    )
+    drift_scan_parser.add_argument(
+        "--docs",
+        action="append",
+        required=True,
+        help="Document file or directory to scan. Repeat for multiple roots.",
+    )
+    drift_scan_parser.add_argument(
+        "--out",
+        help="Write the terminology drift report JSON to this file.",
+    )
+    drift_scan_parser.add_argument(
+        "--markdown",
+        help="Write a markdown review report to this file.",
+    )
+    drift_scan_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the drift report JSON to stdout.",
+    )
+    drift_scan_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json is used.",
+    )
+    drift_scan_parser.add_argument(
+        "--profile-name",
+        default=None,
+        help="Override the profile name shown in the report.",
+    )
+    drift_scan_parser.add_argument(
+        "--binding-id",
+        default=None,
+        help="Optional binding identifier to include as report metadata.",
+    )
+    drift_scan_parser.add_argument(
+        "--pinned-snapshot",
+        default=None,
+        help="Optional pinned snapshot version to include as report metadata.",
+    )
+    drift_scan_parser.add_argument(
+        "--latest-snapshot",
+        default=None,
+        help="Optional latest approved snapshot version to include as report metadata.",
+    )
+    drift_scan_parser.add_argument(
+        "--min-frequency",
+        type=int,
+        default=2,
+        help="Minimum total mentions required for an unmatched candidate.",
+    )
+    drift_scan_parser.add_argument(
+        "--min-document-frequency",
+        type=int,
+        default=1,
+        help="Minimum number of documents an unmatched candidate must appear in.",
+    )
+    drift_scan_parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=50,
+        help="Maximum alias drift findings to include.",
+    )
+    drift_scan_parser.add_argument(
+        "--critical-min-mentions",
+        type=int,
+        default=10,
+        help="Mark an alias drift finding critical at this mention count.",
+    )
+    drift_scan_parser.add_argument(
+        "--no-phrases",
+        action="store_true",
+        help="Disable phrase candidate discovery.",
+    )
+    drift_scan_parser.set_defaults(handler=_handle_drift_scan)
+
     document_text_parser = subparsers.add_parser(
         "document-text",
         help="Extract plain text from a supported local document.",
@@ -601,6 +691,42 @@ def _handle_assist_dictionary(args: argparse.Namespace) -> int:
         )
     elif not args.out and not args.review:
         _write_text(result.review_markdown(), output_path=None)
+    return 0
+
+
+def _handle_drift_scan(args: argparse.Namespace) -> int:
+    config = DriftScanConfig(
+        profile_name=args.profile_name,
+        binding_id=args.binding_id,
+        pinned_snapshot_version=args.pinned_snapshot,
+        latest_snapshot_version=args.latest_snapshot,
+        critical_min_mentions=args.critical_min_mentions,
+        discovery={
+            "min_frequency": args.min_frequency,
+            "min_document_frequency": args.min_document_frequency,
+            "max_candidates": args.max_candidates,
+            "include_phrase_candidates": not args.no_phrases,
+        },
+    )
+    report = scan_dictionary_drift(
+        dictionary=args.dictionary,
+        docs=args.docs,
+        config=config,
+    )
+    if args.out:
+        report.save(args.out, indent=None if args.compact else 2)
+        print(f"Wrote {args.out}")
+    if args.markdown:
+        Path(args.markdown).write_text(report.to_markdown(), encoding="utf-8")
+        print(f"Wrote {args.markdown}")
+    if args.json:
+        _write_json(
+            report.model_dump(mode="json"),
+            output_path=None,
+            compact=args.compact,
+        )
+    elif not args.out and not args.markdown:
+        _write_text(report.to_markdown(), output_path=None)
     return 0
 
 

@@ -169,6 +169,32 @@ Supported formats without extra dependencies:
 
 PDF extraction is supported when the caller installs `pypdf` in the environment. The core package does not require it by default.
 
+## Local terminology drift reports
+
+Compare a dictionary with local documents to see which significant terms are not covered yet. This is a report-only workflow: it does not create proposals, publish snapshots, change bindings, or mutate runtime state.
+
+```bash
+poetry run skeinrank drift scan \
+  --dictionary ../../examples/drift-scan/company.dictionary.json \
+  --docs ../../examples/drift-scan/docs \
+  --out ../../examples/drift-scan/drift-report.json \
+  --markdown ../../examples/drift-scan/drift-report.md
+```
+
+The report uses the versioned `TerminologyDriftReport` schema and includes `alias_drift` findings, evidence snippets, and `unknown_alias_rate`. It is intentionally a local terminology drift report, not a real-time monitor or search observability system.
+
+```python
+from skeinrank import DriftScanConfig, scan_dictionary_drift
+
+report = scan_dictionary_drift(
+    dictionary="company.dictionary.json",
+    docs=["./docs"],
+    config=DriftScanConfig(min_frequency=2),
+)
+
+print(report.to_markdown())
+```
+
 ## Local CLI
 
 Validate a dictionary exported from the governance API or used by `skeinrank-migrate`:

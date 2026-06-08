@@ -87,6 +87,11 @@ from .drift import (
     DriftSeverity,
     TerminologyDriftReport,
 )
+from .drift_scan import (
+    DriftScanConfig,
+    scan_dictionary_drift,
+    scan_dictionary_drift_from_documents,
+)
 from .facade import (
     SkeinRank,
     canonicalize,
@@ -189,6 +194,9 @@ __all__ = [
     "suggest_dictionary",
     "suggest_dictionary_from_documents",
     "TerminologyDriftReport",
+    "DriftScanConfig",
+    "scan_dictionary_drift",
+    "scan_dictionary_drift_from_documents",
     "DriftSeverity",
     "DriftReportSummary",
     "DriftFindingType",

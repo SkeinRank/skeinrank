@@ -1,0 +1,22 @@
+{
+  "schema_version": "skeinrank.dictionary.v1",
+  "profile_name": "platform_ops",
+  "profile_description": "Small platform operations dictionary for local drift scans.",
+  "terms": [
+    {
+      "canonical_value": "kubernetes",
+      "slot": "TOOL",
+      "aliases": ["k8s", "kube"]
+    },
+    {
+      "canonical_value": "postgresql",
+      "slot": "DATABASE",
+      "aliases": ["pg", "postgres"]
+    },
+    {
+      "canonical_value": "deployment",
+      "slot": "CHANGE_EVENT",
+      "aliases": ["deploy", "rollout"]
+    }
+  ]
+}
