@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -14,8 +15,8 @@ def test_compose_api_healthchecks_use_expected_operational_endpoints() -> None:
     prod_compose = _read("docker-compose.prod.yml")
 
     # The dev stack keeps the stricter readiness healthcheck because it includes
-    # a local Elasticsearch service. The production-ish stack uses liveness/DB/schema
-    # health so optional external search backends do not block the first bootstrap.
+    # a local Elasticsearch service. The production-oriented stack uses liveness/DB/schema
+    # health so optional external search backends do not block first bootstrap.
     assert "http://127.0.0.1:8010/readyz" in dev_compose
     assert "http://127.0.0.1:8010/healthz" not in dev_compose
 
@@ -70,3 +71,28 @@ def test_deployment_docs_reference_observability_foundation() -> None:
 
     assert "docs/deployment/observability.md" in docker_guide
     assert "docs/deployment/observability.md" in docker_readme
+
+
+def test_deploy_docker_readme_uses_product_language() -> None:
+    readme = _read("deploy/docker/README.md")
+
+    forbidden_patterns = (
+        r"\b[Pp]atch\b",
+        r"patch-era",
+        r"later patches",
+        r"future patches",
+        r"\bmilestone\b",
+    )
+    for pattern in forbidden_patterns:
+        assert re.search(pattern, readme) is None, pattern
+
+    expected_sections = (
+        "Release Compose with GHCR images",
+        "Development quick start",
+        "First-search walkthrough",
+        "Production-oriented profile",
+        "OpenRouter alias scout Compose demo",
+        "Controlled upgrade flow",
+    )
+    for section in expected_sections:
+        assert section in readme

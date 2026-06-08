@@ -26,7 +26,7 @@ def _read(path: str) -> str:
     return (REPO_ROOT / path).read_text(encoding="utf-8")
 
 
-def test_42d_files_exist_and_docs_are_linked() -> None:
+def test_openrouter_agent_full_demo_files_exist_and_docs_are_linked() -> None:
     expected_paths = [
         AGENT_DIR / "docker_demo_scenario.py",
         DEPLOY_DOCKER / "openrouter-agent-full-demo.compose.yml",
@@ -81,7 +81,7 @@ def test_docker_demo_plan_cli_is_network_free_and_safe() -> None:
 
 def test_docker_demo_module_builds_custom_plan() -> None:
     module = _load_module(
-        "agent_docker_demo_42d", AGENT_DIR / "docker_demo_scenario.py"
+        "agent_docker_demo_compose", AGENT_DIR / "docker_demo_scenario.py"
     )
     cfg = module.DockerFullDemoConfig.from_mapping(
         {
