@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from skeinrank.drafts import DictionaryDraft
 from skeinrank.sdk import Dictionary
 
 from .builder import build_dictionary
@@ -31,6 +32,21 @@ class ImportResult:
 
     dictionary: Dictionary | None
     report: ImportReport
+
+    def to_draft(self) -> DictionaryDraft:
+        """Return a reviewable dictionary draft from the import candidate."""
+
+        if self.dictionary is None:
+            raise ValueError(
+                "Cannot create draft: dictionary import produced fatal findings."
+            )
+        return DictionaryDraft.from_dictionary(
+            self.dictionary,
+            source_path=self.report.source_path,
+            source_format=self.report.detected_format,
+            findings=self.report.warnings,
+            source="import",
+        )
 
     def save(self, path: str | Path) -> None:
         """Write the imported dictionary JSON to ``path``."""

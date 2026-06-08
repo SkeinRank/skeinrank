@@ -56,6 +56,12 @@ from .domain.types import (
     RerankResult,
     ScoreResult,
 )
+from .drafts import (
+    DictionaryDraft,
+    DraftCandidate,
+    DraftFinding,
+    EvidenceSnippet,
+)
 from .facade import (
     SkeinRank,
     canonicalize,
@@ -133,6 +139,10 @@ __all__ = [
     "AttributeStageStatus",
     "AttributePassport",
     "AttributePack",
+    "DictionaryDraft",
+    "DraftCandidate",
+    "DraftFinding",
+    "EvidenceSnippet",
     "DocumentText",
     "DocumentExtractionResult",
     "DocumentExtractionError",

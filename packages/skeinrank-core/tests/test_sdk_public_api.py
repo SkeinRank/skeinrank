@@ -5,10 +5,14 @@ from skeinrank import (
     CanonicalizedText,
     Dictionary,
     DictionaryAlias,
+    DictionaryDraft,
     DictionaryStopListEntry,
     DictionaryTerm,
     DictionaryValidationIssue,
     DictionaryValidationReport,
+    DraftCandidate,
+    DraftFinding,
+    EvidenceSnippet,
     ExtractionResult,
     SkeinRank,
     TermMatch,
@@ -56,6 +60,10 @@ def _dictionary_payload():
 
 def test_sdk_symbols_are_exported_from_public_api():
     assert Dictionary is not None
+    assert DictionaryDraft is not None
+    assert DraftCandidate is not None
+    assert DraftFinding is not None
+    assert EvidenceSnippet is not None
     assert DictionaryAlias is not None
     assert DictionaryTerm is not None
     assert DictionaryStopListEntry is not None

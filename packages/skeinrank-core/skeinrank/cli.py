@@ -158,6 +158,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write the imported SkeinRank dictionary JSON to this file.",
     )
     import_dictionary_parser.add_argument(
+        "--draft-out",
+        help="Write a reviewable dictionary draft JSON to this file.",
+    )
+    import_dictionary_parser.add_argument(
         "--format",
         choices=["json", "csv", "es-synonyms"],
         default=None,
@@ -348,6 +352,9 @@ def _handle_import_dictionary(args: argparse.Namespace) -> int:
     if args.out:
         result.save(args.out)
         print(f"Wrote {args.out}")
+    if args.draft_out:
+        result.to_draft().save(args.draft_out)
+        print(f"Wrote {args.draft_out}")
     return 0
 
 

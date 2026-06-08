@@ -317,3 +317,26 @@ def test_cli_import_dictionary_strict_validate_blocks_runtime_collisions(
     assert exit_code == 1
     assert "validate.alias_collision" in output
     assert "fatal" in output
+
+
+def test_cli_import_dictionary_can_write_reviewable_draft(tmp_path: Path, capsys):
+    source = tmp_path / "terms.csv"
+    source.write_text("canonical,alias\nkubernetes,k8s\n", encoding="utf-8")
+    draft_path = tmp_path / "terms.dictionary-draft.json"
+
+    exit_code = main(
+        [
+            "import-dictionary",
+            str(source),
+            "--name",
+            "company_terms",
+            "--draft-out",
+            str(draft_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert f"Wrote {draft_path}" in capsys.readouterr().out
+    payload = json.loads(draft_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "skeinrank.dictionary_draft.v1"
+    assert payload["candidates"][0]["status"] == "proposed"

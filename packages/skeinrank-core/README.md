@@ -206,6 +206,26 @@ The import path accepts simple JSON dictionaries, CSV files with canonical/alias
 
 The review report also runs the imported candidate through the same lightweight dictionary validator used by `validate-dictionary`. Validator findings are surfaced in the import report so risky aliases, runtime collisions, and short ambiguous forms can be reviewed before the candidate is used. Use `--no-validate` when you only want a raw conversion report, or `--strict-validate` when validator errors should block the generated file.
 
+Write a reviewable draft when the imported file should go through an explicit human review step before becoming a runtime dictionary:
+
+```bash
+poetry run skeinrank import-dictionary ../../examples/import-dictionary/es_synonyms.txt \
+  --format es-synonyms \
+  --name platform_ops_import \
+  --draft-out ../../examples/import-dictionary/es_synonyms.dictionary-draft.json
+```
+
+Drafts keep imported candidates in `proposed` status. In Python, reviewers can inspect the draft, accept candidates, and only then explicitly export a runtime dictionary:
+
+```python
+from skeinrank import DictionaryDraft
+
+draft = DictionaryDraft.from_file("company.dictionary-draft.json")
+print(draft.review_markdown())
+
+runtime_dictionary = draft.accept_all().to_dictionary()
+```
+
 Run the example script:
 
 ```bash
