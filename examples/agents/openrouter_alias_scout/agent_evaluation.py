@@ -1,9 +1,9 @@
 """Agent evaluation loop for the OpenRouter alias-scout example.
 
-Patch 40N turns demo/LLM review reports into a deterministic quality report. It
-is deliberately offline: it does not submit proposals, publish snapshots, or call
-OpenRouter/SkeinRank APIs. The goal is to make agent quality measurable before a
-later deployment patch wires the runner into scheduled jobs.
+The evaluation loop turns demo/LLM review reports into a deterministic quality
+report. It is deliberately offline: it does not submit proposals, publish
+snapshots, or call OpenRouter/SkeinRank APIs. The goal is to make agent quality
+measurable before scheduled jobs use the runner.
 """
 
 from __future__ import annotations
@@ -161,7 +161,7 @@ def build_agent_evaluation_report(
         "before_after_snapshot_evaluation": {
             "enabled": False,
             "reason": (
-                "Patch 40N does not publish snapshots. Run snapshot before/after "
+                "The offline evaluation report does not publish snapshots. Run snapshot before/after "
                 "evaluation after approved proposals are applied in the governed flow."
             ),
             "requires": [

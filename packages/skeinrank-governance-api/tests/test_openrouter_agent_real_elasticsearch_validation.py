@@ -210,6 +210,8 @@ def test_cli_print_real_elasticsearch_validation_plan_outputs_json() -> None:
     assert payload["schema_version"] == (
         "skeinrank.agent_real_elasticsearch_validation_plan.v1"
     )
+    assert payload["workflow"] == "real_elasticsearch_validation"
+    assert "patch" not in payload
     assert payload["safe_defaults"]["indexing_requires_explicit_flag"] is True
     assert payload["safe_defaults"]["sample_evidence_readonly"] is True
 

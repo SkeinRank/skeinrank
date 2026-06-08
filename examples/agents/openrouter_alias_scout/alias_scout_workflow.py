@@ -1,9 +1,9 @@
-"""Stateful OpenRouter alias-scout workflow for Patch 40J.
+"""Stateful OpenRouter alias-scout workflow.
 
 This module is intentionally dependency-light. It models the same node boundaries
-that a future LangGraph wrapper can use, but does not require `langgraph` at
-runtime. The workflow executes model review only; it does not mutate SkeinRank
-state unless a later patch explicitly enables validation/submission policies.
+that a LangGraph wrapper can use, but does not require `langgraph` at runtime. The
+workflow executes model review only; it does not mutate SkeinRank state unless
+explicit validation/submission policies enable that path.
 """
 
 from __future__ import annotations

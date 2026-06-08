@@ -1,9 +1,9 @@
 """Offline proposal inbox and review workflow for the OpenRouter alias scout.
 
-Patch 41G intentionally keeps review workflow agent-side and offline. It turns
-LLM review + validation/submission reports into a human-readable inbox with
-review decisions that can be stored as JSONL. No backend routes, database
-migrations, snapshots, or runtime mutation are introduced here.
+The review workflow stays agent-side and offline. It turns LLM review plus
+validation/submission reports into a human-readable inbox with review decisions
+that can be stored as JSONL. No backend routes, database migrations, snapshots,
+or runtime mutation are introduced here.
 """
 
 from __future__ import annotations

@@ -1,10 +1,10 @@
 """Offline approved-proposal apply planning and snapshot evaluation.
 
-Patch 41H intentionally keeps the agent runner out of production mutation. It
-consumes the 41G proposal inbox and local review decisions, builds a governed
-apply plan for approved items, and optionally compares before/after snapshot
-artifacts. Backend apply endpoints, direct dictionary writes, and snapshot
-publishing are not called from this module.
+The agent runner stays out of production mutation. It consumes the proposal inbox
+and local review decisions, builds a governed apply plan for approved items, and
+optionally compares before/after snapshot artifacts. Backend apply endpoints,
+direct dictionary writes, and snapshot publishing are not called from this
+module.
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ class ApprovedApplyConfig:
         )
 
     def to_plan(self) -> JsonDict:
-        """Return a network-free 41H apply/snapshot plan."""
+        """Return a network-free apply/snapshot plan."""
 
         return {
             "schema_version": "skeinrank.agent_approved_apply_plan.v1",
@@ -220,7 +220,7 @@ def build_snapshot_evaluation_report(
         "quality_gate": _snapshot_quality_gate(diff, coverage),
         "retrieval_metrics": {
             "enabled": False,
-            "reason": "qrels/sample-query evaluation is outside Patch 41H.",
+            "reason": "qrels/sample-query evaluation is outside this apply plan.",
         },
         "safety": _offline_snapshot_safety(),
     }

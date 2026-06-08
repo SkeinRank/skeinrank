@@ -1,8 +1,8 @@
 """Deployment recipe helpers for the OpenRouter alias scout.
 
-Patch 40O keeps deployment recipe generation offline and dependency-light. It
-explains how to run the reference agent as a Docker Compose service or scheduled
-job without enabling proposal submission or runtime mutation by default.
+Deployment recipe generation is offline and dependency-light. It explains how to
+run the reference agent as a Docker Compose service or scheduled job without
+enabling proposal submission or runtime mutation by default.
 """
 
 from __future__ import annotations

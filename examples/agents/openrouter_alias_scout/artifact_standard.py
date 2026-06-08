@@ -1,6 +1,6 @@
 """Standard report/artifact layout for the OpenRouter alias scout.
 
-Patch 42C introduces a small, dependency-free artifact contract that scheduled
+The module provides a small, dependency-free artifact contract that scheduled
 runs, integration smokes, and external orchestrators can rely on:
 
     reports/<run_id>/

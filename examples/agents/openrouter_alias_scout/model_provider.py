@@ -1,11 +1,11 @@
 """Model-provider abstraction for the alias scout example.
 
-Patch 57A introduces a provider-facing seam without changing the existing
-OpenRouter runtime behavior. The abstraction is intentionally small: providers
-only need to implement the OpenAI-compatible ``create_chat_completion`` method
-that the current alias scout workflow already uses. This keeps OpenRouter as the
-first production adapter while allowing tests and future patches to use mock,
-OpenAI-compatible, or local endpoint adapters without rewriting the workflow.
+The provider-facing seam keeps the existing OpenRouter runtime behavior while
+allowing compatible providers to share one workflow. The abstraction is
+intentionally small: providers only need to implement the OpenAI-compatible
+``create_chat_completion`` method that the alias scout already uses. This keeps
+OpenRouter as the default adapter while allowing tests, OpenAI-compatible, mock,
+or local endpoint adapters without rewriting the workflow.
 """
 
 from __future__ import annotations
@@ -408,9 +408,9 @@ def build_model_provider_plan(config: ModelProviderConfig) -> JsonDict:
 def create_model_provider(config: ModelProviderConfig) -> ChatCompletionProvider:
     """Create a provider instance from config.
 
-    Patch 57A intentionally ships only the OpenRouter production adapter and a
+    The reference implementation ships the OpenRouter production adapter and a
     deterministic mock provider. OpenAI-compatible and local endpoint adapters
-    can plug into the same interface in later patches.
+    can plug into the same interface.
     """
 
     provider_type = config.provider_type.lower().strip().replace("-", "_")

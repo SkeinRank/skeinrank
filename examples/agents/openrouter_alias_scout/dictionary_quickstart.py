@@ -1,6 +1,6 @@
 """Dictionary import -> binding -> snapshot quickstart helpers.
 
-Patch 42E adds a dependency-free, headless quickstart contract for the first
+The quickstart provides a dependency-free, headless contract for the first
 operator journey:
 
     dictionary payload -> console validate/import -> Elasticsearch binding ->
@@ -32,7 +32,7 @@ class DictionaryQuickstartClient(Protocol):
 
 @dataclass(frozen=True)
 class DictionaryQuickstartConfig:
-    """Config for the Patch 42E headless onboarding quickstart."""
+    """Config for the headless onboarding quickstart."""
 
     artifacts_dir: Path
     profile_name: str = "infra_incidents"
@@ -139,7 +139,7 @@ def build_dictionary_quickstart_plan(config: DictionaryQuickstartConfig) -> Json
     return {
         "schema_version": "skeinrank.agent_dictionary_quickstart_plan.v1",
         "runner": "openrouter_alias_scout",
-        "patch": "42E",
+        "workflow": "dictionary_quickstart",
         "profile_name": config.profile_name,
         "binding_name": config.binding_name,
         "index_name": config.index_name,

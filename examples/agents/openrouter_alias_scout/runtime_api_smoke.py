@@ -1,9 +1,9 @@
-"""Runtime API final smoke helpers for the OpenRouter alias scout.
+"""Runtime API smoke helpers for the OpenRouter alias scout.
 
-Patch 42G adds a dependency-free runtime smoke contract for the final operator
-journey after dictionary import, binding setup, and optional snapshot export. It
-calls only existing runtime/headless API endpoints through the generic
-``SkeinRankAgentClient.request`` method:
+The smoke contract validates the operator journey after dictionary import,
+binding setup, and optional snapshot export. It calls only existing runtime and
+headless API endpoints through the generic ``SkeinRankAgentClient.request``
+method:
 
     POST /v1/text/canonicalize
     POST /v1/query/plan
@@ -34,7 +34,7 @@ class RuntimeApiSmokeClient(Protocol):
 
 @dataclass(frozen=True)
 class RuntimeApiSmokeConfig:
-    """Config for the Patch 42G runtime API final smoke."""
+    """Config for the runtime API smoke."""
 
     artifacts_dir: Path
     profile_name: str = "infra_incidents"
@@ -157,7 +157,7 @@ def build_runtime_api_smoke_plan(config: RuntimeApiSmokeConfig) -> JsonDict:
     return {
         "schema_version": "skeinrank.agent_runtime_api_smoke_plan.v1",
         "runner": "openrouter_alias_scout",
-        "patch": "42G",
+        "workflow": "runtime_api_smoke",
         "profile_name": config.profile_name,
         "binding_id": config.binding_id,
         "artifacts_dir": str(config.artifacts_dir),
@@ -282,7 +282,7 @@ def run_runtime_api_smoke(
     return {
         "schema_version": "skeinrank.agent_runtime_api_smoke.v1",
         "runner": "openrouter_alias_scout",
-        "patch": "42G",
+        "workflow": "runtime_api_smoke",
         "status": status,
         "recommended_exit_code": 0 if status.startswith("passed") else 2,
         "profile_name": config.profile_name,

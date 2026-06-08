@@ -1,8 +1,9 @@
-"""Reference OpenRouter alias scout runner skeleton.
+"""Reference OpenRouter alias scout runner.
 
-Patch 40F intentionally keeps this runner LLM-free. It proves the agent-side
-configuration, input loading, idempotency key strategy, and SkeinRank REST client
-without introducing LangGraph/CrewAI or calling OpenRouter yet.
+The runner keeps safe local planning, input loading, idempotency keys, optional
+OpenRouter review, and SkeinRank API integration in one operator-facing CLI.
+Network calls and mutating actions remain explicit flags so teams can inspect
+plans and reports before submitting proposals or touching runtime state.
 """
 
 from __future__ import annotations
@@ -561,26 +562,26 @@ def build_run_plan(
         "budget_cache_enabled": config.budget_cache.cache_enabled,
         "max_llm_calls_per_run": config.budget_cache.max_llm_calls_per_run,
         "next_steps": [
-            "Patch 40G added OpenRouter tool schemas and prompts.",
-            "Patch 40H added candidate discovery and pruning.",
-            "Patch 40I added compact evidence sampling.",
-            "Patch 40K adds the local E2E demo report.",
-            "Patch 40J adds OpenRouter execution and a LangGraph-ready workflow.",
-            "Patch 40L adds a service-account security profile.",
-            "Patch 40M adds run budgets and JSON response caching.",
-            "Patch 40N adds offline agent evaluation reports.",
-            "Patch 40O adds a Docker Compose deployment recipe.",
-            "Patch 41A adds canonical hints and stronger review packs.",
-            "Patch 41B adds safe validation/submission of ready proposal payloads.",
-            "Patch 41E adds an optional Elasticsearch evidence connector.",
-            "Patch 41F adds local run/document tracking and content hashes.",
-            "Patch 41G adds an offline proposal inbox/review workflow.",
-            "Patch 41H adds approved-proposal apply planning and snapshot evaluation.",
-            "Patch 41I adds scheduled/worker-mode agent cycle orchestration.",
-            "Patch 42A adds a one-command full agent integration smoke test.",
-            "Patch 42B adds a reproducible real Elasticsearch validation scenario.",
-            "Patch 42C standardizes report/artifact manifests.",
-            "Patch 42E adds a dictionary import -> binding -> snapshot quickstart.",
+            "OpenRouter/OpenAI-compatible tool schemas and prompts are available.",
+            "Deterministic candidate discovery and pruning are available.",
+            "Compact evidence sampling is available.",
+            "The local end-to-end demo report is available.",
+            "OpenRouter execution and a LangGraph-ready workflow are available.",
+            "A service-account security profile is available.",
+            "Run budgets and JSON response caching are available.",
+            "Offline agent evaluation reports are available.",
+            "A Docker Compose deployment recipe is available.",
+            "Canonical hints and stronger review packs are available.",
+            "Safe validation/submission of ready proposal payloads is available.",
+            "An optional Elasticsearch evidence connector is available.",
+            "Local run/document tracking and content hashes are available.",
+            "An offline proposal inbox/review workflow is available.",
+            "Approved-proposal apply planning and snapshot evaluation are available.",
+            "Scheduled/worker-mode agent cycle orchestration is available.",
+            "A one-command full agent integration smoke test is available.",
+            "A reproducible real Elasticsearch validation scenario is available.",
+            "Standard report/artifact manifests are available.",
+            "A dictionary import -> binding -> snapshot quickstart is available.",
         ],
         "sample_queries": [
             {
@@ -673,7 +674,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-canonical-hints",
         action="store_true",
-        help="Print configured 41A canonical hints without network calls.",
+        help="Print configured canonical hints without network calls.",
     )
     parser.add_argument(
         "--discover-candidates",
@@ -705,8 +706,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--print-elasticsearch-evidence-plan",
         action="store_true",
         help=(
-            "Print the 41E Elasticsearch evidence connector plan without "
-            "network calls."
+            "Print the Elasticsearch evidence connector plan without " "network calls."
         ),
     )
     parser.add_argument(
@@ -747,12 +747,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-agent-tracking-plan",
         action="store_true",
-        help="Print the 41F local run/document tracking plan without writing the ledger.",
+        help="Print the local run/document tracking plan without writing the ledger.",
     )
     parser.add_argument(
         "--write-agent-tracking-report",
         type=Path,
-        help="Write a 41F run/document tracking report to this JSON path.",
+        help="Write a local run/document tracking report to this JSON path.",
     )
     parser.add_argument(
         "--append-agent-tracking-ledger",
@@ -803,36 +803,36 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-openrouter-live-pilot-plan",
         action="store_true",
-        help="Print the 48B live OpenRouter pilot plan without network calls.",
+        help="Print the live OpenRouter pilot plan without network calls.",
     )
     parser.add_argument(
         "--print-model-provider-plan",
         action="store_true",
-        help="Print the 57A model-provider plan without network calls.",
+        help="Print the model-provider plan without network calls.",
     )
     parser.add_argument(
         "--print-company-model-integration-plan",
         action="store_true",
         help=(
-            "Print the 57C company model integration plan without network "
+            "Print the company model integration plan without network "
             "calls or secret values."
         ),
     )
     parser.add_argument(
         "--run-openrouter-live-pilot",
         action="store_true",
-        help="Run the 48B cost-safe OpenRouter pilot. Requires OPENROUTER_API_KEY.",
+        help="Run the cost-safe OpenRouter pilot. Requires OPENROUTER_API_KEY.",
     )
     parser.add_argument(
         "--write-openrouter-live-pilot-report",
         type=Path,
-        help="Run the 48B live pilot and write the JSON report to this path.",
+        help="Run the live pilot and write the JSON report to this path.",
     )
     parser.add_argument(
         "--print-openrouter-validated-pilot-plan",
         action="store_true",
         help=(
-            "Print the 49D live OpenRouter + SkeinRank validation pilot plan "
+            "Print the live OpenRouter + SkeinRank validation pilot plan "
             "without network calls."
         ),
     )
@@ -840,14 +840,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--run-openrouter-validated-pilot",
         action="store_true",
         help=(
-            "Run the 49D live OpenRouter pilot and validate ready proposals "
+            "Run the live OpenRouter pilot and validate ready proposals "
             "against the SkeinRank API. Does not submit by default."
         ),
     )
     parser.add_argument(
         "--write-openrouter-validated-pilot-report",
         type=Path,
-        help=("Run the 49D validated pilot and write the JSON report to this path."),
+        help=("Run the validated pilot and write the JSON report to this path."),
     )
     parser.add_argument(
         "--pilot-validate-proposals",
@@ -906,7 +906,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-budget-cache-plan",
         action="store_true",
-        help="Print the 40M run budget/cache plan without network calls.",
+        help="Print the run budget/cache plan without network calls.",
     )
     parser.add_argument(
         "--clear-llm-cache",
@@ -936,12 +936,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--run-evaluation-report",
         action="store_true",
-        help="Build an offline 40N agent evaluation report and print JSON.",
+        help="Build an offline agent evaluation report and print JSON.",
     )
     parser.add_argument(
         "--write-evaluation-report",
         type=Path,
-        help="Write the offline 40N agent evaluation report to this JSON path.",
+        help="Write the offline agent evaluation report to this JSON path.",
     )
     parser.add_argument(
         "--llm-review-report",
@@ -956,12 +956,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-deployment-recipe",
         action="store_true",
-        help="Print the 40O Docker Compose deployment recipe without network calls.",
+        help="Print the Docker Compose deployment recipe without network calls.",
     )
     parser.add_argument(
         "--write-deployment-recipe",
         type=Path,
-        help="Write the 40O deployment recipe JSON to this path.",
+        help="Write the deployment recipe JSON to this path.",
     )
     parser.add_argument(
         "--print-proposal-submission-plan",
@@ -984,22 +984,22 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--write-proposal-submission-report",
         type=Path,
-        help="Write the 41B validation/submission report to this JSON path.",
+        help="Write the validation/submission report to this JSON path.",
     )
     parser.add_argument(
         "--print-proposal-inbox-plan",
         action="store_true",
-        help="Print the 41G offline proposal inbox/review plan.",
+        help="Print the offline proposal inbox/review plan.",
     )
     parser.add_argument(
         "--build-proposal-inbox",
         action="store_true",
-        help="Build the 41G proposal review inbox from saved reports.",
+        help="Build the proposal review inbox from saved reports.",
     )
     parser.add_argument(
         "--write-proposal-inbox",
         type=Path,
-        help="Write the 41G proposal review inbox JSON to this path.",
+        help="Write the proposal review inbox JSON to this path.",
     )
     parser.add_argument(
         "--proposal-submission-report",
@@ -1019,32 +1019,32 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-approved-apply-plan",
         action="store_true",
-        help="Print the 41H offline approved-proposal apply plan config.",
+        help="Print the offline approved-proposal apply plan config.",
     )
     parser.add_argument(
         "--build-approved-apply-plan",
         action="store_true",
-        help="Build the 41H approved-proposal apply plan from a proposal inbox report.",
+        help="Build the approved-proposal apply plan from a proposal inbox report.",
     )
     parser.add_argument(
         "--write-approved-apply-plan",
         type=Path,
-        help="Write the 41H approved-proposal apply plan JSON to this path.",
+        help="Write the approved-proposal apply plan JSON to this path.",
     )
     parser.add_argument(
         "--proposal-inbox-report",
         type=Path,
-        help="Saved skeinrank.agent_proposal_inbox.v1 JSON input for 41H apply planning.",
+        help="Saved skeinrank.agent_proposal_inbox.v1 JSON input for approved apply planning.",
     )
     parser.add_argument(
         "--run-snapshot-evaluation",
         action="store_true",
-        help="Build a 41H offline snapshot evaluation report.",
+        help="Build an offline snapshot evaluation report.",
     )
     parser.add_argument(
         "--write-snapshot-evaluation-report",
         type=Path,
-        help="Write the 41H snapshot evaluation report JSON to this path.",
+        help="Write the snapshot evaluation report JSON to this path.",
     )
     parser.add_argument(
         "--approved-apply-plan",
@@ -1054,12 +1054,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--before-snapshot",
         type=Path,
-        help="Optional before snapshot artifact JSON for 41H snapshot evaluation.",
+        help="Optional before snapshot artifact JSON for snapshot evaluation.",
     )
     parser.add_argument(
         "--after-snapshot",
         type=Path,
-        help="Optional after snapshot artifact JSON for 41H snapshot evaluation.",
+        help="Optional after snapshot artifact JSON for snapshot evaluation.",
     )
     parser.add_argument(
         "--max-apply-items",
@@ -1070,7 +1070,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-scheduled-runner-plan",
         action="store_true",
-        help="Print the 41I scheduled/worker-mode agent cycle plan.",
+        help="Print the scheduled/worker-mode agent cycle plan.",
     )
     parser.add_argument(
         "--run-agent-cycle",
@@ -1119,7 +1119,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-integration-smoke-plan",
         action="store_true",
-        help="Print the 42A full agent integration smoke-test plan.",
+        help="Print the full agent integration smoke-test plan.",
     )
     parser.add_argument(
         "--run-integration-smoke-test",
@@ -1129,7 +1129,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--write-integration-smoke-report",
         type=Path,
-        help="Run the 42A smoke test and write the report to this JSON path.",
+        help="Run the smoke test and write the report to this JSON path.",
     )
     parser.add_argument(
         "--integration-smoke-artifacts-dir",
@@ -1140,27 +1140,27 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-real-elasticsearch-validation-plan",
         action="store_true",
-        help="Print the 42B real Elasticsearch validation scenario plan.",
+        help="Print the real Elasticsearch validation scenario plan.",
     )
     parser.add_argument(
         "--write-real-elasticsearch-validation-fixtures",
         action="store_true",
-        help="Write 42B sample ES docs, failed queries, outcomes, mapping, and bulk NDJSON.",
+        help="Write sample ES docs, failed queries, outcomes, mapping, and bulk NDJSON.",
     )
     parser.add_argument(
         "--index-real-elasticsearch-validation-docs",
         action="store_true",
-        help="Explicitly index 42B sample docs into the configured Elasticsearch index.",
+        help="Explicitly index sample docs into the configured Elasticsearch index.",
     )
     parser.add_argument(
         "--run-real-elasticsearch-validation",
         action="store_true",
-        help="Run the 42B read-only validation scenario against Elasticsearch.",
+        help="Run the read-only validation scenario against Elasticsearch.",
     )
     parser.add_argument(
         "--write-real-elasticsearch-validation-report",
         type=Path,
-        help="Run 42B and write the validation scenario report to this JSON path.",
+        help="Run the validation scenario and write the validation scenario report to this JSON path.",
     )
     parser.add_argument(
         "--real-es-validation-artifacts-dir",
@@ -1170,62 +1170,62 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--real-es-validation-reset-index",
         action="store_true",
-        help="Allow the 42B indexing command to delete/recreate the validation index.",
+        help="Allow the indexing command to delete/recreate the validation index.",
     )
 
     parser.add_argument(
         "--print-artifacts-standard-plan",
         action="store_true",
-        help="Print the 42C reports/artifacts standard plan.",
+        help="Print the reports/artifacts standard plan.",
     )
     parser.add_argument(
         "--write-artifacts-manifest",
         type=Path,
         help=(
-            "Write or repair a 42C manifest for an existing run folder. The path "
+            "Write or repair an artifact manifest for an existing run folder. The path "
             "is the output manifest path; use --artifacts-run-id to select the run."
         ),
     )
     parser.add_argument(
         "--artifacts-root-dir",
         type=Path,
-        help="Override artifact_standard.root_dir for 42C artifact commands.",
+        help="Override artifact_standard.root_dir for artifact commands.",
     )
     parser.add_argument(
         "--artifacts-run-id",
-        help="Run id used by 42C manifest repair/backfill commands.",
+        help="Run id used by manifest repair/backfill commands.",
     )
 
     parser.add_argument(
         "--print-docker-demo-plan",
         action="store_true",
-        help="Print the 42D Docker Compose full demo plan without network calls.",
+        help="Print the Docker Compose full demo plan without network calls.",
     )
     parser.add_argument(
         "--write-docker-demo-plan",
         type=Path,
-        help="Write the 42D Docker Compose full demo plan JSON to this path.",
+        help="Write the Docker Compose full demo plan JSON to this path.",
     )
 
     parser.add_argument(
         "--print-dictionary-quickstart-plan",
         action="store_true",
-        help="Print the 42E dictionary import -> binding -> snapshot quickstart plan.",
+        help="Print the dictionary import -> binding -> snapshot quickstart plan.",
     )
     parser.add_argument(
         "--write-dictionary-quickstart-payloads",
         action="store_true",
-        help="Write 42E sample dictionary and binding payload JSON files.",
+        help="Write sample dictionary and binding payload JSON files.",
     )
     parser.add_argument(
         "--run-dictionary-quickstart",
         action="store_true",
-        help="Run the 42E validate-first dictionary quickstart through the Governance API.",
+        help="Run the validate-first dictionary quickstart through the Governance API.",
     )
     parser.add_argument(
         "--write-dictionary-quickstart-report",
         type=Path,
-        help="Run 42E and write the quickstart report JSON to this path.",
+        help="Run the dictionary quickstart and write the quickstart report JSON to this path.",
     )
     parser.add_argument(
         "--dictionary-quickstart-artifacts-dir",
@@ -1264,17 +1264,17 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-runtime-api-smoke-plan",
         action="store_true",
-        help="Print the 42G runtime API final smoke plan without network calls.",
+        help="Print the runtime API smoke plan without network calls.",
     )
     parser.add_argument(
         "--run-runtime-api-smoke",
         action="store_true",
-        help="Run the 42G runtime API smoke through existing runtime endpoints.",
+        help="Run the runtime API smoke through existing runtime endpoints.",
     )
     parser.add_argument(
         "--write-runtime-api-smoke-report",
         type=Path,
-        help="Run 42G and write the runtime API smoke report to this JSON path.",
+        help="Run the runtime API smoke and write the runtime API smoke report to this JSON path.",
     )
     parser.add_argument(
         "--runtime-smoke-artifacts-dir",
@@ -1307,7 +1307,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--print-new-alias-smoke-plan",
         action="store_true",
-        help="Preview the 41D controlled new-alias smoke test without API calls.",
+        help="Preview the controlled new-alias smoke test without API calls.",
     )
     parser.add_argument(
         "--write-new-alias-smoke-llm-report",
@@ -1330,7 +1330,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--write-new-alias-smoke-report",
         type=Path,
-        help="Write the 41D new-alias smoke test report to this JSON path.",
+        help="Write the new-alias smoke test report to this JSON path.",
     )
     return parser.parse_args(argv)
 
@@ -1570,7 +1570,7 @@ def _live_pilot_cli_summary(
 
 
 def build_security_report_for_config(config: AgentRunnerConfig) -> JsonDict:
-    """Build the sanitized 40L security profile report for CLI/tests."""
+    """Build the sanitized security profile report for CLI/tests."""
 
     return build_security_profile_report(
         security_config=config.security_profile,
@@ -1594,7 +1594,7 @@ def _load_evaluation_outcomes_for_args(
 
 
 def build_deployment_recipe_for_config(config: AgentRunnerConfig) -> JsonDict:
-    """Build the offline 40O deployment recipe for the current config."""
+    """Build the offline deployment recipe for the current config."""
 
     return build_agent_deployment_recipe(
         config.deployment,
@@ -1620,7 +1620,7 @@ def _load_llm_review_report_for_proposals(args: argparse.Namespace) -> JsonDict:
 def build_proposal_submission_plan_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the offline 41B proposal submission plan for CLI/tests."""
+    """Build the offline proposal submission plan for CLI/tests."""
 
     return build_proposal_submission_plan(
         _load_llm_review_report_for_proposals(args),
@@ -1646,7 +1646,7 @@ def run_proposal_submission_for_args(
 def _proposal_inbox_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> ProposalInboxConfig:
-    """Apply CLI overrides to the 41G offline proposal inbox config."""
+    """Apply CLI overrides to the offline proposal inbox config."""
 
     return config.proposal_inbox.with_overrides(
         review_decisions_path=args.review_decisions,
@@ -1657,7 +1657,7 @@ def _proposal_inbox_config_from_args(
 def build_proposal_inbox_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the 41G offline proposal inbox from saved reports."""
+    """Build the offline proposal inbox from saved reports."""
 
     if args.llm_review_report is None and args.proposal_submission_report is None:
         raise RuntimeError(
@@ -1683,7 +1683,7 @@ def build_proposal_inbox_for_args(
 
 
 def build_proposal_inbox_plan_for_config(config: AgentRunnerConfig) -> JsonDict:
-    """Build the offline 41G proposal inbox plan for CLI/tests."""
+    """Build the offline proposal inbox plan for CLI/tests."""
 
     return config.proposal_inbox.to_plan()
 
@@ -1691,7 +1691,7 @@ def build_proposal_inbox_plan_for_config(config: AgentRunnerConfig) -> JsonDict:
 def _approved_apply_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> ApprovedApplyConfig:
-    """Apply CLI overrides to the 41H approved apply config."""
+    """Apply CLI overrides to the approved apply config."""
 
     return config.approved_apply.with_overrides(
         before_snapshot_path=args.before_snapshot,
@@ -1703,11 +1703,11 @@ def _approved_apply_config_from_args(
 def build_approved_apply_plan_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the 41H offline approved-proposal apply plan."""
+    """Build the offline approved-proposal apply plan."""
 
     if args.proposal_inbox_report is None:
         raise RuntimeError(
-            "--proposal-inbox-report is required for 41H apply planning."
+            "--proposal-inbox-report is required for approved-proposal apply planning."
         )
     inbox_report = load_apply_json_report(args.proposal_inbox_report)
     return build_approved_proposals_apply_plan(
@@ -1718,7 +1718,7 @@ def build_approved_apply_plan_for_args(
 def build_approved_apply_config_plan_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the 41H offline apply/evaluation config plan."""
+    """Build the offline apply/evaluation config plan."""
 
     return _approved_apply_config_from_args(config, args).to_plan()
 
@@ -1726,7 +1726,7 @@ def build_approved_apply_config_plan_for_args(
 def build_snapshot_evaluation_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the 41H offline snapshot evaluation report."""
+    """Build the offline snapshot evaluation report."""
 
     apply_plan = (
         load_apply_json_report(args.approved_apply_plan)
@@ -1747,7 +1747,7 @@ def build_snapshot_evaluation_for_args(
 def build_new_alias_smoke_plan_for_config(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the offline 41D new-alias smoke plan."""
+    """Build the offline new-alias smoke plan."""
 
     return build_new_alias_smoke_plan(
         config.new_alias_smoke,
@@ -1758,7 +1758,7 @@ def build_new_alias_smoke_plan_for_config(
 def run_new_alias_smoke_for_config(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Run the 41D controlled new-alias validate/submit smoke test."""
+    """Run the controlled new-alias validate/submit smoke test."""
 
     return run_new_alias_smoke_test(
         client=build_client(config),
@@ -1770,7 +1770,7 @@ def run_new_alias_smoke_for_config(
 def _artifact_standard_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> ArtifactStandardConfig:
-    """Apply CLI overrides to the 42C report/artifact standard config."""
+    """Apply CLI overrides to the report/artifact standard config."""
 
     return config.artifact_standard.with_overrides(root_dir=args.artifacts_root_dir)
 
@@ -1778,7 +1778,7 @@ def _artifact_standard_config_from_args(
 def build_artifacts_standard_plan_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the network-free 42C artifact standard plan."""
+    """Build the network-free artifact standard plan."""
 
     return _artifact_standard_config_from_args(config, args).to_plan()
 
@@ -1814,7 +1814,7 @@ def write_artifacts_manifest_for_args(
 def _scheduled_runner_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> ScheduledRunnerConfig:
-    """Apply CLI overrides to the 41I scheduled/worker-mode config."""
+    """Apply CLI overrides to the scheduled/worker-mode config."""
 
     return config.scheduled_runner.with_overrides(
         artifacts_dir=args.agent_cycle_artifacts_dir,
@@ -1833,7 +1833,7 @@ def _scheduled_runner_config_from_args(
 def build_scheduled_runner_plan_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build a network-free 41I scheduled/worker-mode plan."""
+    """Build a network-free scheduled/worker-mode plan."""
 
     return _scheduled_runner_config_from_args(config, args).to_plan()
 
@@ -2135,7 +2135,7 @@ def run_scheduled_agent_cycle_for_config(
 def _integration_smoke_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> FullIntegrationSmokeConfig:
-    """Apply CLI overrides to the 42A full integration smoke config."""
+    """Apply CLI overrides to the full integration smoke config."""
 
     return config.integration_smoke.with_overrides(
         artifacts_dir=args.integration_smoke_artifacts_dir,
@@ -2146,7 +2146,7 @@ def _integration_smoke_config_from_args(
 def build_integration_smoke_plan_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the network-free 42A smoke-test plan."""
+    """Build the network-free smoke-test plan."""
 
     return _integration_smoke_config_from_args(config, args).to_plan()
 
@@ -2156,7 +2156,7 @@ def run_integration_smoke_for_config(
     failed_queries: list[JsonDict],
     args: argparse.Namespace,
 ) -> JsonDict:
-    """Run the network-free 42A full agent integration smoke test."""
+    """Run the network-free full agent integration smoke test."""
 
     evidence_records = load_jsonl_records(
         config.evidence_records_path, limit=config.evidence_sampler.max_records
@@ -2184,7 +2184,7 @@ def run_integration_smoke_for_config(
 def _real_elasticsearch_validation_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> RealElasticsearchValidationConfig:
-    """Apply CLI overrides to the 42B real Elasticsearch validation config."""
+    """Apply CLI overrides to the real Elasticsearch validation config."""
 
     return config.real_elasticsearch_validation.with_overrides(
         artifacts_dir=args.real_es_validation_artifacts_dir,
@@ -2196,7 +2196,7 @@ def _real_elasticsearch_validation_config_from_args(
 def build_real_elasticsearch_validation_plan_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the network-free 42B real Elasticsearch validation scenario plan."""
+    """Build the network-free real Elasticsearch validation scenario plan."""
 
     return _real_elasticsearch_validation_config_from_args(config, args).to_plan(
         source_config=_elasticsearch_source_config_from_args(config, args)
@@ -2206,7 +2206,7 @@ def build_real_elasticsearch_validation_plan_for_args(
 def write_real_elasticsearch_validation_fixtures_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Write 42B real Elasticsearch validation fixture files."""
+    """Write real Elasticsearch validation fixture files."""
 
     return write_real_elasticsearch_validation_fixtures(
         _real_elasticsearch_validation_config_from_args(config, args),
@@ -2217,7 +2217,7 @@ def write_real_elasticsearch_validation_fixtures_for_args(
 def index_real_elasticsearch_validation_docs_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Explicitly index 42B validation fixture docs into Elasticsearch."""
+    """Explicitly index validation fixture docs into Elasticsearch."""
 
     source_config = _elasticsearch_source_config_from_args(config, args)
     return index_real_elasticsearch_validation_docs(
@@ -2230,7 +2230,7 @@ def index_real_elasticsearch_validation_docs_for_args(
 def run_real_elasticsearch_validation_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Run the 42B read-only real Elasticsearch validation scenario."""
+    """Run the read-only real Elasticsearch validation scenario."""
 
     source_config = _elasticsearch_source_config_from_args(config, args)
     return run_real_elasticsearch_validation_scenario(
@@ -2247,7 +2247,7 @@ def run_real_elasticsearch_validation_for_args(
 def _elasticsearch_source_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> ElasticsearchSourceConfig:
-    """Apply CLI overrides to the optional 41E Elasticsearch connector config."""
+    """Apply CLI overrides to the optional Elasticsearch connector config."""
 
     return config.elasticsearch_source.with_overrides(
         url=args.elasticsearch_url,
@@ -2328,7 +2328,7 @@ def write_elasticsearch_evidence_records_for_config(
 def _agent_tracking_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> AgentRunTrackingConfig:
-    """Apply CLI overrides to the 41F local tracking config."""
+    """Apply CLI overrides to the local tracking config."""
 
     return config.agent_tracking.with_overrides(ledger_path=args.agent_tracking_ledger)
 
@@ -2340,7 +2340,7 @@ def build_agent_tracking_report_for_config(
     *,
     append_ledger: bool = False,
 ) -> JsonDict:
-    """Build the 41F local agent run/document tracking report."""
+    """Build the local agent run/document tracking report."""
 
     _ = failed_queries
     tracking_config = _agent_tracking_config_from_args(config, args)
@@ -2363,7 +2363,7 @@ def build_evaluation_report_for_config(
     failed_queries: list[JsonDict],
     args: argparse.Namespace,
 ) -> JsonDict:
-    """Build the offline 40N evaluation report for CLI/tests."""
+    """Build the offline evaluation report for CLI/tests."""
 
     evidence_records = load_jsonl_records(
         config.evidence_records_path, limit=config.evidence_sampler.max_records
@@ -2393,7 +2393,7 @@ def build_evaluation_report_for_config(
 
 
 def build_docker_demo_plan_for_config(config: AgentRunnerConfig) -> JsonDict:
-    """Build the network-free 42D Docker Compose full-demo plan."""
+    """Build the network-free Docker Compose full-demo plan."""
 
     return build_docker_full_demo_plan(config.docker_full_demo)
 
@@ -2445,7 +2445,7 @@ def run_dictionary_quickstart_for_args(
 def _runtime_api_smoke_config_from_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> RuntimeApiSmokeConfig:
-    """Apply CLI overrides to the 42G runtime API smoke config."""
+    """Apply CLI overrides to the runtime API smoke config."""
 
     return config.runtime_api_smoke.with_overrides(
         artifacts_dir=args.runtime_smoke_artifacts_dir,
@@ -2460,7 +2460,7 @@ def _runtime_api_smoke_config_from_args(
 def build_runtime_api_smoke_plan_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Build the network-free 42G runtime API smoke plan."""
+    """Build the network-free runtime API smoke plan."""
 
     return build_runtime_api_smoke_plan(
         _runtime_api_smoke_config_from_args(config, args)
@@ -2470,7 +2470,7 @@ def build_runtime_api_smoke_plan_for_args(
 def run_runtime_api_smoke_for_args(
     config: AgentRunnerConfig, args: argparse.Namespace
 ) -> JsonDict:
-    """Run the 42G runtime API smoke through the configured Governance API."""
+    """Run the runtime API smoke through the configured Governance API."""
 
     return run_runtime_api_smoke(
         client=build_client(config),

@@ -1,10 +1,9 @@
 """Elasticsearch evidence connector for the OpenRouter alias scout example.
 
-Patch 41E keeps the connector dependency-light and optional. It queries an
-operator-configured Elasticsearch/OpenSearch-compatible endpoint, normalizes hits
-into the local evidence-record shape, and then reuses the deterministic evidence
-sampler from Patch 40I. It never mutates Elasticsearch, SkeinRank, snapshots, or
-proposal state.
+The connector is dependency-light and optional. It queries an operator-configured
+Elasticsearch/OpenSearch-compatible endpoint, normalizes hits into the local
+evidence-record shape, and then reuses the deterministic evidence sampler. It
+never mutates Elasticsearch, SkeinRank, snapshots, or proposal state.
 """
 
 from __future__ import annotations

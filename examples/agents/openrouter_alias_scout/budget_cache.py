@@ -1,8 +1,8 @@
 """Budget and cache helpers for OpenRouter alias-scout runs.
 
-Patch 40M keeps live model execution bounded and repeatable. The reference
-agent may call OpenRouter, but every run should have explicit call/cost/token
-limits and may reuse cached model responses for identical candidate packs.
+Live model execution stays bounded and repeatable. The reference agent may call
+OpenRouter, but every run should have explicit call/cost/token limits and may
+reuse cached model responses for identical candidate packs.
 """
 
 from __future__ import annotations

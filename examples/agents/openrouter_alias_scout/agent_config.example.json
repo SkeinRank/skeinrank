@@ -1,7 +1,7 @@
 {
   "agent_tracking": {
     "agent_name": "openrouter-alias-scout",
-    "agent_version": "41F",
+    "agent_version": "openrouter-alias-scout",
     "content_fields": [
       "query",
       "title",

@@ -1,9 +1,9 @@
 """Canonical hint helpers for the OpenRouter alias scout example.
 
-Patch 41A keeps the alias scout deterministic before LLM review by giving the
-model a compact list of known canonical terms and alias-to-canonical hints. The
-hints are local config data in this reference implementation; a later production
-patch can source the same shape from SkeinRank profiles/snapshots.
+The alias scout stays deterministic before LLM review by giving the model a
+compact list of known canonical terms and alias-to-canonical hints. The hints are
+local config data in this reference implementation; production integrations can
+source the same shape from SkeinRank profiles/snapshots.
 """
 
 from __future__ import annotations

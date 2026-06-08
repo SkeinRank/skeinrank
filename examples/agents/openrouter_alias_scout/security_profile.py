@@ -1,9 +1,8 @@
 """Security profile helpers for the OpenRouter alias scout.
 
-Patch 40L keeps the reference agent safe by default. The agent may call
-OpenRouter for review, but proposal submission and runtime mutation stay
-blocked unless a later patch enables them through explicit policy, scoped
-credentials, and validation.
+The reference agent is safe by default. The agent may call OpenRouter for review,
+but proposal submission and runtime mutation stay blocked unless explicit policy,
+scoped credentials, and validation enable them.
 """
 
 from __future__ import annotations
@@ -243,7 +242,7 @@ def assert_security_allows_llm_review(
     if llm_submit_proposals and not security_config.allow_proposal_submission:
         raise RuntimeError(
             "Proposal submission is blocked by the agent security profile. "
-            "Keep llm_review.submit_proposals=false until Patch 40L+ submission "
+            "Keep llm_review.submit_proposals=false until submission "
             "policy and scoped tokens are configured."
         )
     if (
@@ -277,8 +276,8 @@ def _proposal_submission_ready(
         "ready": ready,
         "will_submit_proposals": False,
         "reason": (
-            "The reference runner does not submit proposals in Patch 40L; it only "
-            "prepares payloads for validation/submission in later patches."
+            "The reference runner does not submit proposals by default; it only "
+            "prepares payloads for validation/submission flows."
         ),
     }
 

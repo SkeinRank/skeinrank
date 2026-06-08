@@ -1,10 +1,10 @@
 """Local agent run and document-visit tracking for the alias scout.
 
-Patch 41F adds a dependency-light tracking contract that mirrors the state we
-will eventually persist in PostgreSQL. The tracker records run metadata,
-document fingerprints, processing context, and skip/revisit decisions in a JSONL
-ledger. It does not call SkeinRank, OpenRouter, or Elasticsearch and it never
-mutates dictionaries, snapshots, or runtime state.
+The dependency-light tracking contract mirrors the state expected from API
+persistence. The tracker records run metadata, document fingerprints, processing
+context, and skip/revisit decisions in a JSONL ledger. It does not call
+SkeinRank, OpenRouter, or Elasticsearch and it never mutates dictionaries,
+snapshots, or runtime state.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ class AgentRunTrackingConfig:
     enabled: bool = True
     ledger_path: Path = Path(".cache/openrouter_alias_scout_run_ledger.jsonl")
     agent_name: str = "openrouter-alias-scout"
-    agent_version: str = "41F"
+    agent_version: str = "openrouter-alias-scout"
     prompt_version: str = "canonical-hints-v1"
     skip_unchanged_documents: bool = True
     content_fields: tuple[str, ...] = DEFAULT_CONTENT_FIELDS

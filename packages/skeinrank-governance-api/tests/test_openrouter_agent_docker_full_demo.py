@@ -64,7 +64,8 @@ def test_docker_demo_plan_cli_is_network_free_and_safe() -> None:
     )
     report = json.loads(result.stdout)
     assert report["schema_version"] == "skeinrank.agent_docker_compose_full_demo.v1"
-    assert report["patch"] == "42D"
+    assert report["workflow"] == "docker_compose_full_demo"
+    assert "patch" not in report
     assert report["safety"]["network_calls_in_plan"] is False
     assert report["safety"]["runtime_mutation_enabled"] is False
     assert report["safety"]["snapshot_publish_enabled"] is False

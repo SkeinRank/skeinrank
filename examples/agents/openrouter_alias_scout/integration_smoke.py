@@ -1,13 +1,13 @@
 """Full offline integration smoke test for the OpenRouter alias scout.
 
-Patch 42A turns the manually tested contour into one reproducible smoke report:
+The smoke test turns the manually tested contour into one reproducible report:
 
     demo report -> synthetic LLM review -> synthetic validation -> proposal inbox
     -> approved apply plan -> snapshot evaluation -> cycle-style manifest
 
 The smoke is intentionally network-free. It does not call OpenRouter,
 Elasticsearch, or the SkeinRank API, and it never mutates runtime state. Live
-checks remain covered by the explicit 41B/41I commands.
+checks remain covered by explicit validation and scheduled-runner commands.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ JsonDict = dict[str, Any]
 
 @dataclass(frozen=True)
 class FullIntegrationSmokeConfig:
-    """Controls the network-free 42A end-to-end smoke test."""
+    """Controls the network-free end-to-end smoke test."""
 
     artifacts_dir: Path
     max_candidates: int = 3
@@ -390,7 +390,7 @@ def build_synthetic_llm_review_report(
             "canonical_value": canonical_value,
             "slot": slot,
             "confidence": item_confidence,
-            "context": f"Synthetic 42A smoke proposal for {candidate_alias}.",
+            "context": f"Synthetic integration smoke proposal for {candidate_alias}.",
             "proposal_source_name": proposal_source_name,
             "idempotency_key": idempotency_key,
             "source_payload": dict(pack),
@@ -578,7 +578,7 @@ def build_synthetic_review_decisions(
                 "idempotency_key": payload.get("idempotency_key"),
                 "action": "approve",
                 "reviewer": reviewer,
-                "comment": "42A offline integration smoke approval.",
+                "comment": "Offline integration smoke approval.",
             }
         )
     return decisions

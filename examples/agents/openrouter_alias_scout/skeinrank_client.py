@@ -2,7 +2,8 @@
 
 This module is intentionally dependency-light so the reference agent can run
 from the repository without introducing an agent framework yet. LangGraph,
-CrewAI, or OpenRouter tool-calling can wrap this client in later patches.
+CrewAI, or OpenRouter tool-calling can wrap this client without changing the
+network and mutation boundaries.
 """
 
 from __future__ import annotations

@@ -1,8 +1,8 @@
 """Scheduled/worker-mode helpers for the OpenRouter alias scout example.
 
-Patch 41I keeps orchestration dependency-light so the runner can be invoked from
-cron, Airflow, Prefect, GitHub Actions, or Kubernetes CronJobs. The helpers in
-this module only build plans, artifact manifests, and summarized cycle reports;
+Orchestration stays dependency-light so the runner can be invoked from cron,
+Airflow, Prefect, GitHub Actions, or Kubernetes CronJobs. The helpers in this
+module only build plans, artifact manifests, and summarized cycle reports;
 network calls stay explicit in the caller.
 """
 
@@ -202,7 +202,7 @@ def make_scheduled_run_id(*, cycle_name: str, seed: str | None = None) -> str:
 def write_cycle_artifact(
     *, artifacts_dir: Path, run_id: str, name: str, payload: Mapping[str, Any]
 ) -> Path:
-    """Write one JSON artifact using the 42C standard layout and return its path."""
+    """Write one JSON artifact using the standard layout and return its path."""
 
     metadata = write_standard_artifact(
         config=ArtifactStandardConfig(root_dir=artifacts_dir),
@@ -220,7 +220,7 @@ def write_cycle_manifest(
     artifacts: list[Mapping[str, Any]],
     cycle_report: Mapping[str, Any] | None = None,
 ) -> JsonDict:
-    """Write the 42C manifest for one scheduled cycle."""
+    """Write the artifact manifest for one scheduled cycle."""
 
     return write_artifact_manifest(
         config=ArtifactStandardConfig(root_dir=artifacts_dir),

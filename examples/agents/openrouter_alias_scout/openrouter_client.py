@@ -1,9 +1,8 @@
 """Dependency-light OpenRouter chat-completions client for alias scout runs.
 
-Patch 40J adds the first real model execution path, but keeps it small and
-safe: the client only calls OpenRouter/OpenAI-compatible chat completions and
-returns decoded JSON. It does not execute SkeinRank tools and it does not submit
-proposals by itself.
+The client keeps model execution small and safe: it only calls
+OpenRouter/OpenAI-compatible chat completions and returns decoded JSON. It does
+not execute SkeinRank tools and it does not submit proposals by itself.
 """
 
 from __future__ import annotations

@@ -56,6 +56,8 @@ def test_dictionary_quickstart_plan_is_safe_and_uses_existing_endpoints() -> Non
     plan = module.build_dictionary_quickstart_plan(config)
 
     assert plan["schema_version"] == "skeinrank.agent_dictionary_quickstart_plan.v1"
+    assert plan["workflow"] == "dictionary_quickstart"
+    assert "patch" not in plan
     assert "POST /v1/console/dictionary/validate" in plan["api_flow"]
     assert (
         "POST /v1/governance/elasticsearch/bindings (explicit flag only)"
