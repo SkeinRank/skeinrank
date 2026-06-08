@@ -45,6 +45,8 @@ swap aliases. It returns:
 - `blocking_issues`;
 - `warnings`;
 - `recommended_request`;
+- `confirmation_token` for this exact plan;
+- `confirmation_token_fields` showing what the token confirms;
 - `safety` metadata such as source index, target index, alias name, snapshot
   version, chunk size, time window, and any active job for the same binding.
 
@@ -63,14 +65,28 @@ The preflight blocks unsafe starts when:
   alias;
 - the binding has an unsupported write strategy.
 
-The start-job endpoint now runs the same preflight before creating a job. If the
-preflight fails, the API returns `409` with the blocking issues.
+The start-job endpoint runs the same preflight before creating a job and also
+requires the current `confirmation_token` returned by preflight. If the plan
+changes between preflight and start, the API returns `409` and asks the operator
+to re-run preflight.
+
+## Per-run confirmation
+
+A write job must include the `confirmation_token` from a fresh preflight response.
+The token is bound to the specific binding, snapshot version, source index,
+target index, alias, target field, chunk size, max document limit, filter, and
+time window. Operators should copy the token from the same preflight response
+they reviewed.
+
+This keeps `write` mode from becoming a standing approval. Every write-mode
+enrichment run confirms one concrete plan.
 
 ## Warnings
 
 Warnings do not block the job. They highlight beta risks such as:
 
-- `in_place` writes directly to the configured source index;
+- `in_place` writes directly to the configured source index and cannot be rolled
+  back by alias swap;
 - no time window means the full binding scope may be scanned;
 - the selected snapshot has no active aliases;
 - `max_documents` is at the API limit.

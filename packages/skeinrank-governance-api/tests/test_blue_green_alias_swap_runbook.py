@@ -124,7 +124,11 @@ def test_blue_green_alias_swap_examples_are_valid_and_safe() -> None:
     start_job = json.loads(_read(START_JOB_REQUEST))
     rollback = json.loads(_read(ROLLBACK_REQUEST))
 
-    assert preflight == start_job
+    assert start_job["confirmation_token"] == "<copy-from-preflight-confirmation-token>"
+    start_job_without_token = {
+        key: value for key, value in start_job.items() if key != "confirmation_token"
+    }
+    assert preflight == start_job_without_token
     assert preflight["alias_name"] == "platform_knowledge_base_search"
     assert preflight["target_index_name"].startswith(
         "platform_knowledge_base__skeinrank_"
@@ -137,4 +141,6 @@ def test_blue_green_alias_swap_examples_are_valid_and_safe() -> None:
     checklist = _read(OPERATOR_CHECKLIST)
     assert "write_strategy = reindex_alias_swap" in checklist
     assert "result_json.rollout.alias_swap_completed" in checklist
+    assert "confirmation_token" in _read(RUNBOOK)
+    assert "confirmation_token" in _read(START_JOB_REQUEST)
     assert "GET /v1/governance/elasticsearch/jobs/{job_id}" in checklist

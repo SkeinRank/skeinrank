@@ -3,7 +3,7 @@
 These examples support the 61B operator runbook:
 
 - `preflight-request.json` — read-only safety plan request for one binding;
-- `start-job-request.json` — job start request with the same safe shape;
+- `start-job-request.json` — job start request that echoes the reviewed preflight `confirmation_token`;
 - `rollback-request.json` — conservative rollback request body;
 - `operator-checklist.md` — short manual checklist for production rollouts.
 

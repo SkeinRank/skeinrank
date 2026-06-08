@@ -187,6 +187,10 @@ Elasticsearch/OpenSearch enrichment operations:
 ```text
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+
+The preflight response includes a per-run `confirmation_token`. Write-mode job
+starts must echo that token so an operator confirms the exact snapshot, target,
+alias, chunk size, document limit, and filter plan before any write is queued.
 POST /v1/governance/elasticsearch/jobs/{job_id}/pause
 POST /v1/governance/elasticsearch/jobs/{job_id}/resume
 ```

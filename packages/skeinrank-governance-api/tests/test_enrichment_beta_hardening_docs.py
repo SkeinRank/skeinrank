@@ -44,6 +44,7 @@ def test_enrichment_beta_hardening_documents_real_api_surface() -> None:
         "POST /v1/governance/elasticsearch/jobs/{job_id}/rollback",
         "blocking_issues",
         "recommended_request",
+        "confirmation_token",
         "cancel_requested",
         "reindex_alias_swap",
         "in_place",
@@ -55,6 +56,7 @@ def test_enrichment_beta_hardening_documents_real_api_surface() -> None:
     assert "preflight_elasticsearch_enrichment_job" in routes
     assert "ElasticsearchEnrichmentPreflightResponse" in routes
     assert "ElasticsearchEnrichmentPreflightResponse" in schemas
+    assert "confirmation_token" in schemas
     assert "/elasticsearch/bindings/{binding_id}/jobs/preflight" in api_doc
 
     forbidden_fragments = (

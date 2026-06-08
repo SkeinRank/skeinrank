@@ -101,14 +101,16 @@ POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
 ```
 
 The preflight returns `ready`, `blocking_issues`, `warnings`,
-`recommended_request`, and safety metadata. It does not create jobs, write
-documents, reindex, or swap aliases. See
+`recommended_request`, `confirmation_token`, `confirmation_token_fields`, and
+safety metadata. It does not create jobs, write documents, reindex, or swap
+aliases. See
 [`enrichment-beta-hardening.md`](enrichment-beta-hardening.md) for the beta
 hardening contract and
 [`../deployment/blue-green-alias-swap-runbook.md`](../deployment/blue-green-alias-swap-runbook.md)
 for the operator rollout path.
 
-Start a write-mode enrichment job after preflight passes:
+Start a write-mode enrichment job after preflight passes and include the current
+`confirmation_token` from that preflight response:
 
 ```text
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs

@@ -9,6 +9,25 @@ from skeinrank_governance_api.elasticsearch import (
 )
 
 
+def _confirmed_enrichment_job_payload(
+    client: TestClient,
+    binding_id: int,
+    payload: dict | None = None,
+) -> dict:
+    """Return a job-start payload confirmed by a fresh preflight plan."""
+
+    confirmed_payload = dict(payload or {})
+    response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight",
+        json=confirmed_payload,
+    )
+    assert response.status_code == 200
+    preflight = response.json()
+    assert preflight["ready"] is True, preflight
+    confirmed_payload["confirmation_token"] = preflight["confirmation_token"]
+    return confirmed_payload
+
+
 def _client(
     tmp_path,
     *,
@@ -802,9 +821,12 @@ def test_elasticsearch_reindex_alias_swap_job(monkeypatch, tmp_path):
     )
     assert binding_response.status_code == 201
 
+    binding_id = binding_response.json()["id"]
     response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 2},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 2}
+        ),
     )
 
     assert response.status_code == 201
@@ -906,9 +928,12 @@ def test_elasticsearch_reindex_alias_swap_bootstraps_missing_alias(
         },
     )
 
+    binding_id = binding_response.json()["id"]
     response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 2, "alias_name": "docs"},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 2, "alias_name": "docs"}
+        ),
     )
 
     assert response.status_code == 201
@@ -973,9 +998,14 @@ def test_elasticsearch_reindex_alias_swap_job_can_be_rolled_back(monkeypatch, tm
     )
     assert binding_response.status_code == 201
 
+    binding_id = binding_response.json()["id"]
     job_response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 2, "target_index_name": "docs_v2", "alias_name": "docs"},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client,
+            binding_id,
+            {"max_documents": 2, "target_index_name": "docs_v2", "alias_name": "docs"},
+        ),
     )
     assert job_response.status_code == 201
     job_payload = job_response.json()
@@ -1053,9 +1083,12 @@ def test_elasticsearch_enrichment_job_can_be_queued_for_celery(monkeypatch, tmp_
     )
     assert binding_response.status_code == 201
 
+    binding_id = binding_response.json()["id"]
     response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 2},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 2}
+        ),
     )
 
     assert response.status_code == 201
@@ -1111,9 +1144,12 @@ def test_elasticsearch_enrichment_job_queue_failure_marks_job_failed(
         },
     )
 
+    binding_id = binding_response.json()["id"]
     response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 2},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 2}
+        ),
     )
 
     assert response.status_code == 503
@@ -1232,9 +1268,12 @@ def test_celery_enrichment_job_is_split_into_parallel_chunks(monkeypatch, tmp_pa
     )
     assert binding_response.status_code == 201
 
+    binding_id = binding_response.json()["id"]
     response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 3, "chunk_size": 2},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 3, "chunk_size": 2}
+        ),
     )
     assert response.status_code == 201
     job_id = response.json()["id"]
@@ -1377,9 +1416,12 @@ def test_celery_chunked_enrichment_uses_stable_document_snapshot(monkeypatch, tm
         },
     )
 
+    binding_id = binding_response.json()["id"]
     job_response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 10, "chunk_size": 1},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 10, "chunk_size": 1}
+        ),
     )
     assert job_response.status_code == 201
     job_id = job_response.json()["id"]
@@ -1467,9 +1509,12 @@ def test_elasticsearch_enrichment_job_can_be_cancelled_while_queued(
             "write_strategy": "reindex_alias_swap",
         },
     )
+    binding_id = binding_response.json()["id"]
     job_response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 2},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 2}
+        ),
     )
     assert job_response.status_code == 201
     job_id = job_response.json()["id"]
@@ -1566,9 +1611,12 @@ def test_running_chunked_enrichment_job_can_be_cancelled_safely(monkeypatch, tmp
             "write_strategy": "reindex_alias_swap",
         },
     )
+    binding_id = binding_response.json()["id"]
     job_response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 3, "chunk_size": 2},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 3, "chunk_size": 2}
+        ),
     )
     job_id = job_response.json()["id"]
 
@@ -1643,7 +1691,17 @@ def test_elasticsearch_enrichment_preflight_reports_blocking_issues(
     assert payload["safety"]["source_index"] == "docs"
     assert payload["safety"]["target_index"] == "docs__skeinrank_job_<job_id>"
     assert payload["safety"]["target_index_generated_after_job_creation"] is True
+    assert payload["safety"]["confirmation_required"] is True
+    assert payload["confirmation_token"].startswith("skeinrank-es-enrichment-v1:")
+    assert (
+        payload["confirmation_token_fields"]["binding_id"]
+        == binding_response.json()["id"]
+    )
     assert payload["recommended_request"]["alias_name"] == "docs"
+    assert (
+        payload["recommended_request"]["confirmation_token"]
+        == payload["confirmation_token"]
+    )
 
 
 def test_elasticsearch_enrichment_preflight_blocks_unsafe_target_index(
@@ -1692,6 +1750,72 @@ def test_elasticsearch_enrichment_preflight_blocks_unsafe_target_index(
     assert any("source index" in issue for issue in detail["blocking_issues"])
 
 
+def test_elasticsearch_enrichment_job_requires_current_confirmation_token(
+    monkeypatch, tmp_path
+):
+    from skeinrank_governance_api.routes import governance
+
+    monkeypatch.setattr(
+        governance, "ElasticsearchDiscoveryClient", FakeElasticsearchClient
+    )
+    client = _client(tmp_path, elasticsearch_url="http://es:9200")
+    client.post("/v1/governance/profiles", json={"name": "default_it"})
+    binding_response = client.post(
+        "/v1/governance/elasticsearch/bindings",
+        json={
+            "name": "infra docs",
+            "profile_name": "default_it",
+            "index_name": "docs",
+            "text_fields": ["title", "body"],
+            "target_field": "skeinrank",
+            "mode": "write",
+            "write_strategy": "reindex_alias_swap",
+        },
+    )
+    assert binding_response.status_code == 201
+    binding_id = binding_response.json()["id"]
+
+    request_payload = {"max_documents": 2}
+    preflight_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight",
+        json=request_payload,
+    )
+    assert preflight_response.status_code == 200
+    preflight = preflight_response.json()
+    assert preflight["ready"] is True
+    assert preflight["confirmation_token"].startswith("skeinrank-es-enrichment-v1:")
+
+    missing_token_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=request_payload,
+    )
+    assert missing_token_response.status_code == 409
+    assert (
+        "Confirmation token missing or stale"
+        in missing_token_response.json()["detail"]["message"]
+    )
+
+    stale_token_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json={
+            **request_payload,
+            "max_documents": 3,
+            "confirmation_token": preflight["confirmation_token"],
+        },
+    )
+    assert stale_token_response.status_code == 409
+    assert (
+        "Confirmation token missing or stale"
+        in stale_token_response.json()["detail"]["message"]
+    )
+
+    confirmed_response = client.post(
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json={**request_payload, "confirmation_token": preflight["confirmation_token"]},
+    )
+    assert confirmed_response.status_code == 201
+
+
 def test_elasticsearch_enrichment_preflight_blocks_concurrent_active_job(
     monkeypatch, tmp_path
 ):
@@ -1733,7 +1857,9 @@ def test_elasticsearch_enrichment_preflight_blocks_concurrent_active_job(
 
     first_job_response = client.post(
         f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
-        json={"max_documents": 2},
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 2}
+        ),
     )
     assert first_job_response.status_code == 201
     first_job = first_job_response.json()
@@ -1802,9 +1928,12 @@ def test_queued_enrichment_job_can_be_paused_and_resumed(monkeypatch, tmp_path):
             "write_strategy": "reindex_alias_swap",
         },
     )
+    binding_id = binding_response.json()["id"]
     job_response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 2},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 2}
+        ),
     )
     assert job_response.status_code == 201
     job_id = job_response.json()["id"]
@@ -1916,9 +2045,12 @@ def test_running_chunked_enrichment_job_pauses_at_checkpoint_and_resumes(
             "write_strategy": "reindex_alias_swap",
         },
     )
+    binding_id = binding_response.json()["id"]
     job_response = client.post(
-        f"/v1/governance/elasticsearch/bindings/{binding_response.json()['id']}/jobs",
-        json={"max_documents": 3, "chunk_size": 2},
+        f"/v1/governance/elasticsearch/bindings/{binding_id}/jobs",
+        json=_confirmed_enrichment_job_payload(
+            client, binding_id, {"max_documents": 3, "chunk_size": 2}
+        ),
     )
     job_id = job_response.json()["id"]
 
