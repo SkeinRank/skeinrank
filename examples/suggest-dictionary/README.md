@@ -1,11 +1,14 @@
-# Suggest a dictionary draft from documents
+# Suggest a dictionary from documents
 
-This example shows the deterministic cold-start workflow for teams that do not yet have a SkeinRank dictionary.
+These examples show the deterministic cold-start flow for teams that do not have a dictionary yet. The command scans local documents, finds significant unmatched terminology candidates, and writes a reviewable draft.
 
-The command scans local documents, finds significant unmatched terminology, and writes a reviewable dictionary draft. It does not call an LLM, connect to the Governance API, publish snapshots, mutate bindings, or change production runtime behavior.
+No model provider, API token, Governance API, Elasticsearch, or Docker stack is required.
+
+## CLI
 
 ```bash
 cd packages/skeinrank-core
+
 poetry run skeinrank suggest-dictionary ../../examples/suggest-dictionary/docs \
   --profile-name platform_candidates \
   --min-frequency 2 \
@@ -13,15 +16,20 @@ poetry run skeinrank suggest-dictionary ../../examples/suggest-dictionary/docs \
   --review ../../examples/suggest-dictionary/platform_candidates.review.md
 ```
 
-The draft is intentionally review-first. Candidates stay in `proposed` status until a human accepts or rejects them.
+Use `--dictionary` to filter terms and aliases that are already governed:
 
-```python
-from skeinrank import DictionaryDraft
-
-draft = DictionaryDraft.from_file("platform_candidates.dictionary-draft.json")
-print(draft.review_markdown())
-
-preview_dictionary = draft.accept_all().to_dictionary()
+```bash
+poetry run skeinrank suggest-dictionary ../../examples/suggest-dictionary/docs \
+  --dictionary ../../examples/sdk/platform_ops_demo.dictionary.json \
+  --profile-name platform_candidates \
+  --out ../../examples/suggest-dictionary/platform_candidates.dictionary-draft.json
 ```
 
-Use this flow for local exploration and onboarding. Production changes should still go through review, validation, snapshots, and rollout policy.
+## Python example
+
+```bash
+cd packages/skeinrank-core
+poetry run python ../../examples/suggest-dictionary/suggest_from_docs.py
+```
+
+The script prints the review markdown and shows the review boundary. If the generated draft contains exportable aliases, it also performs a local in-memory preview. Production workflows should review candidates before rollout.

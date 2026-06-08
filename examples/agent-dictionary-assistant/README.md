@@ -1,27 +1,29 @@
-# Agent-assisted dictionary draft
+# Agent dictionary assistant
 
-This example shows the optional OpenRouter-assisted workflow for teams that do not yet have a clean dictionary.
+These examples show the optional assistant flow for cold-start dictionary creation. The assistant is not the runtime path. SkeinRank first discovers deterministic, evidence-backed candidates from local documents; OpenRouter can then group and name those candidates into a reviewable draft.
 
-The workflow keeps runtime deterministic:
+The output is still a `DictionaryDraft`. Reviewers decide what becomes a runtime dictionary.
 
-1. SkeinRank scans local documents with the deterministic candidate discovery engine.
-2. OpenRouter groups and names only those evidence-backed candidates.
-3. The output is a reviewable dictionary draft, not a production dictionary.
-4. A human reviews the draft before converting accepted candidates into runtime terminology.
+## Deterministic first
 
-## CLI
+Use the local suggestion command before adding a model provider:
 
-Set your OpenRouter key and model explicitly:
+```bash
+cd packages/skeinrank-core
+
+poetry run skeinrank suggest-dictionary ../../examples/agent-dictionary-assistant/docs \
+  --profile-name platform_candidates \
+  --min-frequency 2 \
+  --out ../../examples/agent-dictionary-assistant/platform_candidates.dictionary-draft.json \
+  --review ../../examples/agent-dictionary-assistant/platform_candidates.review.md
+```
+
+## OpenRouter-assisted grouping
 
 ```bash
 export OPENROUTER_API_KEY="..."
 export OPENROUTER_MODEL="provider/model"
-```
 
-Generate a reviewable draft:
-
-```bash
-cd packages/skeinrank-core
 poetry run skeinrank assist-dictionary ../../examples/agent-dictionary-assistant/docs \
   --model "$OPENROUTER_MODEL" \
   --profile-name platform_assisted_terms \
@@ -29,27 +31,27 @@ poetry run skeinrank assist-dictionary ../../examples/agent-dictionary-assistant
   --review ../../examples/agent-dictionary-assistant/platform_assisted.review.md
 ```
 
-The command never publishes snapshots, mutates bindings, or changes governance state.
+The assistant receives candidate summaries and evidence snippets, not production credentials or runtime state. Aliases that do not match deterministic evidence are dropped.
 
-## Python
+## Offline assistant demo
 
-```python
-import os
-from skeinrank import build_dictionary_from_docs
-
-result = build_dictionary_from_docs(
-    ["../../examples/agent-dictionary-assistant/docs"],
-    model=os.environ["OPENROUTER_MODEL"],
-)
-
-print(result.review_markdown())
-result.save("platform_assisted.dictionary-draft.json")
+```bash
+cd packages/skeinrank-core
+poetry run python ../../examples/agent-dictionary-assistant/offline_assisted_demo.py
 ```
 
-To preview locally after review:
+The offline demo uses a fake transport and makes no network request. It demonstrates the same evidence-bound contract that the OpenRouter transport uses.
+
+## Review before runtime
 
 ```python
-dictionary = result.draft.accept_all().to_dictionary()
+from skeinrank import DictionaryDraft, SkeinRank
+
+draft = DictionaryDraft.from_file("platform_assisted.dictionary-draft.json")
+runtime_dictionary = draft.accept_all().to_dictionary()
+sr = SkeinRank(runtime_dictionary)
+
+print(sr.canonicalize("KubeletOOM on EdgeGateway"))
 ```
 
-Use `accept_all()` only for local preview. In production, review candidates and promote approved terminology through the governance workflow.
+Use `accept_all()` only for local preview or controlled demos. Production flows should review individual candidates, publish an immutable snapshot, and roll that snapshot out through a binding.

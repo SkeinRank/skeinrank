@@ -1,6 +1,8 @@
 # Import existing dictionaries
 
-These examples show how to convert existing term lists into the SkeinRank dictionary shape without touching production runtime state.
+These examples show how to convert existing terminology files into local SkeinRank dictionary candidates. The import flow is offline: it writes a candidate dictionary or draft and a review report, but it does not change production runtime state.
+
+## Convert CSV or ES synonyms
 
 ```bash
 cd packages/skeinrank-core
@@ -15,38 +17,38 @@ poetry run skeinrank import-dictionary ../../examples/import-dictionary/es_synon
   --out ../../examples/import-dictionary/es_synonyms.dictionary.json
 ```
 
-The command prints a conversion report with canonical term counts, alias counts, and review findings such as duplicate mappings, aliases that point to more than one canonical value, risky short aliases, and validator findings from the lightweight dictionary validator.
+The command prints a conversion report with canonical term counts, alias counts, parse findings, build findings, and validator findings.
 
-Useful report modes:
+## Write a report
 
 ```bash
 poetry run skeinrank import-dictionary ../../examples/import-dictionary/terms.json \
-  --json-report \
-  --report ../../examples/import-dictionary/import-report.json
+  --report ../../examples/import-dictionary/import-report.md
 
-poetry run skeinrank import-dictionary ../../examples/import-dictionary/es_synonyms.txt \
-  --format es-synonyms \
-  --strict-validate
+poetry run skeinrank import-dictionary ../../examples/import-dictionary/terms.json \
+  --json-report \
+  --compact
 ```
 
-`--no-validate` produces a raw conversion report. `--strict-validate` treats validator errors as fatal findings. The default mode is review-friendly: it reports validator errors as warnings unless the candidate payload itself is unusable.
+`--report` writes markdown. `--json-report` prints a machine-readable report to stdout.
 
-Use `--draft-out` when the imported list should be reviewed before it becomes a runtime dictionary:
+## Create a reviewable draft
 
 ```bash
 poetry run skeinrank import-dictionary ../../examples/import-dictionary/es_synonyms.txt \
   --format es-synonyms \
   --name platform_ops_import \
-  --draft-out ../../examples/import-dictionary/es_synonyms.dictionary-draft.json
+  --draft-out ../../examples/import-dictionary/es_synonyms.dictionary-draft.json \
+  --report ../../examples/import-dictionary/es_synonyms.import-report.md
 ```
 
-The draft artifact keeps every candidate in `proposed` status. Python callers can render a review summary and export a runtime dictionary only after an explicit review step:
+The draft artifact keeps every candidate in `proposed` status. Reviewers can inspect it before accepting any runtime dictionary changes.
 
-```python
-from skeinrank import DictionaryDraft
+## Python example
 
-draft = DictionaryDraft.from_file("es_synonyms.dictionary-draft.json")
-print(draft.review_markdown())
-
-runtime_dictionary = draft.accept_all().to_dictionary()
+```bash
+cd packages/skeinrank-core
+poetry run python ../../examples/import-dictionary/import_existing_dictionary.py
 ```
+
+The script converts `es_synonyms.txt`, prints the report, creates a draft, accepts the draft for local preview, and canonicalizes a sample query. It is a local preview only; it does not write to governance state or runtime bindings.

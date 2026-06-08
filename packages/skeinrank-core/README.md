@@ -255,6 +255,11 @@ poetry run skeinrank assist-dictionary ../../examples/agent-dictionary-assistant
 
 The OpenRouter-assisted path does not publish snapshots, mutate bindings, or write runtime dictionaries automatically. It only improves a local draft for human review.
 
+Detailed guides and runnable examples:
+
+- [Import existing dictionaries](../../docs/guides/import-dictionary.md) and [examples/import-dictionary](../../examples/import-dictionary) for CSV, JSON, and Elasticsearch/OpenSearch synonym lists.
+- [Agent dictionary assistant](../../docs/guides/agent-dictionary-assistant.md), [examples/suggest-dictionary](../../examples/suggest-dictionary), and [examples/agent-dictionary-assistant](../../examples/agent-dictionary-assistant) for deterministic and optional OpenRouter-assisted draft creation.
+
 Run the example script:
 
 ```bash
