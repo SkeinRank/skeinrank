@@ -16,6 +16,7 @@ from .parsers import (
     detect_format,
 )
 from .report import ImportReport
+from .validator_bridge import validate_imported_dictionary
 
 _PARSERS = {
     "json": JsonDictionaryParser(),
@@ -50,13 +51,16 @@ def import_dictionary(
     *,
     fmt: str | None = None,
     name: str = "imported",
+    run_validator: bool = True,
+    strict_validator: bool = False,
 ) -> ImportResult:
     """Convert an existing term list into a local SkeinRank dictionary candidate.
 
     Supported input formats are simple JSON dictionaries, CSV files with
     canonical/alias columns, and Elasticsearch/OpenSearch synonym-list text files.
     The function returns a dictionary candidate and a report. It never mutates
-    governance state or runtime bindings.
+    governance state or runtime bindings. Validator findings are advisory by
+    default and can be made fatal with ``strict_validator=True``.
     """
 
     source = Path(path)
@@ -67,6 +71,14 @@ def import_dictionary(
     dictionary, build_warnings = build_dictionary(parsed.mappings, name=name)
 
     warnings = [*parsed.warnings, *build_warnings]
+    if dictionary is not None and run_validator:
+        warnings.extend(
+            validate_imported_dictionary(
+                dictionary,
+                strict=strict_validator,
+            )
+        )
+
     canonical_count = len(dictionary.terms) if dictionary else 0
     alias_count = (
         sum(len(term.aliases) for term in dictionary.terms) if dictionary else 0

@@ -204,6 +204,8 @@ poetry run skeinrank import-dictionary ../../examples/import-dictionary/es_synon
 
 The import path accepts simple JSON dictionaries, CSV files with canonical/alias columns, and Elasticsearch/OpenSearch synonym-list files. It writes a local candidate dictionary and prints a review report; it does not mutate governance state, snapshots, bindings, or runtime search.
 
+The review report also runs the imported candidate through the same lightweight dictionary validator used by `validate-dictionary`. Validator findings are surfaced in the import report so risky aliases, runtime collisions, and short ambiguous forms can be reviewed before the candidate is used. Use `--no-validate` when you only want a raw conversion report, or `--strict-validate` when validator errors should block the generated file.
+
 Run the example script:
 
 ```bash

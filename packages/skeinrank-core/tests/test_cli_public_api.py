@@ -281,3 +281,39 @@ def test_cli_import_dictionary_returns_nonzero_for_fatal_input(tmp_path: Path, c
     output = capsys.readouterr().out
     assert exit_code == 1
     assert "csv.missing_columns" in output
+
+
+def test_cli_import_dictionary_no_validate_skips_validator_findings(
+    tmp_path: Path, capsys
+):
+    source = tmp_path / "terms.json"
+    source.write_text(json.dumps({"postgresql": ["pg"]}), encoding="utf-8")
+
+    exit_code = main(["import-dictionary", str(source), "--no-validate"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "validate.risky_short_alias" not in output
+    assert "No issues found" in output
+
+
+def test_cli_import_dictionary_strict_validate_blocks_runtime_collisions(
+    tmp_path: Path, capsys
+):
+    source = tmp_path / "synonyms.txt"
+    source.write_text("pg => postgresql\npg => page\n", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "import-dictionary",
+            str(source),
+            "--format",
+            "es-synonyms",
+            "--strict-validate",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "validate.alias_collision" in output
+    assert "fatal" in output

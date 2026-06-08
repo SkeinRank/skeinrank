@@ -9,6 +9,7 @@ from .parsers import (
 )
 from .report import ImportReport
 from .runner import ImportResult, import_dictionary
+from .validator_bridge import validate_imported_dictionary
 
 __all__ = [
     "CsvDictionaryParser",
@@ -22,4 +23,5 @@ __all__ = [
     "Severity",
     "detect_format",
     "import_dictionary",
+    "validate_imported_dictionary",
 ]

@@ -8,6 +8,7 @@ from skeinrank.importing import (
     EsSynonymsParser,
     JsonDictionaryParser,
     detect_format,
+    validate_imported_dictionary,
 )
 
 
@@ -143,9 +144,18 @@ def test_import_dictionary_reports_alias_collisions_without_mutating_runtime(
 
     assert result.report.is_ok
     assert result.dictionary is not None
-    assert result.report.warning_count == 1
-    assert result.report.warnings[0].code == "build.alias_collision"
-    assert "review" in result.report.warnings[0].message.lower()
+    codes = {warning.code for warning in result.report.warnings}
+
+    assert result.report.warning_count == 3
+    assert codes == {
+        "build.alias_collision",
+        "validate.alias_collision",
+        "validate.risky_short_alias",
+    }
+    assert result.report.source_counts() == {"build": 1, "validate": 2}
+    assert any(
+        "review" in warning.message.lower() for warning in result.report.warnings
+    )
 
 
 def test_import_dictionary_save_rejects_fatal_import(tmp_path: Path):
@@ -174,3 +184,72 @@ def test_import_report_markdown_contains_counts(tmp_path: Path):
     assert "- Format: `json`" in markdown
     assert "- Canonical terms: **1**" in markdown
     assert "- Aliases: **2**" in markdown
+
+
+def test_import_dictionary_can_skip_validator_bridge(tmp_path: Path):
+    source = tmp_path / "terms.json"
+    source.write_text(
+        json.dumps({"postgresql": ["pg"]}),
+        encoding="utf-8",
+    )
+
+    result = import_dictionary(source, run_validator=False)
+
+    assert result.report.is_ok
+    assert result.report.warnings == []
+
+
+def test_import_dictionary_strict_validator_blocks_runtime_errors(tmp_path: Path):
+    source = tmp_path / "synonyms.txt"
+    source.write_text(
+        "pg => postgresql\n" "pg => page\n",
+        encoding="utf-8",
+    )
+
+    result = import_dictionary(
+        source,
+        fmt="es-synonyms",
+        strict_validator=True,
+    )
+
+    assert not result.report.is_ok
+    assert result.dictionary is None
+    assert any(
+        warning.severity.value == "fatal" and warning.code == "validate.alias_collision"
+        for warning in result.report.warnings
+    )
+
+
+def test_validator_bridge_reports_short_aliases():
+    result = import_dictionary(
+        Path(__file__).parent
+        / ".."
+        / ".."
+        / ".."
+        / ".."
+        / "examples"
+        / "import-dictionary"
+        / "terms.json"
+    )
+
+    dictionary = result.dictionary
+    assert dictionary is not None
+
+    findings = validate_imported_dictionary(dictionary)
+
+    assert any(finding.code == "validate.risky_short_alias" for finding in findings)
+
+
+def test_import_report_markdown_groups_validator_findings(tmp_path: Path):
+    source = tmp_path / "terms.json"
+    source.write_text(
+        json.dumps({"postgresql": ["pg"]}),
+        encoding="utf-8",
+    )
+
+    result = import_dictionary(source)
+    markdown = result.report.to_markdown()
+
+    assert "| Severity | Source | Code | Line | Message |" in markdown
+    assert "| warn | validate | `validate.risky_short_alias` |" in markdown
+    assert result.report.to_dict()["source_counts"] == {"validate": 1}

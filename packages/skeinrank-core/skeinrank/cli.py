@@ -182,6 +182,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Write compact JSON when --json-report is used.",
     )
+    import_dictionary_parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="Skip the dictionary validator bridge pass.",
+    )
+    import_dictionary_parser.add_argument(
+        "--strict-validate",
+        action="store_true",
+        help="Treat validator errors as fatal import findings.",
+    )
     import_dictionary_parser.set_defaults(handler=_handle_import_dictionary)
 
     document_text_parser = subparsers.add_parser(
@@ -317,7 +327,13 @@ def _handle_demo_dictionary(args: argparse.Namespace) -> int:
 
 
 def _handle_import_dictionary(args: argparse.Namespace) -> int:
-    result = import_dictionary(args.source, fmt=args.format, name=args.name)
+    result = import_dictionary(
+        args.source,
+        fmt=args.format,
+        name=args.name,
+        run_validator=not args.no_validate,
+        strict_validator=args.strict_validate,
+    )
     if args.json_report:
         _write_json(
             result.report.to_dict(),

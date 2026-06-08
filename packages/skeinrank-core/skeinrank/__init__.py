@@ -70,6 +70,7 @@ from .importing import (
     RawMapping,
     Severity,
     import_dictionary,
+    validate_imported_dictionary,
 )
 from .sdk import (
     CanonicalizedText,
@@ -162,6 +163,7 @@ __all__ = [
     "RawMapping",
     "Severity",
     "import_dictionary",
+    "validate_imported_dictionary",
     "SkeinRankError",
     "ContractError",
     "ModelUnavailable",
