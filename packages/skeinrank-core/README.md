@@ -211,6 +211,24 @@ report = scan_dictionary_drift(
 print(report.to_markdown())
 ```
 
+After review, turn alias-drift findings into a local dictionary draft without mutating production state:
+
+```bash
+poetry run skeinrank drift export-draft ../../examples/drift-scan/drift-report.json \
+  --out ../../examples/drift-scan/drift.dictionary-draft.json \
+  --review ../../examples/drift-scan/drift.dictionary-draft.md
+```
+
+```python
+from skeinrank import drift_report_to_dictionary_draft
+
+result = drift_report_to_dictionary_draft("drift-report.json")
+print(result.review_markdown())
+result.save("drift.dictionary-draft.json")
+```
+
+Only `alias_drift` findings become draft candidates. Stale terms, binding lag, and ambiguity signals are preserved as review findings so a human can decide whether to create dictionary proposals, context rules, or rollout tasks later.
+
 ## Local CLI
 
 Validate a dictionary exported from the governance API or used by `skeinrank-migrate`:

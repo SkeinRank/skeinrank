@@ -87,6 +87,11 @@ from .drift import (
     DriftSeverity,
     TerminologyDriftReport,
 )
+from .drift_proposals import (
+    DriftDraftConfig,
+    DriftDraftResult,
+    drift_report_to_dictionary_draft,
+)
 from .drift_scan import (
     BindingLagMetadata,
     DriftScanConfig,
@@ -203,6 +208,9 @@ __all__ = [
     "merge_binding_metadata",
     "scan_dictionary_drift",
     "scan_dictionary_drift_from_documents",
+    "DriftDraftConfig",
+    "DriftDraftResult",
+    "drift_report_to_dictionary_draft",
     "DriftSeverity",
     "DriftReportSummary",
     "DriftFindingType",

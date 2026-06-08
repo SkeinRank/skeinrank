@@ -21,6 +21,8 @@ from skeinrank import (
     DiscoveredCandidate,
     DraftCandidate,
     DraftFinding,
+    DriftDraftConfig,
+    DriftDraftResult,
     DriftEvidence,
     DriftFinding,
     DriftFindingType,
@@ -42,6 +44,7 @@ from skeinrank import (
     demo_dictionary,
     discover_candidates,
     discover_candidates_from_documents,
+    drift_report_to_dictionary_draft,
     expand_document_paths,
     extract,
     extract_terms,
@@ -132,6 +135,9 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert TerminologyDriftReport is not None
     assert BindingLagMetadata is not None
     assert DriftScanConfig is not None
+    assert DriftDraftConfig is not None
+    assert DriftDraftResult is not None
+    assert callable(drift_report_to_dictionary_draft)
     assert callable(load_binding_metadata)
     assert callable(merge_binding_metadata)
     assert callable(scan_dictionary_drift)

@@ -22,6 +22,7 @@ from .documents import (
     extract_document_text,
     extract_terms_from_document,
 )
+from .drift_proposals import DriftDraftConfig, drift_report_to_dictionary_draft
 from .drift_scan import (
     DriftScanConfig,
     load_binding_metadata,
@@ -533,6 +534,49 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     drift_scan_parser.set_defaults(handler=_handle_drift_scan)
 
+    drift_export_draft_parser = drift_subparsers.add_parser(
+        "export-draft",
+        help="Convert a drift report into a reviewable dictionary draft.",
+    )
+    drift_export_draft_parser.add_argument(
+        "report",
+        help="Path to a terminology drift report JSON file.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--out",
+        help="Write the dictionary draft JSON to this file.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--review",
+        help="Write a markdown draft review report to this file.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the dictionary draft JSON to stdout.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json is used.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--profile-name",
+        default=None,
+        help="Override the profile name used in the dictionary draft.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--slot",
+        default="TERM",
+        help="Default slot for alias-drift draft candidates.",
+    )
+    drift_export_draft_parser.add_argument(
+        "--no-report-findings",
+        action="store_true",
+        help="Do not copy drift findings into the draft review findings table.",
+    )
+    drift_export_draft_parser.set_defaults(handler=_handle_drift_export_draft)
+
     document_text_parser = subparsers.add_parser(
         "document-text",
         help="Extract plain text from a supported local document.",
@@ -809,6 +853,32 @@ def _handle_drift_scan(args: argparse.Namespace) -> int:
         )
     elif not args.out and not args.markdown:
         _write_text(report.to_markdown(), output_path=None)
+    return 0
+
+
+def _handle_drift_export_draft(args: argparse.Namespace) -> int:
+    result = drift_report_to_dictionary_draft(
+        args.report,
+        config=DriftDraftConfig(
+            profile_name=args.profile_name,
+            default_slot=args.slot,
+            include_report_findings=not args.no_report_findings,
+        ),
+    )
+    if args.out:
+        result.save(args.out)
+        print(f"Wrote {args.out}")
+    if args.review:
+        Path(args.review).write_text(result.review_markdown(), encoding="utf-8")
+        print(f"Wrote {args.review}")
+    if args.json:
+        _write_json(
+            result.draft.model_dump(mode="json", exclude_none=True),
+            output_path=None,
+            compact=args.compact,
+        )
+    elif not args.out and not args.review:
+        _write_text(result.review_markdown(), output_path=None)
     return 0
 
 
