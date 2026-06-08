@@ -105,17 +105,21 @@ def test_discussion_and_label_docs_explain_repository_community_flow() -> None:
     ):
         assert category in discussions
 
-    assert "Welcome to SkeinRank Discussions" in discussions
-    assert "Public beta feedback: v0.10.0-beta.1" in discussions
-    assert "Roadmap: Domain Language Control Plane for Search/RAG/Agents" in discussions
-    assert "Use Issues for" in discussions
-    assert "Use Discussions for" in discussions
+    assert "Issues vs Discussions" in discussions
+    assert "Maintainer workflow" in discussions
+    assert "release conversations" in discussions
+    assert "GitHub Release notes" in discussions
+    assert "v0.10.0-beta.1" not in discussions
+    assert "Pinned discussion drafts" not in discussions
+    assert "```markdown" not in discussions
 
     for label in REQUIRED_LABELS:
         assert label in labels_doc
 
-    assert "gh label create" in labels_doc
     assert ".github/labels.yml" in labels_doc
+    assert "source of truth" in labels_doc
+    assert "gh label create" not in labels_doc
+    assert "--force" not in labels_doc
 
 
 def test_readme_docs_and_contributing_link_community_guidance() -> None:
