@@ -4,14 +4,14 @@ def test_rerank_es_contract_summary(client):
         "index": "kb",
         "bm25_k": 2,
         "top_k": 1,
-        "profile": "e5_fast_torch",
+        "profile": "rerank_auto",
         "passport": "summary",
     }
     r = client.post("/v1/rerank/es", json=payload)
     assert r.status_code == 200
     data = r.json()
     assert "request_id" in data
-    assert data["profile"] == "e5_fast_torch"
+    assert data["profile"] == "rerank_auto"
     assert data["index"] == "kb"
     assert data["bm25_k"] == 2
     assert data["top_k"] == 1

@@ -46,7 +46,7 @@ class ServerConfig:
             es_timeout_s=float(
                 os.getenv("SKEINRANK_ES_TIMEOUT_S") or os.getenv("ES_TIMEOUT_S") or "5"
             ),
-            default_profile=os.getenv("SKEINRANK_DEFAULT_PROFILE", "e5_fast_torch"),
+            default_profile=os.getenv("SKEINRANK_DEFAULT_PROFILE", "rerank_auto"),
             default_attribute_profile=os.getenv(
                 "SKEINRANK_DEFAULT_ATTRIBUTE_PROFILE", "default_it"
             ),

@@ -1,7 +1,4 @@
-"""A tiny, dependency-free scorer used for v0.0.x.
-
-This exists so the package is runnable out of the box and the API contracts
-can be stabilized before shipping heavier ML backends.
+"""Dependency-free lexical scorer used by the core reranking API.
 
 Scoring strategy: normalized token overlap (cosine on binary term sets).
 """

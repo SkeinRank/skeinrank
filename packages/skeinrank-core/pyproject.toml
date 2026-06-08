@@ -38,7 +38,6 @@ pydantic = ">=2.6,<3"
 typing-extensions = {version = ">=4.7", markers = "python_version < '3.11'"}
 
 # The core SDK intentionally has no ML runtime dependencies.
-# Legacy reranking experiments live in source modules, but are not exposed as install extras.
 
 [tool.poetry.scripts]
 skeinrank = "skeinrank.cli:entrypoint"

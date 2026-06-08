@@ -48,7 +48,7 @@ poetry install
 poetry run pytest -q
 ```
 
-Legacy reranking modules remain in the source tree for compatibility, but the package no longer exposes heavyweight ML install extras. The local SDK facade, demo dictionary, CLI, and document helpers do not require ML dependencies.
+The local SDK facade, demo dictionary, CLI, document helpers, and built-in reranking contracts do not require ML dependencies.
 
 ## Public Python facade
 

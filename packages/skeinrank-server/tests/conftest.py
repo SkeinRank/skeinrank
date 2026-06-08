@@ -12,7 +12,7 @@ def cfg():
         es_text_field="text",
         es_query_fields=["text", "title"],
         es_timeout_s=1.0,
-        default_profile="e5_fast_torch",
+        default_profile="rerank_auto",
         default_attribute_profile="default_it",
         default_passport="summary",
         telemetry="off",
@@ -140,8 +140,8 @@ def client(cfg, monkeypatch):
 
         def diagnostics(self):
             return {
-                "runtime": {"torch_version": "fake"},
-                "available_profiles": ["e5_fast_torch"],
+                "runtime": {"backend": "builtin"},
+                "available_profiles": ["rerank_auto"],
             }
 
     monkeypatch.setattr(core_mod, "CoreAdapter", FakeCore)

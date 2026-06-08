@@ -96,5 +96,5 @@ class CoreAdapter:
         )
 
     def diagnostics(self) -> dict[str, Any]:
-        engine = self._RerankEngine(profile="e5_fast_torch")
+        engine = self._RerankEngine(profile="rerank_auto")
         return engine.diagnostics()

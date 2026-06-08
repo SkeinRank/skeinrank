@@ -28,7 +28,7 @@ export SKEINRANK_ES_URL="http://localhost:9200"
 export SKEINRANK_ES_INDEX="kb"
 export SKEINRANK_ES_TEXT_FIELD="text"
 export SKEINRANK_ES_QUERY_FIELDS="text,title"
-export SKEINRANK_DEFAULT_PROFILE="e5_fast_torch"
+export SKEINRANK_DEFAULT_PROFILE="rerank_auto"
 export SKEINRANK_DEFAULT_ATTRIBUTE_PROFILE="default_it"
 ```
 
@@ -74,7 +74,7 @@ curl -s http://localhost:8000/v1/rerank/es \
     "index": "kb",
     "bm25_k": 100,
     "top_k": 10,
-    "profile": "e5_fast_torch",
+    "profile": "rerank_auto",
     "passport": "summary"
   }'
 ```
