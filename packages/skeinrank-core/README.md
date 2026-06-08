@@ -252,6 +252,29 @@ poetry run skeinrank document-text incident-runbook.docx --output incident-runbo
 
 The CLI returns JSON for `extract`, raw text by default for `canonicalize` and `document-text`, and supports `--output`, `--compact`, `--max-matches`, and `--context-chars` where relevant.
 
+
+## Candidate discovery engine
+
+The core package also includes a deterministic candidate discovery engine for cold-start dictionary suggestions and future terminology drift reports. It scans local text, filters known dictionary terms, ranks unmatched technical candidates, and returns evidence snippets for review.
+
+```python
+from skeinrank import CandidateDiscoveryConfig, discover_candidates, demo_dictionary
+
+report = discover_candidates(
+    [
+        {"source": "incident-1.md", "text": "Kubelet OOM after pg migration"},
+        {"source": "incident-2.md", "text": "Kubelet OOM returned during deploy"},
+    ],
+    dictionary=demo_dictionary(),
+    config=CandidateDiscoveryConfig(min_frequency=2),
+)
+
+for candidate in report.top_candidates(5):
+    print(candidate.value, candidate.mention_count, candidate.evidence[0].text)
+```
+
+Candidate discovery does not create runtime terminology, mutate snapshots, or publish bindings. It is a shared local engine that later workflows can use to build reviewable drafts, import reports, and drift scans.
+
 ## Attribute extraction and enrichment
 
 The older attribute/profile API is still available for advanced local enrichment workflows.

@@ -2,6 +2,10 @@ from pathlib import Path
 
 import pytest
 from skeinrank import (
+    CandidateDiscoveryConfig,
+    CandidateDiscoveryDocument,
+    CandidateDiscoveryReport,
+    CandidateEvidence,
     CanonicalizedText,
     Dictionary,
     DictionaryAlias,
@@ -10,6 +14,7 @@ from skeinrank import (
     DictionaryTerm,
     DictionaryValidationIssue,
     DictionaryValidationReport,
+    DiscoveredCandidate,
     DraftCandidate,
     DraftFinding,
     EvidenceSnippet,
@@ -19,6 +24,8 @@ from skeinrank import (
     canonicalize,
     canonicalize_text,
     demo_dictionary,
+    discover_candidates,
+    discover_candidates_from_documents,
     extract,
     extract_terms,
     import_dictionary,
@@ -59,6 +66,13 @@ def _dictionary_payload():
 
 
 def test_sdk_symbols_are_exported_from_public_api():
+    assert CandidateDiscoveryConfig is not None
+    assert CandidateDiscoveryDocument is not None
+    assert CandidateDiscoveryReport is not None
+    assert CandidateEvidence is not None
+    assert DiscoveredCandidate is not None
+    assert callable(discover_candidates)
+    assert callable(discover_candidates_from_documents)
     assert Dictionary is not None
     assert DictionaryDraft is not None
     assert DraftCandidate is not None

@@ -39,6 +39,15 @@ from .attributes import (
     write_attribute_profile_template,
     write_jsonl,
 )
+from .candidates import (
+    CandidateDiscoveryConfig,
+    CandidateDiscoveryDocument,
+    CandidateDiscoveryReport,
+    CandidateEvidence,
+    DiscoveredCandidate,
+    discover_candidates,
+    discover_candidates_from_documents,
+)
 from .documents import (
     DocumentExtractionError,
     DocumentExtractionResult,
@@ -139,6 +148,13 @@ __all__ = [
     "AttributeStageStatus",
     "AttributePassport",
     "AttributePack",
+    "CandidateDiscoveryConfig",
+    "CandidateDiscoveryDocument",
+    "CandidateDiscoveryReport",
+    "CandidateEvidence",
+    "DiscoveredCandidate",
+    "discover_candidates",
+    "discover_candidates_from_documents",
     "DictionaryDraft",
     "DraftCandidate",
     "DraftFinding",
