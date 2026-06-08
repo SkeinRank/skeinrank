@@ -460,6 +460,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Mark an alias drift finding critical at this mention count.",
     )
     drift_scan_parser.add_argument(
+        "--stale-max-mentions",
+        type=int,
+        default=0,
+        help=(
+            "Report dictionary terms as stale when they have at most this many "
+            "matches in the scanned corpus."
+        ),
+    )
+    drift_scan_parser.add_argument(
+        "--no-stale-terms",
+        action="store_true",
+        help="Disable stale-term findings and only report unmatched alias candidates.",
+    )
+    drift_scan_parser.add_argument(
         "--no-phrases",
         action="store_true",
         help="Disable phrase candidate discovery.",
@@ -701,6 +715,8 @@ def _handle_drift_scan(args: argparse.Namespace) -> int:
         pinned_snapshot_version=args.pinned_snapshot,
         latest_snapshot_version=args.latest_snapshot,
         critical_min_mentions=args.critical_min_mentions,
+        stale_term_max_mentions=args.stale_max_mentions,
+        include_stale_terms=not args.no_stale_terms,
         discovery={
             "min_frequency": args.min_frequency,
             "min_document_frequency": args.min_document_frequency,

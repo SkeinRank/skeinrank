@@ -6,17 +6,34 @@
     {
       "canonical_value": "kubernetes",
       "slot": "TOOL",
-      "aliases": ["k8s", "kube"]
+      "aliases": [
+        "k8s",
+        "kube"
+      ]
     },
     {
       "canonical_value": "postgresql",
       "slot": "DATABASE",
-      "aliases": ["pg", "postgres"]
+      "aliases": [
+        "pg",
+        "postgres"
+      ]
     },
     {
       "canonical_value": "deployment",
       "slot": "CHANGE_EVENT",
-      "aliases": ["deploy", "rollout"]
+      "aliases": [
+        "deploy",
+        "rollout"
+      ]
+    },
+    {
+      "canonical_value": "mesos",
+      "slot": "TOOL",
+      "status": "deprecated",
+      "aliases": [
+        "mesos cluster"
+      ]
     }
   ]
 }

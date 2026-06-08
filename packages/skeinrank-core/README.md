@@ -181,7 +181,7 @@ poetry run skeinrank drift scan \
   --markdown ../../examples/drift-scan/drift-report.md
 ```
 
-The report uses the versioned `TerminologyDriftReport` schema and includes `alias_drift` findings, evidence snippets, and `unknown_alias_rate`. It is intentionally a local terminology drift report, not a real-time monitor or search observability system.
+The report uses the versioned `TerminologyDriftReport` schema and includes `alias_drift` findings for uncovered terminology, `stale_term` findings for dictionary entries that no longer appear in the scanned corpus, evidence snippets, and `unknown_alias_rate`. It is intentionally a local terminology drift report, not a real-time monitor or search observability system.
 
 ```python
 from skeinrank import DriftScanConfig, scan_dictionary_drift
@@ -189,7 +189,7 @@ from skeinrank import DriftScanConfig, scan_dictionary_drift
 report = scan_dictionary_drift(
     dictionary="company.dictionary.json",
     docs=["./docs"],
-    config=DriftScanConfig(min_frequency=2),
+    config=DriftScanConfig(discovery={"min_frequency": 2}),
 )
 
 print(report.to_markdown())

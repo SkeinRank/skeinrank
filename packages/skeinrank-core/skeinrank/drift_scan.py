@@ -8,7 +8,9 @@ snapshots, update bindings, or touch production runtime configuration.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +43,8 @@ class DriftScanConfig(BaseModel):
     pinned_snapshot_version: str | None = None
     latest_snapshot_version: str | None = None
     critical_min_mentions: int = Field(default=10, ge=1)
+    include_stale_terms: bool = True
+    stale_term_max_mentions: int = Field(default=0, ge=0)
     discovery: CandidateDiscoveryConfig = Field(
         default_factory=CandidateDiscoveryConfig
     )
@@ -69,9 +73,10 @@ def scan_dictionary_drift(
     """Scan local documents for terminology not covered by a dictionary.
 
     The current MVP emits ``alias_drift`` findings for significant unmatched
-    candidates and computes ``unknown_alias_rate`` from local evidence. It is a
-    report-only workflow and never writes proposals, snapshots, bindings, or
-    runtime dictionaries.
+    candidates and ``stale_term`` findings for dictionary terms with little or
+    no evidence in the scanned corpus. It computes ``unknown_alias_rate`` from
+    local evidence. It is a report-only workflow and never writes proposals,
+    snapshots, bindings, or runtime dictionaries.
     """
 
     normalized_config = _coerce_config(config)
@@ -107,14 +112,14 @@ def scan_dictionary_drift_from_documents(
         dictionary=loaded_dictionary,
         config=normalized_config.discovery,
     )
-    known_match_count = _known_match_count(normalized_documents, loaded_dictionary)
+    match_stats = _dictionary_match_stats(normalized_documents, loaded_dictionary)
     unknown_mentions = candidate_report.total_mentions
-    denominator = known_match_count + unknown_mentions
+    denominator = match_stats.total_match_count + unknown_mentions
     unknown_alias_rate = (unknown_mentions / denominator) if denominator else 0.0
     top_score = max(
         (candidate.score for candidate in candidate_report.candidates), default=1.0
     )
-    findings = [
+    alias_findings = [
         _alias_drift_finding(
             candidate,
             config=normalized_config,
@@ -122,6 +127,22 @@ def scan_dictionary_drift_from_documents(
         )
         for candidate in candidate_report.candidates
     ]
+    stale_findings = (
+        _stale_term_findings(
+            loaded_dictionary,
+            match_stats=match_stats,
+            config=normalized_config,
+        )
+        if normalized_config.include_stale_terms
+        else []
+    )
+    findings = [*alias_findings, *stale_findings]
+    runtime_term_count = _runtime_term_count(loaded_dictionary)
+    covered_term_count = sum(
+        1
+        for count in match_stats.term_mentions.values()
+        if count > normalized_config.stale_term_max_mentions
+    )
     profile_name = normalized_config.profile_name or loaded_dictionary.profile_name
     notes = [
         "Local drift scan only; no governance, snapshot, binding, or runtime state was changed."
@@ -140,8 +161,12 @@ def scan_dictionary_drift_from_documents(
             "unknown_alias_rate": round(unknown_alias_rate, 6),
             "unknown_candidate_count": candidate_report.candidate_count,
             "unknown_candidate_mentions": unknown_mentions,
-            "known_dictionary_match_count": known_match_count,
+            "known_dictionary_match_count": match_stats.total_match_count,
             "known_term_count": candidate_report.known_term_count,
+            "dictionary_term_count": runtime_term_count,
+            "covered_dictionary_term_count": covered_term_count,
+            "stale_term_count": len(stale_findings),
+            "stale_term_max_mentions": normalized_config.stale_term_max_mentions,
         },
         findings=findings,
         notes=notes,
@@ -195,15 +220,95 @@ def _drift_evidence(item: CandidateEvidence, *, score: float) -> DriftEvidence:
     )
 
 
-def _known_match_count(
+@dataclass(frozen=True)
+class _DictionaryMatchStats:
+    total_match_count: int
+    term_mentions: Counter[str]
+    term_documents: Counter[str]
+
+
+def _dictionary_match_stats(
     documents: Sequence[CandidateDiscoveryDocument],
     dictionary: Dictionary,
-) -> int:
-    count = 0
+) -> _DictionaryMatchStats:
+    term_mentions: Counter[str] = Counter()
+    term_documents: Counter[str] = Counter()
+    total_match_count = 0
     for document in documents:
         result = extract_terms(document.text, dictionary=dictionary)
-        count += result.match_count
-    return count
+        total_match_count += result.match_count
+        seen_in_document: set[str] = set()
+        for match in result.matches:
+            normalized = _normalize_value(match.canonical_value)
+            term_mentions[normalized] += 1
+            seen_in_document.add(normalized)
+        for normalized in seen_in_document:
+            term_documents[normalized] += 1
+    return _DictionaryMatchStats(
+        total_match_count=total_match_count,
+        term_mentions=term_mentions,
+        term_documents=term_documents,
+    )
+
+
+def _stale_term_findings(
+    dictionary: Dictionary,
+    *,
+    match_stats: _DictionaryMatchStats,
+    config: DriftScanConfig,
+) -> list[DriftFinding]:
+    findings: list[DriftFinding] = []
+    for term in dictionary.terms:
+        if term.status not in {"active", "deprecated"}:
+            continue
+        normalized = _normalize_value(term.canonical_value)
+        mention_count = int(match_stats.term_mentions[normalized])
+        if mention_count > config.stale_term_max_mentions:
+            continue
+        document_count = int(match_stats.term_documents[normalized])
+        severity = (
+            DriftSeverity.INFO if term.status == "deprecated" else DriftSeverity.WARN
+        )
+        findings.append(
+            DriftFinding(
+                finding_type=DriftFindingType.STALE_TERM,
+                severity=severity,
+                title=f"Dictionary term has little or no corpus evidence: {term.canonical_value}",
+                description=(
+                    "This canonical term is present in the dictionary but was not "
+                    "observed above the configured evidence threshold in the scanned corpus."
+                ),
+                value=term.canonical_value,
+                canonical_value=term.canonical_value,
+                normalized_value=normalized,
+                metrics={
+                    "mention_count": mention_count,
+                    "document_count": document_count,
+                    "alias_count": len(term.aliases),
+                    "stale_term_max_mentions": config.stale_term_max_mentions,
+                },
+                recommended_action=(
+                    "Review whether this term should stay active, be deprecated, "
+                    "or remain for compatibility with older content."
+                ),
+                details={
+                    "slot": term.slot,
+                    "status": term.status,
+                    "aliases": [alias.value for alias in term.aliases],
+                },
+            )
+        )
+    return findings
+
+
+def _runtime_term_count(dictionary: Dictionary) -> int:
+    return sum(
+        1 for term in dictionary.terms if term.status in {"active", "deprecated"}
+    )
+
+
+def _normalize_value(value: str) -> str:
+    return " ".join(str(value).strip().casefold().split())
 
 
 def _coerce_documents(

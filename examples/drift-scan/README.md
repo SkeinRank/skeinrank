@@ -18,7 +18,8 @@ Useful fields in the JSON report:
 
 - `metrics.unknown_alias_rate`
 - `metrics.unknown_candidate_count`
+- `metrics.stale_term_count`
 - `findings[].finding_type`
 - `findings[].evidence`
 
-The current scan emits `alias_drift` findings for significant unmatched local terminology. Later workflows can turn reviewed findings into proposals, but this command only produces a report.
+The current scan emits `alias_drift` findings for significant unmatched local terminology and `stale_term` findings for dictionary terms that have little or no evidence in the scanned corpus. Later workflows can turn reviewed findings into proposals, but this command only produces a report.
