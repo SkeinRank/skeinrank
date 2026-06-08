@@ -33,6 +33,7 @@ Use Discussions for:
 - Questions about how SkeinRank works
 - Architecture and runtime design discussions
 - Integration ideas for search, RAG, Elasticsearch/OpenSearch, MCP, or agents
+- Search integration scope questions: query-time adapters, vector pre-embedding adapters, export artifacts, and operator-controlled delivery boundaries
 - Feedback on the public beta
 - Roadmap suggestions
 - Use-case examples from real teams

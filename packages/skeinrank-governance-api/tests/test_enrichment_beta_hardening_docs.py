@@ -8,6 +8,8 @@ ENRICHMENT_DOC = REPO_ROOT / "docs/guides/elasticsearch-enrichment.md"
 DOCS_README = REPO_ROOT / "docs/README.md"
 ROOT_README = REPO_ROOT / "README.md"
 API_DOC = REPO_ROOT / "docs/api/governance-api.md"
+SEARCH_SCOPE_DOC = REPO_ROOT / "docs/concepts/search-integration-scope.md"
+CONTRIBUTING = REPO_ROOT / "CONTRIBUTING.md"
 GOVERNANCE_API_README = REPO_ROOT / "packages/skeinrank-governance-api/README.md"
 ROUTES = (
     REPO_ROOT
@@ -31,6 +33,10 @@ def test_operator_controlled_search_delivery_docs_are_discoverable() -> None:
     assert "enrichment-beta-hardening.md" in _read(ENRICHMENT_DOC)
     assert "SkeinRank remains the source of truth" in _read(ENRICHMENT_DOC)
     assert "docs/guides/enrichment-beta-hardening.md" in _read(GOVERNANCE_API_README)
+    assert SEARCH_SCOPE_DOC.exists()
+    assert "concepts/search-integration-scope.md" in _read(DOCS_README)
+    assert "docs/concepts/search-integration-scope.md" in _read(ROOT_README)
+    assert "docs/concepts/search-integration-scope.md" in _read(CONTRIBUTING)
 
 
 def test_operator_controlled_search_delivery_documents_real_api_surface() -> None:
@@ -97,3 +103,28 @@ def test_operator_controlled_delivery_docs_avoid_dev_and_management_positioning(
     assert "general Elasticsearch/OpenSearch management layer" in hardening
     assert "Every delivery run confirms one concrete plan" in hardening
     assert "UI remains an inspection and review surface" in hardening
+
+
+def test_search_integration_scope_policy_keeps_engine_boundaries_explicit() -> None:
+    policy = _read(SEARCH_SCOPE_DOC)
+
+    required_fragments = (
+        "SkeinRank is a terminology control plane, not a search-engine management platform",
+        "Query-time lexical adapter",
+        "Vector pre-embedding adapter",
+        "Export artifacts",
+        "Operator-controlled delivery",
+        "the UI remains an inspection and review surface",
+        "per-run confirmation token",
+        "SkeinRank remains the source of truth",
+        "Avoid these scopes",
+        "owning search-engine mappings, analyzers, templates, or cluster settings",
+        "allowing agents to mutate search backends directly",
+        "adding heavyweight backend clients to `skeinrank-core`",
+    )
+    for fragment in required_fragments:
+        assert fragment in policy
+
+    assert "SkeinRankVectorStore" not in policy
+    assert "apply --to elasticsearch://prod" not in policy
+    assert "Patch" not in policy

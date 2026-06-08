@@ -276,6 +276,8 @@ Docs and examples: [`docs/guides/terminology-as-code.md`](docs/guides/terminolog
 
 Elasticsearch/OpenSearch delivery is an advanced operator-controlled workflow. SkeinRank owns governed terminology artifacts; the search engine remains the retrieval backend. Use preflight, per-run confirmation tokens, and blue/green alias swap for production-like runs.
 
+Search integrations follow a narrow scope: prefer query-time adapters, vector pre-embedding adapters, and export artifacts. Direct backend writes are reserved for explicit operator-controlled delivery workflows. See [`docs/concepts/search-integration-scope.md`](docs/concepts/search-integration-scope.md).
+
 Important surfaces include:
 
 ```text
@@ -421,7 +423,7 @@ The GitHub Actions workflow uses path-aware routing so docs/deployment changes d
 
 ## Project status
 
-SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, terminology drift reports, and operator-controlled Elasticsearch/OpenSearch delivery.
+SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, terminology drift reports, search integration scope, and operator-controlled Elasticsearch/OpenSearch delivery.
 
 ## License
 
