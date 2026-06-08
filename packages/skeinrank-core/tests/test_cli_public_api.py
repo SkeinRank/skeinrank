@@ -340,3 +340,90 @@ def test_cli_import_dictionary_can_write_reviewable_draft(tmp_path: Path, capsys
     payload = json.loads(draft_path.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "skeinrank.dictionary_draft.v1"
     assert payload["candidates"][0]["status"] == "proposed"
+
+
+def test_cli_suggest_dictionary_prints_review_markdown(tmp_path: Path, capsys):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "incident-1.md").write_text("KubeletOOM on EdgeGateway", encoding="utf-8")
+    (docs / "incident-2.md").write_text("KubeletOOM returned", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "suggest-dictionary",
+            str(docs),
+            "--profile-name",
+            "platform_candidates",
+            "--min-frequency",
+            "2",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Dictionary draft review" in output
+    assert "platform_candidates" in output
+    assert "KubeletOOM" in output
+
+
+def test_cli_suggest_dictionary_writes_draft_and_review_files(tmp_path: Path, capsys):
+    source = tmp_path / "incident.md"
+    source.write_text(
+        "RedisEvict happened\nRedisEvict happened again", encoding="utf-8"
+    )
+    draft_path = tmp_path / "suggested.dictionary-draft.json"
+    review_path = tmp_path / "suggested.review.md"
+
+    exit_code = main(
+        [
+            "suggest-dictionary",
+            str(source),
+            "--out",
+            str(draft_path),
+            "--review",
+            str(review_path),
+            "--min-frequency",
+            "2",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert f"Wrote {draft_path}" in output
+    assert f"Wrote {review_path}" in output
+    payload = json.loads(draft_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "skeinrank.dictionary_draft.v1"
+    assert any(
+        candidate["canonical_value"] == "RedisEvict"
+        for candidate in payload["candidates"]
+    )
+    assert "Dictionary draft review" in review_path.read_text(encoding="utf-8")
+
+
+def test_cli_suggest_dictionary_json_filters_known_terms(tmp_path: Path, capsys):
+    dictionary_path = _write_dictionary(tmp_path)
+    source = tmp_path / "incident.md"
+    source.write_text(
+        "k8s pg timeout with KubeletOOM\nKubeletOOM returned",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "suggest-dictionary",
+            str(source),
+            "--dictionary",
+            str(dictionary_path),
+            "--json",
+            "--compact",
+            "--min-frequency",
+            "2",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    values = {candidate["canonical_value"] for candidate in payload["candidates"]}
+    assert "KubeletOOM" in values
+    assert "k8s" not in {value.casefold() for value in values}
+    assert "pg" not in {value.casefold() for value in values}

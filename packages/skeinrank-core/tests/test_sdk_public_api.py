@@ -11,6 +11,8 @@ from skeinrank import (
     DictionaryAlias,
     DictionaryDraft,
     DictionaryStopListEntry,
+    DictionarySuggestionConfig,
+    DictionarySuggestionResult,
     DictionaryTerm,
     DictionaryValidationIssue,
     DictionaryValidationReport,
@@ -26,10 +28,13 @@ from skeinrank import (
     demo_dictionary,
     discover_candidates,
     discover_candidates_from_documents,
+    expand_document_paths,
     extract,
     extract_terms,
     import_dictionary,
     load_dictionary,
+    suggest_dictionary,
+    suggest_dictionary_from_documents,
     validate_dictionary,
     validate_imported_dictionary,
 )
@@ -94,6 +99,11 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert callable(canonicalize)
     assert callable(extract)
     assert callable(demo_dictionary)
+    assert DictionarySuggestionConfig is not None
+    assert DictionarySuggestionResult is not None
+    assert callable(suggest_dictionary)
+    assert callable(suggest_dictionary_from_documents)
+    assert callable(expand_document_paths)
     assert callable(import_dictionary)
     assert callable(validate_imported_dictionary)
 

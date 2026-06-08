@@ -138,6 +138,8 @@ Stable dictionary exports include:
 - `load_dictionary(...)`, `validate_dictionary(...)`
 - `extract_terms(...)`, `canonicalize_text(...)`
 - `ExtractionResult`, `TermMatch`, `CanonicalizedText`
+- `DictionaryDraft`, `DraftCandidate`, `DraftFinding`, `EvidenceSnippet`
+- `DictionarySuggestionConfig`, `DictionarySuggestionResult`, `suggest_dictionary(...)`, `suggest_dictionary_from_documents(...)`
 
 The matcher is deterministic and local. It honors active/deprecated term and alias statuses, profile/global stop lists, returns offsets, and includes evidence snippets with `<mark>...</mark>` highlights.
 
@@ -226,6 +228,18 @@ print(draft.review_markdown())
 runtime_dictionary = draft.accept_all().to_dictionary()
 ```
 
+Suggest a reviewable draft directly from local documents when there is no dictionary yet:
+
+```bash
+poetry run skeinrank suggest-dictionary ../../examples/suggest-dictionary/docs \
+  --profile-name platform_candidates \
+  --min-frequency 2 \
+  --out ../../examples/suggest-dictionary/platform_candidates.dictionary-draft.json \
+  --review ../../examples/suggest-dictionary/platform_candidates.review.md
+```
+
+The suggestion path is deterministic and local. It uses the same candidate discovery engine described below, filters known dictionary terms when `--dictionary` is provided, and keeps all suggestions in `proposed` status for review.
+
 Run the example script:
 
 ```bash
@@ -274,6 +288,25 @@ for candidate in report.top_candidates(5):
 ```
 
 Candidate discovery does not create runtime terminology, mutate snapshots, or publish bindings. It is a shared local engine that later workflows can use to build reviewable drafts, import reports, and drift scans.
+
+Build a reviewable draft from documents in Python:
+
+```python
+from skeinrank import suggest_dictionary_from_documents
+
+result = suggest_dictionary_from_documents(
+    ["../../examples/suggest-dictionary/docs"],
+    config={
+        "profile_name": "platform_candidates",
+        "discovery": {"min_frequency": 2},
+    },
+)
+
+result.save("platform_candidates.dictionary-draft.json")
+print(result.review_markdown())
+```
+
+The draft is a local review artifact, not a production dictionary. Reviewers can accept or reject candidates and explicitly convert accepted candidates for preview when needed.
 
 ## Attribute extraction and enrichment
 

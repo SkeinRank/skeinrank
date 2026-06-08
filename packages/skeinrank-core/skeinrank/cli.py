@@ -20,6 +20,7 @@ from .documents import (
 from .facade import demo_dictionary, demo_dictionary_payload
 from .importing import import_dictionary
 from .sdk import canonicalize_text, extract_terms, load_dictionary, validate_dictionary
+from .suggestions import DictionarySuggestionConfig, suggest_dictionary_from_documents
 
 _DEFAULT_CONTEXT_CHARS = 48
 
@@ -198,6 +199,79 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     import_dictionary_parser.set_defaults(handler=_handle_import_dictionary)
 
+    suggest_dictionary_parser = subparsers.add_parser(
+        "suggest-dictionary",
+        help=(
+            "Suggest a reviewable dictionary draft from local documents without "
+            "using an LLM."
+        ),
+    )
+    suggest_dictionary_parser.add_argument(
+        "sources",
+        nargs="+",
+        help="Document files or directories to scan for unmatched terminology.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--out",
+        help="Write the suggested dictionary draft JSON to this file.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--review",
+        help="Write a markdown review report to this file.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the suggested draft as JSON instead of markdown.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json is used.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--dictionary",
+        default=None,
+        help=(
+            "Optional existing dictionary JSON/YAML. Known canonicals and aliases "
+            "are filtered out of suggestions."
+        ),
+    )
+    suggest_dictionary_parser.add_argument(
+        "--profile-name",
+        default="suggested_terms",
+        help="Draft profile name to use in the suggested dictionary.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--slot",
+        default="TERM",
+        help="Default slot for suggested candidates.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--min-frequency",
+        type=int,
+        default=2,
+        help="Minimum total mentions required for a candidate.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--min-document-frequency",
+        type=int,
+        default=1,
+        help="Minimum number of documents a candidate must appear in.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=50,
+        help="Maximum candidates to include in the draft.",
+    )
+    suggest_dictionary_parser.add_argument(
+        "--no-phrases",
+        action="store_true",
+        help="Disable phrase candidate discovery.",
+    )
+    suggest_dictionary_parser.set_defaults(handler=_handle_suggest_dictionary)
+
     document_text_parser = subparsers.add_parser(
         "document-text",
         help="Extract plain text from a supported local document.",
@@ -355,6 +429,39 @@ def _handle_import_dictionary(args: argparse.Namespace) -> int:
     if args.draft_out:
         result.to_draft().save(args.draft_out)
         print(f"Wrote {args.draft_out}")
+    return 0
+
+
+def _handle_suggest_dictionary(args: argparse.Namespace) -> int:
+    config = DictionarySuggestionConfig(
+        profile_name=args.profile_name,
+        default_slot=args.slot,
+        discovery={
+            "min_frequency": args.min_frequency,
+            "min_document_frequency": args.min_document_frequency,
+            "max_candidates": args.max_candidates,
+            "include_phrase_candidates": not args.no_phrases,
+        },
+    )
+    result = suggest_dictionary_from_documents(
+        args.sources,
+        dictionary=args.dictionary,
+        config=config,
+    )
+    if args.out:
+        result.save(args.out)
+        print(f"Wrote {args.out}")
+    if args.review:
+        Path(args.review).write_text(result.review_markdown(), encoding="utf-8")
+        print(f"Wrote {args.review}")
+    if args.json:
+        _write_json(
+            result.draft.model_dump(mode="json", exclude_none=True),
+            output_path=None,
+            compact=args.compact,
+        )
+    elif not args.out and not args.review:
+        _write_text(result.review_markdown(), output_path=None)
     return 0
 
 

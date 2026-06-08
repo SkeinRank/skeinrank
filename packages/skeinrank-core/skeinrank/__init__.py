@@ -102,6 +102,13 @@ from .sdk import (
     load_dictionary,
     validate_dictionary,
 )
+from .suggestions import (
+    DictionarySuggestionConfig,
+    DictionarySuggestionResult,
+    expand_document_paths,
+    suggest_dictionary,
+    suggest_dictionary_from_documents,
+)
 
 __all__ = [
     "RerankEngine",
@@ -155,6 +162,11 @@ __all__ = [
     "DiscoveredCandidate",
     "discover_candidates",
     "discover_candidates_from_documents",
+    "DictionarySuggestionConfig",
+    "DictionarySuggestionResult",
+    "expand_document_paths",
+    "suggest_dictionary",
+    "suggest_dictionary_from_documents",
     "DictionaryDraft",
     "DraftCandidate",
     "DraftFinding",
