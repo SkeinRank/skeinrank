@@ -240,6 +240,21 @@ poetry run skeinrank suggest-dictionary ../../examples/suggest-dictionary/docs \
 
 The suggestion path is deterministic and local. It uses the same candidate discovery engine described below, filters known dictionary terms when `--dictionary` is provided, and keeps all suggestions in `proposed` status for review.
 
+Optionally ask OpenRouter to group and name the deterministic candidates. The assistant receives only evidence-backed candidate summaries, not production credentials or runtime state, and returns a reviewable draft. Runtime canonicalization remains deterministic after review:
+
+```bash
+export OPENROUTER_API_KEY="..."
+export OPENROUTER_MODEL="provider/model"
+
+poetry run skeinrank assist-dictionary ../../examples/agent-dictionary-assistant/docs \
+  --model "$OPENROUTER_MODEL" \
+  --profile-name platform_assisted_terms \
+  --out ../../examples/agent-dictionary-assistant/platform_assisted.dictionary-draft.json \
+  --review ../../examples/agent-dictionary-assistant/platform_assisted.review.md
+```
+
+The OpenRouter-assisted path does not publish snapshots, mutate bindings, or write runtime dictionaries automatically. It only improves a local draft for human review.
+
 Run the example script:
 
 ```bash
@@ -307,6 +322,23 @@ print(result.review_markdown())
 ```
 
 The draft is a local review artifact, not a production dictionary. Reviewers can accept or reject candidates and explicitly convert accepted candidates for preview when needed.
+
+Use OpenRouter as an optional grouping layer after deterministic discovery:
+
+```python
+import os
+from skeinrank import build_dictionary_from_docs
+
+result = build_dictionary_from_docs(
+    ["../../examples/agent-dictionary-assistant/docs"],
+    model=os.environ["OPENROUTER_MODEL"],
+)
+
+result.save("platform_assisted.dictionary-draft.json")
+print(result.review_markdown())
+```
+
+Every assistant candidate must map back to deterministic local evidence. Aliases without evidence are dropped, and candidates without evidence are ignored.
 
 ## Attribute extraction and enrichment
 

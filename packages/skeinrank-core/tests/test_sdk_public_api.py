@@ -21,8 +21,13 @@ from skeinrank import (
     DraftFinding,
     EvidenceSnippet,
     ExtractionResult,
+    OpenRouterAssistantError,
+    OpenRouterDictionaryAssistantConfig,
+    OpenRouterDictionaryAssistantResult,
     SkeinRank,
     TermMatch,
+    build_dictionary_from_docs,
+    build_dictionary_from_documents,
     canonicalize,
     canonicalize_text,
     demo_dictionary,
@@ -99,6 +104,11 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert callable(canonicalize)
     assert callable(extract)
     assert callable(demo_dictionary)
+    assert OpenRouterAssistantError is not None
+    assert OpenRouterDictionaryAssistantConfig is not None
+    assert OpenRouterDictionaryAssistantResult is not None
+    assert callable(build_dictionary_from_documents)
+    assert callable(build_dictionary_from_docs)
     assert DictionarySuggestionConfig is not None
     assert DictionarySuggestionResult is not None
     assert callable(suggest_dictionary)

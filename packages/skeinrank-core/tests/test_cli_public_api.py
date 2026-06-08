@@ -427,3 +427,28 @@ def test_cli_suggest_dictionary_json_filters_known_terms(tmp_path: Path, capsys)
     assert "KubeletOOM" in values
     assert "k8s" not in {value.casefold() for value in values}
     assert "pg" not in {value.casefold() for value in values}
+
+
+def test_cli_assist_dictionary_requires_openrouter_key(
+    tmp_path: Path, capsys, monkeypatch
+):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    source = tmp_path / "incident.md"
+    source.write_text(
+        "KubeletOOM happened\nKubeletOOM happened again", encoding="utf-8"
+    )
+
+    exit_code = main(
+        [
+            "assist-dictionary",
+            str(source),
+            "--model",
+            "test/model",
+            "--min-frequency",
+            "2",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "OpenRouter API key is required" in captured.err

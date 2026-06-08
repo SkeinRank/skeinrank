@@ -4,6 +4,13 @@ Only symbols exported from this module are considered **stable public API**.
 Internal modules may change without notice.
 """
 
+from .agent import (
+    OpenRouterAssistantError,
+    OpenRouterDictionaryAssistantConfig,
+    OpenRouterDictionaryAssistantResult,
+    build_dictionary_from_docs,
+    build_dictionary_from_documents,
+)
 from .app.engine import RerankEngine, rerank, rerank_many, score
 from .app.profiles import get_profile, list_profiles, validate_profile
 from .attributes import (
@@ -155,6 +162,11 @@ __all__ = [
     "AttributeStageStatus",
     "AttributePassport",
     "AttributePack",
+    "OpenRouterAssistantError",
+    "OpenRouterDictionaryAssistantConfig",
+    "OpenRouterDictionaryAssistantResult",
+    "build_dictionary_from_docs",
+    "build_dictionary_from_documents",
     "CandidateDiscoveryConfig",
     "CandidateDiscoveryDocument",
     "CandidateDiscoveryReport",

@@ -12,6 +12,11 @@ import sys
 from pathlib import Path
 from typing import Any, TextIO
 
+from .agent import (
+    OpenRouterAssistantError,
+    OpenRouterDictionaryAssistantConfig,
+    build_dictionary_from_docs,
+)
 from .documents import (
     DocumentExtractionError,
     extract_document_text,
@@ -35,7 +40,12 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:  # pragma: no cover - process-level behavior.
         _print_error("Interrupted")
         return 130
-    except (OSError, ValueError, DocumentExtractionError) as exc:
+    except (
+        OSError,
+        ValueError,
+        DocumentExtractionError,
+        OpenRouterAssistantError,
+    ) as exc:
         _print_error(str(exc))
         return 1
 
@@ -272,6 +282,100 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     suggest_dictionary_parser.set_defaults(handler=_handle_suggest_dictionary)
 
+    assist_dictionary_parser = subparsers.add_parser(
+        "assist-dictionary",
+        help=(
+            "Use OpenRouter to group deterministic document candidates into a "
+            "reviewable dictionary draft."
+        ),
+    )
+    assist_dictionary_parser.add_argument(
+        "sources",
+        nargs="+",
+        help="Document files or directories to scan before the assistant step.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--model",
+        required=True,
+        help="OpenRouter model identifier to use for candidate grouping.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--api-key",
+        default=None,
+        help="OpenRouter API key. Defaults to OPENROUTER_API_KEY.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--api-base",
+        default="https://openrouter.ai/api/v1/chat/completions",
+        help="OpenRouter-compatible chat completions endpoint.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=30.0,
+        help="HTTP timeout for the OpenRouter request.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--out",
+        help="Write the assisted dictionary draft JSON to this file.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--review",
+        help="Write a markdown review report to this file.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the assisted draft as JSON instead of markdown.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json is used.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--dictionary",
+        default=None,
+        help=(
+            "Optional existing dictionary JSON/YAML. Known canonicals and aliases "
+            "are filtered out before the assistant step."
+        ),
+    )
+    assist_dictionary_parser.add_argument(
+        "--profile-name",
+        default="assisted_terms",
+        help="Draft profile name to use in the assisted dictionary.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--slot",
+        default="TERM",
+        help="Default slot for assistant-grouped candidates.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--min-frequency",
+        type=int,
+        default=2,
+        help="Minimum total mentions required before a candidate reaches OpenRouter.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--min-document-frequency",
+        type=int,
+        default=1,
+        help="Minimum number of documents a candidate must appear in.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=25,
+        help="Maximum deterministic candidates to send to OpenRouter.",
+    )
+    assist_dictionary_parser.add_argument(
+        "--no-phrases",
+        action="store_true",
+        help="Disable phrase candidate discovery before the assistant step.",
+    )
+    assist_dictionary_parser.set_defaults(handler=_handle_assist_dictionary)
+
     document_text_parser = subparsers.add_parser(
         "document-text",
         help="Extract plain text from a supported local document.",
@@ -444,6 +548,41 @@ def _handle_suggest_dictionary(args: argparse.Namespace) -> int:
         },
     )
     result = suggest_dictionary_from_documents(
+        args.sources,
+        dictionary=args.dictionary,
+        config=config,
+    )
+    if args.out:
+        result.save(args.out)
+        print(f"Wrote {args.out}")
+    if args.review:
+        Path(args.review).write_text(result.review_markdown(), encoding="utf-8")
+        print(f"Wrote {args.review}")
+    if args.json:
+        _write_json(
+            result.draft.model_dump(mode="json", exclude_none=True),
+            output_path=None,
+            compact=args.compact,
+        )
+    elif not args.out and not args.review:
+        _write_text(result.review_markdown(), output_path=None)
+    return 0
+
+
+def _handle_assist_dictionary(args: argparse.Namespace) -> int:
+    config = OpenRouterDictionaryAssistantConfig(
+        model=args.model,
+        api_key=args.api_key,
+        api_base=args.api_base,
+        timeout_seconds=args.timeout_seconds,
+        profile_name=args.profile_name,
+        default_slot=args.slot,
+        min_frequency=args.min_frequency,
+        min_document_frequency=args.min_document_frequency,
+        max_candidates=args.max_candidates,
+        include_phrase_candidates=not args.no_phrases,
+    )
+    result = build_dictionary_from_docs(
         args.sources,
         dictionary=args.dictionary,
         config=config,
