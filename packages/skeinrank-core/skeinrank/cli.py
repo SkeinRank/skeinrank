@@ -18,6 +18,7 @@ from .documents import (
     extract_terms_from_document,
 )
 from .facade import demo_dictionary, demo_dictionary_payload
+from .importing import import_dictionary
 from .sdk import canonicalize_text, extract_terms, load_dictionary, validate_dictionary
 
 _DEFAULT_CONTEXT_CHARS = 48
@@ -140,6 +141,48 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write compact JSON instead of pretty-printed JSON.",
     )
     demo_dictionary_parser.set_defaults(handler=_handle_demo_dictionary)
+
+    import_dictionary_parser = subparsers.add_parser(
+        "import-dictionary",
+        help=(
+            "Convert an existing JSON, CSV, or Elasticsearch/OpenSearch synonym "
+            "list into a SkeinRank dictionary candidate."
+        ),
+    )
+    import_dictionary_parser.add_argument(
+        "source",
+        help="Path to the JSON/CSV/synonym-list file to import.",
+    )
+    import_dictionary_parser.add_argument(
+        "--out",
+        help="Write the imported SkeinRank dictionary JSON to this file.",
+    )
+    import_dictionary_parser.add_argument(
+        "--format",
+        choices=["json", "csv", "es-synonyms"],
+        default=None,
+        help="Override format detection.",
+    )
+    import_dictionary_parser.add_argument(
+        "--name",
+        default="imported",
+        help="Profile name to use in the imported dictionary.",
+    )
+    import_dictionary_parser.add_argument(
+        "--report",
+        help="Write the markdown import report to this file.",
+    )
+    import_dictionary_parser.add_argument(
+        "--json-report",
+        action="store_true",
+        help="Print the import report as JSON instead of markdown.",
+    )
+    import_dictionary_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Write compact JSON when --json-report is used.",
+    )
+    import_dictionary_parser.set_defaults(handler=_handle_import_dictionary)
 
     document_text_parser = subparsers.add_parser(
         "document-text",
@@ -270,6 +313,25 @@ def _handle_demo_dictionary(args: argparse.Namespace) -> int:
         output_path=args.output,
         compact=args.compact,
     )
+    return 0
+
+
+def _handle_import_dictionary(args: argparse.Namespace) -> int:
+    result = import_dictionary(args.source, fmt=args.format, name=args.name)
+    if args.json_report:
+        _write_json(
+            result.report.to_dict(),
+            output_path=args.report,
+            compact=args.compact,
+        )
+    else:
+        _write_text(result.report.to_markdown(), output_path=args.report)
+
+    if not result.report.is_ok:
+        return 1
+    if args.out:
+        result.save(args.out)
+        print(f"Wrote {args.out}")
     return 0
 
 

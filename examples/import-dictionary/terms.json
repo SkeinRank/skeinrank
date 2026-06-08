@@ -1,0 +1,17 @@
+{
+  "kubernetes": [
+    "k8s",
+    "kube"
+  ],
+  "postgresql": {
+    "slot": "DATABASE",
+    "aliases": [
+      "pg",
+      "postgres"
+    ]
+  },
+  "github actions": [
+    "gha",
+    "github ci"
+  ]
+}

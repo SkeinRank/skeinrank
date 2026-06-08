@@ -208,3 +208,76 @@ def test_cli_demo_dictionary_prints_builtin_payload(capsys, tmp_path: Path):
     written = json.loads(output_path.read_text(encoding="utf-8"))
     assert written["profile_name"] == "platform_ops_demo"
     assert len(written["terms"]) >= 30
+
+
+def test_cli_import_dictionary_from_es_synonyms_writes_candidate(
+    tmp_path: Path, capsys
+):
+    source = tmp_path / "synonyms.txt"
+    source.write_text(
+        "k8s, kube => kubernetes\n" "pg => postgresql\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "company.dictionary.json"
+
+    exit_code = main(
+        [
+            "import-dictionary",
+            str(source),
+            "--format",
+            "es-synonyms",
+            "--name",
+            "company_terms",
+            "--out",
+            str(out),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Dictionary import report" in captured.out
+    assert f"Wrote {out}" in captured.out
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["profile_name"] == "company_terms"
+    assert payload["terms"][0]["canonical_value"] == "kubernetes"
+
+
+def test_cli_import_dictionary_json_report_can_write_report_file(
+    tmp_path: Path, capsys
+):
+    source = tmp_path / "terms.json"
+    source.write_text(
+        json.dumps({"kubernetes": ["k8s"], "postgresql": ["pg"]}),
+        encoding="utf-8",
+    )
+    report_path = tmp_path / "report.json"
+
+    exit_code = main(
+        [
+            "import-dictionary",
+            str(source),
+            "--json-report",
+            "--compact",
+            "--report",
+            str(report_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == ""
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["detected_format"] == "json"
+    assert payload["canonical_count"] == 2
+    assert payload["alias_count"] == 2
+
+
+def test_cli_import_dictionary_returns_nonzero_for_fatal_input(tmp_path: Path, capsys):
+    source = tmp_path / "bad.csv"
+    source.write_text("name,value\nkubernetes,k8s\n", encoding="utf-8")
+
+    exit_code = main(["import-dictionary", str(source), "--format", "csv"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "csv.missing_columns" in output

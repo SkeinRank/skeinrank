@@ -63,6 +63,14 @@ from .facade import (
     demo_dictionary_payload,
     extract,
 )
+from .importing import (
+    ImportReport,
+    ImportResult,
+    ImportWarning,
+    RawMapping,
+    Severity,
+    import_dictionary,
+)
 from .sdk import (
     CanonicalizedText,
     Dictionary,
@@ -148,6 +156,12 @@ __all__ = [
     "extract",
     "demo_dictionary",
     "demo_dictionary_payload",
+    "ImportReport",
+    "ImportResult",
+    "ImportWarning",
+    "RawMapping",
+    "Severity",
+    "import_dictionary",
     "SkeinRankError",
     "ContractError",
     "ModelUnavailable",

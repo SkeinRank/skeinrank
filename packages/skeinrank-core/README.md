@@ -189,6 +189,21 @@ poetry run skeinrank demo-dictionary --compact
 poetry run skeinrank demo-dictionary --output ../../examples/sdk/platform_ops_demo.dictionary.json
 ```
 
+Convert existing term lists into a SkeinRank dictionary candidate:
+
+```bash
+poetry run skeinrank import-dictionary ../../examples/import-dictionary/company_terms.csv \
+  --name platform_ops_import \
+  --out ../../examples/import-dictionary/company_terms.dictionary.json
+
+poetry run skeinrank import-dictionary ../../examples/import-dictionary/es_synonyms.txt \
+  --format es-synonyms \
+  --name platform_ops_import \
+  --out ../../examples/import-dictionary/es_synonyms.dictionary.json
+```
+
+The import path accepts simple JSON dictionaries, CSV files with canonical/alias columns, and Elasticsearch/OpenSearch synonym-list files. It writes a local candidate dictionary and prints a review report; it does not mutate governance state, snapshots, bindings, or runtime search.
+
 Run the example script:
 
 ```bash

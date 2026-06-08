@@ -17,6 +17,7 @@ from skeinrank import (
     demo_dictionary,
     extract,
     extract_terms,
+    import_dictionary,
     load_dictionary,
     validate_dictionary,
 )
@@ -70,6 +71,7 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert callable(canonicalize)
     assert callable(extract)
     assert callable(demo_dictionary)
+    assert callable(import_dictionary)
 
 
 def test_load_dictionary_from_console_migration_payload():
