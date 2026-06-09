@@ -1,10 +1,9 @@
 """Safe validation/submission bridge for OpenRouter alias scout proposals.
 
-Patch 41B connected model-created ``proposal_payload`` values to the existing
-SkeinRank ``/v1/tools/validate-alias`` and ``/v1/tools/suggest-alias`` tools.
-Patch 41C keeps the same guarded flow, but classifies validation warnings before
-submission so the runner can avoid duplicate proposals and route edge cases to
-manual review.
+The bridge connects model-created ``proposal_payload`` values to the existing
+SkeinRank ``/v1/tools/validate-alias`` and ``/v1/tools/suggest-alias`` tools. It
+classifies validation warnings before submission so the runner can avoid
+duplicate proposals and route edge cases to manual review.
 """
 
 from __future__ import annotations
@@ -264,7 +263,7 @@ def classify_validation_decision(
     A warning can mean very different things. ``alias already maps to the
     requested canonical`` is an idempotent no-op, while slot mismatch or generic
     warnings require human review. This function keeps that policy outside the
-    backend so Patch 41C does not change existing API behavior.
+    backend so the guarded flow does not change existing API behavior.
     """
 
     cfg = config or ProposalSubmissionConfig()

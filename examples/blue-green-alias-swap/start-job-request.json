@@ -3,5 +3,6 @@
   "max_documents": 1000,
   "chunk_size": 250,
   "alias_name": "platform_knowledge_base_search",
-  "target_index_name": "platform_knowledge_base__skeinrank_20260529_1200"
+  "target_index_name": "platform_knowledge_base__skeinrank_20260529_1200",
+  "confirmation_token": "<copy-from-preflight-confirmation-token>"
 }

@@ -263,9 +263,9 @@ Ambiguous aliases represent surface forms that can map to multiple canonical mea
 
 Binding policy can define preferred slots, allowed tags, denied slots, context triggers, and explicit ambiguous-alias decisions. Runtime decisions are returned as `policy_decisions` where supported by query planning.
 
-## Elasticsearch/OpenSearch discovery and bindings
+## Elasticsearch/OpenSearch discovery and delivery
 
-Elasticsearch/OpenSearch endpoints are used to inspect index readiness, create bindings, preview enrichment, refresh evidence, and run controlled enrichment jobs.
+Elasticsearch/OpenSearch endpoints are used to inspect index readiness, create bindings, preview derived enrichment fields, refresh evidence, and run operator-controlled delivery jobs. SkeinRank owns governed terminology artifacts; the search engine remains the retrieval backend.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -278,8 +278,8 @@ Elasticsearch/OpenSearch endpoints are used to inspect index readiness, create b
 | DELETE | `/v1/governance/elasticsearch/bindings/{binding_id}` | Delete a binding. |
 | POST | `/v1/governance/elasticsearch/bindings/{binding_id}/dry-run` | Preview canonicalization/enrichment matches without writing. |
 | POST | `/v1/governance/elasticsearch/bindings/{binding_id}/evidence` | Fetch read-only evidence for candidate terms or aliases. |
-| POST | `/v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight` | Validate an enrichment job request before queueing it. |
-| POST | `/v1/governance/elasticsearch/bindings/{binding_id}/jobs` | Start an enrichment job. |
+| POST | `/v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight` | Validate an enrichment job request and return the per-run confirmation token. |
+| POST | `/v1/governance/elasticsearch/bindings/{binding_id}/jobs` | Start an enrichment job with the current confirmation token. |
 | GET | `/v1/governance/elasticsearch/jobs?binding_id=...` | List enrichment jobs, optionally filtered by binding. |
 | GET | `/v1/governance/elasticsearch/jobs/{job_id}` | Read job status, progress, checkpoint, and rollout metadata. |
 | POST | `/v1/governance/elasticsearch/jobs/{job_id}/cancel` | Request cancellation. |
@@ -287,7 +287,7 @@ Elasticsearch/OpenSearch endpoints are used to inspect index readiness, create b
 | POST | `/v1/governance/elasticsearch/jobs/{job_id}/resume` | Resume a paused job. |
 | POST | `/v1/governance/elasticsearch/jobs/{job_id}/rollback` | Roll back a completed alias-swap rollout when rollback metadata is available. |
 
-Supported write strategies are `in_place` and `reindex_alias_swap`. Use preflight before long-running jobs to inspect `blocking_issues` and the `recommended_request`.
+Supported write strategies are `in_place` and `reindex_alias_swap`. Use preflight before long-running jobs to inspect `blocking_issues`, copy the `confirmation_token`, and start only the exact plan that was reviewed. Prefer `reindex_alias_swap` for production-like rollouts; `in_place` writes directly to the source index and is not reversible by alias rollback.
 
 Blue/green alias-swap runbook: `../deployment/blue-green-alias-swap-runbook.md`.
 

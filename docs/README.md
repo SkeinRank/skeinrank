@@ -12,6 +12,7 @@ Public product site: <https://skeinrank.github.io>
 - [Profiles, bindings, and snapshots](concepts/profiles-bindings-snapshots.md) — the production model for binding-scoped runtime behavior.
 - [Headless runtime contracts](concepts/headless-runtime-contracts.md) and [ADR 0001](adr/0001-headless-runtime-contracts.md) — runtime boundaries for API, agents, snapshots, and UI.
 - [Dictionary spec v1](concepts/dictionary-spec-v1.md) — stable import/export contract for governed terminology.
+- [Search integration scope](concepts/search-integration-scope.md) — policy for query-time adapters, vector pre-embedding adapters, export artifacts, and operator-controlled delivery.
 
 ## Quick evaluation
 
@@ -68,10 +69,11 @@ Use this section to prove value without serving production traffic.
 
 ## Elasticsearch and enrichment
 
-- [Elasticsearch enrichment](guides/elasticsearch-enrichment.md) — enrichment dry run, evidence, jobs, and cancellation.
-- [Enrichment beta hardening](guides/enrichment-beta-hardening.md) — preflight, concurrency guard, and beta safety rules.
+- [Search integration scope](concepts/search-integration-scope.md) — integration boundaries for search engines and RAG stacks.
+- [Elasticsearch/OpenSearch delivery](guides/elasticsearch-enrichment.md) — operator-controlled dry run, evidence, jobs, confirmation, and cancellation.
+- [Operator-controlled search delivery hardening](guides/enrichment-beta-hardening.md) — preflight, per-run confirmation, concurrency guard, and delivery safety rules.
 - [Pause/resume checkpointing](guides/enrichment-pause-resume-checkpointing.md) — Celery-backed enrichment job checkpoint metadata.
-- [Blue/green alias swap runbook](deployment/blue-green-alias-swap-runbook.md) and [blue/green examples](../examples/blue-green-alias-swap) — alias publish, cancellation, and rollback flow.
+- [Blue/green alias swap runbook](deployment/blue-green-alias-swap-runbook.md) and [blue/green examples](../examples/blue-green-alias-swap) — operator-reviewed alias publish, cancellation, and rollback flow.
 
 ## Deployment and operations
 
@@ -127,6 +129,6 @@ Use this section to prove value without serving production traffic.
 
 ## Community
 
-- [GitHub Discussions](community/discussions.md) — Q&A, announcements, ideas, integrations, and show-and-tell setup.
-- [GitHub labels](community/github-labels.md) — issue and PR label taxonomy.
+- [GitHub Discussions](community/discussions.md) — when to use Discussions vs Issues and how categories are organized.
+- [GitHub labels](community/github-labels.md) — compact issue and PR label taxonomy.
 - [Contributing](../CONTRIBUTING.md), [Security](../SECURITY.md), and [Code of Conduct](../CODE_OF_CONDUCT.md) — project participation and disclosure guidance.

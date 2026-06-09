@@ -1,18 +1,17 @@
 # Platform operations demo seed
 
-This example fills a local SkeinRank Docker Compose stack with a realistic platform-operations preview dataset.
+This example fills a local SkeinRank Docker Compose stack with a realistic platform-operations dataset for product walkthroughs and screenshots.
 
-It creates:
+It demonstrates the complete Control Plane story:
 
-- an Elasticsearch index: `platform_knowledge_base`;
-- 24 demo knowledge-base documents: incidents, runbooks, tickets, and design notes;
-- a governance profile: `platform_ops`;
-- 16 canonical terms and 30 aliases;
-- global and profile stop-list entries;
-- an Elasticsearch binding: `Production knowledge base`;
-- pending AI Inbox suggestions for `edge`, `EKS`, `OpenSearch`, and `prod`;
-- evidence snapshots and low/medium/high risk review examples;
-- an enrichment job that publishes the runtime alias `platform_knowledge_base_search`.
+- Elasticsearch index `platform_knowledge_base`;
+- incident, runbook, ticket, and design-note documents;
+- governance profile `platform_ops`;
+- canonical terms, aliases, tags, and stop-list entries;
+- Elasticsearch binding `Production knowledge base`;
+- AI Inbox proposals with evidence and risk signals;
+- immutable runtime snapshot state;
+- operator-controlled search delivery that publishes the runtime alias `platform_knowledge_base_search`.
 
 ## Start the stack
 
@@ -31,28 +30,27 @@ curl -s http://127.0.0.1:19200 | python3 -m json.tool
 
 ## Seed the demo
 
+Reset and seed the local preview dataset:
+
 ```bash
 make demo-reset
 ```
 
-`demo-reset` deletes existing demo Elasticsearch indices before loading the preview dataset. It does not delete PostgreSQL volumes or unrelated data.
+`demo-reset` deletes the demo Elasticsearch indices before loading the preview dataset. It does not delete PostgreSQL volumes or unrelated data.
 
-For a non-destructive run:
+For a non-destructive seed run:
 
 ```bash
 make demo-seed
 ```
 
-Check current demo status without writing data:
+Check the current demo status without writing data:
 
 ```bash
 make demo-status
 ```
 
-
 ## One-command product tour
-
-Patch 59B adds a demo tour smoke command that verifies the seeded Control Plane story after the stack is running.
 
 Plan the tour without making service calls:
 
@@ -60,19 +58,19 @@ Plan the tour without making service calls:
 make demo-tour-plan
 ```
 
-Run the read-oriented smoke check against an already seeded stack:
+Run a read-oriented smoke check against an already seeded stack:
 
 ```bash
 make demo-tour-smoke
 ```
 
-Run the one-command tour from a running local stack:
+Run the full local tour from a running stack:
 
 ```bash
 make demo-tour
 ```
 
-`make demo-tour` calls `make demo-reset`, then checks Playground, AI Inbox, Schema & Snapshots, and the committed walkthrough contract. It writes:
+`make demo-tour` resets the preview dataset, then checks Playground, AI Inbox, Schema & Snapshots, and the committed walkthrough contract. It writes:
 
 ```text
 examples/platform_ops_demo/reports/platform_ops_demo_tour_report.json
@@ -90,14 +88,13 @@ The underlying stdlib-only script is:
 examples/platform_ops_demo/demo_product_tour.py
 ```
 
-
 ## Guided Control Plane walkthrough
 
-Patch 59A turns this seed into a screenshot-ready product walkthrough for the focused three-tab UI:
+Use the seeded console to walk through the focused product tabs:
 
-1. **Playground** — run `k8s pg timeout during phoenix rollout` and inspect canonicalization.
-2. **AI Inbox** — review seeded proposals with evidence and risk/apply-policy decisions.
-3. **Schema & Snapshots** — inspect the `platform_ops` tree, binding, aliases, and runtime snapshot state.
+1. **Playground** — run `k8s pg timeout during phoenix rollout` and inspect deterministic canonicalization.
+2. **AI Inbox** — review proposals with evidence, risk labels, and apply-policy decisions.
+3. **Schema & Snapshots** — inspect the `platform_ops` profile tree, binding, aliases, and runtime snapshot state.
 
 The committed walkthrough contract is:
 
@@ -151,3 +148,9 @@ python3 examples/platform_ops_demo/seed_platform_demo.py \
   --elasticsearch-url https://example.invalid \
   --force-non-local
 ```
+
+## Safety notes
+
+- The demo is intended for local preview and isolated sandboxes.
+- Production delivery should follow the operator-controlled search delivery runbooks.
+- Runtime terminology still follows the proposal → review → snapshot → binding lifecycle.

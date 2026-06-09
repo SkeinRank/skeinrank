@@ -1,9 +1,9 @@
 """Company model integration planning for the alias scout example.
 
-Patch 57C adds an operator-facing integration plan for companies that want to
-run the alias scout with their own model endpoint. The plan is intentionally
-read-only: it validates configuration shape, prints safe commands, and never
-contacts OpenRouter, a local endpoint, Elasticsearch, or the Governance API.
+The operator-facing integration plan is for companies that want to run the alias
+scout with their own model endpoint. The plan is intentionally read-only: it
+validates configuration shape, prints safe commands, and never contacts
+OpenRouter, a local endpoint, Elasticsearch, or the Governance API.
 """
 
 from __future__ import annotations

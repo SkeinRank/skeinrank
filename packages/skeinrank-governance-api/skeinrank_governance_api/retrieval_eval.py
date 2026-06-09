@@ -1,10 +1,10 @@
 """Deterministic retrieval evaluation baseline for benchmark corpora.
 
-The 50A evaluator is intentionally offline. It does not call Elasticsearch or
+The evaluator is intentionally offline. It does not call Elasticsearch or
 OpenRouter; it uses the synthetic benchmark corpus, qrels, and SkeinRank alias
 maps to compare a literal lexical baseline against a SkeinRank-expanded lexical
-run. The goal is to prove the evaluation harness and metric reporting before
-scaling the corpus or wiring company-specific search providers.
+run. The goal is repeatable metric reporting before scaling the corpus or
+wiring company-specific search providers.
 """
 
 from __future__ import annotations

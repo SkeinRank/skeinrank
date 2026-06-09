@@ -45,7 +45,7 @@ def test_agent_run_progress_endpoint_summarizes_tracking_tables(tmp_path):
             "trigger_type": "worker",
             "profile_name": "default_it",
             "binding_id": binding_id,
-            "agent_version": "52A",
+            "agent_version": "agent-progress-v1",
             "prompt_version": "prompt-v1",
             "openrouter_model": "openai/gpt-4o-mini",
             "summary": {"expected_documents_total": 4, "phase": "scanning"},

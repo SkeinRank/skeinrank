@@ -1,8 +1,9 @@
 """Minimal MCP server for SkeinRank agent proposal tools.
 
 The server intentionally has no third-party MCP dependency. It implements the
-small JSON-RPC surface that agent clients need for the MVP and delegates all
-business logic to the existing ``/v1/tools/*`` and governance REST endpoints.
+small JSON-RPC surface that agent clients need for governed proposal workflows
+and delegates all business logic to the existing ``/v1/tools/*`` and governance
+REST endpoints.
 """
 
 from __future__ import annotations
@@ -151,7 +152,7 @@ class SkeinRankMcpTools:
 
 
 def tool_definitions() -> list[JsonDict]:
-    """Return MCP tool definitions exposed by the MVP server."""
+    """Return MCP tool definitions exposed by the local server."""
 
     return [
         {

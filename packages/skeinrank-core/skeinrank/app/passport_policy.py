@@ -18,7 +18,7 @@ Upgrade taxonomy (passport_upgraded_by):
 - sample: chosen by probabilistic sampling
 - latency: triggered by latency threshold
 - warnings: non-critical warnings (e.g., truncation)
-- fallback: mitigation / degraded mode (e.g., cascade fallback, device fallback)
+- fallback: mitigation / degraded mode (for example, device fallback)
 
 Optional: in debug mode, ``reason_details`` can include parameters explaining
 why an upgrade happened (sampling probability, latency threshold, etc.).
@@ -37,7 +37,6 @@ _UPGRADE_FLAGS_ORDER = ("fallback", "warnings", "latency", "sample")
 
 # Warnings that indicate a degraded mode / mitigation.
 _FALLBACK_WARNING_PREFIXES = (
-    "cascade_fallback:",
     "device_fallback:",
     "backend_fallback:",
     "precision_fallback:",

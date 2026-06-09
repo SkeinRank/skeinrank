@@ -1,8 +1,8 @@
 """Compact evidence sampling for the OpenRouter alias scout example.
 
-Patch 40I keeps evidence gathering deterministic and dependency-light. It samples
-short windows around discovered candidate aliases from failed-query/search-log/doc
-JSONL records so later LLM review never needs full documents.
+Evidence gathering is deterministic and dependency-light. It samples short
+windows around discovered candidate aliases from failed-query/search-log/doc
+JSONL records so LLM review never needs full documents.
 """
 
 from __future__ import annotations

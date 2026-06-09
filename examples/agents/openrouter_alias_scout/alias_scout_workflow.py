@@ -1,9 +1,9 @@
-"""Stateful OpenRouter alias-scout workflow for Patch 40J.
+"""Stateful OpenRouter alias-scout workflow.
 
 This module is intentionally dependency-light. It models the same node boundaries
-that a future LangGraph wrapper can use, but does not require `langgraph` at
-runtime. The workflow executes model review only; it does not mutate SkeinRank
-state unless a later patch explicitly enables validation/submission policies.
+that a LangGraph wrapper can use, but does not require `langgraph` at runtime. The
+workflow executes model review only; it does not mutate SkeinRank state unless
+explicit validation/submission policies enable that path.
 """
 
 from __future__ import annotations
@@ -198,9 +198,9 @@ def run_openrouter_llm_review_workflow(
 ) -> JsonDict:
     """Run model review for ready candidates and return a structured report.
 
-    This is the first live OpenRouter execution path. It deliberately stops at
-    proposal payload preparation; later security/budget/evaluation patches can
-    decide when to validate or submit proposals to SkeinRank.
+    The workflow deliberately stops at proposal payload preparation unless
+    explicit submission is enabled. Budget, security, and evaluation controls
+    remain part of the governed review boundary.
     """
 
     cfg = llm_config or LlmReviewConfig()

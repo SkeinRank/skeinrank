@@ -1,8 +1,8 @@
 """Cost-safe OpenRouter live pilot orchestration for the alias scout.
 
-Patch 48B keeps the live mode small and explicit. The pilot can call
-OpenRouter, but proposal validation/submission through SkeinRank remains opt-in
-and runtime mutation stays blocked.
+Live mode stays small and explicit. The pilot can call OpenRouter, but proposal
+validation/submission through SkeinRank remains opt-in and runtime mutation stays
+blocked.
 """
 
 from __future__ import annotations
@@ -338,7 +338,7 @@ def build_openrouter_validated_pilot_diagnostics(
 ) -> JsonDict:
     """Return operator-facing diagnostics for live validation mode.
 
-    Patch 49D makes the validated pilot explicit: OpenRouter may prepare
+    The validated pilot is explicit: OpenRouter may prepare
     proposals, but SkeinRank validation is still the only live backend action by
     default. Submission remains opt-in and runtime mutation stays blocked.
     """

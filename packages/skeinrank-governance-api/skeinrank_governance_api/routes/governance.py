@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import html
+import json
 import re
 
 from fastapi import (
@@ -1162,6 +1164,17 @@ def start_elasticsearch_enrichment_job(
             detail={
                 "message": "Elasticsearch enrichment preflight failed.",
                 "blocking_issues": preflight.blocking_issues,
+            },
+        )
+    if request_body.confirmation_token != preflight.confirmation_token:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": (
+                    "Confirmation token missing or stale. Re-run preflight and "
+                    "confirm the exact enrichment plan before starting the job."
+                ),
+                "expected_token_fields": preflight.confirmation_token_fields,
             },
         )
     previous_successful_job_id = binding.last_successful_job_id
@@ -3288,7 +3301,7 @@ def _build_elasticsearch_enrichment_preflight_response(
         )
     elif binding.write_strategy == "in_place":
         warnings.append(
-            "in_place writes directly to the configured source index; prefer reindex_alias_swap for production."
+            "in_place writes directly to the configured source index and is not reversible by alias rollback; prefer reindex_alias_swap for production."
         )
     else:
         blocking_issues.append(f"Unsupported write strategy: {binding.write_strategy}")
@@ -3319,10 +3332,23 @@ def _build_elasticsearch_enrichment_preflight_response(
             "Selected snapshot has no active aliases; enrichment will not add canonical matches."
         )
 
+    confirmation_token_fields = _elasticsearch_enrichment_confirmation_fields(
+        binding=binding,
+        snapshot_payload=snapshot_payload,
+        target_index=target_index,
+        alias_name=alias_name,
+        max_documents=request_body.max_documents,
+        chunk_size=configured_chunk_size,
+    )
+    confirmation_token = _elasticsearch_enrichment_confirmation_token(
+        confirmation_token_fields
+    )
+
     recommended_request = {
         "snapshot_version": str(snapshot_payload.get("version")),
         "max_documents": request_body.max_documents,
         "chunk_size": configured_chunk_size,
+        "confirmation_token": confirmation_token,
     }
     if binding.write_strategy == "reindex_alias_swap":
         recommended_request["alias_name"] = alias_name
@@ -3346,6 +3372,8 @@ def _build_elasticsearch_enrichment_preflight_response(
         "time_window_days": binding.time_window_days,
         "active_job_id": active_job.id if active_job is not None else None,
         "active_job_status": active_job.status if active_job is not None else None,
+        "confirmation_required": True,
+        "confirmation_token_fields": confirmation_token_fields,
     }
 
     return ElasticsearchEnrichmentPreflightResponse(
@@ -3355,7 +3383,48 @@ def _build_elasticsearch_enrichment_preflight_response(
         warnings=warnings,
         recommended_request=recommended_request,
         safety=safety,
+        confirmation_token=confirmation_token,
+        confirmation_token_fields=confirmation_token_fields,
     )
+
+
+def _elasticsearch_enrichment_confirmation_fields(
+    *,
+    binding: ElasticsearchBinding,
+    snapshot_payload: dict[str, object],
+    target_index: str | None,
+    alias_name: str | None,
+    max_documents: int,
+    chunk_size: int,
+) -> dict[str, object]:
+    """Return the exact write plan fields an operator must confirm."""
+
+    return {
+        "binding_id": binding.id,
+        "binding_name": binding.name,
+        "profile_id": binding.profile_id,
+        "profile_name": binding.profile.name,
+        "write_strategy": binding.write_strategy,
+        "source_index": binding.index_name,
+        "target_index": target_index,
+        "target_field": binding.target_field,
+        "alias_name": alias_name,
+        "snapshot_version": str(snapshot_payload.get("version")),
+        "max_documents": max_documents,
+        "chunk_size": chunk_size,
+        "filter_field": binding.filter_field,
+        "filter_value": binding.filter_value,
+        "timestamp_field": binding.timestamp_field,
+        "time_window_days": binding.time_window_days,
+    }
+
+
+def _elasticsearch_enrichment_confirmation_token(fields: dict[str, object]) -> str:
+    """Build a deterministic token for one preflight-approved write plan."""
+
+    encoded = json.dumps(fields, sort_keys=True, separators=(",", ":"), default=str)
+    digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return f"skeinrank-es-enrichment-v1:{digest}"
 
 
 def _job_target_index(
@@ -3383,7 +3452,7 @@ def _job_alias_name(
 
 
 def _default_reindex_target_name(binding: ElasticsearchBinding, job_id: int) -> str:
-    """Build a deterministic target index name for MVP reindex jobs."""
+    """Build a deterministic target index name for reindex jobs."""
 
     safe_source_index = binding.index_name.strip().lower().replace(" ", "_")
     return f"{safe_source_index}__skeinrank_job_{job_id}"
@@ -3397,7 +3466,7 @@ def _execute_elasticsearch_enrichment_job(
     job: ElasticsearchEnrichmentJob,
     max_documents: int,
 ) -> dict[str, object]:
-    """Execute one synchronous MVP Elasticsearch enrichment job."""
+    """Execute one synchronous Elasticsearch enrichment job."""
 
     if binding.write_strategy == "reindex_alias_swap":
         if not job.target_index:

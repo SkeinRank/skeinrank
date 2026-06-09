@@ -42,7 +42,7 @@ def _create_run(client: TestClient, run_id: str, binding_id: int) -> None:
             "trigger_type": "worker",
             "profile_name": "default_it",
             "binding_id": binding_id,
-            "agent_version": "52B",
+            "agent_version": "agent-resume-v1",
             "prompt_version": "prompt-v1",
             "openrouter_model": "openai/gpt-4o-mini",
             "summary": {"expected_documents_total": 5, "phase": "reviewing"},

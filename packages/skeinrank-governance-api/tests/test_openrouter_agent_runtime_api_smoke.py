@@ -161,5 +161,7 @@ def test_cli_print_runtime_api_smoke_plan_outputs_json() -> None:
     payload = json.loads(result.stdout)
 
     assert payload["schema_version"] == "skeinrank.agent_runtime_api_smoke_plan.v1"
+    assert payload["workflow"] == "runtime_api_smoke"
+    assert "patch" not in payload
     assert payload["safe_defaults"]["runtime_mutation_enabled"] is False
     assert payload["payloads"]["query_plan"]["query"]

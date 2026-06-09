@@ -1,6 +1,6 @@
 """Docker Compose full demo scenario for the OpenRouter alias scout.
 
-Patch 42D documents and checks a reproducible Docker Compose flow that starts
+The scenario documents and checks a reproducible Docker Compose flow that starts
 SkeinRank's dev stack, indexes the bundled real-ES validation fixtures, and runs
 the agent in safe report-only mode. The helpers here are intentionally
 network-free: they build plans and command manifests that external operators or
@@ -17,7 +17,7 @@ JsonDict = dict[str, Any]
 
 @dataclass(frozen=True)
 class DockerFullDemoConfig:
-    """Config for the Patch 42D Docker Compose full demo scenario."""
+    """Config for the Docker Compose full demo scenario."""
 
     compose_file: str = "deploy/docker/openrouter-agent-full-demo.compose.yml"
     env_file: str = "deploy/docker/openrouter-agent-full-demo.env.example"
@@ -88,7 +88,7 @@ def build_docker_full_demo_plan(config: DockerFullDemoConfig) -> JsonDict:
     return {
         "schema_version": "skeinrank.agent_docker_compose_full_demo.v1",
         "runner": "openrouter_alias_scout",
-        "patch": "42D",
+        "workflow": "docker_compose_full_demo",
         "status": "planned",
         "compose": {
             "dev_stack_file": "docker-compose.dev.yml",
@@ -154,7 +154,7 @@ def build_docker_full_demo_plan(config: DockerFullDemoConfig) -> JsonDict:
             },
             {
                 "name": "run_safe_agent_cycle",
-                "description": "Run scheduled agent cycle in report-only mode and write 42C artifacts.",
+                "description": "Run scheduled agent cycle in report-only mode and write standardized artifacts.",
             },
         ],
         "next_steps": [

@@ -38,7 +38,7 @@ def _seed_run_and_visit(client: TestClient) -> int:
             "trigger_type": "scheduled",
             "profile_name": "default_it",
             "binding_id": binding.json()["id"],
-            "agent_version": "44C",
+            "agent_version": "candidate-observation-v1",
             "prompt_version": "prompt-v1",
             "openrouter_model": "openai/gpt-4o-mini",
             "config_hash": "cfg-v1",

@@ -1,9 +1,9 @@
 """Offline cost, latency, and throughput report for benchmark smoke runs.
 
-Patch 53C intentionally keeps the performance report provider-independent.  It
-combines generated synthetic-smoke manifests with optional live-pilot usage
-reports and explicit elapsed-time inputs.  It does not call OpenRouter,
-Elasticsearch, the database, or runtime mutation APIs.
+The performance reporter stays provider-independent. It combines generated
+synthetic-smoke manifests with optional live-pilot usage reports and explicit
+elapsed-time inputs. It does not call OpenRouter, Elasticsearch, the database,
+or runtime mutation APIs.
 """
 
 from __future__ import annotations

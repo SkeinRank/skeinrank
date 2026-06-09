@@ -1,9 +1,9 @@
 """Deterministic 5k synthetic smoke corpus generator.
 
-Patch 53B intentionally keeps the 5k layer offline.  The generated corpus is for
-scale smoke checks such as batching, skip/unchanged accounting, hard-negative
-pressure, and report plumbing.  It is not a hand-labeled quality benchmark and it
-does not call OpenRouter, Elasticsearch, the database, or runtime mutation APIs.
+The generated corpus supports offline scale smoke checks such as batching,
+skip/unchanged accounting, hard-negative pressure, and report plumbing. It is
+not a hand-labeled quality benchmark and it does not call OpenRouter,
+Elasticsearch, the database, or runtime mutation APIs.
 """
 
 from __future__ import annotations

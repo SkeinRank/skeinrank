@@ -40,6 +40,7 @@ def test_core_readme_describes_lightweight_install_without_legacy_ml_extra() -> 
         "no Governance API, Elasticsearch, RabbitMQ, Celery, Docker, OpenRouter token, or ML dependencies are required"
         in readme
     )
-    assert "no longer exposes heavyweight ML install extras" in readme
+    assert "built-in reranking contracts do not require ML dependencies" in readme
+    assert "legacy reranking modules remain" not in readme.lower()
     assert "attribute-models" not in readme
     assert "KeyBERT" not in readme

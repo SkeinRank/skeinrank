@@ -1,8 +1,8 @@
 """Candidate discovery and pruning for the OpenRouter alias scout example.
 
-Patch 40H keeps discovery deterministic and dependency-light. It mines compact
-alias candidates from failed-query JSONL rows before any LLM call exists, so
-later patches can spend OpenRouter tokens only on small, explainable fact packs.
+Discovery is deterministic and dependency-light. It mines compact alias
+candidates from failed-query JSONL rows before any LLM call exists, so
+OpenRouter review spends tokens only on small, explainable fact packs.
 """
 
 from __future__ import annotations
@@ -115,7 +115,7 @@ class CandidateDiscoveryConfig:
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "CandidateDiscoveryConfig":
         """Create config from optional JSON config values.
 
-        Missing values intentionally keep conservative defaults so older 40F/40G
+        Missing values intentionally keep conservative defaults so older
         config files keep working.
         """
 

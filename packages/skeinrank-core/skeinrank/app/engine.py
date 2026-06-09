@@ -3,14 +3,11 @@
 This module defines :class:`~skeinrank.RerankEngine` and the convenience
 functions :func:`~skeinrank.rerank` / :func:`~skeinrank.score`.
 
-The implementation is intentionally minimal for v0.0.x:
+The implementation is intentionally small and dependency-free:
 - strict contract validation
 - stable I/O types
 - request passport (optional)
 - a built-in lightweight scorer so the package works out of the box
-
-Torch backends (bi-encoders, cross-encoders, etc.) can be added under
-``skeinrank.adapters``.
 """
 
 from __future__ import annotations
@@ -18,7 +15,6 @@ from __future__ import annotations
 import platform
 import sys
 import uuid
-from importlib import metadata
 from time import perf_counter
 from typing import Any, Sequence
 
@@ -41,52 +37,16 @@ from .passport_policy import (
 from .profiles import ProfileSpec, get_profile
 
 
-def _safe_version(dist_name: str) -> str | None:
-    try:
-        return metadata.version(dist_name)
-    except Exception:
-        return None
-
-
 def _runtime_info() -> dict:
-    rt = {
+    return {
         "python_version": sys.version.split(" ")[0],
         "platform": platform.platform(),
-        "onnxruntime_version": _safe_version("onnxruntime")
-        or _safe_version("onnxruntime-gpu"),
-        "torch_version": _safe_version("torch"),
-        "transformers_version": _safe_version("transformers"),
-        "cuda_available": None,
+        "cuda_available": False,
         "gpu_name": None,
-        "fp16_supported": None,
-        "bf16_supported": None,
+        "fp16_supported": False,
+        "bf16_supported": False,
         "cuda_compute_capability": None,
     }
-    try:
-        import torch  # type: ignore
-
-        rt["cuda_available"] = bool(torch.cuda.is_available())
-        if rt["cuda_available"]:
-            try:
-                rt["gpu_name"] = str(torch.cuda.get_device_name(0))
-            except Exception:
-                rt["gpu_name"] = None
-            # fp16 is broadly supported on CUDA-capable GPUs. Keep it best-effort.
-            rt["fp16_supported"] = True
-            try:
-                rt["bf16_supported"] = bool(
-                    getattr(torch.cuda, "is_bf16_supported", lambda: False)()
-                )
-            except Exception:
-                rt["bf16_supported"] = False
-            try:
-                cc = torch.cuda.get_device_capability(0)
-                rt["cuda_compute_capability"] = f"{cc[0]}.{cc[1]}"
-            except Exception:
-                rt["cuda_compute_capability"] = None
-    except Exception:
-        pass
-    return rt
 
 
 class RerankEngine:
@@ -95,7 +55,7 @@ class RerankEngine:
     Parameters
     ----------
     profile:
-        Built-in profile id (e.g. "rerank_auto", "e5_fast_torch") or a ProfileSpec.
+        Built-in profile id (for example, "rerank_auto") or a ProfileSpec.
     device:
         Optional device override: "auto" | "cpu" | "cuda". If provided,
         it overrides the profile's device.
@@ -237,24 +197,9 @@ class RerankEngine:
         # Device preference list for "auto".
         pref = getattr(self._profile, "device_preference", None) or ["cuda", "cpu"]
 
-        # CUDA availability: only meaningful for torch-backed profiles in v1.x.
+        # The dependency-free core scorer is CPU-backed. Keep the device resolver
+        # path active so CUDA requests still produce a clear fallback warning.
         cuda_available = False
-        try:
-            backend_ids = (
-                self._profile.preferred_backends
-                if self._profile.preferred_backends
-                else [self._profile.backend]
-            )
-
-            # Cascade backend is torch-backed (stage1/stage2), so it should follow the same
-            # CUDA availability logic as the torch bi-encoder backend.
-            if "torch_bi_encoder" in backend_ids or "cascade" in backend_ids:
-                diag = get_backend("torch_bi_encoder").diagnose(device="cuda")
-                cuda_available = bool(diag.details.get("cuda_available", False)) and (
-                    len(diag.errors) == 0
-                )
-        except Exception:
-            cuda_available = False
 
         return resolve_device(
             requested=self._profile.device,
@@ -294,9 +239,9 @@ class RerankEngine:
         self._maybe_warmup(stage_events=stage_events, warmup=warmup)
 
         # Stage: scoring
-        # Some scorers provide fine-grained stage breakdown via
-        # `score_with_stages(...)` (e.g., cascade profiles). We call it whenever
-        # available so summary/debug passports can reliably include stage names.
+        # Custom scorers may provide fine-grained stage breakdown via
+        # `score_with_stages(...)`. We call it whenever available so summary/debug
+        # passports can reliably include stage names.
         score_with_stages = getattr(self._scorer, "score_with_stages", None)
         if callable(score_with_stages):
             scores, extra_stages = score_with_stages(q, cands, batch_size=batch_size)

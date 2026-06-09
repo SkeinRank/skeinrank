@@ -383,7 +383,7 @@ class TermAlias(TimestampMixin, Base):
 
 
 class GovernanceUser(TimestampMixin, Base):
-    """A local governance API user for MVP authentication and role checks."""
+    """A local governance API user for authentication and role checks."""
 
     __tablename__ = "governance_users"
     __table_args__ = (
@@ -954,9 +954,9 @@ class GovernanceGlobalStopListEntry(TimestampMixin, Base):
 class ElasticsearchBinding(TimestampMixin, Base):
     """A saved enrichment target that binds a profile to Elasticsearch documents.
 
-    Bindings are configuration-only in the first API patch. They describe where
-    a terminology profile should be applied later by enrichment jobs, without
-    opening an Elasticsearch connection or writing to an index yet.
+    Bindings describe where a terminology profile should be applied by
+    enrichment jobs and runtime query planning. They remain configuration-only
+    until an explicit enrichment or search workflow uses them.
     """
 
     __tablename__ = "elasticsearch_bindings"

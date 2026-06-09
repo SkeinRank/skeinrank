@@ -1,30 +1,24 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from public_docs_guard import REPO_ROOT, assert_productized_text, read_repo_file
+
 README = REPO_ROOT / "packages/skeinrank-governance-api/README.md"
 
 
 def _read() -> str:
-    return README.read_text(encoding="utf-8")
+    return read_repo_file(README)
 
 
 def test_governance_api_readme_is_product_documentation() -> None:
     content = _read()
 
-    forbidden_fragments = (
-        "Patch",
-        "patch-era",
-        "dev diary",
-        "development diary",
-        "adds `",
-        "adds a ",
-        "introduced",
+    assert_productized_text(
+        content,
+        source="packages/skeinrank-governance-api/README.md",
+        extra_forbidden=("adds `", "adds a ", "introduced"),
     )
-    for fragment in forbidden_fragments:
-        assert fragment not in content
 
     required_sections = (
         "## Role in the architecture",

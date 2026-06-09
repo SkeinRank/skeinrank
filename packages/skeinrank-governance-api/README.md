@@ -182,11 +182,15 @@ POST /v1/query/route-plan
 
 `route-plan` is a read-only multi-binding planning surface for selected/rejected bindings before search fan-out.
 
-Elasticsearch/OpenSearch enrichment operations:
+Operator-controlled Elasticsearch/OpenSearch delivery operations:
 
 ```text
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs/preflight
 POST /v1/governance/elasticsearch/bindings/{binding_id}/jobs
+
+The preflight response includes a per-run `confirmation_token`. Write-mode job
+starts must echo that token so an operator confirms the exact snapshot, target,
+alias, chunk size, document limit, and filter plan before any write is queued.
 POST /v1/governance/elasticsearch/jobs/{job_id}/pause
 POST /v1/governance/elasticsearch/jobs/{job_id}/resume
 ```
@@ -389,8 +393,7 @@ and [`examples/runtime-routing-api`](../../examples/runtime-routing-api).
 
 ## Elasticsearch/OpenSearch enrichment
 
-The API supports evidence refresh, preflight checks, and controlled enrichment
-jobs for Elasticsearch/OpenSearch-backed pilots and deployments.
+The API supports evidence refresh, preflight checks, and operator-controlled delivery jobs for Elasticsearch/OpenSearch-backed pilots and deployments. SkeinRank owns the governed terminology artifacts; Elasticsearch/OpenSearch receives derived enrichment fields and remains the retrieval backend.
 
 Useful docs:
 
@@ -401,8 +404,7 @@ Useful docs:
 - [`docs/deployment/blue-green-alias-swap-runbook.md`](../../docs/deployment/blue-green-alias-swap-runbook.md)
 - [`examples/blue-green-alias-swap`](../../examples/blue-green-alias-swap)
 
-A production-safe flow starts with a read-only preflight, writes to a staged
-index, validates the result, and swaps aliases only after operator review.
+A production-safe flow starts with a read-only preflight, requires a per-run confirmation token, writes to a staged index, validates the result, and swaps aliases only after operator review.
 Chunked jobs expose `result_json.chunked_enrichment.checkpoint` so operators can
 resume from remaining chunks.
 

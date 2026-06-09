@@ -1,10 +1,10 @@
 """Real Elasticsearch validation scenario for the OpenRouter alias scout.
 
-Patch 42B provides a reproducible, operator-run scenario for validating the
-agent against a real Elasticsearch/OpenSearch index. The module keeps all
-network and mutating work explicit: fixture generation is offline, evidence
-sampling is read-only, and indexing sample documents is only performed when the
-operator calls the dedicated indexing command.
+The scenario is reproducible and operator-run for validating the agent against a
+real Elasticsearch/OpenSearch index. The module keeps all network and mutating
+work explicit: fixture generation is offline, evidence sampling is read-only, and
+indexing sample documents is only performed when the operator calls the dedicated
+indexing command.
 """
 
 from __future__ import annotations
@@ -115,7 +115,7 @@ DEFAULT_EXPECTED_OUTCOMES: tuple[JsonDict, ...] = (
 
 @dataclass(frozen=True)
 class RealElasticsearchValidationConfig:
-    """Settings for the Patch 42B real Elasticsearch validation scenario."""
+    """Settings for the real Elasticsearch validation scenario."""
 
     artifacts_dir: Path
     docs_filename: str = "documents.jsonl"
@@ -210,7 +210,7 @@ class RealElasticsearchValidationConfig:
         return {
             "schema_version": "skeinrank.agent_real_elasticsearch_validation_plan.v1",
             "runner": "openrouter_alias_scout",
-            "patch": "42B",
+            "workflow": "real_elasticsearch_validation",
             "artifacts_dir": str(self.artifacts_dir),
             "fixtures": {
                 "docs_path": str(self.docs_path),

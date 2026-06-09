@@ -943,6 +943,7 @@ class ElasticsearchEnrichmentJobCreateRequest(BaseModel):
     snapshot_version: str | None = Field(default=None, min_length=1, max_length=128)
     max_documents: int = Field(default=1000, ge=1, le=10000)
     chunk_size: int | None = Field(default=None, ge=1, le=1000)
+    confirmation_token: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 class ElasticsearchEnrichmentPreflightResponse(BaseModel):
@@ -954,6 +955,8 @@ class ElasticsearchEnrichmentPreflightResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     recommended_request: dict[str, Any] = Field(default_factory=dict)
     safety: dict[str, Any] = Field(default_factory=dict)
+    confirmation_token: str
+    confirmation_token_fields: dict[str, Any] = Field(default_factory=dict)
 
 
 class ElasticsearchEnrichmentJobCancelRequest(BaseModel):

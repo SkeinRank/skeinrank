@@ -1,8 +1,9 @@
 """Portable backup/restore helpers for SkeinRank governance operations.
 
 The backup format is intentionally JSON-based and SQLAlchemy-metadata driven.
-It is meant as an operational safety net for MVP/dev/pilot deployments, not as
-an alternative to native PostgreSQL backups for large production databases.
+It is meant as an operational safety net for local, pilot, and small production
+deployments, not as an alternative to native PostgreSQL backups for large
+production databases.
 """
 
 from __future__ import annotations

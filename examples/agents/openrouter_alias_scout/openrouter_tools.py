@@ -1,9 +1,9 @@
 """OpenRouter/OpenAI-compatible tool schemas for the alias scout example.
 
-Patch 40G keeps tool calling as a contract-only layer: the schemas describe the
-existing SkeinRank `/v1/tools/*` facade, but this module does not call
-OpenRouter and does not execute model-requested tools. Later patches can wire
-these schemas to a runner once candidate discovery and evidence sampling exist.
+Tool calling stays a contract-only layer: the schemas describe the existing
+SkeinRank `/v1/tools/*` facade, but this module does not call OpenRouter and does
+not execute model-requested tools. Runners can wire these schemas to candidate
+discovery and evidence sampling while keeping mutation boundaries explicit.
 """
 
 from __future__ import annotations

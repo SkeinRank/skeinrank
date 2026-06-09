@@ -12,7 +12,7 @@
 
 <p align="center">
   Open-source <strong>Terminology Control Plane</strong> for enterprise search, RAG, and AI-agent workflows.<br/>
-  SkeinRank canonicalizes aliases, acronyms, incident shorthand, and ambiguous names into governed, versioned, binding-aware runtime context.
+  One governed, versioned, binding-aware lifecycle for the messy language your team actually searches with.
 </p>
 
 <p align="center">
@@ -95,7 +95,10 @@ poetry run skeinrank canonicalize "k8s pg timeout" --text
 poetry run skeinrank extract "sev1 on kube after deploy" --text --compact
 ```
 
-For the full platform preview with UI, Governance API, Elasticsearch, RabbitMQ, and AI Inbox:
+Start with [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md) and [`examples/sdk`](examples/sdk) for the SDK path.
+
+<details>
+<summary>Run the full platform preview with UI, Governance API, Elasticsearch, RabbitMQ, and AI Inbox</summary>
 
 ```bash
 cp .env.example .env
@@ -109,7 +112,9 @@ make demo-tour-smoke
 
 Default local URLs: UI `http://127.0.0.1:5173`, Governance API `http://127.0.0.1:8010`, Elasticsearch `http://127.0.0.1:19200`, RabbitMQ Management `http://127.0.0.1:15672`.
 
-Start with [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md), [`examples/sdk`](examples/sdk), [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md), [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md), and [`examples/platform_ops_demo`](examples/platform_ops_demo).
+Product walkthrough docs: [`docs/guides/seeded-demo-walkthrough.md`](docs/guides/seeded-demo-walkthrough.md), [`docs/guides/demo-product-tour.md`](docs/guides/demo-product-tour.md), and [`examples/platform_ops_demo`](examples/platform_ops_demo).
+
+</details>
 
 ## The problem
 
@@ -117,7 +122,10 @@ Users do not search with your canonical vocabulary. They search with team slang,
 
 ```text
 "k8s pg timeout"
+"the payment thing that broke Friday"
 ```
+
+> I kept running into the same failure when indexing company messenger threads and Jira-like work items: the same incident had a different name in every system. In chat, it was "the payment thing that broke Friday"; in the tracker, it was a ticket ID; in runbooks, it became `payments-prod`. Three systems, one reality, and no shared place that owned the mapping between them. SkeinRank exists because this language layer usually lives in synonym files, regex snippets, prompts, CSVs, and tribal knowledge — and then drifts.
 
 Your systems may store the same idea as `kubernetes`, `Kube`, `PostgreSQL`, `postgres`, or `psql`. In another workspace, `pg` might mean `page` or `product group`. Search engines, vector databases, RAG prompts, and agents usually see that as noise.
 
@@ -153,9 +161,18 @@ At scale, teams need to answer questions a flat config file cannot answer:
 - who approved an alias and what evidence supported it;
 - how to roll back a bad terminology change;
 - why `pg timeout` should resolve differently from `pg layout`;
-- how agents can propose terminology without mutating production directly.
+- how agents can propose terminology without mutating production directly;
+- how to give AI agents write-intent without write-access to production.
 
 SkeinRank treats terminology as a governed, auditable, versioned asset across the search backend you already run.
+
+### But search tools already have AI now
+
+They do — inside their own walls. Jira's AI searches Jira. Slack's AI searches Slack. Each one learns your vocabulary privately and does not give you a reusable terminology layer.
+
+That does not solve fragmentation. It hardens it. You still have multiple systems that can resolve `pg`, `prod`, or "the payment thing that broke Friday" differently, and that logic is sealed inside models you cannot inspect, reuse, version, or point at your own tooling.
+
+SkeinRank sits underneath those tools: one canonical resolution of *your* language, as data you own, usable by your RAG, your search, your on-call bot, and your agent workflows.
 
 | SkeinRank capability | Why it matters |
 | --- | --- |
@@ -164,7 +181,7 @@ SkeinRank treats terminology as a governed, auditable, versioned asset across th
 | Context-trigger disambiguation | Keep ambiguous aliases safe: `pg timeout` can map differently than `pg layout`. |
 | Terminology-as-Code | Lint, plan, apply, export, and snapshot dictionaries through CI/GitOps workflows. |
 | Evidence-assisted review | Check aliases against Elasticsearch/OpenSearch evidence before accepting changes. |
-| Enrichment safety | Preflight, blue/green alias swap, rollback, pause/resume, and chunk checkpointing. |
+| Operator-controlled search delivery | Publish terminology-derived enrichment artifacts with preflight, per-run confirmation, blue/green alias swap, rollback, pause/resume, and chunk checkpointing. |
 | MCP integration | Let Claude Desktop, Cursor-style IDE agents, and LangGraph-style agents inspect and submit proposals safely. |
 
 ## Core model
@@ -272,9 +289,11 @@ Docs and examples: [`docs/guides/terminology-as-code.md`](docs/guides/terminolog
 </details>
 
 <details>
-<summary>Enrichment safety</summary>
+<summary>Operator-controlled search delivery</summary>
 
-Elasticsearch/OpenSearch enrichment is treated as an operator workflow, not a casual UI action. Use preflight and blue/green alias swap for production-like runs.
+Elasticsearch/OpenSearch delivery is an advanced operator-controlled workflow. SkeinRank owns governed terminology artifacts; the search engine remains the retrieval backend. Use preflight, per-run confirmation tokens, and blue/green alias swap for production-like runs.
+
+Search integrations follow a narrow scope: prefer query-time adapters, vector pre-embedding adapters, and export artifacts. Direct backend writes are reserved for explicit operator-controlled delivery workflows. See [`docs/concepts/search-integration-scope.md`](docs/concepts/search-integration-scope.md).
 
 Important surfaces include:
 
@@ -416,12 +435,12 @@ The GitHub Actions workflow uses path-aware routing so docs/deployment changes d
 
 - Use [Issues](https://github.com/SkeinRank/skeinrank/issues) for reproducible bugs, failing commands, docs mistakes, and concrete implementation tasks.
 - Use [Discussions](https://github.com/SkeinRank/skeinrank/discussions) for questions, ideas, architecture proposals, integration feedback, and public beta conversations.
-- See [`docs/community/discussions.md`](docs/community/discussions.md) for discussion categories and pinned discussion drafts.
-- See [`docs/community/github-labels.md`](docs/community/github-labels.md) for the repository label taxonomy and GitHub CLI sync commands.
+- See [`docs/community/discussions.md`](docs/community/discussions.md) for discussion categories and maintainer workflow.
+- See [`docs/community/github-labels.md`](docs/community/github-labels.md) for the repository label taxonomy.
 
 ## Project status
 
-SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, and Elasticsearch/OpenSearch enrichment safety.
+SkeinRank is an active open-source platform preview, not a hosted SaaS. The current focus is binding-aware runtime canonicalization, safe terminology governance, AI Inbox review, Terminology-as-Code, MCP agent integration, terminology drift reports, search integration scope, and operator-controlled Elasticsearch/OpenSearch delivery.
 
 ## License
 

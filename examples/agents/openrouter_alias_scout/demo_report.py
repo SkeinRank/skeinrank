@@ -1,9 +1,9 @@
 """End-to-end local demo report for the OpenRouter alias scout example.
 
-Patch 40K stitches together the deterministic local stages from patches 40H and
-40I: failed-query candidate discovery, evidence sampling, compact candidate
-packs, and review prompt preparation. It intentionally does not call OpenRouter,
-Elasticsearch, or SkeinRank API endpoints.
+The report stitches together deterministic local stages: failed-query candidate
+discovery, evidence sampling, compact candidate packs, and review prompt
+preparation. It intentionally does not call OpenRouter, Elasticsearch, or
+SkeinRank API endpoints.
 """
 
 from __future__ import annotations
@@ -101,7 +101,7 @@ def build_alias_scout_demo_report(
 
     The report is intentionally safe: it never submits proposals, never calls a
     model, and never mutates SkeinRank state. It only prepares the review queue
-    that a later model/tool-execution patch can consume.
+    that model/tool execution can consume.
     """
 
     cfg = demo_config or DemoReportConfig()
@@ -170,7 +170,7 @@ def build_alias_scout_demo_report(
             "proposal_recall": None,
             "note": (
                 "Offline demo signal only. Precision/recall require reviewed "
-                "proposals or qrels in later patches."
+                "proposals or qrels in follow-up evaluation workflows."
             ),
         },
         "review_queue": review_queue,

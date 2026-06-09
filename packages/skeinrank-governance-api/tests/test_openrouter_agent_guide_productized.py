@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from public_docs_guard import REPO_ROOT, assert_productized_repo_files
 
 OPENROUTER_DOCS = [
     REPO_ROOT / "docs" / "guides" / "openrouter-agent.md",
@@ -19,17 +19,7 @@ def _read(path: Path) -> str:
 
 
 def test_openrouter_agent_docs_are_productized() -> None:
-    forbidden = (
-        "Patch",
-        "patch-era",
-        "later patches",
-        "dev diary",
-        "development diary",
-    )
-    for path in OPENROUTER_DOCS:
-        content = _read(path)
-        for fragment in forbidden:
-            assert fragment not in content, path
+    assert_productized_repo_files(OPENROUTER_DOCS)
 
 
 def test_openrouter_agent_guide_keeps_real_operator_surfaces() -> None:

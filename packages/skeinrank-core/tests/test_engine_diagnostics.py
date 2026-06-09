@@ -9,23 +9,17 @@ def test_engine_diagnostics_shape():
     assert "runtime" in d and isinstance(d["runtime"], dict)
     assert "backends" in d and isinstance(d["backends"], dict)
 
-    # Builtin must always be present.
-    assert "builtin" in d["backends"]
+    assert set(d["backends"].keys()) == {"builtin"}
     b = d["backends"]["builtin"]
-    assert "available" in b
     assert b["available"] is True
+    assert b["details"]["always_available"] is True
+    assert b["errors"] == []
 
-    # Runtime section should include precision capability hints (best-effort).
     rt = d["runtime"]
-    assert "cuda_available" in rt
-    assert "gpu_name" in rt
-    assert "fp16_supported" in rt
-    assert "bf16_supported" in rt
-    assert "cuda_compute_capability" in rt
-
-    # Torch backend entry should exist even if deps are missing.
-    assert "torch_bi_encoder" in d["backends"]
-    t = d["backends"]["torch_bi_encoder"]
-    assert "available" in t
-    assert "details" in t and isinstance(t["details"], dict)
-    assert "errors" in t and isinstance(t["errors"], list)
+    assert "python_version" in rt
+    assert "platform" in rt
+    assert rt["cuda_available"] is False
+    assert rt["gpu_name"] is None
+    assert rt["fp16_supported"] is False
+    assert rt["bf16_supported"] is False
+    assert rt["cuda_compute_capability"] is None

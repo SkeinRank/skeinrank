@@ -14,6 +14,8 @@ proposal -> validation -> risk policy -> human review -> snapshot / GitOps rollo
 
 Please avoid adding new UI flows that directly mutate production terminology, bindings, enrichment jobs, or runtime snapshots without going through the governed workflow.
 
+Search integrations should keep SkeinRank focused on governed terminology artifacts. Prefer query-time adapters, vector pre-embedding adapters, export artifacts, and short examples over engine-specific management code. Direct backend writes require an explicit operator-controlled delivery workflow with preflight, per-run confirmation, and rollback guidance. See [`docs/concepts/search-integration-scope.md`](docs/concepts/search-integration-scope.md).
+
 ## Local setup
 
 ### Python packages
@@ -84,7 +86,7 @@ Good first contributions usually look like:
 - connector planning docs;
 - bug reports with logs and reproduction steps.
 
-Please open an issue first for larger work such as schema changes, new provider integrations, GitOps import/apply flows, enrichment behavior changes, or MCP tool surface changes.
+Please open an issue first for larger work such as schema changes, new provider integrations, GitOps import/apply flows, search integration behavior changes, enrichment delivery behavior changes, or MCP tool surface changes.
 
 ## Code style
 

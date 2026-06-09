@@ -72,8 +72,8 @@ def build_candidate_pack(
 ) -> JsonDict:
     """Build the compact evidence pack reviewed by the LLM.
 
-    Patch 40G only provides the shape. Later candidate discovery/evidence patches
-    will build these packs from failed queries and document windows.
+    The prompt defines the review shape. Candidate discovery and evidence sampling
+    build these packs from failed queries and document windows.
     """
 
     pack: JsonDict = {

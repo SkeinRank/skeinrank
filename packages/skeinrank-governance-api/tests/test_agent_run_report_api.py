@@ -44,7 +44,7 @@ def _create_run(
             "trigger_type": "worker",
             "profile_name": "default_it",
             "binding_id": binding_id,
-            "agent_version": "52C",
+            "agent_version": "agent-report-v1",
             "prompt_version": "prompt-v1",
             "openrouter_model": "openai/gpt-4o-mini",
             "artifacts_uri": "file:///tmp/run-artifacts/report-run-001",

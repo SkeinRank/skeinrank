@@ -1,8 +1,8 @@
 """Operator-facing retrieval comparison reports.
 
-Patch 50C consumes a ``skeinrank.retrieval_eval_report.v1`` payload and turns it
-into a compact comparison/diagnostic report that is suitable for benchmark,
-pilot, and company-index evaluation workflows. It remains offline: no database,
+The comparison reporter consumes a ``skeinrank.retrieval_eval_report.v1``
+payload and turns it into a compact diagnostic report for benchmark, pilot, and
+company-index evaluation workflows. It remains offline: no database,
 Elasticsearch, OpenRouter, proposal, or runtime mutation calls are performed.
 """
 

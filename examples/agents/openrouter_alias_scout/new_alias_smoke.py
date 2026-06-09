@@ -1,7 +1,7 @@
 """Controlled new-alias proposal smoke test for the OpenRouter alias scout.
 
-Patch 41D proves the safe write path for a brand-new alias without requiring a
-real OpenRouter call. The smoke report is shaped like the normal
+The smoke test proves the safe write path for a brand-new alias without requiring
+a real OpenRouter call. The smoke report is shaped like the normal
 ``skeinrank.agent_llm_review_report.v1`` output, then uses the existing
 SkeinRank tool endpoints:
 
