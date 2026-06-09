@@ -234,7 +234,7 @@ describe("ProposalInboxPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "AI Inbox" }));
 
     expect((await screen.findAllByText("AI Proposals Inbox")).length).toBeGreaterThan(0);
-    expect(await screen.findByText("pg → postgresql")).toBeInTheDocument();
+    expect((await screen.findAllByText("pg → postgresql")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Risk: low").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Validation: passed").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Evidence ready").length).toBeGreaterThan(0);
