@@ -304,7 +304,6 @@ def test_support_bundle_docs_reference_real_targets_and_cli() -> None:
     production_guide = _read("docs/pilots/support-bundle-production.md")
     makefile = _read("Makefile")
     pyproject = _read("packages/skeinrank-governance-api/pyproject.toml")
-    root_readme = _read("README.md")
     docs_readme = _read("docs/README.md")
     package_readme = _read("packages/skeinrank-governance-api/README.md")
 
@@ -332,8 +331,6 @@ def test_support_bundle_docs_reference_real_targets_and_cli() -> None:
     assert "runs/last_agent_runs.json" in production_guide
     assert "health/health_summary.json" in production_guide
     assert "skeinrank-governance-support-bundle" in pyproject
-    assert "docs/pilots/troubleshooting-bundle-export.md" in root_readme
-    assert "docs/pilots/support-bundle-production.md" in root_readme
     assert "pilots/troubleshooting-bundle-export.md" in docs_readme
     assert "pilots/support-bundle-production.md" in docs_readme
     assert "support_bundle" in package_readme

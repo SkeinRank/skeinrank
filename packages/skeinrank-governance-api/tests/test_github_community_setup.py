@@ -128,8 +128,8 @@ def test_readme_docs_and_contributing_link_community_guidance() -> None:
     contributing = _read(CONTRIBUTING)
     pr_template = _read(PR_TEMPLATE)
 
-    assert "docs/community/discussions.md" in readme
-    assert "docs/community/github-labels.md" in readme
+    assert "Issues" in readme
+    assert "Discussions" in readme
     assert "community/discussions.md" in docs_readme
     assert "community/github-labels.md" in docs_readme
     assert "Issues and Discussions" in contributing

@@ -19,15 +19,13 @@ CI_WORKFLOW = REPO_ROOT / ".github/workflows/ci.yml"
 def test_readme_positions_skeinrank_as_control_plane_not_crud_console() -> None:
     readme = ROOT_README.read_text(encoding="utf-8")
 
-    assert "Terminology Control Plane" in readme
-    assert "enterprise search, RAG, and AI-agent workflows" in readme
-    assert "Control Plane" in readme
-    assert "Data Plane" in readme
-    assert "Playground -> debug query canonicalization" in readme
-    assert "AI Inbox -> review evidence-backed agent proposals" in readme
-    assert "Schema & Snapshots -> inspect profiles" in readme
-    assert "not a direct production CRUD console" in readme
-    assert "proposal, validation, risk policy, review, snapshots" in readme
+    assert "open-source control plane" in readme
+    assert "keeps your search vocabulary under control as it drifts" in readme
+    assert "terminology sidecar" in readme
+    assert "Binding-aware runtime" in readme
+    assert "Evidence-assisted review + AI Inbox" in readme
+    assert "Production changes never touch the database directly" in readme
+    assert "proposal → validation → risk policy → review → snapshot → rollout" in readme
     assert "docs/product-positioning.md" in readme
     assert "make demo-tour" in readme
     assert "make demo-tour-smoke" in readme

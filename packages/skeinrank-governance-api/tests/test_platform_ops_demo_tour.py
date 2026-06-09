@@ -151,6 +151,8 @@ def test_demo_product_tour_docs_are_discoverable() -> None:
     for content in (root_readme, docs_readme, demo_readme, guide):
         assert "make demo-tour" in content
         assert "make demo-tour-smoke" in content
+
+    for content in (docs_readme, demo_readme, guide):
         assert "platform_ops_demo_tour_report.json" in content
 
     assert "demo-product-tour.md" in docs_readme

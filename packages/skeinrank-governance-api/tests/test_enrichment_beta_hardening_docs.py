@@ -26,8 +26,9 @@ def _read(path: Path) -> str:
 
 def test_operator_controlled_search_delivery_docs_are_discoverable() -> None:
     assert DOC.exists()
-    assert "docs/guides/enrichment-beta-hardening.md" in _read(ROOT_README)
-    assert "Operator-controlled search delivery" in _read(ROOT_README)
+    root_readme = _read(ROOT_README)
+    assert "Operator-controlled search delivery" in root_readme
+    assert "docs/guides/elasticsearch-enrichment.md" in root_readme
     assert "guides/enrichment-beta-hardening.md" in _read(DOCS_README)
     assert "Operator-controlled search delivery hardening" in _read(DOCS_README)
     assert "enrichment-beta-hardening.md" in _read(ENRICHMENT_DOC)

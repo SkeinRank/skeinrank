@@ -82,9 +82,9 @@ def test_docker_image_docs_explain_automatic_and_manual_publish_paths() -> None:
 
 def test_readme_and_docs_index_link_docker_images_docs() -> None:
     readme = _read(ROOT_README)
+    docker_images_doc = _read(DOCKER_IMAGES_DOC)
     docs_readme = _read(DOCS_README)
 
-    assert "docs/deployment/docker-images.md" in readme
-    assert ".github/workflows/docker-publish.yml" in readme
-    assert "v0.10.0-beta.1" in readme
     assert "deployment/docker-images.md" in docs_readme
+    assert ".github/workflows/docker-publish.yml" in readme
+    assert "v0.10.0-beta.1" in docker_images_doc

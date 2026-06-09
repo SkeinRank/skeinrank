@@ -14,12 +14,8 @@ def test_headless_runtime_contract_docs_are_linked() -> None:
     overview = _read("docs/overview.md")
     root_readme = _read("README.md")
 
-    expected_links = (
-        "docs/concepts/headless-runtime-contracts.md",
-        "docs/adr/0001-headless-runtime-contracts.md",
-    )
-    for link in expected_links:
-        assert link in root_readme
+    assert "Headless runtime" in root_readme
+    assert "docs/deployment/headless-quickstart.md" in root_readme
 
     assert "concepts/headless-runtime-contracts.md" in docs_readme
     assert "adr/0001-headless-runtime-contracts.md" in docs_readme

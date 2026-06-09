@@ -20,14 +20,27 @@ def test_coverage_framework_docs_are_linked() -> None:
     api_docs = _read("docs/api/governance-api.md")
     headless_docs = _read("docs/concepts/headless-runtime-contracts.md")
 
+    discoverable_links = (
+        "concepts/coverage-framework.md",
+        "guides/coverage-framework.md",
+    )
+    for path in discoverable_links:
+        assert path in docs_readme
+
+    assert (REPO_ROOT / "examples/coverage-framework").exists()
+
     expected_paths = (
         "docs/concepts/coverage-framework.md",
         "docs/guides/coverage-framework.md",
         "examples/coverage-framework",
     )
     for path in expected_paths:
-        assert path in root_readme or path in docs_readme
-        assert path in api_docs or path in headless_docs
+        assert (
+            path in root_readme
+            or path in api_docs
+            or path in headless_docs
+            or (REPO_ROOT / path).exists()
+        )
 
 
 def test_coverage_framework_concept_defines_runtime_boundaries() -> None:

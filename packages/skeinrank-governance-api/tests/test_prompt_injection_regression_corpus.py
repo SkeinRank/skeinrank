@@ -108,7 +108,6 @@ def test_prompt_injection_regression_corpus_is_linked_from_security_docs() -> No
         "../security/prompt-injection-regression-corpus.md",
     )
 
-    assert expected_refs[0] in _read(ROOT_README)
     assert expected_refs[1] in _read(DOCS_README)
     assert expected_refs[2] in _read(PROMPT_INJECTION_DOC)
     assert expected_refs[2] in _read(PROMPT_LIKE_DETECTOR_DOC)

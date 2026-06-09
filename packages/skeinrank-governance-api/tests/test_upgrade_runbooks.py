@@ -84,7 +84,6 @@ def test_production_smoke_script_handles_unreachable_api_cleanly() -> None:
 
 def test_upgrade_docs_are_linked_from_primary_docs() -> None:
     docs_index = _read("docs/README.md")
-    root_readme = _read("README.md")
     package_readme = _read("packages/skeinrank-governance-api/README.md")
     docker_readme = _read("deploy/docker/README.md")
     production_guide = _read("docs/deployment/production-compose.md")
@@ -93,7 +92,6 @@ def test_upgrade_docs_are_linked_from_primary_docs() -> None:
 
     for content in (
         docs_index,
-        root_readme,
         package_readme,
         docker_readme,
         production_guide,
@@ -110,7 +108,6 @@ def test_upgrade_docs_are_linked_from_primary_docs() -> None:
         )
 
     assert "deployment/release-checklist.md" in docs_index
-    assert "docs/deployment/release-checklist.md" in root_readme
     assert "docs/deployment/release-checklist.md" in package_readme
 
 

@@ -157,7 +157,6 @@ def test_synthetic_smoke_cli_plan_generate_and_report(tmp_path: Path, capsys) ->
 def test_synthetic_smoke_docs_and_makefile_targets_are_linked() -> None:
     makefile = _read("Makefile")
     docs_readme = _read("docs/README.md")
-    root_readme = _read("README.md")
     package_readme = _read("packages/skeinrank-governance-api/README.md")
     guide = _read("docs/benchmarks/synthetic-smoke-generator.md")
     pyproject = _read("packages/skeinrank-governance-api/pyproject.toml")
@@ -174,7 +173,7 @@ def test_synthetic_smoke_docs_and_makefile_targets_are_linked() -> None:
     assert "skeinrank_governance_api.synthetic_smoke" in makefile
     assert "BENCHMARK_SYNTHETIC_SMOKE_CORPUS" in makefile
     assert "benchmarks/synthetic-smoke-generator.md" in docs_readme
-    assert "benchmark-smoke-generate" in root_readme
+    assert "benchmark-smoke-generate" in guide
     assert "skeinrank-governance-synthetic-smoke" in package_readme
     assert "skeinrank-governance-synthetic-smoke" in pyproject
     assert "skeinrank.synthetic_smoke_manifest.v1" in guide

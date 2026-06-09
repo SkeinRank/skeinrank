@@ -71,9 +71,11 @@ def test_troubleshooting_guide_documents_common_dev_failures() -> None:
 
 def test_root_readme_mentions_docker_compose_docs() -> None:
     readme = _read("README.md")
+    docs_index = _read("docs/README.md")
 
-    assert "## Docker Compose dev stack" in readme
+    assert "Full dev stack" in readme
     assert "docs/deployment/docker-compose.md" in readme
-    assert "docs/deployment/dev-stack-troubleshooting.md" in readme
-    assert "docs/deployment/security.md" in readme
-    assert "docker-compose.prod.yml" in readme
+    assert "docker compose -f docker-compose.dev.yml up --build -d" in readme
+    assert "deployment/docker-compose.md" in docs_index
+    assert "deployment/security.md" in docs_index
+    assert "deployment/production-compose.md" in docs_index

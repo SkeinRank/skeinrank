@@ -19,7 +19,8 @@ def _read(path: Path) -> str:
 
 def test_dictionary_cli_planning_docs_are_discoverable() -> None:
     assert DOC.exists()
-    assert "docs/guides/dictionary-cli-planning.md" in _read(ROOT_README)
+    root_readme = _read(ROOT_README)
+    assert "Terminology-as-Code" in root_readme
     assert "guides/dictionary-cli-planning.md" in _read(DOCS_README)
     assert "docs/guides/dictionary-cli-planning.md" in _read(GOVERNANCE_API_README)
 

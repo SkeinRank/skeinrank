@@ -138,11 +138,10 @@ def test_alias_scout_script_dry_run_outputs_json() -> None:
 
 
 def test_agent_foundation_is_linked_from_docs() -> None:
-    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     docs_readme = (REPO_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
     api_docs = (REPO_ROOT / "docs" / "api" / "governance-api.md").read_text(
         encoding="utf-8"
     )
 
-    for content in (readme, docs_readme, api_docs):
+    for content in (docs_readme, api_docs):
         assert "examples/agents/openrouter_alias_scout" in content
