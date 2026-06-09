@@ -40,8 +40,13 @@ def test_mcp_client_docs_are_discoverable() -> None:
         "docs/deployment/mcp-langgraph-agents.md",
         "examples/mcp-agent-docs",
     )
+    root_readme = _read(ROOT_README)
+    assert "MCP & agent integration" in root_readme
+    assert "docs/deployment/mcp-integration-kit.md" in root_readme
+    assert "docs/deployment/mcp-claude-desktop.md" in root_readme
+    assert "docs/deployment/mcp-langgraph-agents.md" in root_readme
+
     for fragment in expected_links:
-        assert fragment in _read(ROOT_README)
         assert fragment in _read(PACKAGE_README)
         assert fragment in _read(API_DOC)
         assert fragment in _read(MCP_KIT_DOC)

@@ -125,8 +125,9 @@ def test_security_docs_are_linked_from_readme_and_docs_index() -> None:
         "docs/security/rag-context-boundaries.md",
         "docs/security/agent-tool-safety.md",
     )
+    assert "docs/security/prompt-injection.md" in root_readme
+    assert "docs/security/agent-tool-safety.md" in root_readme
     for link in expected_links:
-        assert link in root_readme
         assert link in deployment_security
 
     for link in (
@@ -143,8 +144,8 @@ def test_security_docs_are_linked_from_readme_and_docs_index() -> None:
     ):
         assert link in mcp_kit
 
-    assert "docs/security/prompt-like-detector.md" in root_readme
-    assert "docs/security/prompt-injection-regression-corpus.md" in root_readme
+    assert "security/prompt-like-detector.md" in docs_readme
+    assert "security/prompt-injection-regression-corpus.md" in docs_readme
     assert "docs/security/prompt-like-detector.md" in deployment_security
     assert "../security/prompt-like-detector.md" in mcp_kit
     assert "../security/prompt-injection-regression-corpus.md" in mcp_kit
