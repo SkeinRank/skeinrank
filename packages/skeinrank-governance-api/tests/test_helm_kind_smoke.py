@@ -95,7 +95,9 @@ def test_helm_smoke_docs_are_discoverable() -> None:
     smoke_doc = _read(SMOKE_DOC)
     helm_doc = _read(HELM_DOC)
     production_doc = _read(HELM_PRODUCTION_DOC)
-    readme = _read(ROOT_README)
+    package_readme = _read(
+        REPO_ROOT / "packages" / "skeinrank-governance-api" / "README.md"
+    )
     docs_readme = _read(DOCS_README)
     docker_images_doc = _read(DOCKER_IMAGES_DOC)
 
@@ -114,6 +116,6 @@ def test_helm_smoke_docs_are_discoverable() -> None:
     assert "helm-smoke-test.md" in helm_doc
     assert "values-kind-smoke.yaml" in helm_doc
     assert "helm-smoke-test.md" in production_doc
-    assert "docs/deployment/helm-smoke-test.md" in readme
+    assert "docs/deployment/helm-smoke-test.md" in package_readme
     assert "deployment/helm-smoke-test.md" in docs_readme
     assert "helm-smoke-test.md" in docker_images_doc

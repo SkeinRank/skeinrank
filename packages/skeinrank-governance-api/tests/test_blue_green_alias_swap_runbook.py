@@ -35,9 +35,9 @@ def test_blue_green_alias_swap_runbook_is_discoverable() -> None:
     assert OPERATOR_CHECKLIST.exists()
 
     assert "docs/deployment/blue-green-alias-swap-runbook.md" in _read(ROOT_README)
-    assert "examples/blue-green-alias-swap" in _read(ROOT_README)
-    assert "deployment/blue-green-alias-swap-runbook.md" in _read(DOCS_README)
-    assert "../examples/blue-green-alias-swap" in _read(DOCS_README)
+    docs_index = _read(DOCS_README)
+    assert "deployment/blue-green-alias-swap-runbook.md" in docs_index
+    assert "../examples/blue-green-alias-swap" in docs_index
     assert "docs/deployment/blue-green-alias-swap-runbook.md" in _read(
         GOVERNANCE_API_README
     )

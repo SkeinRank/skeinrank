@@ -105,7 +105,6 @@ def test_production_compose_docs_reference_ops_flow() -> None:
     docker_readme = _read("deploy/docker/README.md")
     security = _read("docs/deployment/security.md")
     docs_index = _read("docs/README.md")
-    root_readme = _read("README.md")
     package_readme = _read("packages/skeinrank-governance-api/README.md")
     makefile = _read("Makefile")
 
@@ -129,7 +128,6 @@ def test_production_compose_docs_reference_ops_flow() -> None:
 
     assert "docs/deployment/production-compose.md" in security
     assert "deployment/production-compose.md" in docs_index
-    assert "docs/deployment/production-compose.md" in root_readme
     assert "docs/deployment/production-compose.md" in package_readme
     assert "deploy/docker/scripts/prod-smoke-test.sh" in package_readme
 

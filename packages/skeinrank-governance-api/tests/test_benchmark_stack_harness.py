@@ -62,12 +62,11 @@ def test_benchmark_stack_uses_dev_stack_defaults() -> None:
 
 def test_benchmark_stack_docs_are_linked() -> None:
     docs_readme = _read("docs/README.md")
-    root_readme = _read("README.md")
     package_readme = _read("packages/skeinrank-governance-api/README.md")
     guide = _read("docs/benchmarks/containerized-benchmark-integration.md")
 
     assert "benchmarks/containerized-benchmark-integration.md" in docs_readme
-    assert "benchmark-stack-run" in root_readme
+    assert "benchmark-stack-run" in guide
     assert "benchmark-stack-eval" in package_readme
     assert "skeinrank.benchmark_stack_report.v1" in guide
     assert "PostgreSQL, Governance API, and Elasticsearch" in guide

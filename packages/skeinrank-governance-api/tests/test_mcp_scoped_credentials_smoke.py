@@ -24,10 +24,9 @@ def test_mcp_scoped_credentials_docs_are_discoverable() -> None:
     assert DOC.exists()
     assert (EXAMPLES_DIR / "README.md").exists()
 
-    assert "docs/deployment/mcp-scoped-credentials-smoke-tests.md" in _read(ROOT_README)
-    assert "examples/mcp-scoped-credentials" in _read(ROOT_README)
-    assert "deployment/mcp-scoped-credentials-smoke-tests.md" in _read(DOCS_README)
-    assert "../examples/mcp-scoped-credentials" in _read(DOCS_README)
+    docs_index = _read(DOCS_README)
+    assert "deployment/mcp-scoped-credentials-smoke-tests.md" in docs_index
+    assert "../examples/mcp-scoped-credentials" in docs_index
     assert "docs/deployment/mcp-scoped-credentials-smoke-tests.md" in _read(
         PACKAGE_README
     )

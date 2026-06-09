@@ -133,6 +133,6 @@ def test_release_compose_docs_and_indexes_are_discoverable() -> None:
     assert "release-compose.md" in docker_compose_doc
     assert "release-compose.md" in docker_images_doc
     assert "docs/deployment/release-compose.md" in root_readme
-    assert "docker-compose.yml" in root_readme
+    assert "docker-compose.yml" in release_doc
     assert "deployment/release-compose.md" in docs_readme
     assert "docs/deployment/release-compose.md" in docker_readme

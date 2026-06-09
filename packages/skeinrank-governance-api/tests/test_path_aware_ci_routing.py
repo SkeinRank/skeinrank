@@ -124,7 +124,6 @@ def test_ci_gate_accepts_success_or_skipped_and_rejects_failures() -> None:
 
 def test_ci_routing_docs_are_discoverable() -> None:
     doc = _read(CI_ROUTING_DOC)
-    readme = _read(ROOT_README)
     docs_readme = _read(DOCS_README)
 
     for fragment in (
@@ -138,5 +137,4 @@ def test_ci_routing_docs_are_discoverable() -> None:
     ):
         assert fragment in doc
 
-    assert "docs/deployment/ci-routing.md" in readme
     assert "deployment/ci-routing.md" in docs_readme

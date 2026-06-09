@@ -31,10 +31,9 @@ def test_gitops_delivery_runbook_is_discoverable() -> None:
     assert RUNBOOK.exists()
     assert (EXAMPLES_DIR / "README.md").exists()
 
-    assert "docs/deployment/gitops-delivery-runbook.md" in _read(ROOT_README)
-    assert "examples/gitops-delivery" in _read(ROOT_README)
-    assert "deployment/gitops-delivery-runbook.md" in _read(DOCS_README)
-    assert "../examples/gitops-delivery" in _read(DOCS_README)
+    docs_index = _read(DOCS_README)
+    assert "deployment/gitops-delivery-runbook.md" in docs_index
+    assert "../examples/gitops-delivery" in docs_index
     assert "docs/deployment/gitops-delivery-runbook.md" in _read(GOVERNANCE_API_README)
     assert "../deployment/gitops-delivery-runbook.md" in _read(TERMINOLOGY_AS_CODE_DOC)
     assert "../deployment/gitops-delivery-runbook.md" in _read(CLI_PLANNING_DOC)

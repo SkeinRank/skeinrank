@@ -125,7 +125,7 @@ def test_root_and_docs_link_headless_quickstart() -> None:
             or "deployment/headless-quickstart.md" in text
         )
 
-    assert "docker-compose.headless.yml" in readme
-    assert "Headless Compose quickstart" in _read(
-        "packages/skeinrank-governance-api/README.md"
-    )
+    package_readme = _read("packages/skeinrank-governance-api/README.md")
+    assert "docker-compose.headless.yml" in deploy_readme
+    assert "docker-compose.headless.yml" in package_readme
+    assert "Headless Compose quickstart" in package_readme

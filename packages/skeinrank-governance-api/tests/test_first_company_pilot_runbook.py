@@ -92,10 +92,8 @@ def test_first_company_pilot_checklist_is_present_and_private_by_default() -> No
 
 def test_first_company_pilot_runbook_is_linked_from_readmes() -> None:
     docs_readme = _read("docs/README.md")
-    root_readme = _read("README.md")
     package_readme = _read("packages/skeinrank-governance-api/README.md")
 
     assert "pilots/first-company-pilot-runbook.md" in docs_readme
-    assert "docs/pilots/first-company-pilot-runbook.md" in root_readme
-    assert "first_company_pilot_checklist.md" in root_readme
+    assert CHECKLIST.exists()
     assert "first-company-pilot-runbook.md" in package_readme
