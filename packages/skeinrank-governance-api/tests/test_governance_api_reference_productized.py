@@ -38,7 +38,7 @@ def test_governance_api_reference_is_product_documentation() -> None:
         "## Suggestions, evidence, and apply gates",
         "## Conflict detection and coverage framework",
         "## Ambiguous aliases and binding policy",
-        "## Elasticsearch/OpenSearch discovery and bindings",
+        "## Elasticsearch/OpenSearch discovery and delivery",
         "## Runtime search and canonicalization",
         "## Agent-friendly proposal tools",
         "## Agent run registry and progress",

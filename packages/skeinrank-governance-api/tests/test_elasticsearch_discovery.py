@@ -1768,6 +1768,8 @@ def test_elasticsearch_enrichment_job_requires_current_confirmation_token(
             "index_name": "docs",
             "text_fields": ["title", "body"],
             "target_field": "skeinrank",
+            "filter_field": "team",
+            "filter_value": "infra",
             "mode": "write",
             "write_strategy": "reindex_alias_swap",
         },
