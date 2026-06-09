@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import ast
-import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from public_docs_guard import (
+    INTERNAL_MILESTONE_PATTERN,
+    PRODUCT_DOC_FORBIDDEN_PATTERNS,
+    REPO_ROOT,
+)
+
 SOURCE_ROOTS = (
     REPO_ROOT / "packages" / "skeinrank-core" / "skeinrank",
     REPO_ROOT / "packages" / "skeinrank-governance" / "skeinrank_governance",
@@ -13,13 +17,8 @@ SOURCE_ROOTS = (
     REPO_ROOT / "examples" / "agents" / "openrouter_alias_scout",
 )
 FORBIDDEN_DOCSTRING_PATTERNS = (
-    re.compile(r"\b[Pp]atch(?:es)?\b"),
-    re.compile(r"\bpatch-era\b", re.IGNORECASE),
-    re.compile(r"\bfollow-up patches\b", re.IGNORECASE),
-    re.compile(r"\blater patches\b", re.IGNORECASE),
-    re.compile(r"\bfuture patches\b", re.IGNORECASE),
-    re.compile(r"\bMVP\b"),
-    re.compile(r"\b\d{2}[A-Z]\b"),
+    *PRODUCT_DOC_FORBIDDEN_PATTERNS,
+    INTERNAL_MILESTONE_PATTERN,
 )
 
 

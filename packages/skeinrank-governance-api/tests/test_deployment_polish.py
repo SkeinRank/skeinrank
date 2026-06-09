@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import re
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from public_docs_guard import assert_productized_text, read_repo_file
 
 
 def _read(path: str) -> str:
-    return (REPO_ROOT / path).read_text(encoding="utf-8")
+    return read_repo_file(path)
 
 
 def test_compose_api_healthchecks_use_expected_operational_endpoints() -> None:
@@ -76,15 +73,11 @@ def test_deployment_docs_reference_observability_foundation() -> None:
 def test_deploy_docker_readme_uses_product_language() -> None:
     readme = _read("deploy/docker/README.md")
 
-    forbidden_patterns = (
-        r"\b[Pp]atch\b",
-        r"patch-era",
-        r"later patches",
-        r"future patches",
-        r"\bmilestone\b",
+    assert_productized_text(
+        readme,
+        source="deploy/docker/README.md",
+        extra_forbidden=("milestone",),
     )
-    for pattern in forbidden_patterns:
-        assert re.search(pattern, readme) is None, pattern
 
     expected_sections = (
         "Release Compose with GHCR images",

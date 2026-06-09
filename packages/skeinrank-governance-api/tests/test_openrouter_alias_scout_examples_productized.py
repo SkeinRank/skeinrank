@@ -1,18 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
-import re
 import sys
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-AGENT_DIR = REPO_ROOT / "examples" / "agents" / "openrouter_alias_scout"
+from public_docs_guard import REPO_ROOT, assert_productized_text
 
-_PATCH_ERA_PATTERN = re.compile(
-    r"\bPatch\b|\bpatch\b|patch-era|later patches|future patches|"
-    r"\b4[0-9][A-Z]\b|\b5[0-9][A-Z]\b"
-)
+AGENT_DIR = REPO_ROOT / "examples" / "agents" / "openrouter_alias_scout"
 
 
 def _load_module(name: str, path: Path) -> Any:
@@ -38,7 +33,11 @@ def test_alias_scout_example_text_is_productized() -> None:
         if not path.is_file() or path.suffix not in checked_suffixes:
             continue
         content = path.read_text(encoding="utf-8")
-        assert not _PATCH_ERA_PATTERN.search(content), path
+        assert_productized_text(
+            content,
+            source=path.relative_to(REPO_ROOT),
+            forbid_internal_milestones=True,
+        )
 
 
 def test_report_helpers_use_workflow_not_internal_milestone_key() -> None:

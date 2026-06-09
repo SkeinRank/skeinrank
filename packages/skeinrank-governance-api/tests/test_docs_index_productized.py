@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DOCS_README = REPO_ROOT / "docs/README.md"
+from public_docs_guard import assert_productized_text, read_repo_file
 
 
 def _read_docs_index() -> str:
-    return DOCS_README.read_text(encoding="utf-8")
+    return read_repo_file("docs/README.md")
 
 
 def test_docs_index_is_product_facing_entrypoint() -> None:
@@ -88,8 +85,7 @@ def test_docs_index_does_not_read_like_an_implementation_log() -> None:
     content = _read_docs_index()
     lower_content = content.lower()
 
-    assert "Patch" not in content
-    assert "patch" not in lower_content
+    assert_productized_text(content, source="docs/README.md")
     assert "changelog" not in lower_content
     assert "dev-журнал" not in lower_content
     assert "дневник" not in lower_content

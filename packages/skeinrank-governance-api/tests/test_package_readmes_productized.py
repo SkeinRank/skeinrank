@@ -1,40 +1,28 @@
 from __future__ import annotations
 
-import re
-from pathlib import Path
+from public_docs_guard import REPO_ROOT, assert_productized_repo_files, read_repo_file
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_READMES = tuple(sorted((REPO_ROOT / "packages").glob("*/README.md")))
-GOVERNANCE_README = REPO_ROOT / "packages/skeinrank-governance/README.md"
-UI_README = REPO_ROOT / "packages/skeinrank-ui/README.md"
-
-
-def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+GOVERNANCE_README = "packages/skeinrank-governance/README.md"
+UI_README = "packages/skeinrank-ui/README.md"
 
 
 def test_package_readmes_are_product_facing() -> None:
     assert PACKAGE_READMES
-    forbidden_patterns = (
-        r"\b[Pp]atch(?:es)?\b",
-        r"\bdev[- ]?journal\b",
-        r"\bdevelopment diary\b",
-        r"\bfirst package skeleton\b",
-        r"\bfirst frontend layer\b",
-        r"\blegacy/dev\b",
-        r"\bfollow-up patches\b",
-        r"\blater platform patches\b",
-        r"\bMVP\b",
+    assert_productized_repo_files(
+        list(PACKAGE_READMES),
+        extra_forbidden=(
+            "first package skeleton",
+            "first frontend layer",
+            "legacy/dev",
+            "later platform patches",
+            "MVP",
+        ),
     )
-
-    for path in PACKAGE_READMES:
-        content = _read(path)
-        for pattern in forbidden_patterns:
-            assert re.search(pattern, content) is None, f"{path}: {pattern}"
 
 
 def test_governance_readme_documents_stable_package_surfaces() -> None:
-    content = _read(GOVERNANCE_README)
+    content = read_repo_file(GOVERNANCE_README)
 
     required_sections = (
         "## Role in the architecture",
@@ -66,7 +54,7 @@ def test_governance_readme_documents_stable_package_surfaces() -> None:
 
 
 def test_ui_readme_documents_current_console_surfaces() -> None:
-    content = _read(UI_README)
+    content = read_repo_file(UI_README)
 
     required_sections = (
         "## Product surfaces",

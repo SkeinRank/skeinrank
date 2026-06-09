@@ -42,7 +42,7 @@ def test_agent_run_registry_create_list_get_and_update(tmp_path):
         json={
             "run_id": "agent-run-001",
             "agent_name": "openrouter_alias_scout",
-            "agent_version": "44A",
+            "agent_version": "agent-runner-v1",
             "status": "queued",
             "trigger_type": "scheduled",
             "profile_name": "Default IT",
