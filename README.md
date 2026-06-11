@@ -33,6 +33,21 @@
   <a href="https://skeinrank.github.io"><img alt="Website" src="https://img.shields.io/badge/docs-skeinrank.github.io-0ea5e9" /></a>
 </p>
 
+
+<p align="center">
+  <img
+    src="docs/assets/architecture/skeinrank-semantic-drift-workflow.jpeg"
+    alt="SkeinRank workflow for semantic drift detection, proposal review, and vocabulary snapshot publishing"
+    width="920"
+  />
+</p>
+
+<p align="center">
+  <em>
+    Detect vocabulary drift, review proposed changes, and publish approved snapshots for search, RAG, and AI agents.
+  </em>
+</p>
+
 ---
 
 ## The problem nobody is measuring
