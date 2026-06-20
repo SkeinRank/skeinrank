@@ -136,3 +136,51 @@ def test_candidate_discovery_config_filters_and_limits_candidates():
     assert len(normalized) == 2
     assert report.top_candidates(1) == report.candidates[:1]
     assert report.top_candidates(0) == []
+
+
+def test_candidate_discovery_scoring_prefers_jargon_over_background_language():
+    report = discover_candidates(
+        [
+            "pcore pcore pcore server server server",
+            "pcore pcore pcore server server server",
+        ],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_word_length=2,
+            include_phrase_candidates=False,
+            stop_words=[],
+            background_terms=["server"],
+        ),
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+
+    assert values["pcore"].score > values["server"].score
+    assert values["pcore"].score_breakdown is not None
+    assert values["server"].score_breakdown is not None
+    assert (
+        values["pcore"].score_breakdown.jargon_score
+        > values["server"].score_breakdown.jargon_score
+    )
+    assert values["server"].score_breakdown.background_penalty > 0
+    assert "rare_against_background" in values["pcore"].score_breakdown.reasons
+
+
+def test_candidate_discovery_score_breakdown_explains_code_shape_boost():
+    report = discover_candidates(
+        ["PAY-1842 PAY-1842 PAY-1842 payment payment payment"],
+        config={
+            "min_frequency": 2,
+            "min_word_length": 2,
+            "include_phrase_candidates": False,
+            "stop_words": [],
+            "background_terms": ["payment"],
+        },
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+
+    assert values["pay 1842"].score > values["payment"].score
+    assert values["pay 1842"].score_breakdown is not None
+    assert values["pay 1842"].score_breakdown.code_shape_score > 0
+    assert "mixed_alpha_digit" in values["pay 1842"].score_breakdown.reasons

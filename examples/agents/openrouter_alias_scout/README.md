@@ -64,7 +64,7 @@ Makefile helper:
 make agent-demo
 ```
 
-The local demo uses `skeinrank.agent_demo_report.v1`. The local demo is network-free: it does not call OpenRouter, does not call Elasticsearch, does not call the SkeinRank API, and does not submit proposals.
+The local demo uses `skeinrank.agent_demo_report.v1`. The local demo is network-free: it does not call OpenRouter, does not call Elasticsearch, does not call the SkeinRank API, and does not submit proposals. Candidate discovery ranks surfaces with weighted failed-query support, background-language penalties, and a `jargon_score` so internal-looking aliases are prioritized before generic operational words.
 
 ## Tool schemas and prompts
 

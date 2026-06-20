@@ -85,6 +85,66 @@ DEFAULT_NOISE_TOKENS = frozenset(
     }
 )
 
+DEFAULT_BACKGROUND_TERMS = frozenset(
+    {
+        "api",
+        "application",
+        "backend",
+        "cache",
+        "client",
+        "cluster",
+        "component",
+        "config",
+        "connection",
+        "container",
+        "dashboard",
+        "data",
+        "database",
+        "deploy",
+        "deployment",
+        "endpoint",
+        "event",
+        "failure",
+        "gateway",
+        "health",
+        "http",
+        "index",
+        "job",
+        "latency",
+        "message",
+        "metric",
+        "migration",
+        "node",
+        "pipeline",
+        "pod",
+        "process",
+        "query",
+        "queue",
+        "release",
+        "request",
+        "response",
+        "route",
+        "runtime",
+        "schema",
+        "search",
+        "server",
+        "session",
+        "shard",
+        "storage",
+        "stream",
+        "table",
+        "task",
+        "tenant",
+        "thread",
+        "timeout",
+        "token",
+        "traffic",
+        "version",
+        "worker",
+    }
+)
+
+
 DEFAULT_KNOWN_TERMS = frozenset(
     {
         "kubernetes",
@@ -110,6 +170,9 @@ class CandidateDiscoveryConfig:
     stop_words: frozenset[str] = DEFAULT_STOP_WORDS
     noise_tokens: frozenset[str] = DEFAULT_NOISE_TOKENS
     known_terms: frozenset[str] = DEFAULT_KNOWN_TERMS
+    background_terms: frozenset[str] = DEFAULT_BACKGROUND_TERMS
+    jargon_weight: float = 2.0
+    background_penalty_weight: float = 1.0
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "CandidateDiscoveryConfig":
@@ -146,6 +209,11 @@ class CandidateDiscoveryConfig:
             stop_words=_string_set("stop_words", DEFAULT_STOP_WORDS),
             noise_tokens=_string_set("noise_tokens", DEFAULT_NOISE_TOKENS),
             known_terms=_string_set("known_terms", DEFAULT_KNOWN_TERMS),
+            background_terms=_string_set("background_terms", DEFAULT_BACKGROUND_TERMS),
+            jargon_weight=float(raw.get("jargon_weight", cls.jargon_weight)),
+            background_penalty_weight=float(
+                raw.get("background_penalty_weight", cls.background_penalty_weight)
+            ),
         )
 
 
@@ -158,6 +226,7 @@ class AliasCandidate:
     document_frequency: int
     score: float
     reasons: tuple[str, ...]
+    score_breakdown: Mapping[str, float | list[str]] = field(default_factory=dict)
     example_queries: tuple[str, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> JsonDict:
@@ -169,6 +238,7 @@ class AliasCandidate:
             "document_frequency": self.document_frequency,
             "score": round(self.score, 4),
             "reasons": list(self.reasons),
+            "score_breakdown": _round_score_breakdown(self.score_breakdown),
             "example_queries": list(self.example_queries),
         }
 
@@ -217,11 +287,12 @@ def discover_alias_candidates(
         if weighted_count < cfg.min_weighted_count:
             continue
         df = document_frequency[token]
-        score = _candidate_score(
+        score, score_breakdown = _candidate_score(
             token=token,
             weighted_count=weighted_count,
             document_frequency=df,
             total_docs=total_docs,
+            config=cfg,
         )
         if score < cfg.min_score:
             continue
@@ -232,6 +303,7 @@ def discover_alias_candidates(
                 document_frequency=int(df),
                 score=score,
                 reasons=tuple(candidate_reasons(token, cfg)),
+                score_breakdown=score_breakdown,
                 example_queries=tuple(examples[token]),
             )
         )
@@ -301,6 +373,9 @@ def build_candidate_discovery_report(
             "min_weighted_count": cfg.min_weighted_count,
             "min_score": cfg.min_score,
             "max_examples_per_candidate": cfg.max_examples_per_candidate,
+            "background_terms": sorted(cfg.background_terms),
+            "jargon_weight": cfg.jargon_weight,
+            "background_penalty_weight": cfg.background_penalty_weight,
         },
         "candidates": [candidate.to_dict() for candidate in candidates],
     }
@@ -327,23 +402,97 @@ def build_candidate_fact_pack(
             "document_frequency": candidate.document_frequency,
             "discovery_score": round(candidate.score, 4),
             "discovery_reasons": list(candidate.reasons),
+            "score_breakdown": _round_score_breakdown(candidate.score_breakdown),
         },
         "known_conflicts": [item for item in known_conflicts if item],
     }
 
 
 def _candidate_score(
-    *, token: str, weighted_count: float, document_frequency: int, total_docs: int
-) -> float:
+    *,
+    token: str,
+    weighted_count: float,
+    document_frequency: int,
+    total_docs: int,
+    config: CandidateDiscoveryConfig,
+) -> tuple[float, JsonDict]:
     idf = math.log((1 + total_docs) / (1 + document_frequency)) + 1.0
-    score = weighted_count * idf
+    frequency_score = weighted_count * idf
+    jargon_score, jargon_reasons = _jargon_score(token, config)
+    background_penalty = _background_penalty(token, config)
+    score = frequency_score
+    score += config.jargon_weight * jargon_score
+    score -= config.background_penalty_weight * background_penalty
     if _has_digit_and_alpha(token):
         score += 1.5
     if 2 <= len(token) <= 4:
         score += 1.0
     if "_" in token or "/" in token or "-" in token:
         score += 0.5
-    return float(score)
+    breakdown: JsonDict = {
+        "frequency_score": frequency_score,
+        "jargon_score": jargon_score,
+        "background_penalty": background_penalty,
+        "reasons": jargon_reasons,
+    }
+    return float(max(score, 0.0)), breakdown
+
+
+def _jargon_score(
+    token: str, config: CandidateDiscoveryConfig
+) -> tuple[float, list[str]]:
+    normalized = _normalize_token(token)
+    if not normalized:
+        return 0.0, []
+    background_terms = config.background_terms | config.stop_words | config.noise_tokens
+    parts = [part for part in re.split(r"[_.+#/-]+", normalized) if part]
+    if not parts:
+        return 0.0, []
+    common_count = sum(1 for part in parts if part in background_terms)
+    uncommon_ratio = 1.0 - (common_count / len(parts))
+    score = 0.2 + (0.65 * uncommon_ratio)
+    reasons: list[str] = []
+    if uncommon_ratio >= 0.75:
+        reasons.append("rare_against_background")
+    elif uncommon_ratio > 0.0:
+        reasons.append("mixed_background_and_domain_language")
+    else:
+        reasons.append("common_background_language")
+    if _has_digit_and_alpha(normalized) or any(
+        separator in normalized for separator in ("_", "/", "-", ".", "+")
+    ):
+        score += 0.15
+        reasons.append("identifier_like_surface")
+    if 2 <= len(normalized) <= 5 and normalized.isalpha():
+        score += 0.1
+        reasons.append("short_alias_like")
+    return min(score, 1.0), reasons
+
+
+def _background_penalty(token: str, config: CandidateDiscoveryConfig) -> float:
+    normalized = _normalize_token(token)
+    parts = [part for part in re.split(r"[_.+#/-]+", normalized) if part]
+    if not parts:
+        return 0.0
+    background_terms = config.background_terms | config.stop_words | config.noise_tokens
+    common_count = sum(1 for part in parts if part in background_terms)
+    if common_count == len(parts):
+        return 0.85
+    if common_count:
+        return 0.35 * (common_count / len(parts))
+    return 0.0
+
+
+def _round_score_breakdown(value: Mapping[str, Any]) -> JsonDict:
+    rounded: JsonDict = {}
+    for key, item in value.items():
+        if isinstance(item, float):
+            rounded[key] = round(item, 4)
+        elif isinstance(item, list):
+            rounded[key] = [entry for entry in item]
+        else:
+            rounded[key] = item
+    return rounded
 
 
 def _normalize_token(value: str) -> str:

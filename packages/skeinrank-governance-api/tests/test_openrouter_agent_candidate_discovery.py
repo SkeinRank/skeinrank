@@ -73,6 +73,8 @@ def test_candidate_discovery_finds_alias_like_terms_and_prunes_noise() -> None:
     assert candidates[0].weighted_count == 17
     assert candidates[0].document_frequency == 2
     assert "short_alias_like" in candidates[0].reasons
+    assert candidates[0].score_breakdown["jargon_score"] > 0
+    assert "rare_against_background" in candidates[0].score_breakdown["reasons"]
 
 
 def test_candidate_report_and_fact_pack_are_compact_and_deterministic() -> None:
@@ -94,6 +96,8 @@ def test_candidate_report_and_fact_pack_are_compact_and_deterministic() -> None:
     assert report["profile_name"] == "infra_incidents"
     assert report["candidates_found"] >= 3
     assert report["candidates"][0]["surface"] == "pg"
+    assert report["candidates"][0]["score_breakdown"]["jargon_score"] > 0
+    assert "background_terms" in report["config"]
 
     candidates = discovery.discover_alias_candidates(
         rows, config=config.candidate_discovery
@@ -107,6 +111,7 @@ def test_candidate_report_and_fact_pack_are_compact_and_deterministic() -> None:
     assert pack["profile_name"] == "infra_incidents"
     assert pack["evidence"][0].startswith("failed query:")
     assert pack["stats"]["discovery_reasons"] == ["short_alias_like"]
+    assert pack["stats"]["score_breakdown"]["jargon_score"] > 0
 
 
 def test_alias_scout_cli_candidate_discovery_outputs_parseable_json() -> None:
@@ -126,6 +131,8 @@ def test_alias_scout_cli_candidate_discovery_outputs_parseable_json() -> None:
     report = json.loads(discovery_result.stdout)
     assert report["schema_version"] == "skeinrank.agent_candidate_discovery.v1"
     assert report["candidates"][0]["surface"] == "pg"
+    assert report["candidates"][0]["score_breakdown"]["jargon_score"] > 0
+    assert "background_terms" in report["config"]
 
     pack_result = subprocess.run(
         [*base_cmd, "--print-sample-candidate-pack"],

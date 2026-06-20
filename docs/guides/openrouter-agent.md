@@ -134,7 +134,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-cand
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
 ```
 
-The report schema is `skeinrank.agent_candidate_discovery.v1`. It extracts surfaces such as `pg`, `k8s`, and `kube`, prunes configured noise and known terms, and produces compact candidate packs.
+The report schema is `skeinrank.agent_candidate_discovery.v1`. It extracts surfaces such as `pg`, `k8s`, and `kube`, prunes configured noise and known terms, and produces compact candidate packs. Candidate scoring includes a compact breakdown with weighted failed-query support, background-language penalty, and `jargon_score`, so the model sees internal-looking surfaces before generic operational words.
 
 ## Compact evidence windows
 

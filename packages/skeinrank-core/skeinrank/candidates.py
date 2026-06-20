@@ -151,6 +151,88 @@ _DEFAULT_STOP_WORDS = frozenset(
     }
 )
 
+# A compact, dependency-free background vocabulary used as the default proxy for
+# "common public/documentation language". Teams can replace it with a corpus-
+# derived list through CandidateDiscoveryConfig.background_terms.
+_DEFAULT_BACKGROUND_TERMS = frozenset(
+    {
+        "alert",
+        "api",
+        "application",
+        "auth",
+        "backend",
+        "batch",
+        "browser",
+        "cache",
+        "client",
+        "cluster",
+        "code",
+        "component",
+        "config",
+        "connection",
+        "container",
+        "cron",
+        "dashboard",
+        "data",
+        "database",
+        "debug",
+        "deploy",
+        "deployment",
+        "disk",
+        "docker",
+        "endpoint",
+        "event",
+        "exception",
+        "failure",
+        "feature",
+        "file",
+        "gateway",
+        "health",
+        "host",
+        "http",
+        "index",
+        "job",
+        "json",
+        "latency",
+        "library",
+        "message",
+        "metric",
+        "migration",
+        "module",
+        "node",
+        "pipeline",
+        "pod",
+        "process",
+        "proxy",
+        "query",
+        "queue",
+        "region",
+        "release",
+        "request",
+        "response",
+        "route",
+        "runtime",
+        "schema",
+        "script",
+        "search",
+        "server",
+        "session",
+        "shard",
+        "storage",
+        "stream",
+        "table",
+        "task",
+        "tenant",
+        "thread",
+        "timeout",
+        "token",
+        "trace",
+        "traffic",
+        "version",
+        "worker",
+    }
+)
+
 _TOKEN_RE = re.compile(
     r"(?<![A-Za-z0-9_])"
     r"([A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*|[A-Z]{2,}[0-9]*|[A-Za-z]+[0-9][A-Za-z0-9]*)"
@@ -171,10 +253,16 @@ class CandidateDiscoveryConfig(BaseModel):
     include_phrase_candidates: bool = True
     max_phrase_terms: int = Field(default=2, ge=2, le=3)
     stop_words: list[str] = Field(default_factory=lambda: sorted(_DEFAULT_STOP_WORDS))
+    background_terms: list[str] = Field(
+        default_factory=lambda: sorted(_DEFAULT_BACKGROUND_TERMS)
+    )
+    jargon_weight: float = Field(default=1.25, ge=0.0)
+    code_shape_weight: float = Field(default=0.75, ge=0.0)
+    background_penalty_weight: float = Field(default=0.75, ge=0.0)
 
-    @field_validator("stop_words")
+    @field_validator("stop_words", "background_terms")
     @classmethod
-    def _normalize_stop_words(cls, values: list[str]) -> list[str]:
+    def _normalize_word_list(cls, values: list[str]) -> list[str]:
         return sorted(
             {_normalize_text(value) for value in values if _normalize_text(value)}
         )
@@ -182,6 +270,10 @@ class CandidateDiscoveryConfig(BaseModel):
     @property
     def stop_word_set(self) -> set[str]:
         return set(self.stop_words)
+
+    @property
+    def background_term_set(self) -> set[str]:
+        return set(self.background_terms)
 
 
 class CandidateDiscoveryDocument(BaseModel):
@@ -220,6 +312,18 @@ class CandidateEvidence(BaseModel):
         return cleaned
 
 
+class CandidateScoreBreakdown(BaseModel):
+    """Explainable components behind a discovered candidate score."""
+
+    frequency_score: float = Field(ge=0.0)
+    document_frequency_score: float = Field(ge=0.0)
+    kind_boost: float = Field(ge=0.0)
+    jargon_score: float = Field(ge=0.0, le=1.0)
+    code_shape_score: float = Field(ge=0.0, le=1.0)
+    background_penalty: float = Field(ge=0.0, le=1.0)
+    reasons: list[str] = Field(default_factory=list)
+
+
 class DiscoveredCandidate(BaseModel):
     """One unmatched term or phrase discovered in local text."""
 
@@ -229,6 +333,7 @@ class DiscoveredCandidate(BaseModel):
     mention_count: int = Field(ge=1)
     document_count: int = Field(ge=1)
     score: float = Field(ge=0.0)
+    score_breakdown: CandidateScoreBreakdown | None = None
     evidence: list[CandidateEvidence] = Field(default_factory=list)
 
     @field_validator("value", "normalized_value", "kind")
@@ -546,7 +651,7 @@ def _rank_candidates(
             continue
         if accumulator.document_count < config.min_document_frequency:
             continue
-        score = _score_candidate(accumulator)
+        score, breakdown = _score_candidate(accumulator, config=config)
         candidates.append(
             DiscoveredCandidate(
                 value=accumulator.display_value,
@@ -555,6 +660,7 @@ def _rank_candidates(
                 mention_count=accumulator.mention_count,
                 document_count=accumulator.document_count,
                 score=score,
+                score_breakdown=breakdown,
                 evidence=accumulator.evidence,
             )
         )
@@ -569,20 +675,120 @@ def _rank_candidates(
     return candidates[: config.max_candidates]
 
 
-def _score_candidate(accumulator: _CandidateAccumulator) -> float:
-    kind_boost = {
+def _score_candidate(
+    accumulator: _CandidateAccumulator,
+    *,
+    config: CandidateDiscoveryConfig,
+) -> tuple[float, CandidateScoreBreakdown]:
+    frequency_score = float(accumulator.mention_count)
+    document_frequency_score = float(accumulator.document_count) * 1.5
+    support_score = frequency_score + document_frequency_score
+    kind_boost = _kind_boost(accumulator.kind)
+    display_value = accumulator.display_value
+    normalized = _normalize_text(display_value)
+    jargon_score, jargon_reasons = _jargon_score(
+        display_value, normalized=normalized, config=config
+    )
+    code_shape_score, code_reasons = _code_shape_score(display_value)
+    background_penalty, background_reasons = _background_penalty(
+        normalized, config=config
+    )
+    raw_score = support_score * kind_boost
+    score = raw_score
+    score += support_score * config.jargon_weight * jargon_score
+    score += support_score * config.code_shape_weight * code_shape_score
+    score -= support_score * config.background_penalty_weight * background_penalty
+    breakdown = CandidateScoreBreakdown(
+        frequency_score=round(frequency_score, 4),
+        document_frequency_score=round(document_frequency_score, 4),
+        kind_boost=round(kind_boost, 4),
+        jargon_score=round(jargon_score, 4),
+        code_shape_score=round(code_shape_score, 4),
+        background_penalty=round(background_penalty, 4),
+        reasons=sorted(set([*jargon_reasons, *code_reasons, *background_reasons])),
+    )
+    return round(max(score, 0.0), 4), breakdown
+
+
+def _kind_boost(kind: str) -> float:
+    return {
         "acronym": 2.0,
         "alphanumeric": 1.8,
         "compound": 1.7,
         "camel_case": 1.6,
         "phrase": 1.35,
         "term": 1.0,
-    }.get(accumulator.kind, 1.0)
-    return round(
-        (accumulator.mention_count * 1.0 + accumulator.document_count * 1.5)
-        * kind_boost,
-        4,
-    )
+    }.get(kind, 1.0)
+
+
+def _jargon_score(
+    surface: str, *, normalized: str, config: CandidateDiscoveryConfig
+) -> tuple[float, list[str]]:
+    parts = _normalized_parts(normalized)
+    if not parts:
+        return 0.0, []
+    background_terms = config.background_term_set | config.stop_word_set
+    common_part_count = sum(1 for part in parts if part in background_terms)
+    uncommon_ratio = 1.0 - (common_part_count / len(parts))
+    score = 0.2 + (0.65 * uncommon_ratio)
+    reasons: list[str] = []
+    if uncommon_ratio >= 0.75:
+        reasons.append("rare_against_background")
+    elif uncommon_ratio > 0.0:
+        reasons.append("mixed_background_and_domain_language")
+    else:
+        reasons.append("common_background_language")
+
+    code_score, _ = _code_shape_score(surface)
+    if code_score >= 0.5:
+        score += 0.15
+        reasons.append("identifier_like_surface")
+    if _looks_like_short_alias(normalized):
+        score += 0.1
+        reasons.append("short_alias_like")
+    return min(round(score, 4), 1.0), reasons
+
+
+def _code_shape_score(surface: str) -> tuple[float, list[str]]:
+    cleaned = surface.strip()
+    normalized = _normalize_text(cleaned)
+    score = 0.0
+    reasons: list[str] = []
+    if not cleaned:
+        return 0.0, reasons
+    if any(ch.isalpha() for ch in cleaned) and any(ch.isdigit() for ch in cleaned):
+        score += 0.45
+        reasons.append("mixed_alpha_digit")
+    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-")):
+        score += 0.35
+        reasons.append("compound_surface")
+    if re.fullmatch(r"[A-Z]{2,}[0-9]*", cleaned):
+        score += 0.35
+        reasons.append("all_caps_surface")
+    if re.search(r"[a-z][A-Z]", cleaned) or re.search(r"[A-Z][a-z]+[A-Z]", cleaned):
+        score += 0.3
+        reasons.append("camel_case_surface")
+    if normalized.endswith(("db", "svc", "api", "id")):
+        score += 0.15
+        reasons.append("domain_suffix")
+    return min(round(score, 4), 1.0), reasons
+
+
+def _background_penalty(
+    normalized: str, *, config: CandidateDiscoveryConfig
+) -> tuple[float, list[str]]:
+    parts = _normalized_parts(normalized)
+    if not parts:
+        return 0.0, []
+    background_terms = config.background_term_set | config.stop_word_set
+    common_part_count = sum(1 for part in parts if part in background_terms)
+    if common_part_count == len(parts):
+        return 0.85, ["background_language_penalty"]
+    if common_part_count:
+        return round(0.35 * (common_part_count / len(parts)), 4), [
+            "partial_background_language_penalty"
+        ]
+    return 0.0, []
 
 
 def _candidate_kind(
@@ -624,6 +830,15 @@ def _is_stop_candidate(normalized: str, *, config: CandidateDiscoveryConfig) -> 
         return True
     parts = normalized.split()
     return bool(parts) and all(part in config.stop_word_set for part in parts)
+
+
+def _looks_like_short_alias(normalized: str) -> bool:
+    compact = normalized.replace(" ", "")
+    return 2 <= len(compact) <= 5 and compact.isalpha()
+
+
+def _normalized_parts(normalized: str) -> list[str]:
+    return [part for part in normalized.split() if part]
 
 
 def _normalize_text(value: str) -> str:
