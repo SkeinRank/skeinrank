@@ -42,6 +42,8 @@ Run these commands from the repository root.
 | `make format-check` | Ruff formatting check without rewriting files. Uses the same Ruff resolver as `make lint`. |
 | `make format` | Ruff formatting rewrite. Uses the same Ruff resolver as `make lint`. |
 | `make check` | Lint, format check, fast Python tests, migration checks, and documentation checks. |
+| `make test-auto-plan` | Shows which checks are selected from the current changed files without running them. |
+| `make test-auto` | Runs the selected checks for the current changed files. |
 | `make test-fast` | Narrow core and governance API tests for the most active development path. |
 | `make test-scout` | Alias Scout candidate, evidence, LLM, dataset, and canonical lifecycle tests. |
 | `make test-migrations` | Governance API migration and schema health tests. |
@@ -51,6 +53,26 @@ Run these commands from the repository root.
 | `make test-all` | Python package tests plus UI checks. |
 
 Use `make test-fast` while iterating. Use `make check` before committing a cross-package change.
+
+## Changed-file test routing
+
+Use the automatic router when you want a targeted local check based on the files currently changed in Git:
+
+```bash
+make test-auto-plan
+make test-auto
+```
+
+`make test-auto-plan` prints the changed files and the selected Make targets. `make test-auto` runs those targets. The router uses existing repository commands such as `make test-fast`, `make test-scout`, `make test-migrations`, `make test-docs`, and `make test-ui`; it does not bypass package-local Poetry or npm environments.
+
+By default, the router inspects staged, unstaged, and untracked files in the working tree. To include committed branch changes compared with a base ref, pass `TEST_AUTO_BASE`:
+
+```bash
+TEST_AUTO_BASE=origin/main make test-auto-plan
+TEST_AUTO_BASE=origin/main make test-auto
+```
+
+Use automatic routing for the fast inner loop. Use `make check` before committing a cross-package change.
 
 ## Ruff resolution
 

@@ -1,11 +1,14 @@
 .PHONY: demo-seed demo-reset demo-status demo-tour-plan demo-tour-smoke demo-tour demo-tour-show demo-tour-clean headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run support-bundle-plan support-bundle-export support-bundle-inspect support-bundle-clean backup-restore-drill-plan backup-restore-drill-run backup-restore-drill-inspect backup-restore-drill-clean alerts-report-plan alerts-report-generate alerts-report-show alerts-report-clean agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
-.PHONY: lint format format-check check test-core test-governance-models test-governance-api test-provider-elasticsearch test-server test-ui test-agent test-scout test-migrations test-docs test-fast test-python test-all
+.PHONY: lint format format-check check test-auto-plan test-auto test-core test-governance-models test-governance-api test-provider-elasticsearch test-server test-ui test-agent test-scout test-migrations test-docs test-fast test-python test-all
 
 POETRY ?= poetry
 PYTEST ?= pytest
 NPM ?= npm
 DEV_PYTHON ?= python3
 RUFF_RUNNER ?= $(DEV_PYTHON) tools/dev/resolve_ruff.py
+TEST_ROUTER ?= $(DEV_PYTHON) tools/dev/test_router.py
+TEST_AUTO_BASE ?=
+TEST_AUTO_BASE_ARG := $(if $(TEST_AUTO_BASE),--base $(TEST_AUTO_BASE),)
 
 CORE_DIR := packages/skeinrank-core
 GOVERNANCE_DIR := packages/skeinrank-governance
@@ -63,6 +66,12 @@ format-check:
 	$(RUFF_RUNNER) format --check .
 
 check: lint format-check test-fast test-migrations test-docs
+
+test-auto-plan:
+	$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --plan
+
+test-auto:
+	$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --run
 
 test-core:
 	cd $(CORE_DIR) && $(POETRY) run $(PYTEST) -q $(CORE_TESTS)

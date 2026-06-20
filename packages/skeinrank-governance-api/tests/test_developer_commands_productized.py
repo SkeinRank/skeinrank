@@ -17,6 +17,8 @@ def test_root_makefile_exposes_developer_check_commands() -> None:
         "format",
         "format-check",
         "check",
+        "test-auto-plan",
+        "test-auto",
         "test-core",
         "test-governance-models",
         "test-governance-api",
@@ -48,8 +50,12 @@ def test_root_makefile_delegates_to_real_package_paths() -> None:
         "cd $(GOVERNANCE_API_DIR) && $(POETRY) run $(PYTEST) -q",
         "cd $(UI_DIR) && $(NPM) run typecheck && $(NPM) test -- --run && $(NPM) run build",
         "RUFF_RUNNER ?= $(DEV_PYTHON) tools/dev/resolve_ruff.py",
+        "TEST_ROUTER ?= $(DEV_PYTHON) tools/dev/test_router.py",
+        "TEST_AUTO_BASE_ARG := $(if $(TEST_AUTO_BASE),--base $(TEST_AUTO_BASE),)",
         "$(RUFF_RUNNER) check .",
         "$(RUFF_RUNNER) format --check .",
+        "$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --plan",
+        "$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --run",
     ):
         assert fragment in content
 
@@ -60,6 +66,8 @@ def test_development_docs_describe_root_test_commands() -> None:
     assert_productized_text(content, source="docs/guides/development.md")
     for fragment in (
         "make test-fast",
+        "make test-auto-plan",
+        "make test-auto",
         "make test-scout",
         "make test-migrations",
         "make test-docs",
@@ -76,6 +84,8 @@ def test_contributing_guide_points_to_developer_commands() -> None:
     assert_productized_text(content, source="CONTRIBUTING.md")
     for fragment in (
         "make test-fast",
+        "make test-auto-plan",
+        "make test-auto",
         "make check",
         "make test-scout",
         "make test-migrations",
@@ -99,3 +109,34 @@ def test_ruff_resolver_is_documented_and_productized() -> None:
     assert "tools/dev/resolve_ruff.py" in development
     assert 'RUFF="$HOME/.pyenv/versions/3.11.9/bin/ruff" make check' in development
     assert "tools/dev/resolve_ruff.py" in contributing
+
+
+def test_changed_file_router_routes_common_project_areas() -> None:
+    router = read_repo_file("tools/dev/test_router.py")
+
+    assert "def changed_files" in router
+    assert "def selected_targets" in router
+    assert "TEST_AUTO_BASE" not in router
+    assert "from pathlib import Path" not in router
+    assert "line.rstrip()" in router
+    assert "test-fast" in router
+    assert "test-scout" in router
+    assert "test-migrations" in router
+    assert "test-docs" in router
+    assert "test-ui" in router
+    assert "packages/skeinrank-core/skeinrank/" in router
+    assert "examples/agents/openrouter_alias_scout/" in router
+    assert "packages/skeinrank-governance/alembic/" in router
+    assert "packages/skeinrank-ui/" in router
+
+
+def test_changed_file_router_documentation_is_productized() -> None:
+    development = read_repo_file("docs/guides/development.md")
+    contributing = read_repo_file("CONTRIBUTING.md")
+
+    assert "Changed-file test routing" in development
+    assert "TEST_AUTO_BASE=origin/main make test-auto" in development
+    assert "make test-auto-plan" in contributing
+    assert "make test-auto" in contributing
+    assert_productized_text(development, source="docs/guides/development.md")
+    assert_productized_text(contributing, source="CONTRIBUTING.md")

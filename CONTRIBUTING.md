@@ -63,6 +63,15 @@ make test-fast
 make check
 ```
 
+For a targeted check based on the files currently changed in Git, run:
+
+```bash
+make test-auto-plan
+make test-auto
+```
+
+Use `TEST_AUTO_BASE=origin/main make test-auto` when you want the router to include committed branch changes compared with a base ref.
+
 For the Alias Scout and governance review path, run:
 
 ```bash
