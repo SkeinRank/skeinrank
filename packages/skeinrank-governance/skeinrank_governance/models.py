@@ -112,6 +112,16 @@ AGENT_PROPOSAL_ATTEMPT_STATUSES = (
     "manual_review_required",
     "error",
 )
+AGENT_REVIEW_DATASET_EVENT_TYPES = (
+    "model_judgment",
+    "proposal_attempt",
+    "human_review",
+)
+AGENT_REVIEW_DATASET_EVENT_STATUSES = (
+    "pending_review",
+    "reviewed",
+    "excluded",
+)
 USER_ROLES = ("admin", "moderator", "contributor")
 USER_STATUSES = ("active", "suspended", "deactivated")
 API_TOKEN_OWNER_TYPES = ("personal", "service_account")
@@ -1771,6 +1781,129 @@ class AgentProposalAttempt(TimestampMixin, Base):
         )
 
 
+class AgentReviewDatasetEvent(TimestampMixin, Base):
+    """SFT-ready review dataset event stored before JSONL export.
+
+    The table is the database source of truth for future model-training and
+    evaluation examples. JSONL files are derived export artifacts, not the
+    primary storage layer. Events can represent model judgments, proposal
+    validation/submission attempts, or human review decisions.
+    """
+
+    __tablename__ = "agent_review_dataset_events"
+    __table_args__ = (
+        CheckConstraint(
+            f"event_type IN {AGENT_REVIEW_DATASET_EVENT_TYPES!r}",
+            name="agent_review_dataset_event_type",
+        ),
+        CheckConstraint(
+            f"dataset_status IN {AGENT_REVIEW_DATASET_EVENT_STATUSES!r}",
+            name="agent_review_dataset_event_status",
+        ),
+        UniqueConstraint(
+            "event_type",
+            "llm_review_id",
+            name="uq_agent_review_dataset_events_type_review",
+        ),
+        UniqueConstraint(
+            "event_type",
+            "proposal_attempt_id",
+            name="uq_agent_review_dataset_events_type_attempt",
+        ),
+        Index(
+            "ix_agent_review_dataset_events_run_status",
+            "agent_run_id",
+            "dataset_status",
+        ),
+        Index(
+            "ix_agent_review_dataset_events_profile_created",
+            "profile_id",
+            "created_at",
+        ),
+        Index(
+            "ix_agent_review_dataset_events_suggestion",
+            "governance_suggestion_id",
+        ),
+        Index(
+            "ix_agent_review_dataset_events_export",
+            "dataset_status",
+            "export_excluded",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    dataset_status: Mapped[str] = mapped_column(
+        String(32), default="pending_review", nullable=False
+    )
+    run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    agent_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=True
+    )
+    candidate_observation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_candidate_observations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    llm_review_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_llm_reviews.id", ondelete="SET NULL"), nullable=True
+    )
+    proposal_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_proposal_attempts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    governance_suggestion_id: Mapped[int | None] = mapped_column(
+        ForeignKey("governance_suggestions.id", ondelete="SET NULL"), nullable=True
+    )
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("terminology_profiles.id", ondelete="CASCADE"), nullable=True
+    )
+    binding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("elasticsearch_bindings.id", ondelete="SET NULL"), nullable=True
+    )
+    candidate_alias: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_alias: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    canonical_value: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    normalized_canonical: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    slot: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    input_pack_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    model_output_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    human_decision_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    final_payload_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
+    export_excluded: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    export_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    agent_run: Mapped[AgentRun | None] = relationship()
+    candidate_observation: Mapped[AgentCandidateObservation | None] = relationship()
+    llm_review: Mapped[AgentLlmReview | None] = relationship()
+    proposal_attempt: Mapped[AgentProposalAttempt | None] = relationship()
+    governance_suggestion: Mapped[GovernanceSuggestion | None] = relationship()
+    profile: Mapped[TerminologyProfile | None] = relationship()
+    binding: Mapped[ElasticsearchBinding | None] = relationship()
+
+    def __repr__(self) -> str:
+        return (
+            "AgentReviewDatasetEvent("
+            f"type={self.event_type!r}, status={self.dataset_status!r}, "
+            f"alias={self.candidate_alias!r})"
+        )
+
+
 class ProfileSnapshot(TimestampMixin, Base):
     """A versioned runtime snapshot exported from governance data."""
 
@@ -2039,6 +2172,25 @@ def _fill_normalized_elasticsearch_binding(
     )
 
 
+def _fill_agent_review_dataset_event(
+    mapper: Any, connection: Any, target: AgentReviewDatasetEvent
+) -> None:
+    del mapper, connection
+    target.event_type = (target.event_type or "model_judgment").strip().lower()
+    target.dataset_status = (target.dataset_status or "pending_review").strip().lower()
+    if target.candidate_alias is not None:
+        target.normalized_alias = normalize_value(target.candidate_alias)
+    if target.canonical_value is not None:
+        target.normalized_canonical = normalize_value(target.canonical_value)
+    if target.slot is not None:
+        target.slot = target.slot.strip().upper()
+    target.input_pack_json = target.input_pack_json or {}
+    target.model_output_json = target.model_output_json or {}
+    target.human_decision_json = target.human_decision_json or {}
+    target.final_payload_json = target.final_payload_json or {}
+    target.metadata_json = target.metadata_json or {}
+
+
 event.listen(TerminologyProfile, "before_insert", _fill_normalized_profile)
 event.listen(TerminologyProfile, "before_update", _fill_normalized_profile)
 event.listen(CanonicalTerm, "before_insert", _fill_normalized_term)
@@ -2098,3 +2250,5 @@ event.listen(GovernanceBindingPolicy, "before_insert", _fill_normalized_binding_
 event.listen(GovernanceBindingPolicy, "before_update", _fill_normalized_binding_policy)
 event.listen(AgentRun, "before_insert", _fill_agent_run_defaults)
 event.listen(AgentRun, "before_update", _fill_agent_run_defaults)
+event.listen(AgentReviewDatasetEvent, "before_insert", _fill_agent_review_dataset_event)
+event.listen(AgentReviewDatasetEvent, "before_update", _fill_agent_review_dataset_event)

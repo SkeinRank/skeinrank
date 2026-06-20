@@ -405,6 +405,20 @@ Optional ledger path:
 
 The local tracking contract is DB-ready: scheduled runs can attach source documents, content hashes, processing-context hashes, candidate observations, LLM reviews, and proposal attempts to one run identity.
 
+
+The same tracking path also feeds review dataset events. The Governance API stores
+SFT-ready rows in Postgres and exposes JSONL as a derived export:
+
+```bash
+curl http://localhost:8000/v1/agents/review-dataset/events?run_id=run-001
+curl -o review-dataset.jsonl \
+  http://localhost:8000/v1/agents/review-dataset/events/export.jsonl?run_id=run-001
+```
+
+By default the JSONL endpoint exports reviewed examples. Pass
+`status=pending_review` when inspecting model judgments that have not received a
+human label yet.
+
 ## Proposal inbox and review workflow
 
 Build a local proposal inbox from saved reports:

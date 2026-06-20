@@ -2207,6 +2207,50 @@ class AgentProposalAttemptResponse(BaseModel):
     updated_at: datetime
 
 
+class AgentReviewDatasetEventResponse(BaseModel):
+    """Persisted review dataset event response."""
+
+    id: int
+    event_type: str
+    dataset_status: str
+    run_id: str | None = None
+    agent_run_id: int | None = None
+    candidate_observation_id: int | None = None
+    llm_review_id: int | None = None
+    proposal_attempt_id: int | None = None
+    governance_suggestion_id: int | None = None
+    profile_id: int | None = None
+    binding_id: int | None = None
+    candidate_alias: str | None = None
+    normalized_alias: str | None = None
+    canonical_value: str | None = None
+    normalized_canonical: str | None = None
+    slot: str | None = None
+    model: str | None = None
+    prompt_version: str | None = None
+    input_pack: dict[str, Any] = Field(default_factory=dict)
+    model_output: dict[str, Any] = Field(default_factory=dict)
+    human_decision: dict[str, Any] = Field(default_factory=dict)
+    final_payload: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    export_excluded: bool
+    export_note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentReviewDatasetExportSummary(BaseModel):
+    """JSONL export metadata for review dataset events."""
+
+    schema_version: str = "skeinrank.review_dataset_export.v1"
+    event_count: int
+    dataset_status: str | None = None
+    event_type: str | None = None
+    run_id: str | None = None
+    profile_id: int | None = None
+    binding_id: int | None = None
+
+
 class AgentRunResumePlanRequest(BaseModel):
     """Read-only request for planning the next agent run resume batch."""
 

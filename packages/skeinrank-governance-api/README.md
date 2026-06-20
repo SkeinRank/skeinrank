@@ -467,6 +467,14 @@ for each model-reviewed candidate, so low consensus can abstain with
 `skeinrank.agent_evaluation_report.v1`, `skeinrank.agent_security_profile.v1`,
 and `skeinrank.agent_deployment_recipe.v1`.
 
+Review dataset events are stored in the governance database when an agent records
+LLM reviews and proposal attempts. Human approval or rejection updates the linked
+dataset events with reviewer decisions. JSONL is an export format, available from
+`GET /v1/agents/review-dataset/events/export.jsonl`, so future fine-tuning or
+evaluation workflows can use reviewed examples without making local files the
+source of truth. Use `GET /v1/agents/review-dataset/events` to inspect the
+DB-backed rows before exporting.
+
 Model-provider support keeps OpenRouter as the default provider and adds a
 `local_endpoint` adapter for self-hosted `/chat/completions` deployments. Use
 `--print-model-provider-plan` to inspect provider configuration without exposing

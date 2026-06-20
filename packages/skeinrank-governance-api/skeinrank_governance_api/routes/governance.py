@@ -101,6 +101,7 @@ from ..proposal_lifecycle import (
 )
 from ..proposal_quality import build_proposal_source_quality, validation_status
 from ..proposal_validation import build_proposal_validation_summary
+from ..review_dataset_events import update_review_dataset_events_for_suggestion
 from ..role_boundaries import role_boundaries_document, role_boundary_for_auth_context
 from ..runtime_snapshots import (
     alias_tuples_from_snapshot,
@@ -2604,6 +2605,13 @@ def approve_profile_suggestion(
     suggestion.reviewed_by = reviewer.username
     suggestion.review_comment = request.review_comment
     suggestion.reviewed_at = utc_now()
+    update_review_dataset_events_for_suggestion(
+        session,
+        suggestion,
+        decision="approved",
+        reviewer=reviewer.username,
+        review_comment=request.review_comment,
+    )
 
     try:
         session.commit()
@@ -2640,6 +2648,13 @@ def reject_profile_suggestion(
     suggestion.reviewed_by = reviewer.username
     suggestion.review_comment = request.review_comment
     suggestion.reviewed_at = utc_now()
+    update_review_dataset_events_for_suggestion(
+        session,
+        suggestion,
+        decision="rejected",
+        reviewer=reviewer.username,
+        review_comment=request.review_comment,
+    )
 
     session.commit()
     session.refresh(suggestion)
@@ -2770,6 +2785,13 @@ def apply_profile_suggestion_batch(
         suggestion.reviewed_by = reviewer.username
         suggestion.review_comment = request.review_comment
         suggestion.reviewed_at = now
+        update_review_dataset_events_for_suggestion(
+            session,
+            suggestion,
+            decision="batch_approved",
+            reviewer=reviewer.username,
+            review_comment=request.review_comment,
+        )
 
     snapshot_response = ProposalBatchSnapshotResponse(published=False)
     if request.publish_snapshot and binding is not None:
