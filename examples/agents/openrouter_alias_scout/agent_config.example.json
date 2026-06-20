@@ -308,7 +308,13 @@
     "min_confidence_to_prepare_proposal": 0.75,
     "response_format_json": true,
     "submit_proposals": false,
-    "temperature": 0.0
+    "temperature": 0.0,
+    "confidence": {
+      "abstain_on_disagreement": true,
+      "judgment_samples_per_candidate": 1,
+      "min_consensus_to_prepare_proposal": 1.0,
+      "require_consistent_proposal_payload": true
+    }
   },
   "max_queries_per_run": 25,
   "new_alias_smoke": {

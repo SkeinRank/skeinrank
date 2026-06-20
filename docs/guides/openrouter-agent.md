@@ -220,13 +220,14 @@ action: propose | reject | needs_evidence
 confidence: 0..1
 reason: string
 risk_flags: string[]
+decision_trace: object (optional)
 ```
 
-`propose` also requires `alias_value`, `canonical_value`, and `slot`. Proposal payloads still have to pass Governance API validation before they can be saved.
+`propose` also requires `alias_value`, `canonical_value`, and `slot`. The runner records `confidence_decision` for every reviewed item. When multiple independent judgments are configured, low action consensus or conflicting proposal payloads are converted to `needs_evidence` instead of a ready proposal. Proposal payloads still have to pass Governance API validation before they can be saved.
 
 ## Model provider options
 
-OpenRouter is the default adapter, but the runner can also use OpenAI-compatible company endpoints and local endpoint adapters.
+OpenRouter is the default adapter, but the runner can also use OpenAI-compatible company endpoints and local endpoint adapters. Confidence settings live under `llm_review.confidence` in the example config: `judgment_samples_per_candidate`, `min_consensus_to_prepare_proposal`, `abstain_on_disagreement`, and `require_consistent_proposal_payload`.
 
 Inspect the provider plans:
 

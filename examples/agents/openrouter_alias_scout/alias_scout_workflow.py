@@ -33,6 +33,10 @@ try:  # pragma: no cover - import style depends on how the example is executed.
         extract_first_message_content,
     )
     from .prompts import SYSTEM_PROMPT, build_alias_review_prompt
+    from .proposal_confidence import (
+        ProposalConfidenceConfig,
+        aggregate_judgment_confidence,
+    )
     from .structured_output import (
         AliasReviewOutputError,
         judgment_to_proposal_payload,
@@ -57,6 +61,10 @@ except ImportError:  # pragma: no cover
     from model_provider import ChatCompletionProvider, provider_metadata
     from openrouter_client import OpenRouterClient, extract_first_message_content
     from prompts import SYSTEM_PROMPT, build_alias_review_prompt
+    from proposal_confidence import (
+        ProposalConfidenceConfig,
+        aggregate_judgment_confidence,
+    )
     from structured_output import (
         AliasReviewOutputError,
         judgment_to_proposal_payload,
@@ -87,6 +95,7 @@ class LlmReviewConfig:
     include_tools: bool = False
     response_format_json: bool = True
     submit_proposals: bool = False
+    confidence: ProposalConfidenceConfig = ProposalConfidenceConfig()
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "LlmReviewConfig":
@@ -109,6 +118,7 @@ class LlmReviewConfig:
                 raw.get("response_format_json", cls.response_format_json)
             ),
             submit_proposals=bool(raw.get("submit_proposals", cls.submit_proposals)),
+            confidence=ProposalConfidenceConfig.from_mapping(raw.get("confidence")),
         )
 
 
@@ -170,6 +180,7 @@ def build_llm_review_plan(
         "candidates_ready_for_llm": len(ready_queue),
         "candidate_aliases": [item["candidate_alias"] for item in ready_queue],
         "budget_cache": budget_cfg.to_report(),
+        "proposal_confidence": cfg.confidence.to_report(),
         "safety": {
             "will_call_openrouter_when_llm_review_flag_is_used": True,
             "will_submit_proposals": cfg.submit_proposals,
@@ -279,6 +290,12 @@ def run_openrouter_llm_review_workflow(
             "min_confidence_to_prepare_proposal": (
                 cfg.min_confidence_to_prepare_proposal
             ),
+            "proposal_confidence": cfg.confidence.to_report(),
+            "abstentions": sum(
+                1
+                for item in reviewed_items
+                if item.get("confidence_decision", {}).get("abstained") is True
+            ),
             "live_openrouter_calls": budget_tracker.live_calls_started,
             "cache_hits": budget_tracker.cache_hits,
             "skipped_due_to_budget": budget_tracker.skipped_due_to_budget,
@@ -312,108 +329,275 @@ def _review_one_item(
     review_cache: JsonLlmReviewCache,
 ) -> JsonDict:
     candidate_pack = item["candidate_pack"]
-    prompt = build_alias_review_prompt(candidate_pack)
+    base_prompt = build_alias_review_prompt(candidate_pack)
     effective_tools = tools if cfg.include_tools else None
-    cache_key = build_llm_review_cache_key(
-        candidate_pack=candidate_pack,
-        openrouter_model=openrouter_model,
-        system_prompt=SYSTEM_PROMPT,
-        user_prompt=prompt,
-        response_format_json=cfg.response_format_json,
-        tools=effective_tools,
-        cache_namespace=budget_cfg.cache_namespace,
-    )
-    cached_entry = review_cache.get(cache_key)
-    cache_hit = cached_entry is not None
-    cache_written = False
-    if cached_entry is not None and isinstance(cached_entry.get("response"), Mapping):
-        budget_tracker.record_cache_hit()
-        response = dict(cached_entry["response"])
-    else:
-        budget_tracker.record_cache_miss()
-        if not budget_tracker.can_start_live_call():
-            budget_tracker.record_budget_skip()
-            skipped = build_budget_skip_review_item(item)
-            skipped["cache"] = {
-                "enabled": review_cache.enabled,
-                "hit": False,
-                "key": cache_key,
-                "skipped_due_to_budget": True,
-            }
-            return skipped
-        budget_tracker.record_live_call_started()
-        response = client.create_chat_completion(
-            model=openrouter_model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=cfg.temperature,
-            max_tokens=cfg.max_tokens,
-            tools=effective_tools,
-            response_format={"type": "json_object"}
-            if cfg.response_format_json
-            else None,
+    sample_reviews: list[JsonDict] = []
+    judgments = []
+    parsed_sample_indexes: list[int] = []
+
+    for sample_index in range(cfg.confidence.judgment_samples_per_candidate):
+        prompt = _prompt_for_judgment_sample(
+            base_prompt,
+            sample_index=sample_index,
+            total_samples=cfg.confidence.judgment_samples_per_candidate,
         )
-        budget_tracker.record_usage(response)
-        if review_cache.enabled and budget_cfg.write_cache:
-            review_cache.set(
-                cache_key,
-                make_cache_entry(
-                    response=response,
-                    candidate_alias=str(item["candidate_alias"]),
-                    openrouter_model=openrouter_model,
-                ),
+        cache_key = build_llm_review_cache_key(
+            candidate_pack=candidate_pack,
+            openrouter_model=openrouter_model,
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=prompt,
+            response_format_json=cfg.response_format_json,
+            tools=effective_tools,
+            cache_namespace=budget_cfg.cache_namespace,
+        )
+        cached_entry = review_cache.get(cache_key)
+        cache_hit = cached_entry is not None
+        cache_written = False
+        if cached_entry is not None and isinstance(
+            cached_entry.get("response"), Mapping
+        ):
+            budget_tracker.record_cache_hit()
+            response = dict(cached_entry["response"])
+        else:
+            budget_tracker.record_cache_miss()
+            if not budget_tracker.can_start_live_call():
+                budget_tracker.record_budget_skip()
+                if not judgments:
+                    skipped = build_budget_skip_review_item(item)
+                    skipped["cache"] = {
+                        "enabled": review_cache.enabled,
+                        "hit": False,
+                        "key": cache_key,
+                        "skipped_due_to_budget": True,
+                    }
+                    skipped["confidence_decision"] = {
+                        "schema_version": "skeinrank.proposal_confidence_decision.v1",
+                        "action": "needs_evidence",
+                        "consensus_score": 0.0,
+                        "mean_confidence": 0.0,
+                        "max_confidence": 0.0,
+                        "samples": 0,
+                        "proposed_payload_consensus": 0.0,
+                        "selected_sample_index": None,
+                        "abstained": True,
+                        "abstention_reason": "skipped_due_to_budget",
+                        "risk_flags": ["skipped_due_to_budget"],
+                        "action_counts": {},
+                    }
+                    skipped["sample_judgments"] = []
+                    return skipped
+                sample_reviews.append(
+                    {
+                        "sample_index": sample_index,
+                        "judgment": {
+                            "action": "needs_evidence",
+                            "confidence": 0.0,
+                            "reason": "Model call skipped because run budget was exhausted.",
+                            "risk_flags": ["skipped_due_to_budget"],
+                        },
+                        "parse_error": None,
+                        "cache": {
+                            "enabled": review_cache.enabled,
+                            "hit": False,
+                            "key": cache_key,
+                            "written": False,
+                            "skipped_due_to_budget": True,
+                        },
+                    }
+                )
+                continue
+            budget_tracker.record_live_call_started()
+            response = client.create_chat_completion(
+                model=openrouter_model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=cfg.temperature,
+                max_tokens=cfg.max_tokens,
+                tools=effective_tools,
+                response_format={"type": "json_object"}
+                if cfg.response_format_json
+                else None,
             )
-            budget_tracker.record_cache_write()
-            cache_written = True
-    content = extract_first_message_content(response)
-    try:
-        judgment = parse_alias_review_output(content)
-        judgment_payload = judgment.to_dict()
-        parse_error: str | None = None
-    except AliasReviewOutputError as exc:
-        judgment = None
-        judgment_payload = {
-            "action": "error",
-            "confidence": 0.0,
-            "reason": "Model response failed strict structured-output validation.",
-            "risk_flags": ["parse_error"],
+            budget_tracker.record_usage(response)
+            if review_cache.enabled and budget_cfg.write_cache:
+                review_cache.set(
+                    cache_key,
+                    make_cache_entry(
+                        response=response,
+                        candidate_alias=str(item["candidate_alias"]),
+                        openrouter_model=openrouter_model,
+                    ),
+                )
+                budget_tracker.record_cache_write()
+                cache_written = True
+
+        content = extract_first_message_content(response)
+        try:
+            judgment = parse_alias_review_output(content)
+            judgment_payload = judgment.to_dict()
+            parse_error: str | None = None
+            judgments.append(judgment)
+            parsed_sample_indexes.append(sample_index)
+        except AliasReviewOutputError as exc:
+            judgment_payload = {
+                "action": "error",
+                "confidence": 0.0,
+                "reason": "Model response failed strict structured-output validation.",
+                "risk_flags": ["parse_error"],
+            }
+            parse_error = str(exc)
+
+        sample_review: JsonDict = {
+            "sample_index": sample_index,
+            "judgment": judgment_payload,
+            "openrouter_response_id": response.get("id"),
+            "openrouter_usage": response.get("usage"),
+            "model_response_id": response.get("id"),
+            "model_usage": response.get("usage"),
+            "cache": {
+                "enabled": review_cache.enabled,
+                "hit": cache_hit,
+                "key": cache_key,
+                "written": cache_written,
+            },
         }
-        parse_error = str(exc)
+        if parse_error:
+            sample_review["parse_error"] = parse_error
+        sample_reviews.append(sample_review)
+
+    confidence_decision = aggregate_judgment_confidence(
+        judgments, config=cfg.confidence
+    )
+    confidence_payload = confidence_decision.to_dict()
+    selected_judgment = None
+    if confidence_decision.selected_sample_index is not None:
+        for sample_index, judgment in zip(parsed_sample_indexes, judgments):
+            if sample_index == confidence_decision.selected_sample_index:
+                selected_judgment = judgment
+                break
+
+    if selected_judgment is not None:
+        judgment_payload = selected_judgment.to_dict()
+    else:
+        judgment_payload = {
+            "action": "needs_evidence",
+            "confidence": confidence_decision.mean_confidence,
+            "reason": "No validated model judgment was selected for proposal preparation.",
+            "risk_flags": list(confidence_decision.risk_flags)
+            or ["no_selected_judgment"],
+        }
+    if confidence_decision.abstained:
+        judgment_payload = dict(judgment_payload)
+        judgment_payload["action"] = "needs_evidence"
+        judgment_payload["confidence"] = min(
+            float(judgment_payload.get("confidence") or 0.0),
+            confidence_decision.mean_confidence,
+        )
+        judgment_payload["reason"] = (
+            f"Abstained because {confidence_decision.abstention_reason}. "
+            f"{judgment_payload.get('reason', '')}"
+        ).strip()
+        judgment_payload["risk_flags"] = sorted(
+            set(judgment_payload.get("risk_flags") or [])
+            | set(confidence_decision.risk_flags)
+        )
 
     proposal_payload: JsonDict | None = None
     proposal_ready = False
-    if judgment is not None and judgment.action == "propose":
-        if judgment.confidence >= cfg.min_confidence_to_prepare_proposal:
+    if (
+        selected_judgment is not None
+        and confidence_decision.action == "propose"
+        and selected_judgment.action == "propose"
+        and not confidence_decision.abstained
+    ):
+        if selected_judgment.confidence >= cfg.min_confidence_to_prepare_proposal:
+            source_payload = dict(candidate_pack)
+            source_payload["confidence_decision"] = confidence_payload
             proposal_payload = judgment_to_proposal_payload(
-                judgment,
+                selected_judgment,
                 binding_id=binding_id,
                 profile_name=profile_name,
                 proposal_source_name=proposal_source_name,
                 idempotency_key=str(item["idempotency_key"]),
-                source_payload=candidate_pack,
+                source_payload=source_payload,
             )
             proposal_ready = True
 
+    selected_sample_index = confidence_decision.selected_sample_index
+    selected_sample = _sample_review_by_index(sample_reviews, selected_sample_index)
+    first_sample = sample_reviews[0] if sample_reviews else {}
     reviewed: JsonDict = {
         "candidate_alias": item["candidate_alias"],
         "idempotency_key": item["idempotency_key"],
         "judgment": judgment_payload,
+        "confidence_decision": confidence_payload,
+        "sample_judgments": sample_reviews,
         "proposal_ready_for_validation": proposal_ready,
         "proposal_payload": proposal_payload,
-        "openrouter_response_id": response.get("id"),
-        "openrouter_usage": response.get("usage"),
+        "openrouter_response_id": (selected_sample or first_sample).get(
+            "openrouter_response_id"
+        ),
+        "openrouter_usage": (selected_sample or first_sample).get("openrouter_usage"),
+        "openrouter_usage_total": _usage_total(sample_reviews),
         "model_provider": provider_metadata(client),
-        "model_response_id": response.get("id"),
-        "model_usage": response.get("usage"),
+        "model_response_id": (selected_sample or first_sample).get("model_response_id"),
+        "model_usage": (selected_sample or first_sample).get("model_usage"),
+        "model_usage_total": _usage_total(sample_reviews),
         "cache": {
             "enabled": review_cache.enabled,
-            "hit": cache_hit,
-            "key": cache_key,
-            "written": cache_written,
+            "hits": sum(1 for sample in sample_reviews if sample["cache"].get("hit")),
+            "keys": [sample["cache"]["key"] for sample in sample_reviews],
+            "writes": sum(
+                1 for sample in sample_reviews if sample["cache"].get("written")
+            ),
         },
     }
-    if parse_error:
-        reviewed["parse_error"] = parse_error
+    parse_errors = [
+        str(sample.get("parse_error"))
+        for sample in sample_reviews
+        if sample.get("parse_error")
+    ]
+    if parse_errors:
+        reviewed["parse_errors"] = parse_errors
+        reviewed["parse_error"] = parse_errors[0]
     return reviewed
+
+
+def _prompt_for_judgment_sample(
+    base_prompt: str, *, sample_index: int, total_samples: int
+) -> str:
+    if total_samples <= 1:
+        return base_prompt
+    return "\n".join(
+        [
+            base_prompt,
+            "",
+            f"Independent judgment sample {sample_index + 1} of {total_samples}.",
+            "Apply the same rules independently. Do not copy another sample.",
+        ]
+    )
+
+
+def _sample_review_by_index(
+    sample_reviews: Sequence[Mapping[str, Any]], sample_index: int | None
+) -> Mapping[str, Any] | None:
+    if sample_index is None:
+        return None
+    for sample in sample_reviews:
+        if sample.get("sample_index") == sample_index:
+            return sample
+    return None
+
+
+def _usage_total(sample_reviews: Sequence[Mapping[str, Any]]) -> JsonDict:
+    totals: Counter[str] = Counter()
+    for sample in sample_reviews:
+        usage = sample.get("model_usage") or sample.get("openrouter_usage")
+        if not isinstance(usage, Mapping):
+            continue
+        for key, value in usage.items():
+            if isinstance(value, (int, float)):
+                totals[str(key)] += value
+    return dict(sorted(totals.items()))

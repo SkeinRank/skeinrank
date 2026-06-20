@@ -460,7 +460,9 @@ poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.p
 ```
 
 Live execution remains opt-in through flags such as `--llm-review` and validated
-proposal submission controls. Reports use schemas including
+proposal submission controls. The live review report includes `confidence_decision`
+for each model-reviewed candidate, so low consensus can abstain with
+`needs_evidence` before proposal validation. Reports use schemas including
 `skeinrank.agent_llm_review_report.v1`, `skeinrank.agent_demo_report.v1`,
 `skeinrank.agent_evaluation_report.v1`, `skeinrank.agent_security_profile.v1`,
 and `skeinrank.agent_deployment_recipe.v1`.

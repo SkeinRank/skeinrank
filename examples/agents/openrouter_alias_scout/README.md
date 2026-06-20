@@ -118,7 +118,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --write-llm-review-report /tmp/skeinrank-alias-scout-llm-report.json
 ```
 
-The report schema is `skeinrank.agent_llm_review_report.v1`. Structured judgments use `propose | reject | needs_evidence`. proposal submission remains disabled unless config and security checks explicitly allow it. The workflow is LangGraph-ready without requiring the `langgraph` package.
+The report schema is `skeinrank.agent_llm_review_report.v1`. Structured judgments use `propose | reject | needs_evidence`. Each reviewed item also includes a `confidence_decision` block. If multiple independent judgments are configured and the model does not converge, the runner abstains with `needs_evidence` instead of preparing a proposal. Proposal submission remains disabled unless config and security checks explicitly allow it. The workflow is LangGraph-ready without requiring the `langgraph` package.
 
 ## Security, budgets, and evaluation
 

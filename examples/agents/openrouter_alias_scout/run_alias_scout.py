@@ -1352,6 +1352,7 @@ def _llm_review_config_from_args(
         include_tools=config.llm_review.include_tools,
         response_format_json=config.llm_review.response_format_json,
         submit_proposals=config.llm_review.submit_proposals,
+        confidence=config.llm_review.confidence,
     )
 
 
