@@ -419,6 +419,27 @@ By default the JSONL endpoint exports reviewed examples. Pass
 `status=pending_review` when inspecting model judgments that have not received a
 human label yet.
 
+## Canonical lifecycle proposals
+
+When document language moves from an old canonical surface to a new one, keep the
+change proposal-first. The Governance API can preview and create canonical
+migration proposals:
+
+```bash
+curl -X POST http://localhost:8000/v1/governance/profiles/payments/canonical-migrations/preview \
+  -H 'content-type: application/json' \
+  -d '{"old_canonical_value":"checkout","new_canonical_value":"payments-core"}'
+
+curl -X POST http://localhost:8000/v1/governance/profiles/payments/canonical-migrations \
+  -H 'content-type: application/json' \
+  -d '{"old_canonical_value":"checkout","new_canonical_value":"payments-core","proposal_source_type":"agent"}'
+```
+
+The proposal is stored for review; it does not mutate active terminology until a
+reviewer approves it with an explicit warning override. On apply, the old
+canonical term is deprecated and preserved as an alias to the new canonical,
+alongside the old term's existing aliases.
+
 ## Proposal inbox and review workflow
 
 Build a local proposal inbox from saved reports:

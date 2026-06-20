@@ -360,6 +360,21 @@ With `publish_snapshot=true` and a matching `binding_id`, the endpoint pins the
 resulting runtime snapshot on that binding so headless runtime clients can
 consume a reviewed version.
 
+Canonical migration proposals keep renamed concepts safe:
+
+```text
+POST /v1/governance/profiles/{profile_name}/canonical-migrations/preview
+POST /v1/governance/profiles/{profile_name}/canonical-migrations
+```
+
+A canonical migration is saved as a reviewed `canonical_term` suggestion with a
+`canonical_lifecycle` plan in `source_payload`. Approval does not happen during
+discovery. Reviewers explicitly approve the proposal, then the old canonical term
+is deprecated, its historical surfaces are preserved as aliases, and the new
+canonical becomes the active runtime term. This keeps the rule simple: canonical
+forms follow the current documents, aliases preserve the language people still
+type, and snapshots make the rollout reversible.
+
 Rollout and rollback metadata are available for safer snapshot operations:
 
 ```text

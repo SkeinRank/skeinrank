@@ -1036,6 +1036,41 @@ class SuggestionReviewRequest(BaseModel):
     allow_warnings: bool = False
 
 
+class CanonicalMigrationCreateRequest(BaseModel):
+    """Request body for proposing a reviewed canonical migration."""
+
+    old_canonical_value: str = Field(..., min_length=1, max_length=256)
+    new_canonical_value: str = Field(..., min_length=1, max_length=256)
+    slot: str | None = Field(default=None, min_length=1, max_length=64)
+    description: str | None = None
+    confidence: float = Field(default=0.85, ge=0.0, le=1.0)
+    context: str | None = None
+    binding_id: int | None = Field(default=None, ge=1)
+    proposal_source_type: str = Field(default="agent", max_length=32)
+    proposal_source_name: str | None = Field(default=None, max_length=128)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+    aliases_to_preserve: list[str] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class CanonicalMigrationPlanResponse(BaseModel):
+    """Side-effect-free canonical migration plan for reviewer preview."""
+
+    schema_version: str
+    action: str
+    old_canonical_value: str
+    new_canonical_value: str
+    slot: str
+    old_term_id: int
+    new_term_id: int | None = None
+    old_status: str
+    new_status: str | None = None
+    aliases_to_preserve: list[str] = Field(default_factory=list)
+    alias_conflicts: list[dict[str, Any]] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    is_blocked: bool = False
+
+
 class ProposalApplyPolicyResponse(BaseModel):
     """Apply policy and risk-level decision for a proposal."""
 
@@ -1195,6 +1230,7 @@ class ProposalBatchApplyResponse(BaseModel):
     idempotent_suggestion_ids: list[int] = Field(default_factory=list)
     created_terms: int = 0
     created_aliases: int = 0
+    migrated_canonicals: int = 0
     snapshot: ProposalBatchSnapshotResponse
     suggestions: list[SuggestionResponse] = Field(default_factory=list)
 

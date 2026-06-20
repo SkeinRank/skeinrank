@@ -127,6 +127,12 @@ are attached when pending proposals are approved or rejected, and JSONL can be
 exported from `/v1/agents/review-dataset/events/export.jsonl` for later evaluation
 or fine-tuning.
 
+Canonical migrations use the same review boundary. If a scout decides that
+`checkout` is now documented as `payments-core`, it should create a pending
+canonical migration through the Governance API instead of changing dictionaries
+directly. Reviewers can inspect the migration plan, approve with an explicit
+warning override, and then publish a normal runtime snapshot.
+
 ## Security, budgets, and evaluation
 
 ```bash

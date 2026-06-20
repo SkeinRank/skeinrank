@@ -66,6 +66,13 @@ from sqlalchemy.orm import Session
 from ..ambiguous_proposals import sync_ambiguous_alias_candidates_for_suggestion
 from ..apply_policy import apply_policy_for_suggestion, ensure_apply_policy_summary
 from ..auth import AuthContext, require_roles
+from ..canonical_lifecycle import (
+    CanonicalLifecycleError,
+    apply_canonical_migration_suggestion,
+    build_canonical_migration_plan,
+    build_canonical_migration_validation_summary,
+    is_canonical_migration_suggestion,
+)
 from ..conflict_detection import (
     build_conflict_report,
     find_current_conflict,
@@ -122,6 +129,8 @@ from ..schemas import (
     AmbiguousAliasUpsertRequest,
     BindingPolicyResponse,
     BindingPolicyUpsertRequest,
+    CanonicalMigrationCreateRequest,
+    CanonicalMigrationPlanResponse,
     ConflictReportItemResponse,
     ConflictReportResponse,
     ConflictReviewUpdateRequest,
@@ -2290,6 +2299,163 @@ def list_profile_suggestions(
 
 
 @router.post(
+    "/profiles/{profile_name}/canonical-migrations/preview",
+    response_model=CanonicalMigrationPlanResponse,
+)
+def preview_profile_canonical_migration(
+    profile_name: str,
+    request: CanonicalMigrationCreateRequest,
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> CanonicalMigrationPlanResponse:
+    """Preview a canonical migration without mutating active terminology."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    try:
+        plan = build_canonical_migration_plan(
+            session,
+            profile,
+            old_canonical_value=request.old_canonical_value,
+            new_canonical_value=request.new_canonical_value,
+            slot=request.slot,
+            extra_aliases_to_preserve=request.aliases_to_preserve,
+            evidence=request.evidence,
+        )
+    except CanonicalLifecycleError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    return _canonical_migration_plan_response(plan.to_source_payload())
+
+
+@router.post(
+    "/profiles/{profile_name}/canonical-migrations",
+    response_model=SuggestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_profile_canonical_migration(
+    profile_name: str,
+    request: CanonicalMigrationCreateRequest,
+    response: Response,
+    current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    session: Session = Depends(get_session),
+) -> SuggestionResponse:
+    """Create a reviewed proposal that migrates one canonical surface to another."""
+
+    profile = _get_profile_or_404(session, profile_name)
+    _validate_status(
+        request.proposal_source_type,
+        PROPOSAL_SOURCE_TYPES,
+        "proposal source type",
+    )
+    binding_id = request.binding_id
+    if request.binding_id is not None:
+        binding = _get_elasticsearch_binding_or_404(session, request.binding_id)
+        if binding.profile_id != profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Canonical migration binding must belong to the profile.",
+            )
+        binding_id = binding.id
+
+    try:
+        plan = build_canonical_migration_plan(
+            session,
+            profile,
+            old_canonical_value=request.old_canonical_value,
+            new_canonical_value=request.new_canonical_value,
+            slot=request.slot,
+            extra_aliases_to_preserve=request.aliases_to_preserve,
+            evidence=request.evidence,
+        )
+    except CanonicalLifecycleError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+    idempotency_key = normalize_idempotency_key(request.idempotency_key)
+    try:
+        existing_suggestion = resolve_idempotent_suggestion(
+            session,
+            profile=profile,
+            idempotency_key=idempotency_key,
+            suggestion_type="canonical_term",
+            canonical_value=plan.new_canonical_value,
+            alias_value=None,
+            slot=plan.slot,
+            binding_id=binding_id,
+            proposal_source_type=request.proposal_source_type,
+        )
+    except ProposalIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    if existing_suggestion is not None:
+        response.status_code = status.HTTP_200_OK
+        record_proposal_submission(
+            source_type=existing_suggestion.proposal_source_type,
+            suggestion_type=existing_suggestion.suggestion_type,
+            validation_status=validation_status(
+                existing_suggestion.validation_summary_json
+            ),
+            outcome="idempotent_retry",
+        )
+        return _suggestion_response(existing_suggestion)
+
+    source_payload = plan.to_source_payload()
+    validation_summary = build_canonical_migration_validation_summary(plan)
+    validation_summary = ensure_apply_policy_summary(
+        validation_summary,
+        suggestion_type="canonical_term",
+        canonical_value=plan.new_canonical_value,
+        alias_value=None,
+        slot=plan.slot,
+        confidence=request.confidence,
+        proposal_source_type=request.proposal_source_type,
+        proposal_source_name=request.proposal_source_name,
+        source_payload=source_payload,
+    )
+    suggestion = GovernanceSuggestion(
+        profile=profile,
+        suggestion_type="canonical_term",
+        canonical_value=plan.new_canonical_value,
+        alias_value=None,
+        slot=plan.slot,
+        description=request.description,
+        confidence=request.confidence,
+        source="discovery",
+        context=request.context,
+        binding_id=binding_id,
+        proposal_source_type=request.proposal_source_type,
+        proposal_source_name=request.proposal_source_name,
+        idempotency_key=idempotency_key,
+        source_payload_json=source_payload,
+        validation_summary_json=validation_summary,
+        status="pending",
+        created_by=current_user.username,
+    )
+    try:
+        session.add(suggestion)
+        session.commit()
+        session.refresh(suggestion)
+        record_proposal_submission(
+            source_type=suggestion.proposal_source_type,
+            suggestion_type=suggestion.suggestion_type,
+            validation_status=validation_status(suggestion.validation_summary_json),
+            outcome="created",
+        )
+        return _suggestion_response(suggestion)
+    except IntegrityError as exc:
+        session.rollback()
+        raise _integrity_conflict(exc) from exc
+
+
+@router.post(
     "/profiles/{profile_name}/suggestions",
     response_model=SuggestionResponse,
     status_code=status.HTTP_201_CREATED,
@@ -2591,7 +2757,9 @@ def approve_profile_suggestion(
         suggestion, allow_warnings=request.allow_warnings
     )
 
-    if suggestion.suggestion_type == "alias":
+    if is_canonical_migration_suggestion(suggestion):
+        _approve_canonical_migration_suggestion(session, profile, suggestion)
+    elif suggestion.suggestion_type == "alias":
         _approve_alias_suggestion(session, profile, suggestion)
     elif suggestion.suggestion_type == "canonical_term":
         _approve_canonical_term_suggestion(session, profile, suggestion)
@@ -2763,6 +2931,7 @@ def apply_profile_suggestion_batch(
 
     created_terms = 0
     created_aliases = 0
+    migrated_canonicals = 0
     idempotent_suggestion_ids: list[int] = []
     now = utc_now()
     for suggestion in _ordered_suggestions_for_apply(suggestions):
@@ -2774,6 +2943,8 @@ def apply_profile_suggestion_batch(
             created_terms += 1
         elif apply_result == "created_alias":
             created_aliases += 1
+        elif apply_result == "migrated_canonical":
+            migrated_canonicals += 1
         elif apply_result == "idempotent_noop":
             idempotent_suggestion_ids.append(suggestion.id)
         else:  # pragma: no cover - guarded by helper return values
@@ -2864,6 +3035,7 @@ def apply_profile_suggestion_batch(
         idempotent_suggestion_ids=idempotent_suggestion_ids,
         created_terms=created_terms,
         created_aliases=created_aliases,
+        migrated_canonicals=migrated_canonicals,
         snapshot=snapshot_response,
         suggestions=[_suggestion_response(suggestion) for suggestion in suggestions],
     )
@@ -4354,7 +4526,11 @@ def _proposal_batch_preview_item(
     summary = suggestion.validation_summary_json or {}
     validation_status_value = _proposal_validation_status(summary)
     apply_policy = apply_policy_for_suggestion(suggestion)
-    apply_action = "apply"
+    apply_action = (
+        "migrate_canonical"
+        if is_canonical_migration_suggestion(suggestion)
+        else "apply"
+    )
     idempotent_reason = None
     if suggestion.status == "approved":
         applyable = True
@@ -4479,6 +4655,15 @@ def _apply_suggestion_idempotently(
 ) -> str:
     """Apply a pending suggestion or mark it as an idempotent no-op."""
 
+    if is_canonical_migration_suggestion(suggestion):
+        try:
+            apply_canonical_migration_suggestion(session, profile, suggestion)
+        except CanonicalLifecycleError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
+        return "migrated_canonical"
     if suggestion.suggestion_type == "canonical_term":
         return _apply_canonical_term_suggestion_idempotently(
             session, profile, suggestion
@@ -4590,6 +4775,18 @@ def _apply_alias_suggestion_idempotently(
     suggestion.term_id = term.id
     suggestion.alias_id = alias.id
     return "created_alias"
+
+
+def _approve_canonical_migration_suggestion(
+    session: Session, profile: TerminologyProfile, suggestion: GovernanceSuggestion
+) -> None:
+    try:
+        apply_canonical_migration_suggestion(session, profile, suggestion)
+    except CanonicalLifecycleError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
 
 
 def _approve_alias_suggestion(
@@ -4922,6 +5119,30 @@ def _ambiguous_alias_candidate_response(
         evidence=candidate.evidence_json,
         created_at=candidate.created_at,
         updated_at=candidate.updated_at,
+    )
+
+
+def _canonical_migration_plan_response(
+    source_payload: dict[str, object],
+) -> CanonicalMigrationPlanResponse:
+    return CanonicalMigrationPlanResponse(
+        schema_version=str(source_payload.get("schema_version") or ""),
+        action=str(source_payload.get("action") or ""),
+        old_canonical_value=str(source_payload.get("old_canonical_value") or ""),
+        new_canonical_value=str(source_payload.get("new_canonical_value") or ""),
+        slot=str(source_payload.get("slot") or ""),
+        old_term_id=int(source_payload.get("old_term_id") or 0),
+        new_term_id=source_payload.get("new_term_id")
+        if isinstance(source_payload.get("new_term_id"), int)
+        else None,
+        old_status=str(source_payload.get("old_status") or ""),
+        new_status=source_payload.get("new_status")
+        if isinstance(source_payload.get("new_status"), str)
+        else None,
+        aliases_to_preserve=list(source_payload.get("aliases_to_preserve") or []),
+        alias_conflicts=list(source_payload.get("alias_conflicts") or []),
+        evidence=dict(source_payload.get("evidence") or {}),
+        is_blocked=bool(source_payload.get("alias_conflicts") or []),
     )
 
 
