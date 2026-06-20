@@ -47,6 +47,7 @@ from .attributes import (
     write_jsonl,
 )
 from .candidates import (
+    CandidateCluster,
     CandidateDiscoveryConfig,
     CandidateDiscoveryDocument,
     CandidateDiscoveryReport,
@@ -192,6 +193,7 @@ __all__ = [
     "OpenRouterDictionaryAssistantResult",
     "build_dictionary_from_docs",
     "build_dictionary_from_documents",
+    "CandidateCluster",
     "CandidateDiscoveryConfig",
     "CandidateDiscoveryDocument",
     "CandidateDiscoveryReport",

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from skeinrank import (
+    CandidateCluster,
     CandidateDiscoveryConfig,
     CandidateDiscoveryDocument,
     CandidateDiscoveryReport,
@@ -302,3 +303,34 @@ def test_candidate_discovery_emits_trigram_phrase_candidates():
     assert values["blue deploy ring"].kind == "phrase"
     assert values["blue deploy ring"].document_count == 2
     assert values["blue deploy ring"].mention_count == 3
+
+
+def test_candidate_discovery_builds_review_clusters():
+    report = discover_candidates(
+        [
+            "blue deploy ring failed. blue deploy ring recovered. blue deploy failed.",
+            "runbook says blue deploy ring uses blue deploy safeguards.",
+        ],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_document_frequency=2,
+            min_word_length=2,
+            stop_words=["failed", "says", "uses"],
+        ),
+    )
+
+    assert report.cluster_count == len(report.candidate_clusters)
+    assert report.top_clusters(1) == report.candidate_clusters[:1]
+    cluster = next(
+        item
+        for item in report.candidate_clusters
+        if "blue deploy ring" in item.normalized_representative
+        or "blue deploy ring" in item.surface_values
+    )
+
+    assert isinstance(cluster, CandidateCluster)
+    assert cluster.candidate_count >= 2
+    assert "blue deploy ring" in cluster.surface_values
+    assert "blue deploy" in cluster.surface_values
+    assert "related_surface_cluster" in cluster.reasons
+    assert cluster.evidence

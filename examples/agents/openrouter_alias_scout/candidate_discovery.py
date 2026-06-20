@@ -267,6 +267,46 @@ class AliasCandidate:
         }
 
 
+@dataclass(frozen=True)
+class CandidateCluster:
+    """A deterministic group of related candidate surfaces for LLM review."""
+
+    cluster_id: str
+    representative_surface: str
+    candidates: tuple[AliasCandidate, ...]
+    score: float
+    reasons: tuple[str, ...]
+
+    @property
+    def surfaces(self) -> tuple[str, ...]:
+        return tuple(candidate.surface for candidate in self.candidates)
+
+    @property
+    def weighted_count(self) -> float:
+        return sum(candidate.weighted_count for candidate in self.candidates)
+
+    @property
+    def document_frequency(self) -> int:
+        return max(
+            (candidate.document_frequency for candidate in self.candidates), default=0
+        )
+
+    def to_dict(self) -> JsonDict:
+        """Return a stable JSON-serializable cluster payload."""
+
+        return {
+            "cluster_id": self.cluster_id,
+            "representative_surface": self.representative_surface,
+            "surfaces": list(self.surfaces),
+            "candidate_count": len(self.candidates),
+            "weighted_count": round(self.weighted_count, 4),
+            "document_frequency": self.document_frequency,
+            "score": round(self.score, 4),
+            "reasons": list(self.reasons),
+            "candidates": [candidate.to_dict() for candidate in self.candidates],
+        }
+
+
 def tokenize_query(query: str) -> list[str]:
     """Tokenize a failed query into normalized candidate surfaces."""
 
@@ -443,6 +483,7 @@ def build_candidate_discovery_report(
 
     cfg = config or CandidateDiscoveryConfig()
     candidates = discover_alias_candidates(failed_queries, config=cfg)
+    clusters = build_candidate_clusters(candidates)
     query_count = len([row for row in failed_queries if row.get("query")])
     return {
         "schema_version": "skeinrank.agent_candidate_discovery.v1",
@@ -452,6 +493,7 @@ def build_candidate_discovery_report(
         "profile_name": profile_name,
         "queries_loaded": query_count,
         "candidates_found": len(candidates),
+        "clusters_found": len(clusters),
         "config": {
             "max_candidates": cfg.max_candidates,
             "min_token_length": cfg.min_token_length,
@@ -467,6 +509,7 @@ def build_candidate_discovery_report(
             "background_penalty_weight": cfg.background_penalty_weight,
         },
         "candidates": [candidate.to_dict() for candidate in candidates],
+        "candidate_clusters": [cluster.to_dict() for cluster in clusters],
     }
 
 
@@ -476,6 +519,7 @@ def build_candidate_fact_pack(
     binding_id: int | None = None,
     profile_name: str | None = None,
     known_conflicts: Sequence[str] = (),
+    candidate_cluster: CandidateCluster | Mapping[str, Any] | None = None,
 ) -> JsonDict:
     """Build the compact pre-LLM fact pack for one discovered candidate."""
 
@@ -485,6 +529,7 @@ def build_candidate_fact_pack(
         "slot": None,
         "binding_id": binding_id,
         "profile_name": profile_name,
+        "candidate_cluster": _cluster_payload(candidate_cluster),
         "evidence": [f"failed query: {query}" for query in candidate.example_queries],
         "stats": {
             "weighted_count": round(candidate.weighted_count, 4),
@@ -495,6 +540,56 @@ def build_candidate_fact_pack(
         },
         "known_conflicts": [item for item in known_conflicts if item],
     }
+
+
+def build_candidate_clusters(
+    candidates: Sequence[AliasCandidate], *, max_clusters: int | None = None
+) -> list[CandidateCluster]:
+    """Group related candidate surfaces before LLM review."""
+
+    groups: list[list[AliasCandidate]] = []
+    for candidate in sorted(candidates, key=lambda item: (-item.score, item.surface)):
+        for group in groups:
+            if any(
+                _surface_similarity(candidate.surface, item.surface) >= 0.5
+                for item in group
+            ):
+                group.append(candidate)
+                break
+        else:
+            groups.append([candidate])
+
+    clusters: list[CandidateCluster] = []
+    for index, group in enumerate(groups, start=1):
+        ordered = tuple(
+            sorted(
+                group,
+                key=lambda item: (-item.score, -item.weighted_count, item.surface),
+            )
+        )
+        clusters.append(
+            CandidateCluster(
+                cluster_id=f"candidate-cluster-{index:03d}",
+                representative_surface=ordered[0].surface,
+                candidates=ordered,
+                score=sum(item.score for item in ordered),
+                reasons=tuple(_cluster_reasons(ordered)),
+            )
+        )
+
+    clusters.sort(key=lambda item: (-item.score, item.representative_surface))
+    if max_clusters is not None:
+        clusters = clusters[: max(max_clusters, 0)]
+    return [
+        CandidateCluster(
+            cluster_id=f"candidate-cluster-{index:03d}",
+            representative_surface=cluster.representative_surface,
+            candidates=cluster.candidates,
+            score=cluster.score,
+            reasons=cluster.reasons,
+        )
+        for index, cluster in enumerate(clusters, start=1)
+    ]
 
 
 def _candidate_score(
@@ -645,6 +740,57 @@ def _surface_parts(token: str) -> list[str]:
     return [part for part in _SURFACE_SPLIT_RE.split(_normalize_token(token)) if part]
 
 
+def _cluster_reasons(candidates: Sequence[AliasCandidate]) -> list[str]:
+    reasons: set[str] = set()
+    if len(candidates) > 1:
+        reasons.add("related_surface_cluster")
+    if any("multi_term_phrase" in candidate.reasons for candidate in candidates):
+        reasons.add("phrase_surface_present")
+    if any(candidate.score_breakdown.get("surface_class") for candidate in candidates):
+        reasons.add("code_surface_present")
+    if any(
+        candidate.score_breakdown.get("jargon_score", 0.0) >= 0.75
+        for candidate in candidates
+    ):
+        reasons.add("domain_specific_language")
+    return sorted(reasons)
+
+
+def _surface_similarity(left: str, right: str) -> float:
+    left_parts = set(_cluster_parts(left))
+    right_parts = set(_cluster_parts(right))
+    if not left_parts or not right_parts:
+        return 0.0
+    if left_parts == right_parts:
+        return 1.0
+    overlap = left_parts & right_parts
+    if not overlap:
+        return 0.0
+    containment = len(overlap) / min(len(left_parts), len(right_parts))
+    jaccard = len(overlap) / len(left_parts | right_parts)
+    return max(containment, jaccard)
+
+
+def _cluster_parts(surface: str) -> list[str]:
+    parts = _surface_parts(surface)
+    out: list[str] = []
+    for part in parts:
+        if part.endswith("s") and len(part) > 4:
+            part = part[:-1]
+        out.append(part)
+    return out
+
+
+def _cluster_payload(
+    cluster: CandidateCluster | Mapping[str, Any] | None,
+) -> JsonDict | None:
+    if cluster is None:
+        return None
+    if isinstance(cluster, CandidateCluster):
+        return cluster.to_dict()
+    return dict(cluster)
+
+
 def _round_score_breakdown(value: Mapping[str, Any]) -> JsonDict:
     rounded: JsonDict = {}
     for key, item in value.items():
@@ -686,7 +832,9 @@ def _looks_private_or_identifier(token: str) -> bool:
 
 __all__ = [
     "AliasCandidate",
+    "CandidateCluster",
     "CandidateDiscoveryConfig",
+    "build_candidate_clusters",
     "build_candidate_discovery_report",
     "build_candidate_fact_pack",
     "candidate_reasons",

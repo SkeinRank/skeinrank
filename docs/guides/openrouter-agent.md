@@ -134,7 +134,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-cand
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
 ```
 
-The report schema is `skeinrank.agent_candidate_discovery.v1`. It extracts surfaces such as `pg`, `k8s`, `PAY-1842`, `checkout-v2`, `payment_service`, and conservative bigram/trigram phrases, prunes configured noise and known terms, and produces compact candidate packs. Candidate scoring includes a compact breakdown with weighted failed-query support, surface class, background-language penalty, `jargon_score`, and lightweight tokenizer-risk signals. The standalone scout keeps true `oov_score` and `token_fragmentation_score` empty until a tokenizer provider is connected, so model-specific risk is never implied when it was not measured.
+The report schema is `skeinrank.agent_candidate_discovery.v1`. It extracts surfaces such as `pg`, `k8s`, `PAY-1842`, `checkout-v2`, `payment_service`, and conservative bigram/trigram phrases, prunes configured noise and known terms, and produces compact candidate packs. Candidate scoring includes a compact breakdown with weighted failed-query support, surface class, background-language penalty, `jargon_score`, and lightweight tokenizer-risk signals. The report also includes candidate clusters, grouping related surfaces before LLM review so the model receives an entity-style context instead of a flat list of words. The standalone scout keeps true `oov_score` and `token_fragmentation_score` empty until a tokenizer provider is connected, so model-specific risk is never implied when it was not measured.
 
 ## Compact evidence windows
 
@@ -145,7 +145,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-eviden
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
 ```
 
-The report schema is `skeinrank.agent_evidence_sampling.v1`. The sampler enforces `max_docs`, `max_windows`, and `max_total_chars` limits so the model never receives full documents by default.
+The report schema is `skeinrank.agent_evidence_sampling.v1`. The sampler enforces `max_docs`, `max_windows`, and `max_total_chars` limits so the model never receives full documents by default. Candidate packs separate positive evidence from negative/contrast evidence when conflicts are known, attach nearby terms from each window, and can include the candidate cluster used for review.
 
 ## Elasticsearch / OpenSearch evidence
 

@@ -353,7 +353,7 @@ The CLI returns JSON for `extract`, raw text by default for `canonicalize` and `
 
 ## Candidate discovery engine
 
-The core package also includes a deterministic candidate discovery engine for cold-start dictionary suggestions and future terminology drift reports. It scans local text, filters known dictionary terms, ranks unmatched technical candidates, and returns evidence snippets for review. Surface extraction handles code-shaped names such as `PAY-1842`, `checkout-v2`, `payment_service`, `payments-core`, compact all-caps aliases, and multi-term phrases up to trigrams. Candidate ranking is explainable: each candidate carries a score breakdown with frequency support, document-frequency support, surface class, identifier/code-shape signals, lightweight tokenizer-risk signals, background-language penalties, and a `jargon_score` that favors terms that look specific to the scanned corpus rather than generic operational words.
+The core package also includes a deterministic candidate discovery engine for cold-start dictionary suggestions and future terminology drift reports. It scans local text, filters known dictionary terms, ranks unmatched technical candidates, and returns evidence snippets for review. Surface extraction handles code-shaped names such as `PAY-1842`, `checkout-v2`, `payment_service`, `payments-core`, compact all-caps aliases, and multi-term phrases up to trigrams. Candidate ranking is explainable: each candidate carries a score breakdown with frequency support, document-frequency support, surface class, identifier/code-shape signals, lightweight tokenizer-risk signals, background-language penalties, and a `jargon_score` that favors terms that look specific to the scanned corpus rather than generic operational words. The report also groups related candidates into review clusters so downstream agents can reason about surfaces that likely describe the same entity.
 
 ```python
 from skeinrank import CandidateDiscoveryConfig, discover_candidates, demo_dictionary
@@ -369,6 +369,9 @@ report = discover_candidates(
 
 for candidate in report.top_candidates(5):
     print(candidate.value, candidate.mention_count, candidate.evidence[0].text)
+
+for cluster in report.top_clusters(3):
+    print(cluster.representative_value, cluster.surface_values)
     if candidate.score_breakdown:
         print(
             candidate.score_breakdown.jargon_score,

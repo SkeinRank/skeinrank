@@ -23,7 +23,7 @@ For the full operator guide, see `docs/guides/openrouter-agent.md`.
 | `evaluation_outcomes.example.jsonl` | Optional human/policy outcomes for evaluation reports. |
 | `review_decisions.example.jsonl` | Optional local review decisions for proposal inbox reports. |
 | `candidate_discovery.py` | Dependency-light failed-query candidate mining, pruning, scoring, and fact-pack helpers. |
-| `evidence_sampler.py` | Dependency-light compact window sampler for candidate evidence packs. |
+| `evidence_sampler.py` | Dependency-light compact window sampler for positive, negative, and cluster-aware candidate evidence packs. |
 | `demo_report.py` | Local E2E demo report builder for discovery + evidence + review queue output. |
 | `openrouter_client.py` | Dependency-light OpenRouter `/chat/completions` client with testable transport injection. |
 | `alias_scout_workflow.py` | LangGraph-ready state-machine workflow for LLM review and proposal payload preparation. |
@@ -64,7 +64,7 @@ Makefile helper:
 make agent-demo
 ```
 
-The local demo uses `skeinrank.agent_demo_report.v1`. The local demo is network-free: it does not call OpenRouter, does not call Elasticsearch, does not call the SkeinRank API, and does not submit proposals. Candidate discovery ranks surfaces with weighted failed-query support, surface classes, background-language penalties, `jargon_score`, and lightweight tokenizer-risk signals so compact aliases, code-shaped names, and conservative bigram/trigram phrases are prioritized before generic operational words. True `oov_score` and `token_fragmentation_score` stay empty in this standalone example because no embedding tokenizer is loaded.
+The local demo uses `skeinrank.agent_demo_report.v1`. The local demo is network-free: it does not call OpenRouter, does not call Elasticsearch, does not call the SkeinRank API, and does not submit proposals. Candidate discovery ranks surfaces with weighted failed-query support, surface classes, background-language penalties, `jargon_score`, and lightweight tokenizer-risk signals so compact aliases, code-shaped names, and conservative bigram/trigram phrases are prioritized before generic operational words. It also groups related surfaces into candidate clusters before LLM review, so the model can inspect an entity-style pack instead of isolated words. True `oov_score` and `token_fragmentation_score` stay empty in this standalone example because no embedding tokenizer is loaded.
 
 ## Tool schemas and prompts
 
@@ -283,5 +283,5 @@ openai_compatible
 local_endpoint
 ```
 
-Local evidence mode has no Elasticsearch calls, no OpenRouter calls, and no proposal submission by default.
+Local evidence mode has no Elasticsearch calls, no OpenRouter calls, and no proposal submission by default. Evidence packs now separate positive windows from negative/contrast windows when known conflicts are provided, include nearby terms from each window, and can carry the candidate cluster that will be shown to the model.
 The local foundation path does not call OpenRouter yet; live model calls are enabled only through the guarded live-pilot commands below.

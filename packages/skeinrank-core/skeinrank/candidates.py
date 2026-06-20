@@ -400,18 +400,44 @@ class DiscoveredCandidate(BaseModel):
         return cleaned
 
 
+class CandidateCluster(BaseModel):
+    """Deterministic group of related candidate surfaces for review."""
+
+    cluster_id: str
+    representative_value: str
+    normalized_representative: str
+    surface_values: list[str] = Field(default_factory=list)
+    candidate_count: int = Field(ge=1)
+    total_mentions: int = Field(ge=1)
+    document_count: int = Field(ge=1)
+    score: float = Field(ge=0.0)
+    reasons: list[str] = Field(default_factory=list)
+    evidence: list[CandidateEvidence] = Field(default_factory=list)
+
+    @field_validator("cluster_id", "representative_value", "normalized_representative")
+    @classmethod
+    def _non_empty_text(cls, value: str) -> str:
+        cleaned = " ".join(str(value).strip().split())
+        if not cleaned:
+            raise ValueError("candidate cluster fields must not be empty")
+        return cleaned
+
+
 class CandidateDiscoveryReport(BaseModel):
     """Result returned by deterministic candidate discovery."""
 
     document_count: int = Field(ge=0)
     candidate_count: int = Field(ge=0)
+    cluster_count: int = Field(default=0, ge=0)
     total_mentions: int = Field(ge=0)
     known_term_count: int = Field(ge=0)
     candidates: list[DiscoveredCandidate] = Field(default_factory=list)
+    candidate_clusters: list[CandidateCluster] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _sync_counts(self) -> "CandidateDiscoveryReport":
         self.candidate_count = len(self.candidates)
+        self.cluster_count = len(self.candidate_clusters)
         self.total_mentions = sum(
             candidate.mention_count for candidate in self.candidates
         )
@@ -423,6 +449,13 @@ class CandidateDiscoveryReport(BaseModel):
         if limit <= 0:
             return []
         return self.candidates[:limit]
+
+    def top_clusters(self, limit: int = 10) -> list[CandidateCluster]:
+        """Return the top review clusters by deterministic ranking."""
+
+        if limit <= 0:
+            return []
+        return self.candidate_clusters[:limit]
 
 
 class _CandidateAccumulator:
@@ -498,12 +531,15 @@ def discover_candidates(
         accumulators,
         config=normalized_config,
     )
+    clusters = _cluster_candidates(candidates)
     return CandidateDiscoveryReport(
         document_count=len(normalized_documents),
         candidate_count=len(candidates),
+        cluster_count=len(clusters),
         total_mentions=sum(candidate.mention_count for candidate in candidates),
         known_term_count=len(known_terms),
         candidates=candidates,
+        candidate_clusters=clusters,
     )
 
 
@@ -728,6 +764,124 @@ def _rank_candidates(
         )
     )
     return candidates[: config.max_candidates]
+
+
+def _cluster_candidates(
+    candidates: Sequence[DiscoveredCandidate],
+) -> list[CandidateCluster]:
+    """Build small deterministic review clusters from ranked candidates."""
+
+    groups: list[list[DiscoveredCandidate]] = []
+    for candidate in candidates:
+        for group in groups:
+            if any(
+                _candidate_similarity(candidate, existing) >= 0.5 for existing in group
+            ):
+                group.append(candidate)
+                break
+        else:
+            groups.append([candidate])
+
+    clusters: list[CandidateCluster] = []
+    for index, group in enumerate(groups, start=1):
+        ordered = sorted(
+            group,
+            key=lambda item: (
+                -item.score,
+                -item.document_count,
+                -item.mention_count,
+                item.normalized_value,
+            ),
+        )
+        representative = ordered[0]
+        evidence: list[CandidateEvidence] = []
+        for candidate in ordered:
+            for item in candidate.evidence:
+                if len(evidence) >= 5:
+                    break
+                evidence.append(item)
+            if len(evidence) >= 5:
+                break
+        clusters.append(
+            CandidateCluster(
+                cluster_id=f"candidate-cluster-{index:03d}",
+                representative_value=representative.value,
+                normalized_representative=representative.normalized_value,
+                surface_values=[candidate.value for candidate in ordered],
+                candidate_count=len(ordered),
+                total_mentions=sum(candidate.mention_count for candidate in ordered),
+                document_count=len(
+                    {
+                        item.source
+                        for candidate in ordered
+                        for item in candidate.evidence
+                    }
+                )
+                or max(candidate.document_count for candidate in ordered),
+                score=round(sum(candidate.score for candidate in ordered), 4),
+                reasons=_cluster_reasons(ordered),
+                evidence=evidence,
+            )
+        )
+    clusters.sort(
+        key=lambda item: (
+            -item.score,
+            -item.document_count,
+            -item.total_mentions,
+            item.normalized_representative,
+        )
+    )
+    for index, cluster in enumerate(clusters, start=1):
+        cluster.cluster_id = f"candidate-cluster-{index:03d}"
+    return clusters
+
+
+def _candidate_similarity(
+    left: DiscoveredCandidate, right: DiscoveredCandidate
+) -> float:
+    left_parts = set(_cluster_parts(left.normalized_value))
+    right_parts = set(_cluster_parts(right.normalized_value))
+    if not left_parts or not right_parts:
+        return 0.0
+    if left.normalized_value == right.normalized_value:
+        return 1.0
+    overlap = left_parts & right_parts
+    if not overlap:
+        return 0.0
+    containment = len(overlap) / min(len(left_parts), len(right_parts))
+    jaccard = len(overlap) / len(left_parts | right_parts)
+    return max(containment, jaccard)
+
+
+def _cluster_parts(normalized: str) -> list[str]:
+    parts = _normalized_parts(normalized)
+    normalized_parts: list[str] = []
+    for part in parts:
+        if part.endswith("s") and len(part) > 4:
+            part = part[:-1]
+        normalized_parts.append(part)
+    return normalized_parts
+
+
+def _cluster_reasons(candidates: Sequence[DiscoveredCandidate]) -> list[str]:
+    reasons: set[str] = set()
+    if len(candidates) > 1:
+        reasons.add("related_surface_cluster")
+    if any(candidate.kind == "phrase" for candidate in candidates):
+        reasons.add("phrase_surface_present")
+    if any(
+        candidate.score_breakdown is not None
+        and candidate.score_breakdown.surface_class is not None
+        for candidate in candidates
+    ):
+        reasons.add("code_surface_present")
+    if any(
+        candidate.score_breakdown is not None
+        and candidate.score_breakdown.jargon_score >= 0.75
+        for candidate in candidates
+    ):
+        reasons.add("domain_specific_language")
+    return sorted(reasons)
 
 
 def _score_candidate(

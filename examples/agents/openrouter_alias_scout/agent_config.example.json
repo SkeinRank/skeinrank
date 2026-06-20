@@ -267,6 +267,7 @@
     "max_docs": 5,
     "max_records": 50,
     "max_total_chars": 1000,
+    "max_neighbor_terms": 8,
     "max_window_chars": 220,
     "max_windows": 7,
     "text_fields": [

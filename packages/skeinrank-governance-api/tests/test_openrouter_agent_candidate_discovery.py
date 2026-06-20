@@ -222,3 +222,41 @@ def test_candidate_discovery_extracts_code_style_and_ngram_surfaces() -> None:
     assert "blue deploy ring" in by_surface
     assert "trigram_phrase" in by_surface["blue deploy ring"].reasons
     assert "multi_term_phrase" in by_surface["blue deploy ring"].reasons
+
+
+def test_candidate_discovery_report_groups_related_surfaces_before_llm():
+    discovery = _load_module(
+        "agent_candidate_discovery_clusters", AGENT_DIR / "candidate_discovery.py"
+    )
+
+    rows = [
+        {"query": "blue deploy ring failed", "count": 5},
+        {"query": "blue deploy ring rollback", "count": 4},
+        {"query": "blue deploy status", "count": 3},
+    ]
+    config = discovery.CandidateDiscoveryConfig.from_mapping(
+        {
+            "known_terms": [],
+            "noise_tokens": ["failed", "rollback", "status"],
+            "background_terms": [],
+            "max_candidates": 20,
+            "min_score": 0,
+        }
+    )
+
+    candidates = discovery.discover_alias_candidates(rows, config=config)
+    clusters = discovery.build_candidate_clusters(candidates)
+    cluster = next(item for item in clusters if "blue deploy ring" in item.surfaces)
+
+    assert cluster.representative_surface in cluster.surfaces
+    assert "blue deploy" in cluster.surfaces
+    assert "related_surface_cluster" in cluster.reasons
+
+    report = discovery.build_candidate_discovery_report(rows, config=config)
+    assert report["clusters_found"] == len(report["candidate_clusters"])
+    assert report["candidate_clusters"][0]["surfaces"]
+
+    pack = discovery.build_candidate_fact_pack(
+        candidates[0], candidate_cluster=clusters[0]
+    )
+    assert pack["candidate_cluster"]["cluster_id"].startswith("candidate-cluster-")

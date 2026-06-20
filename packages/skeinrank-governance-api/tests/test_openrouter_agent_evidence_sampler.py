@@ -166,3 +166,62 @@ def test_openrouter_40i_docs_are_linked_from_project_docs() -> None:
         content = path.read_text(encoding="utf-8")
         assert "--sample-evidence" in content, path
         assert "--print-sample-evidence-pack" in content, path
+
+
+def test_cluster_evidence_pack_includes_positive_negative_and_neighbors():
+    discovery = _load_module(
+        "agent_candidate_discovery_for_cluster_pack",
+        AGENT_DIR / "candidate_discovery.py",
+    )
+    sampler = _load_module(
+        "agent_evidence_sampler_cluster_pack", AGENT_DIR / "evidence_sampler.py"
+    )
+
+    rows = [
+        {"query": "pg timeout", "count": 5},
+        {"query": "pg replica lag", "count": 4},
+        {"query": "pg layout broken", "count": 3},
+    ]
+    candidates = discovery.discover_alias_candidates(
+        rows,
+        config=discovery.CandidateDiscoveryConfig.from_mapping(
+            {
+                "known_terms": [],
+                "noise_tokens": [],
+                "background_terms": [],
+                "min_score": 0,
+            }
+        ),
+    )
+    clusters = discovery.build_candidate_clusters(candidates)
+    cluster = clusters[0]
+    records = [
+        {
+            "id": "doc-postgres",
+            "source_type": "runbook",
+            "text": "pg timeout means postgres replica lag in production",
+        },
+        {
+            "id": "doc-layout",
+            "source_type": "frontend",
+            "text": "page layout has separate pg layout naming in the UI",
+        },
+    ]
+
+    pack = sampler.build_cluster_evidence_pack(
+        cluster,
+        records,
+        config=sampler.EvidenceSamplerConfig(max_windows=3, window_chars=40),
+        known_conflicts=["pg layout"],
+        profile_name="infra_incidents",
+    )
+
+    assert pack["schema_version"] == "skeinrank.agent_cluster_evidence_pack.v1"
+    assert pack["candidate_cluster"]["surfaces"]
+    assert pack["positive_evidence_windows"]
+    assert pack["negative_evidence_windows"]
+    assert pack["negative_evidence_windows"][0]["evidence_role"] == "negative"
+    assert "postgres" in pack["neighbor_terms"] or "replica" in pack["neighbor_terms"]
+    assert pack["stats"]["negative_evidence_windows"] == len(
+        pack["negative_evidence_windows"]
+    )
