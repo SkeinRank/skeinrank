@@ -155,3 +155,28 @@ def test_openrouter_40h_docs_are_linked_from_project_docs() -> None:
         content = path.read_text(encoding="utf-8")
         assert "--discover-candidates" in content, path
         assert "--print-sample-candidate-pack" in content, path
+
+
+def test_candidate_discovery_exposes_surface_risk_without_tokenizer_provider() -> None:
+    discovery = _load_module(
+        "agent_candidate_discovery_surface_risk", AGENT_DIR / "candidate_discovery.py"
+    )
+
+    rows = [
+        {"query": "PAY-1842 checkout failure", "count": 5},
+        {"query": "PAY-1842 payment service timeout", "count": 3},
+    ]
+    config = discovery.CandidateDiscoveryConfig.from_mapping(
+        {
+            "noise_tokens": ["checkout", "failure", "payment", "service", "timeout"],
+            "min_token_length": 2,
+        }
+    )
+
+    candidates = discovery.discover_alias_candidates(rows, config=config)
+    candidate = next(item for item in candidates if item.surface == "pay-1842")
+
+    assert candidate.score_breakdown["surface_risk_score"] > 0
+    assert candidate.score_breakdown["tokenizer_signal_status"] == "unavailable"
+    assert candidate.score_breakdown["oov_score"] is None
+    assert "alpha_digit_tokenizer_risk" in candidate.score_breakdown["reasons"]

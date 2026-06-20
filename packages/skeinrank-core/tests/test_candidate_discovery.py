@@ -4,6 +4,7 @@ from skeinrank import (
     CandidateDiscoveryConfig,
     CandidateDiscoveryDocument,
     CandidateDiscoveryReport,
+    CandidateTokenizerSignal,
     discover_candidates,
     discover_candidates_from_documents,
     load_dictionary,
@@ -184,3 +185,71 @@ def test_candidate_discovery_score_breakdown_explains_code_shape_boost():
     assert values["pay 1842"].score_breakdown is not None
     assert values["pay 1842"].score_breakdown.code_shape_score > 0
     assert "mixed_alpha_digit" in values["pay 1842"].score_breakdown.reasons
+
+
+def test_candidate_discovery_exposes_lightweight_surface_risk_without_tokenizer():
+    report = discover_candidates(
+        ["PAY-1842 PAY-1842 PAY-1842 server server server"],
+        config={
+            "min_frequency": 2,
+            "min_word_length": 2,
+            "include_phrase_candidates": False,
+            "stop_words": [],
+            "background_terms": ["server"],
+        },
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+    breakdown = values["pay 1842"].score_breakdown
+
+    assert breakdown is not None
+    assert breakdown.surface_risk_score > 0
+    assert breakdown.tokenizer_signal_status == "unavailable"
+    assert breakdown.oov_score is None
+    assert breakdown.token_fragmentation_score is None
+    assert "alpha_digit_tokenizer_risk" in breakdown.reasons
+
+
+class _FakeTokenizerSignalProvider:
+    def analyze(self, surface: str):
+        normalized = surface.casefold()
+        if "pay" in normalized:
+            return CandidateTokenizerSignal(
+                token_count=1,
+                subtoken_count=6,
+                unknown_token_count=1,
+                fragmentation_score=0.9,
+                oov_score=0.85,
+                reasons=["fake_provider_signal"],
+            )
+        return CandidateTokenizerSignal(
+            token_count=1,
+            subtoken_count=1,
+            fragmentation_score=0.0,
+            oov_score=0.0,
+        )
+
+
+def test_candidate_discovery_uses_optional_tokenizer_signal_provider():
+    report = discover_candidates(
+        ["PAY-1842 PAY-1842 server server"],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_word_length=2,
+            include_phrase_candidates=False,
+            stop_words=[],
+            background_terms=["server"],
+            tokenizer_signal_provider=_FakeTokenizerSignalProvider(),
+        ),
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+    breakdown = values["pay 1842"].score_breakdown
+
+    assert values["pay 1842"].score > values["server"].score
+    assert breakdown is not None
+    assert breakdown.tokenizer_signal_status == "available"
+    assert breakdown.oov_score == 0.85
+    assert breakdown.token_fragmentation_score == 0.9
+    assert "fake_provider_signal" in breakdown.reasons
+    assert "oov_tokenizer_signal" in breakdown.reasons

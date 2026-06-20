@@ -12,9 +12,9 @@ import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .documents import extract_document_text
 from .sdk import Dictionary, load_dictionary
@@ -242,8 +242,44 @@ _WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*")
 _SEPARATOR_RE = re.compile(r"[\s._:/-]+")
 
 
+class CandidateTokenizerSignal(BaseModel):
+    """Optional tokenizer analysis for one candidate surface.
+
+    Providers can populate this model from an embedding tokenizer or an external
+    precomputed signal. Candidate discovery never imports a tokenizer directly,
+    keeping the core package dependency-light.
+    """
+
+    token_count: int = Field(default=0, ge=0)
+    subtoken_count: int = Field(default=0, ge=0)
+    unknown_token_count: int = Field(default=0, ge=0)
+    fragmentation_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    oov_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    reasons: list[str] = Field(default_factory=list)
+
+    @field_validator("reasons")
+    @classmethod
+    def _clean_reasons(cls, values: list[str]) -> list[str]:
+        return sorted({str(value).strip() for value in values if str(value).strip()})
+
+
+class TokenizerSignalProvider(Protocol):
+    """Protocol for optional tokenizer-aware candidate scoring.
+
+    Implementations may wrap a Hugging Face tokenizer, a hosted tokenizer
+    service, or precomputed tokenization metadata. The discovery engine treats
+    this provider as optional input and never creates heavy tokenizer objects by
+    itself.
+    """
+
+    def analyze(self, surface: str) -> CandidateTokenizerSignal | Mapping[str, Any]:
+        """Return tokenizer signal for a candidate surface."""
+
+
 class CandidateDiscoveryConfig(BaseModel):
     """Configuration for deterministic candidate discovery."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     min_frequency: int = Field(default=2, ge=1)
     min_document_frequency: int = Field(default=1, ge=1)
@@ -258,7 +294,10 @@ class CandidateDiscoveryConfig(BaseModel):
     )
     jargon_weight: float = Field(default=1.25, ge=0.0)
     code_shape_weight: float = Field(default=0.75, ge=0.0)
+    surface_risk_weight: float = Field(default=0.5, ge=0.0)
+    tokenizer_signal_weight: float = Field(default=0.75, ge=0.0)
     background_penalty_weight: float = Field(default=0.75, ge=0.0)
+    tokenizer_signal_provider: Any | None = Field(default=None, exclude=True)
 
     @field_validator("stop_words", "background_terms")
     @classmethod
@@ -320,6 +359,10 @@ class CandidateScoreBreakdown(BaseModel):
     kind_boost: float = Field(ge=0.0)
     jargon_score: float = Field(ge=0.0, le=1.0)
     code_shape_score: float = Field(ge=0.0, le=1.0)
+    surface_risk_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    token_fragmentation_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    oov_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    tokenizer_signal_status: str = "unavailable"
     background_penalty: float = Field(ge=0.0, le=1.0)
     reasons: list[str] = Field(default_factory=list)
 
@@ -693,10 +736,27 @@ def _score_candidate(
     background_penalty, background_reasons = _background_penalty(
         normalized, config=config
     )
+    surface_risk_score, surface_risk_reasons = _surface_risk_score(
+        display_value, normalized=normalized, config=config
+    )
+    tokenizer_signal, tokenizer_status, tokenizer_reasons = _tokenizer_signal(
+        display_value, config=config
+    )
+    tokenizer_boost = 0.0
+    token_fragmentation_score: float | None = None
+    oov_score: float | None = None
+    if tokenizer_signal is not None:
+        token_fragmentation_score = tokenizer_signal.fragmentation_score
+        oov_score = tokenizer_signal.oov_score
+        tokenizer_boost = max(
+            tokenizer_signal.fragmentation_score, tokenizer_signal.oov_score
+        )
     raw_score = support_score * kind_boost
     score = raw_score
     score += support_score * config.jargon_weight * jargon_score
     score += support_score * config.code_shape_weight * code_shape_score
+    score += support_score * config.surface_risk_weight * surface_risk_score
+    score += support_score * config.tokenizer_signal_weight * tokenizer_boost
     score -= support_score * config.background_penalty_weight * background_penalty
     breakdown = CandidateScoreBreakdown(
         frequency_score=round(frequency_score, 4),
@@ -704,8 +764,26 @@ def _score_candidate(
         kind_boost=round(kind_boost, 4),
         jargon_score=round(jargon_score, 4),
         code_shape_score=round(code_shape_score, 4),
+        surface_risk_score=round(surface_risk_score, 4),
+        token_fragmentation_score=(
+            None
+            if token_fragmentation_score is None
+            else round(token_fragmentation_score, 4)
+        ),
+        oov_score=None if oov_score is None else round(oov_score, 4),
+        tokenizer_signal_status=tokenizer_status,
         background_penalty=round(background_penalty, 4),
-        reasons=sorted(set([*jargon_reasons, *code_reasons, *background_reasons])),
+        reasons=sorted(
+            set(
+                [
+                    *jargon_reasons,
+                    *code_reasons,
+                    *surface_risk_reasons,
+                    *tokenizer_reasons,
+                    *background_reasons,
+                ]
+            )
+        ),
     )
     return round(max(score, 0.0), 4), breakdown
 
@@ -772,6 +850,71 @@ def _code_shape_score(surface: str) -> tuple[float, list[str]]:
         score += 0.15
         reasons.append("domain_suffix")
     return min(round(score, 4), 1.0), reasons
+
+
+def _surface_risk_score(
+    surface: str, *, normalized: str, config: CandidateDiscoveryConfig
+) -> tuple[float, list[str]]:
+    """Return a lightweight tokenizer-risk proxy without pretending to be OOV.
+
+    This signal is available even when no tokenizer provider is configured. It
+    favors surfaces that are likely to fragment in embedding tokenizers because
+    they look like internal identifiers, compact aliases, or code-shaped names.
+    """
+
+    cleaned = surface.strip()
+    compact = normalized.replace(" ", "")
+    if not cleaned or not compact:
+        return 0.0, []
+
+    score = 0.0
+    reasons: list[str] = []
+    background_terms = config.background_term_set | config.stop_word_set
+    parts = _normalized_parts(normalized)
+
+    if len(compact) <= 5 and any(ch.isalpha() for ch in compact):
+        score += 0.22
+        reasons.append("compact_surface_risk")
+    if any(ch.isalpha() for ch in compact) and any(ch.isdigit() for ch in compact):
+        score += 0.28
+        reasons.append("alpha_digit_tokenizer_risk")
+    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-")):
+        score += 0.25
+        reasons.append("separator_tokenizer_risk")
+    if cleaned.upper() == cleaned and any(ch.isalpha() for ch in cleaned):
+        score += 0.18
+        reasons.append("uppercase_tokenizer_risk")
+    if parts and all(part not in background_terms for part in parts):
+        score += 0.17
+        reasons.append("background_oov_proxy")
+
+    return min(round(score, 4), 1.0), reasons
+
+
+def _tokenizer_signal(
+    surface: str, *, config: CandidateDiscoveryConfig
+) -> tuple[CandidateTokenizerSignal | None, str, list[str]]:
+    provider = config.tokenizer_signal_provider
+    if provider is None:
+        return None, "unavailable", []
+    try:
+        raw_signal = provider.analyze(surface)
+        signal = (
+            raw_signal
+            if isinstance(raw_signal, CandidateTokenizerSignal)
+            else CandidateTokenizerSignal.model_validate(raw_signal)
+        )
+    except Exception:
+        return None, "error", ["tokenizer_signal_error"]
+
+    reasons = [*signal.reasons]
+    if signal.fragmentation_score > 0:
+        reasons.append("token_fragmentation_signal")
+    if signal.oov_score > 0:
+        reasons.append("oov_tokenizer_signal")
+    if signal.unknown_token_count > 0:
+        reasons.append("unknown_token_signal")
+    return signal, "available", sorted(set(reasons))
 
 
 def _background_penalty(

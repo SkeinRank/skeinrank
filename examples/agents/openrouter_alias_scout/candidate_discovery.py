@@ -172,6 +172,7 @@ class CandidateDiscoveryConfig:
     known_terms: frozenset[str] = DEFAULT_KNOWN_TERMS
     background_terms: frozenset[str] = DEFAULT_BACKGROUND_TERMS
     jargon_weight: float = 2.0
+    surface_risk_weight: float = 0.75
     background_penalty_weight: float = 1.0
 
     @classmethod
@@ -211,6 +212,9 @@ class CandidateDiscoveryConfig:
             known_terms=_string_set("known_terms", DEFAULT_KNOWN_TERMS),
             background_terms=_string_set("background_terms", DEFAULT_BACKGROUND_TERMS),
             jargon_weight=float(raw.get("jargon_weight", cls.jargon_weight)),
+            surface_risk_weight=float(
+                raw.get("surface_risk_weight", cls.surface_risk_weight)
+            ),
             background_penalty_weight=float(
                 raw.get("background_penalty_weight", cls.background_penalty_weight)
             ),
@@ -375,6 +379,7 @@ def build_candidate_discovery_report(
             "max_examples_per_candidate": cfg.max_examples_per_candidate,
             "background_terms": sorted(cfg.background_terms),
             "jargon_weight": cfg.jargon_weight,
+            "surface_risk_weight": cfg.surface_risk_weight,
             "background_penalty_weight": cfg.background_penalty_weight,
         },
         "candidates": [candidate.to_dict() for candidate in candidates],
@@ -420,8 +425,10 @@ def _candidate_score(
     frequency_score = weighted_count * idf
     jargon_score, jargon_reasons = _jargon_score(token, config)
     background_penalty = _background_penalty(token, config)
+    surface_risk_score, surface_risk_reasons = _surface_risk_score(token, config)
     score = frequency_score
     score += config.jargon_weight * jargon_score
+    score += config.surface_risk_weight * surface_risk_score
     score -= config.background_penalty_weight * background_penalty
     if _has_digit_and_alpha(token):
         score += 1.5
@@ -432,8 +439,12 @@ def _candidate_score(
     breakdown: JsonDict = {
         "frequency_score": frequency_score,
         "jargon_score": jargon_score,
+        "surface_risk_score": surface_risk_score,
+        "token_fragmentation_score": None,
+        "oov_score": None,
+        "tokenizer_signal_status": "unavailable",
         "background_penalty": background_penalty,
-        "reasons": jargon_reasons,
+        "reasons": sorted(set([*jargon_reasons, *surface_risk_reasons])),
     }
     return float(max(score, 0.0)), breakdown
 
@@ -466,6 +477,44 @@ def _jargon_score(
     if 2 <= len(normalized) <= 5 and normalized.isalpha():
         score += 0.1
         reasons.append("short_alias_like")
+    return min(score, 1.0), reasons
+
+
+def _surface_risk_score(
+    token: str, config: CandidateDiscoveryConfig
+) -> tuple[float, list[str]]:
+    """Return a lightweight tokenizer-risk proxy for the standalone example.
+
+    The example intentionally does not import embedding tokenizers. This score
+    highlights compact aliases and code-shaped surfaces that are likely to be
+    fragile in retrieval, while leaving true OOV fields empty until a tokenizer
+    provider is connected in production code.
+    """
+
+    normalized = _normalize_token(token)
+    if not normalized:
+        return 0.0, []
+
+    score = 0.0
+    reasons: list[str] = []
+    background_terms = config.background_terms | config.stop_words | config.noise_tokens
+    parts = [part for part in re.split(r"[_.+#/-]+", normalized) if part]
+
+    if 2 <= len(normalized.replace("-", "")) <= 5 and any(
+        ch.isalpha() for ch in normalized
+    ):
+        score += 0.22
+        reasons.append("compact_surface_risk")
+    if _has_digit_and_alpha(normalized):
+        score += 0.28
+        reasons.append("alpha_digit_tokenizer_risk")
+    if any(separator in normalized for separator in ("_", "/", "-", ".", "+")):
+        score += 0.25
+        reasons.append("separator_tokenizer_risk")
+    if parts and all(part not in background_terms for part in parts):
+        score += 0.17
+        reasons.append("background_oov_proxy")
+
     return min(score, 1.0), reasons
 
 
