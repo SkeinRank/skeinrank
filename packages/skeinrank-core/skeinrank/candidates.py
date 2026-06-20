@@ -239,7 +239,17 @@ _TOKEN_RE = re.compile(
     r"(?![A-Za-z0-9_])"
 )
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*")
-_SEPARATOR_RE = re.compile(r"[\s._:/-]+")
+_SEPARATOR_RE = re.compile(r"[\s._:/+#-]+")
+_TICKET_ID_RE = re.compile(r"[A-Z][A-Z0-9]{1,12}-\d{1,8}")
+_SNAKE_CASE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+")
+_KEBAB_CASE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+")
+_VERSIONED_NAME_RE = re.compile(
+    r"[A-Za-z][A-Za-z0-9]*(?:[._/-][A-Za-z0-9]+)*(?:[._/-]v\d+|v\d+)"
+)
+_QUALIFIED_NAME_RE = re.compile(
+    r"[A-Za-z][A-Za-z0-9]*(?::|/)[A-Za-z0-9][A-Za-z0-9:/._-]*"
+)
+_ALL_CAPS_RE = re.compile(r"[A-Z]{2,}(?:_[A-Z0-9]+)*[0-9]*")
 
 
 class CandidateTokenizerSignal(BaseModel):
@@ -287,7 +297,8 @@ class CandidateDiscoveryConfig(BaseModel):
     max_candidates: int = Field(default=50, ge=1)
     max_evidence_per_candidate: int = Field(default=3, ge=1)
     include_phrase_candidates: bool = True
-    max_phrase_terms: int = Field(default=2, ge=2, le=3)
+    max_phrase_terms: int = Field(default=3, ge=2, le=3)
+    include_code_style_candidates: bool = True
     stop_words: list[str] = Field(default_factory=lambda: sorted(_DEFAULT_STOP_WORDS))
     background_terms: list[str] = Field(
         default_factory=lambda: sorted(_DEFAULT_BACKGROUND_TERMS)
@@ -364,6 +375,7 @@ class CandidateScoreBreakdown(BaseModel):
     oov_score: float | None = Field(default=None, ge=0.0, le=1.0)
     tokenizer_signal_status: str = "unavailable"
     background_penalty: float = Field(ge=0.0, le=1.0)
+    surface_class: str | None = None
     reasons: list[str] = Field(default_factory=list)
 
 
@@ -732,6 +744,7 @@ def _score_candidate(
     jargon_score, jargon_reasons = _jargon_score(
         display_value, normalized=normalized, config=config
     )
+    surface_class = _surface_class(display_value)
     code_shape_score, code_reasons = _code_shape_score(display_value)
     background_penalty, background_reasons = _background_penalty(
         normalized, config=config
@@ -773,6 +786,7 @@ def _score_candidate(
         oov_score=None if oov_score is None else round(oov_score, 4),
         tokenizer_signal_status=tokenizer_status,
         background_penalty=round(background_penalty, 4),
+        surface_class=surface_class,
         reasons=sorted(
             set(
                 [
@@ -790,8 +804,14 @@ def _score_candidate(
 
 def _kind_boost(kind: str) -> float:
     return {
+        "ticket_id": 2.35,
+        "all_caps": 2.1,
         "acronym": 2.0,
-        "alphanumeric": 1.8,
+        "versioned_name": 1.95,
+        "alphanumeric": 1.85,
+        "kebab_case": 1.8,
+        "snake_case": 1.8,
+        "qualified_name": 1.75,
         "compound": 1.7,
         "camel_case": 1.6,
         "phrase": 1.35,
@@ -834,15 +854,33 @@ def _code_shape_score(surface: str) -> tuple[float, list[str]]:
     reasons: list[str] = []
     if not cleaned:
         return 0.0, reasons
-    if any(ch.isalpha() for ch in cleaned) and any(ch.isdigit() for ch in cleaned):
+
+    surface_class = _surface_class(cleaned)
+    if surface_class == "ticket_id":
+        score += 0.65
+        reasons.append("ticket_id_surface")
+    elif surface_class == "versioned_name":
+        score += 0.55
+        reasons.append("versioned_name_surface")
+    elif surface_class == "kebab_case":
         score += 0.45
-        reasons.append("mixed_alpha_digit")
-    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-")):
-        score += 0.35
-        reasons.append("compound_surface")
-    if re.fullmatch(r"[A-Z]{2,}[0-9]*", cleaned):
-        score += 0.35
+        reasons.append("kebab_case_surface")
+    elif surface_class == "snake_case":
+        score += 0.45
+        reasons.append("snake_case_surface")
+    elif surface_class == "qualified_name":
+        score += 0.45
+        reasons.append("qualified_name_surface")
+    elif surface_class == "all_caps":
+        score += 0.4
         reasons.append("all_caps_surface")
+
+    if any(ch.isalpha() for ch in cleaned) and any(ch.isdigit() for ch in cleaned):
+        score += 0.35
+        reasons.append("mixed_alpha_digit")
+    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-", "+")):
+        score += 0.25
+        reasons.append("compound_surface")
     if re.search(r"[a-z][A-Z]", cleaned) or re.search(r"[A-Z][a-z]+[A-Z]", cleaned):
         score += 0.3
         reasons.append("camel_case_surface")
@@ -878,9 +916,13 @@ def _surface_risk_score(
     if any(ch.isalpha() for ch in compact) and any(ch.isdigit() for ch in compact):
         score += 0.28
         reasons.append("alpha_digit_tokenizer_risk")
-    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-")):
+    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-", "+")):
         score += 0.25
         reasons.append("separator_tokenizer_risk")
+    surface_class = _surface_class(cleaned)
+    if surface_class in {"ticket_id", "versioned_name"}:
+        score += 0.18
+        reasons.append("structured_identifier_risk")
     if cleaned.upper() == cleaned and any(ch.isalpha() for ch in cleaned):
         score += 0.18
         reasons.append("uppercase_tokenizer_risk")
@@ -943,10 +985,14 @@ def _candidate_kind(
     normalized = _normalize_text(cleaned)
     if not normalized or normalized in config.stop_word_set:
         return None
-    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-")):
+
+    if config.include_code_style_candidates:
+        surface_class = _surface_class(cleaned)
+        if surface_class is not None:
+            return "acronym" if surface_class == "all_caps" else surface_class
+
+    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-", "+")):
         return "compound"
-    if re.fullmatch(r"[A-Z]{2,}[0-9]*", cleaned):
-        return "acronym"
     if re.search(r"[A-Za-z]+[0-9]|[0-9]+[A-Za-z]", cleaned):
         return "alphanumeric"
     if re.search(r"[a-z][A-Z]", cleaned) or re.search(r"[A-Z][a-z]+[A-Z]", cleaned):
@@ -956,12 +1002,41 @@ def _candidate_kind(
     return None
 
 
+def _surface_class(surface: str) -> str | None:
+    cleaned = surface.strip()
+    if not cleaned or " " in cleaned:
+        return None
+    if _TICKET_ID_RE.fullmatch(cleaned):
+        return "ticket_id"
+    if _VERSIONED_NAME_RE.fullmatch(cleaned):
+        return "versioned_name"
+    if _SNAKE_CASE_RE.fullmatch(cleaned):
+        return "snake_case"
+    if _KEBAB_CASE_RE.fullmatch(cleaned):
+        return "kebab_case"
+    if _QUALIFIED_NAME_RE.fullmatch(cleaned):
+        return "qualified_name"
+    if _ALL_CAPS_RE.fullmatch(cleaned):
+        return "all_caps"
+    if re.search(r"[a-z][A-Z]", cleaned) or re.search(r"[A-Z][a-z]+[A-Z]", cleaned):
+        return "camel_case"
+    if re.search(r"[A-Za-z]+[0-9]|[0-9]+[A-Za-z]", cleaned):
+        return "alphanumeric"
+    return None
+
+
 def _prefer_kind(left: str, right: str) -> str:
     rank = {
-        "acronym": 5,
-        "alphanumeric": 4,
-        "compound": 3,
-        "camel_case": 2,
+        "ticket_id": 10,
+        "all_caps": 9,
+        "acronym": 8,
+        "versioned_name": 7,
+        "alphanumeric": 6,
+        "kebab_case": 5,
+        "snake_case": 5,
+        "qualified_name": 5,
+        "compound": 4,
+        "camel_case": 3,
         "phrase": 1,
         "term": 0,
     }

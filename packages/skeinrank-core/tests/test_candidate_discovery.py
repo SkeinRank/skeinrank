@@ -253,3 +253,52 @@ def test_candidate_discovery_uses_optional_tokenizer_signal_provider():
     assert breakdown.token_fragmentation_score == 0.9
     assert "fake_provider_signal" in breakdown.reasons
     assert "oov_tokenizer_signal" in breakdown.reasons
+
+
+def test_candidate_discovery_classifies_code_style_surfaces():
+    report = discover_candidates(
+        [
+            "PAY-1842 PAY-1842 checkout-v2 checkout-v2 payment_service payment_service",
+            "PAY-1842 checkout-v2 payment_service",
+        ],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_word_length=2,
+            include_phrase_candidates=False,
+            stop_words=[],
+            background_terms=["checkout", "payment", "service"],
+        ),
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+
+    assert values["pay 1842"].kind == "ticket_id"
+    assert values["checkout v2"].kind == "versioned_name"
+    assert values["payment service"].kind == "snake_case"
+    assert values["pay 1842"].score_breakdown is not None
+    assert values["pay 1842"].score_breakdown.surface_class == "ticket_id"
+    assert "ticket_id_surface" in values["pay 1842"].score_breakdown.reasons
+    assert "versioned_name_surface" in values["checkout v2"].score_breakdown.reasons
+    assert "snake_case_surface" in values["payment service"].score_breakdown.reasons
+
+
+def test_candidate_discovery_emits_trigram_phrase_candidates():
+    report = discover_candidates(
+        [
+            "blue deploy ring failed during rollout. blue deploy ring recovered.",
+            "runbook says blue deploy ring needs manual approval.",
+        ],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_document_frequency=2,
+            min_word_length=2,
+            stop_words=["during", "says"],
+        ),
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+
+    assert "blue deploy ring" in values
+    assert values["blue deploy ring"].kind == "phrase"
+    assert values["blue deploy ring"].document_count == 2
+    assert values["blue deploy ring"].mention_count == 3

@@ -97,7 +97,10 @@
       "for",
       "and",
       "or"
-    ]
+    ],
+    "include_code_style_candidates": true,
+    "include_phrase_candidates": true,
+    "max_phrase_terms": 3
   },
   "canonical_hints": {
     "known_conflicts": {

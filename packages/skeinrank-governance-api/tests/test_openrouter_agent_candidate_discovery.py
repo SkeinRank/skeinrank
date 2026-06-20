@@ -180,3 +180,45 @@ def test_candidate_discovery_exposes_surface_risk_without_tokenizer_provider() -
     assert candidate.score_breakdown["tokenizer_signal_status"] == "unavailable"
     assert candidate.score_breakdown["oov_score"] is None
     assert "alpha_digit_tokenizer_risk" in candidate.score_breakdown["reasons"]
+
+
+def test_candidate_discovery_extracts_code_style_and_ngram_surfaces() -> None:
+    discovery = _load_module(
+        "agent_candidate_discovery_surface_extraction_v2",
+        AGENT_DIR / "candidate_discovery.py",
+    )
+
+    rows = [
+        {
+            "query": "PAY-1842 payment_service checkout-v2 blue deploy ring",
+            "count": 4,
+        },
+        {
+            "query": "PAY-1842 payment_service checkout-v2 blue deploy ring",
+            "count": 3,
+        },
+    ]
+    config = discovery.CandidateDiscoveryConfig.from_mapping(
+        {
+            "known_terms": [],
+            "noise_tokens": [],
+            "background_terms": ["deploy"],
+            "max_candidates": 20,
+            "min_score": 0,
+        }
+    )
+
+    candidates = discovery.discover_alias_candidates(rows, config=config)
+    by_surface = {candidate.surface: candidate for candidate in candidates}
+
+    assert by_surface["pay-1842"].score_breakdown["surface_class"] == "ticket_id"
+    assert "ticket_id_surface" in by_surface["pay-1842"].reasons
+    assert (
+        by_surface["payment_service"].score_breakdown["surface_class"] == "snake_case"
+    )
+    assert (
+        by_surface["checkout-v2"].score_breakdown["surface_class"] == "versioned_name"
+    )
+    assert "blue deploy ring" in by_surface
+    assert "trigram_phrase" in by_surface["blue deploy ring"].reasons
+    assert "multi_term_phrase" in by_surface["blue deploy ring"].reasons

@@ -16,6 +16,14 @@ from typing import Any
 
 JsonDict = dict[str, Any]
 _TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9][A-Za-zА-Яа-яЁё0-9_.+#/-]*")
+_SURFACE_SPLIT_RE = re.compile(r"[\s_.+#/-]+")
+_TICKET_ID_RE = re.compile(r"[a-z][a-z0-9]{1,12}-\d{1,8}")
+_SNAKE_CASE_RE = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+")
+_KEBAB_CASE_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+")
+_VERSIONED_NAME_RE = re.compile(
+    r"[a-z][a-z0-9]*(?:[._/-][a-z0-9]+)*(?:[._/-]v\d+|v\d+)"
+)
+_ALL_CAPS_PROXY_RE = re.compile(r"[a-z]{2,}(?:_[a-z0-9]+)*[0-9]*")
 
 DEFAULT_STOP_WORDS = frozenset(
     {
@@ -167,6 +175,9 @@ class CandidateDiscoveryConfig:
     min_weighted_count: float = 1.0
     min_score: float = 1.0
     max_examples_per_candidate: int = 5
+    include_phrase_candidates: bool = True
+    max_phrase_terms: int = 3
+    include_code_style_candidates: bool = True
     stop_words: frozenset[str] = DEFAULT_STOP_WORDS
     noise_tokens: frozenset[str] = DEFAULT_NOISE_TOKENS
     known_terms: frozenset[str] = DEFAULT_KNOWN_TERMS
@@ -207,6 +218,15 @@ class CandidateDiscoveryConfig:
             max_examples_per_candidate=int(
                 raw.get("max_examples_per_candidate", cls.max_examples_per_candidate)
             ),
+            include_phrase_candidates=bool(
+                raw.get("include_phrase_candidates", cls.include_phrase_candidates)
+            ),
+            max_phrase_terms=int(raw.get("max_phrase_terms", cls.max_phrase_terms)),
+            include_code_style_candidates=bool(
+                raw.get(
+                    "include_code_style_candidates", cls.include_code_style_candidates
+                )
+            ),
             stop_words=_string_set("stop_words", DEFAULT_STOP_WORDS),
             noise_tokens=_string_set("noise_tokens", DEFAULT_NOISE_TOKENS),
             known_terms=_string_set("known_terms", DEFAULT_KNOWN_TERMS),
@@ -230,7 +250,7 @@ class AliasCandidate:
     document_frequency: int
     score: float
     reasons: tuple[str, ...]
-    score_breakdown: Mapping[str, float | list[str]] = field(default_factory=dict)
+    score_breakdown: Mapping[str, Any] = field(default_factory=dict)
     example_queries: tuple[str, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> JsonDict:
@@ -275,7 +295,7 @@ def discover_alias_candidates(
         if not query:
             continue
         row_weight = _row_weight(row)
-        unique_tokens = set(tokenize_query(query))
+        unique_tokens = set(_candidate_surfaces_from_query(query, cfg))
         for token in unique_tokens:
             reasons = candidate_reasons(token, cfg)
             if not reasons:
@@ -338,7 +358,24 @@ def candidate_reasons(
     if _looks_private_or_identifier(normalized):
         return []
 
+    surface_class = (
+        _surface_class(normalized) if cfg.include_code_style_candidates else None
+    )
+    parts = _surface_parts(normalized)
+    if len(parts) > 1 and surface_class is None:
+        return _phrase_reasons(parts, cfg)
+
     reasons: list[str] = []
+    if surface_class == "ticket_id":
+        reasons.append("ticket_id_surface")
+    elif surface_class == "versioned_name":
+        reasons.append("versioned_name_surface")
+    elif surface_class == "snake_case":
+        reasons.append("snake_case_surface")
+    elif surface_class == "kebab_case":
+        reasons.append("kebab_case_surface")
+    elif surface_class == "all_caps":
+        reasons.append("all_caps_surface")
     if _has_digit_and_alpha(normalized):
         reasons.append("mixed_alpha_digit")
     if 2 <= len(normalized) <= 5 and normalized.isalpha():
@@ -348,7 +385,51 @@ def candidate_reasons(
     if normalized.endswith("db") or normalized.endswith("svc"):
         reasons.append("domain_suffix")
 
-    return reasons
+    return sorted(set(reasons))
+
+
+def _candidate_surfaces_from_query(
+    query: str, config: CandidateDiscoveryConfig
+) -> list[str]:
+    tokens = tokenize_query(query)
+    surfaces = list(tokens)
+    if not config.include_phrase_candidates or len(tokens) < 2:
+        return surfaces
+    max_width = max(2, min(config.max_phrase_terms, 3))
+    for width in range(2, max_width + 1):
+        for offset in range(0, len(tokens) - width + 1):
+            phrase_tokens = tokens[offset : offset + width]
+            if _phrase_reasons(phrase_tokens, config):
+                surfaces.append(" ".join(phrase_tokens))
+    return surfaces
+
+
+def _phrase_reasons(
+    parts: Sequence[str], config: CandidateDiscoveryConfig
+) -> list[str]:
+    if len(parts) < 2 or len(parts) > max(2, min(config.max_phrase_terms, 3)):
+        return []
+    if any(not part for part in parts):
+        return []
+    if any(part in config.stop_words for part in parts):
+        return []
+    # Failed-query mining is intentionally conservative: noise-heavy phrases
+    # inflate token budgets and are better handled later by evidence packs.
+    if any(part in config.noise_tokens for part in parts):
+        return []
+    if all(part in config.known_terms for part in parts):
+        return []
+    if all(part in config.background_terms for part in parts):
+        return []
+
+    reasons = ["multi_term_phrase"]
+    if len(parts) == 3:
+        reasons.append("trigram_phrase")
+    if any(2 <= len(part) <= 5 and part.isalpha() for part in parts):
+        reasons.append("phrase_with_alias_like_part")
+    if any(_surface_class(part) is not None for part in parts):
+        reasons.append("phrase_with_code_surface")
+    return sorted(set(reasons))
 
 
 def build_candidate_discovery_report(
@@ -377,6 +458,9 @@ def build_candidate_discovery_report(
             "min_weighted_count": cfg.min_weighted_count,
             "min_score": cfg.min_score,
             "max_examples_per_candidate": cfg.max_examples_per_candidate,
+            "include_phrase_candidates": cfg.include_phrase_candidates,
+            "max_phrase_terms": cfg.max_phrase_terms,
+            "include_code_style_candidates": cfg.include_code_style_candidates,
             "background_terms": sorted(cfg.background_terms),
             "jargon_weight": cfg.jargon_weight,
             "surface_risk_weight": cfg.surface_risk_weight,
@@ -426,16 +510,23 @@ def _candidate_score(
     jargon_score, jargon_reasons = _jargon_score(token, config)
     background_penalty = _background_penalty(token, config)
     surface_risk_score, surface_risk_reasons = _surface_risk_score(token, config)
+    surface_class = _surface_class(token)
     score = frequency_score
     score += config.jargon_weight * jargon_score
     score += config.surface_risk_weight * surface_risk_score
     score -= config.background_penalty_weight * background_penalty
+    if surface_class == "ticket_id":
+        score += 2.0
+    elif surface_class in {"versioned_name", "snake_case", "kebab_case"}:
+        score += 1.25
     if _has_digit_and_alpha(token):
         score += 1.5
     if 2 <= len(token) <= 4:
         score += 1.0
     if "_" in token or "/" in token or "-" in token:
         score += 0.5
+    if " " in token:
+        score += 0.35
     breakdown: JsonDict = {
         "frequency_score": frequency_score,
         "jargon_score": jargon_score,
@@ -444,6 +535,7 @@ def _candidate_score(
         "oov_score": None,
         "tokenizer_signal_status": "unavailable",
         "background_penalty": background_penalty,
+        "surface_class": surface_class,
         "reasons": sorted(set([*jargon_reasons, *surface_risk_reasons])),
     }
     return float(max(score, 0.0)), breakdown
@@ -456,7 +548,7 @@ def _jargon_score(
     if not normalized:
         return 0.0, []
     background_terms = config.background_terms | config.stop_words | config.noise_tokens
-    parts = [part for part in re.split(r"[_.+#/-]+", normalized) if part]
+    parts = _surface_parts(normalized)
     if not parts:
         return 0.0, []
     common_count = sum(1 for part in parts if part in background_terms)
@@ -498,7 +590,7 @@ def _surface_risk_score(
     score = 0.0
     reasons: list[str] = []
     background_terms = config.background_terms | config.stop_words | config.noise_tokens
-    parts = [part for part in re.split(r"[_.+#/-]+", normalized) if part]
+    parts = _surface_parts(normalized)
 
     if 2 <= len(normalized.replace("-", "")) <= 5 and any(
         ch.isalpha() for ch in normalized
@@ -520,7 +612,7 @@ def _surface_risk_score(
 
 def _background_penalty(token: str, config: CandidateDiscoveryConfig) -> float:
     normalized = _normalize_token(token)
-    parts = [part for part in re.split(r"[_.+#/-]+", normalized) if part]
+    parts = _surface_parts(normalized)
     if not parts:
         return 0.0
     background_terms = config.background_terms | config.stop_words | config.noise_tokens
@@ -530,6 +622,27 @@ def _background_penalty(token: str, config: CandidateDiscoveryConfig) -> float:
     if common_count:
         return 0.35 * (common_count / len(parts))
     return 0.0
+
+
+def _surface_class(token: str) -> str | None:
+    normalized = _normalize_token(token)
+    if not normalized or " " in normalized:
+        return None
+    if _TICKET_ID_RE.fullmatch(normalized):
+        return "ticket_id"
+    if _VERSIONED_NAME_RE.fullmatch(normalized):
+        return "versioned_name"
+    if _SNAKE_CASE_RE.fullmatch(normalized):
+        return "snake_case"
+    if _KEBAB_CASE_RE.fullmatch(normalized):
+        return "kebab_case"
+    if _ALL_CAPS_PROXY_RE.fullmatch(normalized) and "_" in normalized:
+        return "all_caps"
+    return None
+
+
+def _surface_parts(token: str) -> list[str]:
+    return [part for part in _SURFACE_SPLIT_RE.split(_normalize_token(token)) if part]
 
 
 def _round_score_breakdown(value: Mapping[str, Any]) -> JsonDict:

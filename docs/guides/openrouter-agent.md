@@ -134,7 +134,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-cand
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
 ```
 
-The report schema is `skeinrank.agent_candidate_discovery.v1`. It extracts surfaces such as `pg`, `k8s`, and `kube`, prunes configured noise and known terms, and produces compact candidate packs. Candidate scoring includes a compact breakdown with weighted failed-query support, background-language penalty, `jargon_score`, and lightweight tokenizer-risk signals. The standalone scout keeps true `oov_score` and `token_fragmentation_score` empty until a tokenizer provider is connected, so model-specific risk is never implied when it was not measured.
+The report schema is `skeinrank.agent_candidate_discovery.v1`. It extracts surfaces such as `pg`, `k8s`, `PAY-1842`, `checkout-v2`, `payment_service`, and conservative bigram/trigram phrases, prunes configured noise and known terms, and produces compact candidate packs. Candidate scoring includes a compact breakdown with weighted failed-query support, surface class, background-language penalty, `jargon_score`, and lightweight tokenizer-risk signals. The standalone scout keeps true `oov_score` and `token_fragmentation_score` empty until a tokenizer provider is connected, so model-specific risk is never implied when it was not measured.
 
 ## Compact evidence windows
 
