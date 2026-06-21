@@ -13,6 +13,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
+from console import Console, Timer, format_duration
+
 
 @dataclass(frozen=True)
 class RouteRule:
@@ -186,27 +188,55 @@ def selected_targets(paths: list[str]) -> list[str]:
     return [target for target in TARGET_ORDER if target in targets]
 
 
-def print_plan(paths: list[str], targets: list[str]) -> None:
-    print("Changed files:")
+def print_plan(
+    paths: list[str],
+    targets: list[str],
+    *,
+    console: Console | None = None,
+) -> None:
+    console = console or Console()
+    console.title("SkeinRank developer checks")
+
+    console.section("Changed files")
     if paths:
         for path in paths:
-            print(f"- {path}")
+            console.bullet(path)
     else:
-        print("- none detected")
+        console.muted("none detected")
 
-    print("\nSelected checks:")
+    console.section("Selected checks")
     if targets:
         for target in targets:
-            print(f"- make {target}")
+            console.success(f"make {target}")
     else:
-        print("- none")
+        console.muted("none")
 
 
-def run_targets(targets: list[str]) -> int:
+def run_targets(targets: list[str], *, console: Console | None = None) -> int:
+    console = console or Console()
     if not targets:
-        print("No changed files matched a test route. Nothing to run.")
+        console.section("Result")
+        console.muted("No changed files matched a test route. Nothing to run.")
         return 0
-    return subprocess.call(["make", *targets])
+
+    overall = Timer()
+    for target in targets:
+        console.section(f"Running make {target}")
+        console.command(f"make {target}")
+        timer = Timer()
+        returncode = subprocess.call(["make", target])
+        elapsed = format_duration(timer.elapsed())
+        if returncode != 0:
+            console.section("Result")
+            console.error(f"make {target} failed after {elapsed}")
+            return returncode
+        console.success(f"make {target} passed in {elapsed}")
+
+    console.section("Result")
+    console.success(
+        f"all selected checks passed in {format_duration(overall.elapsed())}"
+    )
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -230,12 +260,12 @@ def main(argv: list[str]) -> int:
         print(f"Unable to inspect changed files: {exc}", file=sys.stderr)
         return 2
 
+    console = Console()
     targets = selected_targets(paths)
-    print_plan(paths, targets)
+    print_plan(paths, targets, console=console)
 
     if args.run:
-        print()
-        return run_targets(targets)
+        return run_targets(targets, console=console)
     return 0
 
 

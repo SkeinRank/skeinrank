@@ -74,6 +74,12 @@ TEST_AUTO_BASE=origin/main make test-auto
 
 Use automatic routing for the fast inner loop. Use `make check` before committing a cross-package change.
 
+## Developer command output
+
+The repository helpers use a small built-in console formatter for local output. `make test-auto-plan` and `make test-auto` group the changed files, selected checks, running commands, and final result so the routing decision is easy to scan. The formatter has no external dependencies and respects `NO_COLOR` for plain CI-friendly output.
+
+The automatic router also reports elapsed time for each selected Make target. Use the summary to decide whether a narrower command such as `make test-scout` or the full `make check` is the better next step.
+
 ## Ruff resolution
 
 The root `Makefile` does not require Ruff to be installed in the currently selected Python. The lint and format commands run through `tools/dev/resolve_ruff.py`, which resolves Ruff in this order:

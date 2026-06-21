@@ -10,6 +10,8 @@ LLM / agent -> proposal -> validation -> review/policy -> snapshot -> runtime
 
 Agents must not mutate production terminology directly. They can only validate aliases, explain queries, and submit pending proposals through the `/v1/tools/*` facade when submission is explicitly enabled.
 
+By default, proposal submission remains disabled; enable it only for guarded validation scenarios where the Governance API is available.
+
 For the full operator guide, see `docs/guides/openrouter-agent.md`.
 
 ## Files

@@ -547,6 +547,8 @@ def _review_one_item(
         "model_usage_total": _usage_total(sample_reviews),
         "cache": {
             "enabled": review_cache.enabled,
+            "hit": any(sample["cache"].get("hit") for sample in sample_reviews),
+            "written": any(sample["cache"].get("written") for sample in sample_reviews),
             "hits": sum(1 for sample in sample_reviews if sample["cache"].get("hit")),
             "keys": [sample["cache"]["key"] for sample in sample_reviews],
             "writes": sum(

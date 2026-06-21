@@ -210,7 +210,7 @@ In production, runtime requests are **binding-first** — the binding already kn
 
 | Path | Use when | Start here |
 | --- | --- | --- |
-| **SDK & dictionary** | Try the Python SDK, import a synonym file, or draft a dictionary from local docs. | [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md) · [`docs/guides/import-dictionary.md`](docs/guides/import-dictionary.md) |
+| **SDK & dictionary** | Try the Python SDK, import a synonym file, or draft a dictionary from local docs. | [`packages/skeinrank-core/README.md`](packages/skeinrank-core/README.md) · [`docs/guides/import-dictionary.md`](docs/guides/import-dictionary.md) · [`docs/guides/agent-dictionary-assistant.md`](docs/guides/agent-dictionary-assistant.md) |
 | **Drift reports** | Check whether your dictionary still covers recent docs and incidents. | [`docs/guides/terminology-drift-report.md`](docs/guides/terminology-drift-report.md) · [`examples/drift-scan`](examples/drift-scan) |
 | **Release stack** | Run the public beta from prebuilt GHCR images. | `cp .env.example .env && docker compose up -d` · [`docs/deployment/release-compose.md`](docs/deployment/release-compose.md) |
 | **Full dev stack** | Build from source with PostgreSQL, ES, RabbitMQ, API, worker, UI. | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) |

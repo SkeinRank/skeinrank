@@ -57,21 +57,21 @@ DOCS_TESTS := \
 	tests/test_developer_commands_productized.py
 
 lint:
-	$(RUFF_RUNNER) check .
+	@$(RUFF_RUNNER) check .
 
 format:
-	$(RUFF_RUNNER) format .
+	@$(RUFF_RUNNER) format .
 
 format-check:
-	$(RUFF_RUNNER) format --check .
+	@$(RUFF_RUNNER) format --check .
 
 check: lint format-check test-fast test-migrations test-docs
 
 test-auto-plan:
-	$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --plan
+	@$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --plan
 
 test-auto:
-	$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --run
+	@$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --run
 
 test-core:
 	cd $(CORE_DIR) && $(POETRY) run $(PYTEST) -q $(CORE_TESTS)

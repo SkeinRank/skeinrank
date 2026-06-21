@@ -642,7 +642,9 @@ def _jargon_score(
     normalized = _normalize_token(token)
     if not normalized:
         return 0.0, []
-    background_terms = config.background_terms | config.stop_words | config.noise_tokens
+    background_terms = (
+        set(config.background_terms) | set(config.stop_words) | set(config.noise_tokens)
+    )
     parts = _surface_parts(normalized)
     if not parts:
         return 0.0, []
@@ -684,7 +686,9 @@ def _surface_risk_score(
 
     score = 0.0
     reasons: list[str] = []
-    background_terms = config.background_terms | config.stop_words | config.noise_tokens
+    background_terms = (
+        set(config.background_terms) | set(config.stop_words) | set(config.noise_tokens)
+    )
     parts = _surface_parts(normalized)
 
     if 2 <= len(normalized.replace("-", "")) <= 5 and any(
@@ -710,7 +714,9 @@ def _background_penalty(token: str, config: CandidateDiscoveryConfig) -> float:
     parts = _surface_parts(normalized)
     if not parts:
         return 0.0
-    background_terms = config.background_terms | config.stop_words | config.noise_tokens
+    background_terms = (
+        set(config.background_terms) | set(config.stop_words) | set(config.noise_tokens)
+    )
     common_count = sum(1 for part in parts if part in background_terms)
     if common_count == len(parts):
         return 0.85

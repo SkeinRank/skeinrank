@@ -52,10 +52,10 @@ def test_root_makefile_delegates_to_real_package_paths() -> None:
         "RUFF_RUNNER ?= $(DEV_PYTHON) tools/dev/resolve_ruff.py",
         "TEST_ROUTER ?= $(DEV_PYTHON) tools/dev/test_router.py",
         "TEST_AUTO_BASE_ARG := $(if $(TEST_AUTO_BASE),--base $(TEST_AUTO_BASE),)",
-        "$(RUFF_RUNNER) check .",
-        "$(RUFF_RUNNER) format --check .",
-        "$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --plan",
-        "$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --run",
+        "@$(RUFF_RUNNER) check .",
+        "@$(RUFF_RUNNER) format --check .",
+        "@$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --plan",
+        "@$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --run",
     ):
         assert fragment in content
 
@@ -74,6 +74,8 @@ def test_development_docs_describe_root_test_commands() -> None:
         "make check",
         "make test-ui",
         "make test-all",
+        "Developer command output",
+        "NO_COLOR",
     ):
         assert fragment in content
 
@@ -109,6 +111,23 @@ def test_ruff_resolver_is_documented_and_productized() -> None:
     assert "tools/dev/resolve_ruff.py" in development
     assert 'RUFF="$HOME/.pyenv/versions/3.11.9/bin/ruff" make check' in development
     assert "tools/dev/resolve_ruff.py" in contributing
+
+
+def test_developer_console_helper_is_small_and_dependency_free() -> None:
+    console = read_repo_file("tools/dev/console.py")
+    router = read_repo_file("tools/dev/test_router.py")
+
+    assert "class Console" in console
+    assert "class Timer" in console
+    assert "def format_duration" in console
+    assert "NO_COLOR" in console
+    assert "import rich" not in console
+    assert "from console import Console, Timer, format_duration" in router
+    assert "SkeinRank developer checks" in router
+    assert 'console.section("Changed files")' in router
+    assert 'console.section("Selected checks")' in router
+    assert 'console.section(f"Running make {target}")' in router
+    assert "all selected checks passed" in router
 
 
 def test_changed_file_router_routes_common_project_areas() -> None:

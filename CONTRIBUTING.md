@@ -70,7 +70,7 @@ make test-auto-plan
 make test-auto
 ```
 
-Use `TEST_AUTO_BASE=origin/main make test-auto` when you want the router to include committed branch changes compared with a base ref.
+The automatic router prints the changed files, selected checks, running commands, and a result summary. Use `TEST_AUTO_BASE=origin/main make test-auto` when you want the router to include committed branch changes compared with a base ref.
 
 For the Alias Scout and governance review path, run:
 
