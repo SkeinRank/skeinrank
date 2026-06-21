@@ -1036,6 +1036,41 @@ class SuggestionReviewRequest(BaseModel):
     allow_warnings: bool = False
 
 
+class CanonicalMigrationCreateRequest(BaseModel):
+    """Request body for proposing a reviewed canonical migration."""
+
+    old_canonical_value: str = Field(..., min_length=1, max_length=256)
+    new_canonical_value: str = Field(..., min_length=1, max_length=256)
+    slot: str | None = Field(default=None, min_length=1, max_length=64)
+    description: str | None = None
+    confidence: float = Field(default=0.85, ge=0.0, le=1.0)
+    context: str | None = None
+    binding_id: int | None = Field(default=None, ge=1)
+    proposal_source_type: str = Field(default="agent", max_length=32)
+    proposal_source_name: str | None = Field(default=None, max_length=128)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+    aliases_to_preserve: list[str] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class CanonicalMigrationPlanResponse(BaseModel):
+    """Side-effect-free canonical migration plan for reviewer preview."""
+
+    schema_version: str
+    action: str
+    old_canonical_value: str
+    new_canonical_value: str
+    slot: str
+    old_term_id: int
+    new_term_id: int | None = None
+    old_status: str
+    new_status: str | None = None
+    aliases_to_preserve: list[str] = Field(default_factory=list)
+    alias_conflicts: list[dict[str, Any]] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    is_blocked: bool = False
+
+
 class ProposalApplyPolicyResponse(BaseModel):
     """Apply policy and risk-level decision for a proposal."""
 
@@ -1195,6 +1230,7 @@ class ProposalBatchApplyResponse(BaseModel):
     idempotent_suggestion_ids: list[int] = Field(default_factory=list)
     created_terms: int = 0
     created_aliases: int = 0
+    migrated_canonicals: int = 0
     snapshot: ProposalBatchSnapshotResponse
     suggestions: list[SuggestionResponse] = Field(default_factory=list)
 
@@ -2205,6 +2241,50 @@ class AgentProposalAttemptResponse(BaseModel):
     error_message: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class AgentReviewDatasetEventResponse(BaseModel):
+    """Persisted review dataset event response."""
+
+    id: int
+    event_type: str
+    dataset_status: str
+    run_id: str | None = None
+    agent_run_id: int | None = None
+    candidate_observation_id: int | None = None
+    llm_review_id: int | None = None
+    proposal_attempt_id: int | None = None
+    governance_suggestion_id: int | None = None
+    profile_id: int | None = None
+    binding_id: int | None = None
+    candidate_alias: str | None = None
+    normalized_alias: str | None = None
+    canonical_value: str | None = None
+    normalized_canonical: str | None = None
+    slot: str | None = None
+    model: str | None = None
+    prompt_version: str | None = None
+    input_pack: dict[str, Any] = Field(default_factory=dict)
+    model_output: dict[str, Any] = Field(default_factory=dict)
+    human_decision: dict[str, Any] = Field(default_factory=dict)
+    final_payload: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    export_excluded: bool
+    export_note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentReviewDatasetExportSummary(BaseModel):
+    """JSONL export metadata for review dataset events."""
+
+    schema_version: str = "skeinrank.review_dataset_export.v1"
+    event_count: int
+    dataset_status: str | None = None
+    event_type: str | None = None
+    run_id: str | None = None
+    profile_id: int | None = None
+    binding_id: int | None = None
 
 
 class AgentRunResumePlanRequest(BaseModel):

@@ -19,6 +19,10 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from .agent_run_registry import get_agent_run_by_run_id
+from .review_dataset_events import (
+    record_llm_review_dataset_event,
+    record_proposal_attempt_dataset_event,
+)
 
 
 class AgentLlmReviewError(ValueError):
@@ -105,6 +109,7 @@ def record_llm_review(
         error_message=error_message,
     )
     session.add(review)
+    record_llm_review_dataset_event(session, review)
     return review
 
 
@@ -220,6 +225,7 @@ def record_proposal_attempt(
         error_message=error_message,
     )
     session.add(attempt)
+    record_proposal_attempt_dataset_event(session, attempt)
     return attempt
 
 

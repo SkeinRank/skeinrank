@@ -12,9 +12,9 @@ import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .documents import extract_document_text
 from .sdk import Dictionary, load_dictionary
@@ -151,17 +151,145 @@ _DEFAULT_STOP_WORDS = frozenset(
     }
 )
 
+# A compact, dependency-free background vocabulary used as the default proxy for
+# "common public/documentation language". Teams can replace it with a corpus-
+# derived list through CandidateDiscoveryConfig.background_terms.
+_DEFAULT_BACKGROUND_TERMS = frozenset(
+    {
+        "alert",
+        "api",
+        "application",
+        "auth",
+        "backend",
+        "batch",
+        "browser",
+        "cache",
+        "client",
+        "cluster",
+        "code",
+        "component",
+        "config",
+        "connection",
+        "container",
+        "cron",
+        "dashboard",
+        "data",
+        "database",
+        "debug",
+        "deploy",
+        "deployment",
+        "disk",
+        "docker",
+        "endpoint",
+        "event",
+        "exception",
+        "failure",
+        "feature",
+        "file",
+        "gateway",
+        "health",
+        "host",
+        "http",
+        "index",
+        "job",
+        "json",
+        "latency",
+        "library",
+        "message",
+        "metric",
+        "migration",
+        "module",
+        "node",
+        "pipeline",
+        "pod",
+        "process",
+        "proxy",
+        "query",
+        "queue",
+        "region",
+        "release",
+        "request",
+        "response",
+        "route",
+        "runtime",
+        "schema",
+        "script",
+        "search",
+        "server",
+        "session",
+        "shard",
+        "storage",
+        "stream",
+        "table",
+        "task",
+        "tenant",
+        "thread",
+        "timeout",
+        "token",
+        "trace",
+        "traffic",
+        "version",
+        "worker",
+    }
+)
+
 _TOKEN_RE = re.compile(
     r"(?<![A-Za-z0-9_])"
     r"([A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*|[A-Z]{2,}[0-9]*|[A-Za-z]+[0-9][A-Za-z0-9]*)"
     r"(?![A-Za-z0-9_])"
 )
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*")
-_SEPARATOR_RE = re.compile(r"[\s._:/-]+")
+_SEPARATOR_RE = re.compile(r"[\s._:/+#-]+")
+_TICKET_ID_RE = re.compile(r"[A-Z][A-Z0-9]{1,12}-\d{1,8}")
+_SNAKE_CASE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+")
+_KEBAB_CASE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+")
+_VERSIONED_NAME_RE = re.compile(
+    r"[A-Za-z][A-Za-z0-9]*(?:[._/-][A-Za-z0-9]+)*(?:[._/-]v\d+|v\d+)"
+)
+_QUALIFIED_NAME_RE = re.compile(
+    r"[A-Za-z][A-Za-z0-9]*(?::|/)[A-Za-z0-9][A-Za-z0-9:/._-]*"
+)
+_ALL_CAPS_RE = re.compile(r"[A-Z]{2,}(?:_[A-Z0-9]+)*[0-9]*")
+
+
+class CandidateTokenizerSignal(BaseModel):
+    """Optional tokenizer analysis for one candidate surface.
+
+    Providers can populate this model from an embedding tokenizer or an external
+    precomputed signal. Candidate discovery never imports a tokenizer directly,
+    keeping the core package dependency-light.
+    """
+
+    token_count: int = Field(default=0, ge=0)
+    subtoken_count: int = Field(default=0, ge=0)
+    unknown_token_count: int = Field(default=0, ge=0)
+    fragmentation_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    oov_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    reasons: list[str] = Field(default_factory=list)
+
+    @field_validator("reasons")
+    @classmethod
+    def _clean_reasons(cls, values: list[str]) -> list[str]:
+        return sorted({str(value).strip() for value in values if str(value).strip()})
+
+
+class TokenizerSignalProvider(Protocol):
+    """Protocol for optional tokenizer-aware candidate scoring.
+
+    Implementations may wrap a Hugging Face tokenizer, a hosted tokenizer
+    service, or precomputed tokenization metadata. The discovery engine treats
+    this provider as optional input and never creates heavy tokenizer objects by
+    itself.
+    """
+
+    def analyze(self, surface: str) -> CandidateTokenizerSignal | Mapping[str, Any]:
+        """Return tokenizer signal for a candidate surface."""
 
 
 class CandidateDiscoveryConfig(BaseModel):
     """Configuration for deterministic candidate discovery."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     min_frequency: int = Field(default=2, ge=1)
     min_document_frequency: int = Field(default=1, ge=1)
@@ -169,12 +297,22 @@ class CandidateDiscoveryConfig(BaseModel):
     max_candidates: int = Field(default=50, ge=1)
     max_evidence_per_candidate: int = Field(default=3, ge=1)
     include_phrase_candidates: bool = True
-    max_phrase_terms: int = Field(default=2, ge=2, le=3)
+    max_phrase_terms: int = Field(default=3, ge=2, le=3)
+    include_code_style_candidates: bool = True
     stop_words: list[str] = Field(default_factory=lambda: sorted(_DEFAULT_STOP_WORDS))
+    background_terms: list[str] = Field(
+        default_factory=lambda: sorted(_DEFAULT_BACKGROUND_TERMS)
+    )
+    jargon_weight: float = Field(default=1.25, ge=0.0)
+    code_shape_weight: float = Field(default=0.75, ge=0.0)
+    surface_risk_weight: float = Field(default=0.5, ge=0.0)
+    tokenizer_signal_weight: float = Field(default=0.75, ge=0.0)
+    background_penalty_weight: float = Field(default=0.75, ge=0.0)
+    tokenizer_signal_provider: Any | None = Field(default=None, exclude=True)
 
-    @field_validator("stop_words")
+    @field_validator("stop_words", "background_terms")
     @classmethod
-    def _normalize_stop_words(cls, values: list[str]) -> list[str]:
+    def _normalize_word_list(cls, values: list[str]) -> list[str]:
         return sorted(
             {_normalize_text(value) for value in values if _normalize_text(value)}
         )
@@ -182,6 +320,10 @@ class CandidateDiscoveryConfig(BaseModel):
     @property
     def stop_word_set(self) -> set[str]:
         return set(self.stop_words)
+
+    @property
+    def background_term_set(self) -> set[str]:
+        return set(self.background_terms)
 
 
 class CandidateDiscoveryDocument(BaseModel):
@@ -220,6 +362,23 @@ class CandidateEvidence(BaseModel):
         return cleaned
 
 
+class CandidateScoreBreakdown(BaseModel):
+    """Explainable components behind a discovered candidate score."""
+
+    frequency_score: float = Field(ge=0.0)
+    document_frequency_score: float = Field(ge=0.0)
+    kind_boost: float = Field(ge=0.0)
+    jargon_score: float = Field(ge=0.0, le=1.0)
+    code_shape_score: float = Field(ge=0.0, le=1.0)
+    surface_risk_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    token_fragmentation_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    oov_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    tokenizer_signal_status: str = "unavailable"
+    background_penalty: float = Field(ge=0.0, le=1.0)
+    surface_class: str | None = None
+    reasons: list[str] = Field(default_factory=list)
+
+
 class DiscoveredCandidate(BaseModel):
     """One unmatched term or phrase discovered in local text."""
 
@@ -229,6 +388,7 @@ class DiscoveredCandidate(BaseModel):
     mention_count: int = Field(ge=1)
     document_count: int = Field(ge=1)
     score: float = Field(ge=0.0)
+    score_breakdown: CandidateScoreBreakdown | None = None
     evidence: list[CandidateEvidence] = Field(default_factory=list)
 
     @field_validator("value", "normalized_value", "kind")
@@ -240,18 +400,44 @@ class DiscoveredCandidate(BaseModel):
         return cleaned
 
 
+class CandidateCluster(BaseModel):
+    """Deterministic group of related candidate surfaces for review."""
+
+    cluster_id: str
+    representative_value: str
+    normalized_representative: str
+    surface_values: list[str] = Field(default_factory=list)
+    candidate_count: int = Field(ge=1)
+    total_mentions: int = Field(ge=1)
+    document_count: int = Field(ge=1)
+    score: float = Field(ge=0.0)
+    reasons: list[str] = Field(default_factory=list)
+    evidence: list[CandidateEvidence] = Field(default_factory=list)
+
+    @field_validator("cluster_id", "representative_value", "normalized_representative")
+    @classmethod
+    def _non_empty_text(cls, value: str) -> str:
+        cleaned = " ".join(str(value).strip().split())
+        if not cleaned:
+            raise ValueError("candidate cluster fields must not be empty")
+        return cleaned
+
+
 class CandidateDiscoveryReport(BaseModel):
     """Result returned by deterministic candidate discovery."""
 
     document_count: int = Field(ge=0)
     candidate_count: int = Field(ge=0)
+    cluster_count: int = Field(default=0, ge=0)
     total_mentions: int = Field(ge=0)
     known_term_count: int = Field(ge=0)
     candidates: list[DiscoveredCandidate] = Field(default_factory=list)
+    candidate_clusters: list[CandidateCluster] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _sync_counts(self) -> "CandidateDiscoveryReport":
         self.candidate_count = len(self.candidates)
+        self.cluster_count = len(self.candidate_clusters)
         self.total_mentions = sum(
             candidate.mention_count for candidate in self.candidates
         )
@@ -263,6 +449,13 @@ class CandidateDiscoveryReport(BaseModel):
         if limit <= 0:
             return []
         return self.candidates[:limit]
+
+    def top_clusters(self, limit: int = 10) -> list[CandidateCluster]:
+        """Return the top review clusters by deterministic ranking."""
+
+        if limit <= 0:
+            return []
+        return self.candidate_clusters[:limit]
 
 
 class _CandidateAccumulator:
@@ -338,12 +531,15 @@ def discover_candidates(
         accumulators,
         config=normalized_config,
     )
+    clusters = _cluster_candidates(candidates)
     return CandidateDiscoveryReport(
         document_count=len(normalized_documents),
         candidate_count=len(candidates),
+        cluster_count=len(clusters),
         total_mentions=sum(candidate.mention_count for candidate in candidates),
         known_term_count=len(known_terms),
         candidates=candidates,
+        candidate_clusters=clusters,
     )
 
 
@@ -546,7 +742,7 @@ def _rank_candidates(
             continue
         if accumulator.document_count < config.min_document_frequency:
             continue
-        score = _score_candidate(accumulator)
+        score, breakdown = _score_candidate(accumulator, config=config)
         candidates.append(
             DiscoveredCandidate(
                 value=accumulator.display_value,
@@ -555,6 +751,7 @@ def _rank_candidates(
                 mention_count=accumulator.mention_count,
                 document_count=accumulator.document_count,
                 score=score,
+                score_breakdown=breakdown,
                 evidence=accumulator.evidence,
             )
         )
@@ -569,20 +766,368 @@ def _rank_candidates(
     return candidates[: config.max_candidates]
 
 
-def _score_candidate(accumulator: _CandidateAccumulator) -> float:
-    kind_boost = {
+def _cluster_candidates(
+    candidates: Sequence[DiscoveredCandidate],
+) -> list[CandidateCluster]:
+    """Build small deterministic review clusters from ranked candidates."""
+
+    groups: list[list[DiscoveredCandidate]] = []
+    for candidate in candidates:
+        for group in groups:
+            if any(
+                _candidate_similarity(candidate, existing) >= 0.5 for existing in group
+            ):
+                group.append(candidate)
+                break
+        else:
+            groups.append([candidate])
+
+    clusters: list[CandidateCluster] = []
+    for index, group in enumerate(groups, start=1):
+        ordered = sorted(
+            group,
+            key=lambda item: (
+                -item.score,
+                -item.document_count,
+                -item.mention_count,
+                item.normalized_value,
+            ),
+        )
+        representative = ordered[0]
+        evidence: list[CandidateEvidence] = []
+        for candidate in ordered:
+            for item in candidate.evidence:
+                if len(evidence) >= 5:
+                    break
+                evidence.append(item)
+            if len(evidence) >= 5:
+                break
+        clusters.append(
+            CandidateCluster(
+                cluster_id=f"candidate-cluster-{index:03d}",
+                representative_value=representative.value,
+                normalized_representative=representative.normalized_value,
+                surface_values=[candidate.value for candidate in ordered],
+                candidate_count=len(ordered),
+                total_mentions=sum(candidate.mention_count for candidate in ordered),
+                document_count=len(
+                    {
+                        item.source
+                        for candidate in ordered
+                        for item in candidate.evidence
+                    }
+                )
+                or max(candidate.document_count for candidate in ordered),
+                score=round(sum(candidate.score for candidate in ordered), 4),
+                reasons=_cluster_reasons(ordered),
+                evidence=evidence,
+            )
+        )
+    clusters.sort(
+        key=lambda item: (
+            -item.score,
+            -item.document_count,
+            -item.total_mentions,
+            item.normalized_representative,
+        )
+    )
+    for index, cluster in enumerate(clusters, start=1):
+        cluster.cluster_id = f"candidate-cluster-{index:03d}"
+    return clusters
+
+
+def _candidate_similarity(
+    left: DiscoveredCandidate, right: DiscoveredCandidate
+) -> float:
+    left_parts = set(_cluster_parts(left.normalized_value))
+    right_parts = set(_cluster_parts(right.normalized_value))
+    if not left_parts or not right_parts:
+        return 0.0
+    if left.normalized_value == right.normalized_value:
+        return 1.0
+    overlap = left_parts & right_parts
+    if not overlap:
+        return 0.0
+    containment = len(overlap) / min(len(left_parts), len(right_parts))
+    jaccard = len(overlap) / len(left_parts | right_parts)
+    return max(containment, jaccard)
+
+
+def _cluster_parts(normalized: str) -> list[str]:
+    parts = _normalized_parts(normalized)
+    normalized_parts: list[str] = []
+    for part in parts:
+        if part.endswith("s") and len(part) > 4:
+            part = part[:-1]
+        normalized_parts.append(part)
+    return normalized_parts
+
+
+def _cluster_reasons(candidates: Sequence[DiscoveredCandidate]) -> list[str]:
+    reasons: set[str] = set()
+    if len(candidates) > 1:
+        reasons.add("related_surface_cluster")
+    if any(candidate.kind == "phrase" for candidate in candidates):
+        reasons.add("phrase_surface_present")
+    if any(
+        candidate.score_breakdown is not None
+        and candidate.score_breakdown.surface_class is not None
+        for candidate in candidates
+    ):
+        reasons.add("code_surface_present")
+    if any(
+        candidate.score_breakdown is not None
+        and candidate.score_breakdown.jargon_score >= 0.75
+        for candidate in candidates
+    ):
+        reasons.add("domain_specific_language")
+    return sorted(reasons)
+
+
+def _score_candidate(
+    accumulator: _CandidateAccumulator,
+    *,
+    config: CandidateDiscoveryConfig,
+) -> tuple[float, CandidateScoreBreakdown]:
+    frequency_score = float(accumulator.mention_count)
+    document_frequency_score = float(accumulator.document_count) * 1.5
+    support_score = frequency_score + document_frequency_score
+    kind_boost = _kind_boost(accumulator.kind)
+    display_value = accumulator.display_value
+    normalized = _normalize_text(display_value)
+    jargon_score, jargon_reasons = _jargon_score(
+        display_value, normalized=normalized, config=config
+    )
+    surface_class = _surface_class(display_value)
+    code_shape_score, code_reasons = _code_shape_score(display_value)
+    background_penalty, background_reasons = _background_penalty(
+        normalized, config=config
+    )
+    surface_risk_score, surface_risk_reasons = _surface_risk_score(
+        display_value, normalized=normalized, config=config
+    )
+    tokenizer_signal, tokenizer_status, tokenizer_reasons = _tokenizer_signal(
+        display_value, config=config
+    )
+    tokenizer_boost = 0.0
+    token_fragmentation_score: float | None = None
+    oov_score: float | None = None
+    if tokenizer_signal is not None:
+        token_fragmentation_score = tokenizer_signal.fragmentation_score
+        oov_score = tokenizer_signal.oov_score
+        tokenizer_boost = max(
+            tokenizer_signal.fragmentation_score, tokenizer_signal.oov_score
+        )
+    raw_score = support_score * kind_boost
+    score = raw_score
+    score += support_score * config.jargon_weight * jargon_score
+    score += support_score * config.code_shape_weight * code_shape_score
+    score += support_score * config.surface_risk_weight * surface_risk_score
+    score += support_score * config.tokenizer_signal_weight * tokenizer_boost
+    score -= support_score * config.background_penalty_weight * background_penalty
+    breakdown = CandidateScoreBreakdown(
+        frequency_score=round(frequency_score, 4),
+        document_frequency_score=round(document_frequency_score, 4),
+        kind_boost=round(kind_boost, 4),
+        jargon_score=round(jargon_score, 4),
+        code_shape_score=round(code_shape_score, 4),
+        surface_risk_score=round(surface_risk_score, 4),
+        token_fragmentation_score=(
+            None
+            if token_fragmentation_score is None
+            else round(token_fragmentation_score, 4)
+        ),
+        oov_score=None if oov_score is None else round(oov_score, 4),
+        tokenizer_signal_status=tokenizer_status,
+        background_penalty=round(background_penalty, 4),
+        surface_class=surface_class,
+        reasons=sorted(
+            set(
+                [
+                    *jargon_reasons,
+                    *code_reasons,
+                    *surface_risk_reasons,
+                    *tokenizer_reasons,
+                    *background_reasons,
+                ]
+            )
+        ),
+    )
+    return round(max(score, 0.0), 4), breakdown
+
+
+def _kind_boost(kind: str) -> float:
+    return {
+        "ticket_id": 2.35,
+        "all_caps": 2.1,
         "acronym": 2.0,
-        "alphanumeric": 1.8,
+        "versioned_name": 1.95,
+        "alphanumeric": 1.85,
+        "kebab_case": 1.8,
+        "snake_case": 1.8,
+        "qualified_name": 1.75,
         "compound": 1.7,
         "camel_case": 1.6,
         "phrase": 1.35,
         "term": 1.0,
-    }.get(accumulator.kind, 1.0)
-    return round(
-        (accumulator.mention_count * 1.0 + accumulator.document_count * 1.5)
-        * kind_boost,
-        4,
-    )
+    }.get(kind, 1.0)
+
+
+def _jargon_score(
+    surface: str, *, normalized: str, config: CandidateDiscoveryConfig
+) -> tuple[float, list[str]]:
+    parts = _normalized_parts(normalized)
+    if not parts:
+        return 0.0, []
+    background_terms = config.background_term_set | config.stop_word_set
+    common_part_count = sum(1 for part in parts if part in background_terms)
+    uncommon_ratio = 1.0 - (common_part_count / len(parts))
+    score = 0.2 + (0.65 * uncommon_ratio)
+    reasons: list[str] = []
+    if uncommon_ratio >= 0.75:
+        reasons.append("rare_against_background")
+    elif uncommon_ratio > 0.0:
+        reasons.append("mixed_background_and_domain_language")
+    else:
+        reasons.append("common_background_language")
+
+    code_score, _ = _code_shape_score(surface)
+    if code_score >= 0.5:
+        score += 0.15
+        reasons.append("identifier_like_surface")
+    if _looks_like_short_alias(normalized):
+        score += 0.1
+        reasons.append("short_alias_like")
+    return min(round(score, 4), 1.0), reasons
+
+
+def _code_shape_score(surface: str) -> tuple[float, list[str]]:
+    cleaned = surface.strip()
+    normalized = _normalize_text(cleaned)
+    score = 0.0
+    reasons: list[str] = []
+    if not cleaned:
+        return 0.0, reasons
+
+    surface_class = _surface_class(cleaned)
+    if surface_class == "ticket_id":
+        score += 0.65
+        reasons.append("ticket_id_surface")
+    elif surface_class == "versioned_name":
+        score += 0.55
+        reasons.append("versioned_name_surface")
+    elif surface_class == "kebab_case":
+        score += 0.45
+        reasons.append("kebab_case_surface")
+    elif surface_class == "snake_case":
+        score += 0.45
+        reasons.append("snake_case_surface")
+    elif surface_class == "qualified_name":
+        score += 0.45
+        reasons.append("qualified_name_surface")
+    elif surface_class == "all_caps":
+        score += 0.4
+        reasons.append("all_caps_surface")
+
+    if any(ch.isalpha() for ch in cleaned) and any(ch.isdigit() for ch in cleaned):
+        score += 0.35
+        reasons.append("mixed_alpha_digit")
+    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-", "+")):
+        score += 0.25
+        reasons.append("compound_surface")
+    if re.search(r"[a-z][A-Z]", cleaned) or re.search(r"[A-Z][a-z]+[A-Z]", cleaned):
+        score += 0.3
+        reasons.append("camel_case_surface")
+    if normalized.endswith(("db", "svc", "api", "id")):
+        score += 0.15
+        reasons.append("domain_suffix")
+    return min(round(score, 4), 1.0), reasons
+
+
+def _surface_risk_score(
+    surface: str, *, normalized: str, config: CandidateDiscoveryConfig
+) -> tuple[float, list[str]]:
+    """Return a lightweight tokenizer-risk proxy without pretending to be OOV.
+
+    This signal is available even when no tokenizer provider is configured. It
+    favors surfaces that are likely to fragment in embedding tokenizers because
+    they look like internal identifiers, compact aliases, or code-shaped names.
+    """
+
+    cleaned = surface.strip()
+    compact = normalized.replace(" ", "")
+    if not cleaned or not compact:
+        return 0.0, []
+
+    score = 0.0
+    reasons: list[str] = []
+    background_terms = config.background_term_set | config.stop_word_set
+    parts = _normalized_parts(normalized)
+
+    if len(compact) <= 5 and any(ch.isalpha() for ch in compact):
+        score += 0.22
+        reasons.append("compact_surface_risk")
+    if any(ch.isalpha() for ch in compact) and any(ch.isdigit() for ch in compact):
+        score += 0.28
+        reasons.append("alpha_digit_tokenizer_risk")
+    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-", "+")):
+        score += 0.25
+        reasons.append("separator_tokenizer_risk")
+    surface_class = _surface_class(cleaned)
+    if surface_class in {"ticket_id", "versioned_name"}:
+        score += 0.18
+        reasons.append("structured_identifier_risk")
+    if cleaned.upper() == cleaned and any(ch.isalpha() for ch in cleaned):
+        score += 0.18
+        reasons.append("uppercase_tokenizer_risk")
+    if parts and all(part not in background_terms for part in parts):
+        score += 0.17
+        reasons.append("background_oov_proxy")
+
+    return min(round(score, 4), 1.0), reasons
+
+
+def _tokenizer_signal(
+    surface: str, *, config: CandidateDiscoveryConfig
+) -> tuple[CandidateTokenizerSignal | None, str, list[str]]:
+    provider = config.tokenizer_signal_provider
+    if provider is None:
+        return None, "unavailable", []
+    try:
+        raw_signal = provider.analyze(surface)
+        signal = (
+            raw_signal
+            if isinstance(raw_signal, CandidateTokenizerSignal)
+            else CandidateTokenizerSignal.model_validate(raw_signal)
+        )
+    except Exception:
+        return None, "error", ["tokenizer_signal_error"]
+
+    reasons = [*signal.reasons]
+    if signal.fragmentation_score > 0:
+        reasons.append("token_fragmentation_signal")
+    if signal.oov_score > 0:
+        reasons.append("oov_tokenizer_signal")
+    if signal.unknown_token_count > 0:
+        reasons.append("unknown_token_signal")
+    return signal, "available", sorted(set(reasons))
+
+
+def _background_penalty(
+    normalized: str, *, config: CandidateDiscoveryConfig
+) -> tuple[float, list[str]]:
+    parts = _normalized_parts(normalized)
+    if not parts:
+        return 0.0, []
+    background_terms = config.background_term_set | config.stop_word_set
+    common_part_count = sum(1 for part in parts if part in background_terms)
+    if common_part_count == len(parts):
+        return 0.85, ["background_language_penalty"]
+    if common_part_count:
+        return round(0.35 * (common_part_count / len(parts)), 4), [
+            "partial_background_language_penalty"
+        ]
+    return 0.0, []
 
 
 def _candidate_kind(
@@ -594,10 +1139,14 @@ def _candidate_kind(
     normalized = _normalize_text(cleaned)
     if not normalized or normalized in config.stop_word_set:
         return None
-    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-")):
+
+    if config.include_code_style_candidates:
+        surface_class = _surface_class(cleaned)
+        if surface_class is not None:
+            return "acronym" if surface_class == "all_caps" else surface_class
+
+    if any(separator in cleaned for separator in ("_", ".", "/", ":", "-", "+")):
         return "compound"
-    if re.fullmatch(r"[A-Z]{2,}[0-9]*", cleaned):
-        return "acronym"
     if re.search(r"[A-Za-z]+[0-9]|[0-9]+[A-Za-z]", cleaned):
         return "alphanumeric"
     if re.search(r"[a-z][A-Z]", cleaned) or re.search(r"[A-Z][a-z]+[A-Z]", cleaned):
@@ -607,12 +1156,41 @@ def _candidate_kind(
     return None
 
 
+def _surface_class(surface: str) -> str | None:
+    cleaned = surface.strip()
+    if not cleaned or " " in cleaned:
+        return None
+    if _TICKET_ID_RE.fullmatch(cleaned):
+        return "ticket_id"
+    if _VERSIONED_NAME_RE.fullmatch(cleaned):
+        return "versioned_name"
+    if _SNAKE_CASE_RE.fullmatch(cleaned):
+        return "snake_case"
+    if _KEBAB_CASE_RE.fullmatch(cleaned):
+        return "kebab_case"
+    if _QUALIFIED_NAME_RE.fullmatch(cleaned):
+        return "qualified_name"
+    if _ALL_CAPS_RE.fullmatch(cleaned):
+        return "all_caps"
+    if re.search(r"[a-z][A-Z]", cleaned) or re.search(r"[A-Z][a-z]+[A-Z]", cleaned):
+        return "camel_case"
+    if re.search(r"[A-Za-z]+[0-9]|[0-9]+[A-Za-z]", cleaned):
+        return "alphanumeric"
+    return None
+
+
 def _prefer_kind(left: str, right: str) -> str:
     rank = {
-        "acronym": 5,
-        "alphanumeric": 4,
-        "compound": 3,
-        "camel_case": 2,
+        "ticket_id": 10,
+        "all_caps": 9,
+        "acronym": 8,
+        "versioned_name": 7,
+        "alphanumeric": 6,
+        "kebab_case": 5,
+        "snake_case": 5,
+        "qualified_name": 5,
+        "compound": 4,
+        "camel_case": 3,
         "phrase": 1,
         "term": 0,
     }
@@ -624,6 +1202,15 @@ def _is_stop_candidate(normalized: str, *, config: CandidateDiscoveryConfig) -> 
         return True
     parts = normalized.split()
     return bool(parts) and all(part in config.stop_word_set for part in parts)
+
+
+def _looks_like_short_alias(normalized: str) -> bool:
+    compact = normalized.replace(" ", "")
+    return 2 <= len(compact) <= 5 and compact.isalpha()
+
+
+def _normalized_parts(normalized: str) -> list[str]:
+    return [part for part in normalized.split() if part]
 
 
 def _normalize_text(value: str) -> str:

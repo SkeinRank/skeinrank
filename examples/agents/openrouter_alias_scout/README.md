@@ -10,6 +10,8 @@ LLM / agent -> proposal -> validation -> review/policy -> snapshot -> runtime
 
 Agents must not mutate production terminology directly. They can only validate aliases, explain queries, and submit pending proposals through the `/v1/tools/*` facade when submission is explicitly enabled.
 
+By default, proposal submission remains disabled; enable it only for guarded validation scenarios where the Governance API is available.
+
 For the full operator guide, see `docs/guides/openrouter-agent.md`.
 
 ## Files
@@ -23,7 +25,7 @@ For the full operator guide, see `docs/guides/openrouter-agent.md`.
 | `evaluation_outcomes.example.jsonl` | Optional human/policy outcomes for evaluation reports. |
 | `review_decisions.example.jsonl` | Optional local review decisions for proposal inbox reports. |
 | `candidate_discovery.py` | Dependency-light failed-query candidate mining, pruning, scoring, and fact-pack helpers. |
-| `evidence_sampler.py` | Dependency-light compact window sampler for candidate evidence packs. |
+| `evidence_sampler.py` | Dependency-light compact window sampler for positive, negative, and cluster-aware candidate evidence packs. |
 | `demo_report.py` | Local E2E demo report builder for discovery + evidence + review queue output. |
 | `openrouter_client.py` | Dependency-light OpenRouter `/chat/completions` client with testable transport injection. |
 | `alias_scout_workflow.py` | LangGraph-ready state-machine workflow for LLM review and proposal payload preparation. |
@@ -64,7 +66,7 @@ Makefile helper:
 make agent-demo
 ```
 
-The local demo uses `skeinrank.agent_demo_report.v1`. The local demo is network-free: it does not call OpenRouter, does not call Elasticsearch, does not call the SkeinRank API, and does not submit proposals.
+The local demo uses `skeinrank.agent_demo_report.v1`. The local demo is network-free: it does not call OpenRouter, does not call Elasticsearch, does not call the SkeinRank API, and does not submit proposals. Candidate discovery ranks surfaces with weighted failed-query support, surface classes, background-language penalties, `jargon_score`, and lightweight tokenizer-risk signals so compact aliases, code-shaped names, and conservative bigram/trigram phrases are prioritized before generic operational words. It also groups related surfaces into candidate clusters before LLM review, so the model can inspect an entity-style pack instead of isolated words. True `oov_score` and `token_fragmentation_score` stay empty in this standalone example because no embedding tokenizer is loaded.
 
 ## Tool schemas and prompts
 
@@ -118,7 +120,20 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py \
   --write-llm-review-report /tmp/skeinrank-alias-scout-llm-report.json
 ```
 
-The report schema is `skeinrank.agent_llm_review_report.v1`. Structured judgments use `propose | reject | needs_evidence`. proposal submission remains disabled unless config and security checks explicitly allow it. The workflow is LangGraph-ready without requiring the `langgraph` package.
+The report schema is `skeinrank.agent_llm_review_report.v1`. Structured judgments use `propose | reject | needs_evidence`. Each reviewed item also includes a `confidence_decision` block. If multiple independent judgments are configured and the model does not converge, the runner abstains with `needs_evidence` instead of preparing a proposal. Proposal submission remains disabled unless config and security checks explicitly allow it. The workflow is LangGraph-ready without requiring the `langgraph` package.
+
+
+When the workflow records LLM reviews and proposal attempts through the Governance
+API, those rows also create DB-backed review dataset events. Human review labels
+are attached when pending proposals are approved or rejected, and JSONL can be
+exported from `/v1/agents/review-dataset/events/export.jsonl` for later evaluation
+or fine-tuning.
+
+Canonical migrations use the same review boundary. If a scout decides that
+`checkout` is now documented as `payments-core`, it should create a pending
+canonical migration through the Governance API instead of changing dictionaries
+directly. Reviewers can inspect the migration plan, approve with an explicit
+warning override, and then publish a normal runtime snapshot.
 
 ## Security, budgets, and evaluation
 
@@ -283,5 +298,5 @@ openai_compatible
 local_endpoint
 ```
 
-Local evidence mode has no Elasticsearch calls, no OpenRouter calls, and no proposal submission by default.
+Local evidence mode has no Elasticsearch calls, no OpenRouter calls, and no proposal submission by default. Evidence packs now separate positive windows from negative/contrast windows when known conflicts are provided, include nearby terms from each window, and can carry the candidate cluster that will be shown to the model.
 The local foundation path does not call OpenRouter yet; live model calls are enabled only through the guarded live-pilot commands below.

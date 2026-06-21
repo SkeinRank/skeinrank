@@ -14,12 +14,12 @@ from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - import style depends on how the example is executed.
-    from .candidate_discovery import AliasCandidate
+    from .candidate_discovery import AliasCandidate, CandidateCluster
 except ImportError:  # pragma: no cover
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from candidate_discovery import AliasCandidate
+    from candidate_discovery import AliasCandidate, CandidateCluster
 
 JsonDict = dict[str, Any]
 
@@ -53,6 +53,7 @@ class EvidenceSamplerConfig:
     window_chars: int = 120
     max_window_chars: int = 260
     max_total_chars: int = 1200
+    max_neighbor_terms: int = 8
     text_fields: tuple[str, ...] = DEFAULT_TEXT_FIELDS
     nested_collection_fields: tuple[str, ...] = DEFAULT_NESTED_COLLECTION_FIELDS
     source_id_fields: tuple[str, ...] = DEFAULT_SOURCE_ID_FIELDS
@@ -82,6 +83,9 @@ class EvidenceSamplerConfig:
             window_chars=int(raw.get("window_chars", cls.window_chars)),
             max_window_chars=int(raw.get("max_window_chars", cls.max_window_chars)),
             max_total_chars=int(raw.get("max_total_chars", cls.max_total_chars)),
+            max_neighbor_terms=int(
+                raw.get("max_neighbor_terms", cls.max_neighbor_terms)
+            ),
             text_fields=_string_tuple("text_fields", DEFAULT_TEXT_FIELDS),
             nested_collection_fields=_string_tuple(
                 "nested_collection_fields", DEFAULT_NESTED_COLLECTION_FIELDS
@@ -104,6 +108,8 @@ class EvidenceWindow:
     start_char: int
     end_char: int
     record_index: int
+    evidence_role: str = "positive"
+    neighbor_terms: tuple[str, ...] = field(default_factory=tuple)
     metadata: JsonDict = field(default_factory=dict)
 
     def to_dict(self) -> JsonDict:
@@ -118,6 +124,8 @@ class EvidenceWindow:
             "start_char": self.start_char,
             "end_char": self.end_char,
             "record_index": self.record_index,
+            "evidence_role": self.evidence_role,
+            "neighbor_terms": list(self.neighbor_terms),
         }
         if self.metadata:
             payload["metadata"] = dict(self.metadata)
@@ -151,6 +159,7 @@ def sample_evidence_windows(
     records: Sequence[Mapping[str, Any]],
     *,
     config: EvidenceSamplerConfig | None = None,
+    evidence_role: str = "positive",
 ) -> list[EvidenceWindow]:
     """Sample compact evidence windows around a candidate surface form.
 
@@ -201,6 +210,10 @@ def sample_evidence_windows(
                     start_char=start_char,
                     end_char=end_char,
                     record_index=record_index,
+                    evidence_role=evidence_role,
+                    neighbor_terms=_neighbor_terms(
+                        window_text, surface, max_terms=cfg.max_neighbor_terms
+                    ),
                     metadata=metadata,
                 )
             )
@@ -255,6 +268,7 @@ def build_evidence_sampling_report(
             "window_chars": cfg.window_chars,
             "max_window_chars": cfg.max_window_chars,
             "max_total_chars": cfg.max_total_chars,
+            "max_neighbor_terms": cfg.max_neighbor_terms,
         },
         "samples": sampled,
     }
@@ -267,27 +281,125 @@ def build_candidate_evidence_pack(
     binding_id: int | None = None,
     profile_name: str | None = None,
     known_conflicts: Sequence[str] = (),
+    negative_windows: Sequence[EvidenceWindow] = (),
+    candidate_cluster: CandidateCluster | Mapping[str, Any] | None = None,
 ) -> JsonDict:
     """Build a compact LLM-ready pack with sampled evidence windows."""
 
+    positive_windows = tuple(windows)
+    contrast_windows = tuple(negative_windows)
+    neighbor_terms = sorted(
+        {
+            term
+            for window in [*positive_windows, *contrast_windows]
+            for term in window.neighbor_terms
+        }
+    )
     return {
         "candidate_alias": candidate.surface,
         "possible_canonical": None,
         "slot": None,
         "binding_id": binding_id,
         "profile_name": profile_name,
-        "evidence": [window.text for window in windows],
-        "evidence_windows": [window.to_dict() for window in windows],
+        "candidate_cluster": _cluster_payload(candidate_cluster),
+        "evidence": [window.text for window in positive_windows],
+        "evidence_windows": [window.to_dict() for window in positive_windows],
+        "positive_evidence_windows": [window.to_dict() for window in positive_windows],
+        "negative_evidence_windows": [window.to_dict() for window in contrast_windows],
+        "neighbor_terms": neighbor_terms,
         "stats": {
             "weighted_count": round(candidate.weighted_count, 4),
             "document_frequency": candidate.document_frequency,
             "discovery_score": round(candidate.score, 4),
             "discovery_reasons": list(candidate.reasons),
-            "evidence_windows": len(windows),
-            "evidence_total_chars": sum(len(window.text) for window in windows),
+            "score_breakdown": _round_mapping(candidate.score_breakdown),
+            "evidence_windows": len(positive_windows),
+            "positive_evidence_windows": len(positive_windows),
+            "negative_evidence_windows": len(contrast_windows),
+            "evidence_total_chars": sum(
+                len(window.text) for window in positive_windows
+            ),
+            "negative_evidence_total_chars": sum(
+                len(window.text) for window in contrast_windows
+            ),
         },
         "known_conflicts": [item for item in known_conflicts if item],
     }
+
+
+def build_cluster_evidence_pack(
+    cluster: CandidateCluster,
+    records: Sequence[Mapping[str, Any]],
+    *,
+    config: EvidenceSamplerConfig | None = None,
+    binding_id: int | None = None,
+    profile_name: str | None = None,
+    known_conflicts: Sequence[str] = (),
+) -> JsonDict:
+    """Build an entity-style evidence pack from a candidate cluster."""
+
+    cfg = config or EvidenceSamplerConfig()
+    positive: list[EvidenceWindow] = []
+    for candidate in cluster.candidates:
+        remaining = max(cfg.max_windows - len(positive), 0)
+        if remaining <= 0:
+            break
+        surface_windows = sample_evidence_windows(
+            candidate.surface, records, config=cfg, evidence_role="positive"
+        )
+        positive.extend(surface_windows[:remaining])
+
+    negative: list[EvidenceWindow] = []
+    for conflict in known_conflicts:
+        if len(negative) >= cfg.max_windows:
+            break
+        surface = str(conflict).strip()
+        if not surface:
+            continue
+        conflict_windows = sample_evidence_windows(
+            surface, records, config=cfg, evidence_role="negative"
+        )
+        negative.extend(conflict_windows[: max(cfg.max_windows - len(negative), 0)])
+
+    pack = build_candidate_evidence_pack(
+        cluster.candidates[0],
+        positive,
+        binding_id=binding_id,
+        profile_name=profile_name,
+        known_conflicts=known_conflicts,
+        negative_windows=negative,
+        candidate_cluster=cluster,
+    )
+    pack["schema_version"] = "skeinrank.agent_cluster_evidence_pack.v1"
+    pack["cluster_surfaces"] = list(cluster.surfaces)
+    return pack
+
+
+def _cluster_payload(
+    cluster: CandidateCluster | Mapping[str, Any] | None,
+) -> JsonDict | None:
+    if cluster is None:
+        return None
+    to_dict = getattr(cluster, "to_dict", None)
+    if callable(to_dict):
+        return to_dict()
+    if isinstance(cluster, Mapping):
+        return dict(cluster)
+    raise TypeError(
+        "candidate_cluster must be a CandidateCluster-like object or mapping"
+    )
+
+
+def _round_mapping(value: Mapping[str, Any]) -> JsonDict:
+    rounded: JsonDict = {}
+    for key, item in value.items():
+        if isinstance(item, float):
+            rounded[key] = round(item, 4)
+        elif isinstance(item, list):
+            rounded[key] = [entry for entry in item]
+        else:
+            rounded[key] = item
+    return rounded
 
 
 def _compile_surface_matcher(surface: str) -> re.Pattern[str]:
@@ -379,6 +491,42 @@ def _make_context_window(
     return window, start, end
 
 
+def _neighbor_terms(text: str, surface: str, *, max_terms: int) -> tuple[str, ...]:
+    if max_terms <= 0:
+        return ()
+    surface_parts = set(_surface_parts(surface))
+    counts: dict[str, int] = {}
+    for token in re.findall(r"[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9_-]{1,}", text):
+        normalized = token.casefold().strip("_-.,:;!?()[]{}'\"")
+        if not normalized or normalized in surface_parts:
+            continue
+        if normalized in {
+            "the",
+            "and",
+            "for",
+            "with",
+            "from",
+            "this",
+            "that",
+            "при",
+            "для",
+            "как",
+            "что",
+        }:
+            continue
+        counts[normalized] = counts.get(normalized, 0) + 1
+    return tuple(
+        token
+        for token, _count in sorted(
+            counts.items(), key=lambda item: (-item[1], item[0])
+        )[:max_terms]
+    )
+
+
+def _surface_parts(surface: str) -> set[str]:
+    return {part for part in re.split(r"[\s_.+#/-]+", surface.casefold()) if part}
+
+
 def _compact_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
@@ -387,6 +535,7 @@ __all__ = [
     "EvidenceSamplerConfig",
     "EvidenceWindow",
     "build_candidate_evidence_pack",
+    "build_cluster_evidence_pack",
     "build_evidence_sampling_report",
     "load_jsonl_records",
     "sample_evidence_windows",

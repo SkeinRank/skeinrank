@@ -360,6 +360,21 @@ With `publish_snapshot=true` and a matching `binding_id`, the endpoint pins the
 resulting runtime snapshot on that binding so headless runtime clients can
 consume a reviewed version.
 
+Canonical migration proposals keep renamed concepts safe:
+
+```text
+POST /v1/governance/profiles/{profile_name}/canonical-migrations/preview
+POST /v1/governance/profiles/{profile_name}/canonical-migrations
+```
+
+A canonical migration is saved as a reviewed `canonical_term` suggestion with a
+`canonical_lifecycle` plan in `source_payload`. Approval does not happen during
+discovery. Reviewers explicitly approve the proposal, then the old canonical term
+is deprecated, its historical surfaces are preserved as aliases, and the new
+canonical becomes the active runtime term. This keeps the rule simple: canonical
+forms follow the current documents, aliases preserve the language people still
+type, and snapshots make the rollout reversible.
+
 Rollout and rollback metadata are available for safer snapshot operations:
 
 ```text
@@ -460,10 +475,20 @@ poetry run python ../../examples/agents/openrouter_alias_scout/run_alias_scout.p
 ```
 
 Live execution remains opt-in through flags such as `--llm-review` and validated
-proposal submission controls. Reports use schemas including
+proposal submission controls. The live review report includes `confidence_decision`
+for each model-reviewed candidate, so low consensus can abstain with
+`needs_evidence` before proposal validation. Reports use schemas including
 `skeinrank.agent_llm_review_report.v1`, `skeinrank.agent_demo_report.v1`,
 `skeinrank.agent_evaluation_report.v1`, `skeinrank.agent_security_profile.v1`,
 and `skeinrank.agent_deployment_recipe.v1`.
+
+Review dataset events are stored in the governance database when an agent records
+LLM reviews and proposal attempts. Human approval or rejection updates the linked
+dataset events with reviewer decisions. JSONL is an export format, available from
+`GET /v1/agents/review-dataset/events/export.jsonl`, so future fine-tuning or
+evaluation workflows can use reviewed examples without making local files the
+source of truth. Use `GET /v1/agents/review-dataset/events` to inspect the
+DB-backed rows before exporting.
 
 Model-provider support keeps OpenRouter as the default provider and adds a
 `local_endpoint` adapter for self-hosted `/chat/completions` deployments. Use

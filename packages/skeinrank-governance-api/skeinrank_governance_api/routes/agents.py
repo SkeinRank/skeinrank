@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from skeinrank_governance.models import (
     AgentCandidateObservation,
     AgentDocumentVisit,
     AgentEvidenceWindow,
     AgentLlmReview,
     AgentProposalAttempt,
+    AgentReviewDatasetEvent,
     AgentRun,
 )
 from sqlalchemy.exc import IntegrityError
@@ -44,6 +46,11 @@ from ..agent_run_report import AgentRunReportError, get_agent_run_report
 from ..agent_run_resume import AgentRunResumePlanError, build_agent_run_resume_plan
 from ..auth import AuthContext, require_roles, require_scopes
 from ..dependencies import get_session
+from ..review_dataset_events import (
+    ReviewDatasetEventError,
+    export_review_dataset_jsonl,
+    list_review_dataset_events,
+)
 from ..schemas import (
     AgentCandidateObservationCreateRequest,
     AgentCandidateObservationResponse,
@@ -54,6 +61,7 @@ from ..schemas import (
     AgentLlmReviewResponse,
     AgentProposalAttemptCreateRequest,
     AgentProposalAttemptResponse,
+    AgentReviewDatasetEventResponse,
     AgentRunCreateRequest,
     AgentRunProgressResponse,
     AgentRunReportResponse,
@@ -625,6 +633,113 @@ def list_agent_proposal_attempts_endpoint(
     except AgentLlmReviewError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     return [_agent_proposal_attempt_response(attempt) for attempt in attempts]
+
+
+@router.get(
+    "/review-dataset/events",
+    response_model=list[AgentReviewDatasetEventResponse],
+)
+def list_agent_review_dataset_events_endpoint(
+    run_id: str | None = None,
+    profile_id: int | None = None,
+    binding_id: int | None = None,
+    event_type: str | None = None,
+    dataset_status: str | None = Query(default=None, alias="status"),
+    include_export_excluded: bool = False,
+    limit: int = Query(default=100, ge=1, le=5000),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:read")),
+    session: Session = Depends(get_session),
+) -> list[AgentReviewDatasetEventResponse]:
+    """List DB-backed review dataset events before JSONL export."""
+
+    try:
+        events = list_review_dataset_events(
+            session,
+            run_id=run_id,
+            profile_id=profile_id,
+            binding_id=binding_id,
+            event_type=event_type,
+            dataset_status=dataset_status,
+            include_export_excluded=include_export_excluded,
+            limit=limit,
+        )
+    except ReviewDatasetEventError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return [_agent_review_dataset_event_response(event) for event in events]
+
+
+@router.get("/review-dataset/events/export.jsonl")
+def export_agent_review_dataset_events_endpoint(
+    run_id: str | None = None,
+    profile_id: int | None = None,
+    binding_id: int | None = None,
+    event_type: str | None = None,
+    dataset_status: str | None = Query(default="reviewed", alias="status"),
+    include_export_excluded: bool = False,
+    limit: int = Query(default=1000, ge=1, le=5000),
+    _current_user: AuthContext = Depends(
+        require_roles("admin", "moderator", "contributor")
+    ),
+    _scope: AuthContext = Depends(require_scopes("agent:tracking:read")),
+    session: Session = Depends(get_session),
+) -> PlainTextResponse:
+    """Export review dataset events as JSON Lines."""
+
+    try:
+        events = list_review_dataset_events(
+            session,
+            run_id=run_id,
+            profile_id=profile_id,
+            binding_id=binding_id,
+            event_type=event_type,
+            dataset_status=dataset_status,
+            include_export_excluded=include_export_excluded,
+            limit=limit,
+        )
+    except ReviewDatasetEventError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return PlainTextResponse(
+        export_review_dataset_jsonl(events),
+        media_type="application/x-ndjson; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=review-dataset.jsonl"},
+    )
+
+
+def _agent_review_dataset_event_response(
+    event: AgentReviewDatasetEvent,
+) -> AgentReviewDatasetEventResponse:
+    return AgentReviewDatasetEventResponse(
+        id=event.id,
+        event_type=event.event_type,
+        dataset_status=event.dataset_status,
+        run_id=event.run_id,
+        agent_run_id=event.agent_run_id,
+        candidate_observation_id=event.candidate_observation_id,
+        llm_review_id=event.llm_review_id,
+        proposal_attempt_id=event.proposal_attempt_id,
+        governance_suggestion_id=event.governance_suggestion_id,
+        profile_id=event.profile_id,
+        binding_id=event.binding_id,
+        candidate_alias=event.candidate_alias,
+        normalized_alias=event.normalized_alias,
+        canonical_value=event.canonical_value,
+        normalized_canonical=event.normalized_canonical,
+        slot=event.slot,
+        model=event.model,
+        prompt_version=event.prompt_version,
+        input_pack=event.input_pack_json or {},
+        model_output=event.model_output_json or {},
+        human_decision=event.human_decision_json or {},
+        final_payload=event.final_payload_json or {},
+        metadata=event.metadata_json or {},
+        export_excluded=event.export_excluded,
+        export_note=event.export_note,
+        created_at=event.created_at,
+        updated_at=event.updated_at,
+    )
 
 
 def _agent_run_response(agent_run: AgentRun) -> AgentRunResponse:

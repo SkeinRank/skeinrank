@@ -53,6 +53,7 @@ try:  # pragma: no cover - import style depends on how the example is executed.
     )
     from .candidate_discovery import (
         CandidateDiscoveryConfig,
+        build_candidate_clusters,
         build_candidate_discovery_report,
         build_candidate_fact_pack,
         discover_alias_candidates,
@@ -193,6 +194,7 @@ except ImportError:  # pragma: no cover
     )
     from candidate_discovery import (
         CandidateDiscoveryConfig,
+        build_candidate_clusters,
         build_candidate_discovery_report,
         build_candidate_fact_pack,
         discover_alias_candidates,
@@ -1350,6 +1352,7 @@ def _llm_review_config_from_args(
         include_tools=config.llm_review.include_tools,
         response_format_json=config.llm_review.response_format_json,
         submit_proposals=config.llm_review.submit_proposals,
+        confidence=config.llm_review.confidence,
     )
 
 
@@ -2927,10 +2930,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not candidates:
             raise RuntimeError("No candidates discovered from failed-query input.")
+        clusters = build_candidate_clusters(candidates)
+        top_cluster = next(
+            (
+                cluster
+                for cluster in clusters
+                if candidates[0].surface in cluster.surfaces
+            ),
+            None,
+        )
         pack = build_candidate_fact_pack(
             candidates[0],
             binding_id=config.default_binding_id,
             profile_name=config.default_profile_name,
+            candidate_cluster=top_cluster,
         )
         pack = enrich_candidate_pack_with_canonical_hints(pack, config.canonical_hints)
         print(json.dumps(pack, indent=2, sort_keys=True))
@@ -2967,11 +2980,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not windows:
             raise RuntimeError("No evidence windows found for the top candidate.")
+        clusters = build_candidate_clusters(candidates)
+        top_cluster = next(
+            (
+                cluster
+                for cluster in clusters
+                if candidates[0].surface in cluster.surfaces
+            ),
+            None,
+        )
         pack = build_candidate_evidence_pack(
             candidates[0],
             windows,
             binding_id=config.default_binding_id,
             profile_name=config.default_profile_name,
+            candidate_cluster=top_cluster,
         )
         pack = enrich_candidate_pack_with_canonical_hints(pack, config.canonical_hints)
         print(json.dumps(pack, indent=2, sort_keys=True))

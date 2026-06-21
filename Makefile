@@ -1,4 +1,114 @@
 .PHONY: demo-seed demo-reset demo-status demo-tour-plan demo-tour-smoke demo-tour demo-tour-show demo-tour-clean headless-up headless-down headless-reset headless-golden-path agent-demo agent-demo-report agent-eval agent-eval-report agent-deploy-plan agent-deploy-recipe agent-compose-config agent-new-alias-smoke-plan agent-new-alias-smoke-report agent-es-evidence-plan agent-es-evidence-report agent-tracking-plan agent-tracking-report agent-integration-smoke-plan agent-integration-smoke-report agent-real-es-validation-plan agent-real-es-validation-fixtures agent-real-es-validation-index agent-real-es-validation-report prod-env-check prod-env-check-strict prod-config prod-up prod-smoke prod-smoke-strict prod-down prod-schema-check prod-backup-export prod-preflight prod-upgrade-check prod-upgrade prod-post-upgrade-smoke benchmark-reset benchmark-seed benchmark-eval benchmark-report benchmark-clean benchmark-retrieval-plan benchmark-retrieval-eval benchmark-retrieval-report benchmark-retrieval-compare benchmark-retrieval-compare-report benchmark-retrieval-run benchmark-retrieval-clean benchmark-smoke-plan benchmark-smoke-generate benchmark-smoke-report benchmark-smoke-clean benchmark-performance-plan benchmark-performance-report benchmark-performance-show benchmark-performance-clean benchmark-stack-up benchmark-stack-wait benchmark-stack-reset benchmark-stack-seed benchmark-stack-eval benchmark-stack-report benchmark-stack-clean benchmark-stack-down benchmark-stack-prune-containers benchmark-stack-run benchmark-agent-live-plan benchmark-agent-live-check benchmark-agent-live benchmark-agent-live-validate benchmark-agent-live-full benchmark-agent-live-validated-pilot-plan benchmark-agent-live-validated-pilot benchmark-agent-live-validated-pilot-report benchmark-agent-live-validated-pilot-stack benchmark-stack-auth-token pilot-plan pilot-preflight pilot-seed pilot-eval pilot-report pilot-run pilot-stack-run support-bundle-plan support-bundle-export support-bundle-inspect support-bundle-clean backup-restore-drill-plan backup-restore-drill-run backup-restore-drill-inspect backup-restore-drill-clean alerts-report-plan alerts-report-generate alerts-report-show alerts-report-clean agent-openrouter-pilot-plan agent-openrouter-pilot agent-openrouter-pilot-report agent-openrouter-pilot-validate agent-openrouter-validated-pilot-plan agent-openrouter-validated-pilot-report
+.PHONY: lint format format-check check test-auto-plan test-auto test-core test-governance-models test-governance-api test-provider-elasticsearch test-server test-ui test-agent test-scout test-migrations test-docs test-fast test-python test-all
+
+POETRY ?= poetry
+PYTEST ?= pytest
+NPM ?= npm
+DEV_PYTHON ?= python3
+RUFF_RUNNER ?= $(DEV_PYTHON) tools/dev/resolve_ruff.py
+TEST_ROUTER ?= $(DEV_PYTHON) tools/dev/test_router.py
+TEST_AUTO_BASE ?=
+TEST_AUTO_BASE_ARG := $(if $(TEST_AUTO_BASE),--base $(TEST_AUTO_BASE),)
+
+CORE_DIR := packages/skeinrank-core
+GOVERNANCE_DIR := packages/skeinrank-governance
+GOVERNANCE_API_DIR := packages/skeinrank-governance-api
+PROVIDER_ELASTICSEARCH_DIR := packages/skeinrank-provider-elasticsearch
+SERVER_DIR := packages/skeinrank-server
+UI_DIR := packages/skeinrank-ui
+
+CORE_TESTS := tests
+GOVERNANCE_MODEL_TESTS := tests
+GOVERNANCE_API_TESTS := tests
+PROVIDER_ELASTICSEARCH_TESTS := tests
+SERVER_TESTS := tests
+
+SCOUT_TESTS := \
+	tests/test_openrouter_agent_candidate_discovery.py \
+	tests/test_openrouter_agent_evidence_sampler.py \
+	tests/test_openrouter_agent_llm_workflow.py \
+	tests/test_openrouter_agent_tools_prompts.py \
+	tests/test_agent_review_dataset_events.py \
+	tests/test_canonical_lifecycle_migrations.py
+
+FAST_CORE_TESTS := \
+	tests/test_candidate_discovery.py \
+	tests/test_dictionary_suggestions.py \
+	tests/test_drift_scan_cli.py
+
+FAST_GOVERNANCE_API_TESTS := \
+	tests/test_openrouter_agent_candidate_discovery.py \
+	tests/test_openrouter_agent_evidence_sampler.py \
+	tests/test_openrouter_agent_llm_workflow.py \
+	tests/test_agent_review_dataset_events.py \
+	tests/test_canonical_lifecycle_migrations.py
+
+MIGRATION_TESTS := \
+	tests/test_migrations.py \
+	tests/test_schema_health.py
+
+DOCS_TESTS := \
+	tests/test_docs_index_productized.py \
+	tests/test_governance_api_readme_productized.py \
+	tests/test_openrouter_agent_guide_productized.py \
+	tests/test_openrouter_alias_scout_examples_productized.py \
+	tests/test_package_readmes_productized.py \
+	tests/test_root_readme_landing.py \
+	tests/test_developer_commands_productized.py
+
+lint:
+	@$(RUFF_RUNNER) check .
+
+format:
+	@$(RUFF_RUNNER) format .
+
+format-check:
+	@$(RUFF_RUNNER) format --check .
+
+check: lint format-check test-fast test-migrations test-docs
+
+test-auto-plan:
+	@$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --plan
+
+test-auto:
+	@$(TEST_ROUTER) $(TEST_AUTO_BASE_ARG) --run
+
+test-core:
+	cd $(CORE_DIR) && $(POETRY) run $(PYTEST) -q $(CORE_TESTS)
+
+test-governance-models:
+	cd $(GOVERNANCE_DIR) && $(POETRY) run $(PYTEST) -q $(GOVERNANCE_MODEL_TESTS)
+
+test-governance-api:
+	cd $(GOVERNANCE_API_DIR) && $(POETRY) run $(PYTEST) -q $(GOVERNANCE_API_TESTS)
+
+test-provider-elasticsearch:
+	cd $(PROVIDER_ELASTICSEARCH_DIR) && $(POETRY) run $(PYTEST) -q $(PROVIDER_ELASTICSEARCH_TESTS)
+
+test-server:
+	cd $(SERVER_DIR) && $(POETRY) run $(PYTEST) -q $(SERVER_TESTS)
+
+test-ui:
+	cd $(UI_DIR) && $(NPM) run typecheck && $(NPM) test -- --run && $(NPM) run build
+
+test-agent:
+	cd $(GOVERNANCE_API_DIR) && $(POETRY) run $(PYTEST) -q $(SCOUT_TESTS)
+
+test-scout: test-agent
+
+test-migrations:
+	cd $(GOVERNANCE_API_DIR) && $(POETRY) run $(PYTEST) -q $(MIGRATION_TESTS)
+
+test-docs:
+	cd $(GOVERNANCE_API_DIR) && $(POETRY) run $(PYTEST) -q $(DOCS_TESTS)
+
+test-fast:
+	cd $(CORE_DIR) && $(POETRY) run $(PYTEST) -q $(FAST_CORE_TESTS)
+	cd $(GOVERNANCE_API_DIR) && $(POETRY) run $(PYTEST) -q $(FAST_GOVERNANCE_API_TESTS)
+
+test-python: test-core test-governance-models test-governance-api test-provider-elasticsearch test-server
+
+test-all: test-python test-ui
 
 PYTHON ?= python3
 DEMO_SEED := examples/platform_ops_demo/seed_platform_demo.py

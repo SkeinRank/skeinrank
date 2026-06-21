@@ -134,7 +134,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --discover-cand
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-candidate-pack
 ```
 
-The report schema is `skeinrank.agent_candidate_discovery.v1`. It extracts surfaces such as `pg`, `k8s`, and `kube`, prunes configured noise and known terms, and produces compact candidate packs.
+The report schema is `skeinrank.agent_candidate_discovery.v1`. It extracts surfaces such as `pg`, `k8s`, `PAY-1842`, `checkout-v2`, `payment_service`, and conservative bigram/trigram phrases, prunes configured noise and known terms, and produces compact candidate packs. Candidate scoring includes a compact breakdown with weighted failed-query support, surface class, background-language penalty, `jargon_score`, and lightweight tokenizer-risk signals. The report also includes candidate clusters, grouping related surfaces before LLM review so the model receives an entity-style context instead of a flat list of words. The standalone scout keeps true `oov_score` and `token_fragmentation_score` empty until a tokenizer provider is connected, so model-specific risk is never implied when it was not measured.
 
 ## Compact evidence windows
 
@@ -145,7 +145,7 @@ python examples/agents/openrouter_alias_scout/run_alias_scout.py --sample-eviden
 python examples/agents/openrouter_alias_scout/run_alias_scout.py --print-sample-evidence-pack
 ```
 
-The report schema is `skeinrank.agent_evidence_sampling.v1`. The sampler enforces `max_docs`, `max_windows`, and `max_total_chars` limits so the model never receives full documents by default.
+The report schema is `skeinrank.agent_evidence_sampling.v1`. The sampler enforces `max_docs`, `max_windows`, and `max_total_chars` limits so the model never receives full documents by default. Candidate packs separate positive evidence from negative/contrast evidence when conflicts are known, attach nearby terms from each window, and can include the candidate cluster used for review.
 
 ## Elasticsearch / OpenSearch evidence
 
@@ -220,13 +220,14 @@ action: propose | reject | needs_evidence
 confidence: 0..1
 reason: string
 risk_flags: string[]
+decision_trace: object (optional)
 ```
 
-`propose` also requires `alias_value`, `canonical_value`, and `slot`. Proposal payloads still have to pass Governance API validation before they can be saved.
+`propose` also requires `alias_value`, `canonical_value`, and `slot`. The runner records `confidence_decision` for every reviewed item. When multiple independent judgments are configured, low action consensus or conflicting proposal payloads are converted to `needs_evidence` instead of a ready proposal. Proposal payloads still have to pass Governance API validation before they can be saved.
 
 ## Model provider options
 
-OpenRouter is the default adapter, but the runner can also use OpenAI-compatible company endpoints and local endpoint adapters.
+OpenRouter is the default adapter, but the runner can also use OpenAI-compatible company endpoints and local endpoint adapters. Confidence settings live under `llm_review.confidence` in the example config: `judgment_samples_per_candidate`, `min_consensus_to_prepare_proposal`, `abstain_on_disagreement`, and `require_consistent_proposal_payload`.
 
 Inspect the provider plans:
 
@@ -403,6 +404,41 @@ Optional ledger path:
 ```
 
 The local tracking contract is DB-ready: scheduled runs can attach source documents, content hashes, processing-context hashes, candidate observations, LLM reviews, and proposal attempts to one run identity.
+
+
+The same tracking path also feeds review dataset events. The Governance API stores
+SFT-ready rows in Postgres and exposes JSONL as a derived export:
+
+```bash
+curl http://localhost:8000/v1/agents/review-dataset/events?run_id=run-001
+curl -o review-dataset.jsonl \
+  http://localhost:8000/v1/agents/review-dataset/events/export.jsonl?run_id=run-001
+```
+
+By default the JSONL endpoint exports reviewed examples. Pass
+`status=pending_review` when inspecting model judgments that have not received a
+human label yet.
+
+## Canonical lifecycle proposals
+
+When document language moves from an old canonical surface to a new one, keep the
+change proposal-first. The Governance API can preview and create canonical
+migration proposals:
+
+```bash
+curl -X POST http://localhost:8000/v1/governance/profiles/payments/canonical-migrations/preview \
+  -H 'content-type: application/json' \
+  -d '{"old_canonical_value":"checkout","new_canonical_value":"payments-core"}'
+
+curl -X POST http://localhost:8000/v1/governance/profiles/payments/canonical-migrations \
+  -H 'content-type: application/json' \
+  -d '{"old_canonical_value":"checkout","new_canonical_value":"payments-core","proposal_source_type":"agent"}'
+```
+
+The proposal is stored for review; it does not mutate active terminology until a
+reviewer approves it with an explicit warning override. On apply, the old
+canonical term is deprecated and preserved as an alias to the new canonical,
+alongside the old term's existing aliases.
 
 ## Proposal inbox and review workflow
 

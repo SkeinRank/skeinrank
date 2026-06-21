@@ -73,6 +73,8 @@ def test_candidate_discovery_finds_alias_like_terms_and_prunes_noise() -> None:
     assert candidates[0].weighted_count == 17
     assert candidates[0].document_frequency == 2
     assert "short_alias_like" in candidates[0].reasons
+    assert candidates[0].score_breakdown["jargon_score"] > 0
+    assert "rare_against_background" in candidates[0].score_breakdown["reasons"]
 
 
 def test_candidate_report_and_fact_pack_are_compact_and_deterministic() -> None:
@@ -94,6 +96,8 @@ def test_candidate_report_and_fact_pack_are_compact_and_deterministic() -> None:
     assert report["profile_name"] == "infra_incidents"
     assert report["candidates_found"] >= 3
     assert report["candidates"][0]["surface"] == "pg"
+    assert report["candidates"][0]["score_breakdown"]["jargon_score"] > 0
+    assert "background_terms" in report["config"]
 
     candidates = discovery.discover_alias_candidates(
         rows, config=config.candidate_discovery
@@ -107,6 +111,7 @@ def test_candidate_report_and_fact_pack_are_compact_and_deterministic() -> None:
     assert pack["profile_name"] == "infra_incidents"
     assert pack["evidence"][0].startswith("failed query:")
     assert pack["stats"]["discovery_reasons"] == ["short_alias_like"]
+    assert pack["stats"]["score_breakdown"]["jargon_score"] > 0
 
 
 def test_alias_scout_cli_candidate_discovery_outputs_parseable_json() -> None:
@@ -126,6 +131,8 @@ def test_alias_scout_cli_candidate_discovery_outputs_parseable_json() -> None:
     report = json.loads(discovery_result.stdout)
     assert report["schema_version"] == "skeinrank.agent_candidate_discovery.v1"
     assert report["candidates"][0]["surface"] == "pg"
+    assert report["candidates"][0]["score_breakdown"]["jargon_score"] > 0
+    assert "background_terms" in report["config"]
 
     pack_result = subprocess.run(
         [*base_cmd, "--print-sample-candidate-pack"],
@@ -148,3 +155,108 @@ def test_openrouter_40h_docs_are_linked_from_project_docs() -> None:
         content = path.read_text(encoding="utf-8")
         assert "--discover-candidates" in content, path
         assert "--print-sample-candidate-pack" in content, path
+
+
+def test_candidate_discovery_exposes_surface_risk_without_tokenizer_provider() -> None:
+    discovery = _load_module(
+        "agent_candidate_discovery_surface_risk", AGENT_DIR / "candidate_discovery.py"
+    )
+
+    rows = [
+        {"query": "PAY-1842 checkout failure", "count": 5},
+        {"query": "PAY-1842 payment service timeout", "count": 3},
+    ]
+    config = discovery.CandidateDiscoveryConfig.from_mapping(
+        {
+            "noise_tokens": ["checkout", "failure", "payment", "service", "timeout"],
+            "min_token_length": 2,
+        }
+    )
+
+    candidates = discovery.discover_alias_candidates(rows, config=config)
+    candidate = next(item for item in candidates if item.surface == "pay-1842")
+
+    assert candidate.score_breakdown["surface_risk_score"] > 0
+    assert candidate.score_breakdown["tokenizer_signal_status"] == "unavailable"
+    assert candidate.score_breakdown["oov_score"] is None
+    assert "alpha_digit_tokenizer_risk" in candidate.score_breakdown["reasons"]
+
+
+def test_candidate_discovery_extracts_code_style_and_ngram_surfaces() -> None:
+    discovery = _load_module(
+        "agent_candidate_discovery_surface_extraction_v2",
+        AGENT_DIR / "candidate_discovery.py",
+    )
+
+    rows = [
+        {
+            "query": "PAY-1842 payment_service checkout-v2 blue deploy ring",
+            "count": 4,
+        },
+        {
+            "query": "PAY-1842 payment_service checkout-v2 blue deploy ring",
+            "count": 3,
+        },
+    ]
+    config = discovery.CandidateDiscoveryConfig.from_mapping(
+        {
+            "known_terms": [],
+            "noise_tokens": [],
+            "background_terms": ["deploy"],
+            "max_candidates": 20,
+            "min_score": 0,
+        }
+    )
+
+    candidates = discovery.discover_alias_candidates(rows, config=config)
+    by_surface = {candidate.surface: candidate for candidate in candidates}
+
+    assert by_surface["pay-1842"].score_breakdown["surface_class"] == "ticket_id"
+    assert "ticket_id_surface" in by_surface["pay-1842"].reasons
+    assert (
+        by_surface["payment_service"].score_breakdown["surface_class"] == "snake_case"
+    )
+    assert (
+        by_surface["checkout-v2"].score_breakdown["surface_class"] == "versioned_name"
+    )
+    assert "blue deploy ring" in by_surface
+    assert "trigram_phrase" in by_surface["blue deploy ring"].reasons
+    assert "multi_term_phrase" in by_surface["blue deploy ring"].reasons
+
+
+def test_candidate_discovery_report_groups_related_surfaces_before_llm():
+    discovery = _load_module(
+        "agent_candidate_discovery_clusters", AGENT_DIR / "candidate_discovery.py"
+    )
+
+    rows = [
+        {"query": "blue deploy ring failed", "count": 5},
+        {"query": "blue deploy ring rollback", "count": 4},
+        {"query": "blue deploy status", "count": 3},
+    ]
+    config = discovery.CandidateDiscoveryConfig.from_mapping(
+        {
+            "known_terms": [],
+            "noise_tokens": ["failed", "rollback", "status"],
+            "background_terms": [],
+            "max_candidates": 20,
+            "min_score": 0,
+        }
+    )
+
+    candidates = discovery.discover_alias_candidates(rows, config=config)
+    clusters = discovery.build_candidate_clusters(candidates)
+    cluster = next(item for item in clusters if "blue deploy ring" in item.surfaces)
+
+    assert cluster.representative_surface in cluster.surfaces
+    assert "blue deploy" in cluster.surfaces
+    assert "related_surface_cluster" in cluster.reasons
+
+    report = discovery.build_candidate_discovery_report(rows, config=config)
+    assert report["clusters_found"] == len(report["candidate_clusters"])
+    assert report["candidate_clusters"][0]["surfaces"]
+
+    pack = discovery.build_candidate_fact_pack(
+        candidates[0], candidate_cluster=clusters[0]
+    )
+    assert pack["candidate_cluster"]["cluster_id"].startswith("candidate-cluster-")

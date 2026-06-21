@@ -35,6 +35,7 @@ from skeinrank_governance.models import (
     AgentEvidenceWindow,
     AgentLlmReview,
     AgentProposalAttempt,
+    AgentReviewDatasetEvent,
     AgentRun,
     CanonicalTerm,
     ElasticsearchBinding,
@@ -1934,6 +1935,7 @@ def _delete_benchmark_agent_artifacts(
     if not run_ids:
         return
     for model in (
+        AgentReviewDatasetEvent,
         AgentProposalAttempt,
         AgentLlmReview,
         AgentEvidenceWindow,

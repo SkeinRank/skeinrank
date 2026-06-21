@@ -1,9 +1,11 @@
 from pathlib import Path
 
 from skeinrank import (
+    CandidateCluster,
     CandidateDiscoveryConfig,
     CandidateDiscoveryDocument,
     CandidateDiscoveryReport,
+    CandidateTokenizerSignal,
     discover_candidates,
     discover_candidates_from_documents,
     load_dictionary,
@@ -136,3 +138,199 @@ def test_candidate_discovery_config_filters_and_limits_candidates():
     assert len(normalized) == 2
     assert report.top_candidates(1) == report.candidates[:1]
     assert report.top_candidates(0) == []
+
+
+def test_candidate_discovery_scoring_prefers_jargon_over_background_language():
+    report = discover_candidates(
+        [
+            "pcore pcore pcore server server server",
+            "pcore pcore pcore server server server",
+        ],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_word_length=2,
+            include_phrase_candidates=False,
+            stop_words=[],
+            background_terms=["server"],
+        ),
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+
+    assert values["pcore"].score > values["server"].score
+    assert values["pcore"].score_breakdown is not None
+    assert values["server"].score_breakdown is not None
+    assert (
+        values["pcore"].score_breakdown.jargon_score
+        > values["server"].score_breakdown.jargon_score
+    )
+    assert values["server"].score_breakdown.background_penalty > 0
+    assert "rare_against_background" in values["pcore"].score_breakdown.reasons
+
+
+def test_candidate_discovery_score_breakdown_explains_code_shape_boost():
+    report = discover_candidates(
+        ["PAY-1842 PAY-1842 PAY-1842 payment payment payment"],
+        config={
+            "min_frequency": 2,
+            "min_word_length": 2,
+            "include_phrase_candidates": False,
+            "stop_words": [],
+            "background_terms": ["payment"],
+        },
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+
+    assert values["pay 1842"].score > values["payment"].score
+    assert values["pay 1842"].score_breakdown is not None
+    assert values["pay 1842"].score_breakdown.code_shape_score > 0
+    assert "mixed_alpha_digit" in values["pay 1842"].score_breakdown.reasons
+
+
+def test_candidate_discovery_exposes_lightweight_surface_risk_without_tokenizer():
+    report = discover_candidates(
+        ["PAY-1842 PAY-1842 PAY-1842 server server server"],
+        config={
+            "min_frequency": 2,
+            "min_word_length": 2,
+            "include_phrase_candidates": False,
+            "stop_words": [],
+            "background_terms": ["server"],
+        },
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+    breakdown = values["pay 1842"].score_breakdown
+
+    assert breakdown is not None
+    assert breakdown.surface_risk_score > 0
+    assert breakdown.tokenizer_signal_status == "unavailable"
+    assert breakdown.oov_score is None
+    assert breakdown.token_fragmentation_score is None
+    assert "alpha_digit_tokenizer_risk" in breakdown.reasons
+
+
+class _FakeTokenizerSignalProvider:
+    def analyze(self, surface: str):
+        normalized = surface.casefold()
+        if "pay" in normalized:
+            return CandidateTokenizerSignal(
+                token_count=1,
+                subtoken_count=6,
+                unknown_token_count=1,
+                fragmentation_score=0.9,
+                oov_score=0.85,
+                reasons=["fake_provider_signal"],
+            )
+        return CandidateTokenizerSignal(
+            token_count=1,
+            subtoken_count=1,
+            fragmentation_score=0.0,
+            oov_score=0.0,
+        )
+
+
+def test_candidate_discovery_uses_optional_tokenizer_signal_provider():
+    report = discover_candidates(
+        ["PAY-1842 PAY-1842 server server"],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_word_length=2,
+            include_phrase_candidates=False,
+            stop_words=[],
+            background_terms=["server"],
+            tokenizer_signal_provider=_FakeTokenizerSignalProvider(),
+        ),
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+    breakdown = values["pay 1842"].score_breakdown
+
+    assert values["pay 1842"].score > values["server"].score
+    assert breakdown is not None
+    assert breakdown.tokenizer_signal_status == "available"
+    assert breakdown.oov_score == 0.85
+    assert breakdown.token_fragmentation_score == 0.9
+    assert "fake_provider_signal" in breakdown.reasons
+    assert "oov_tokenizer_signal" in breakdown.reasons
+
+
+def test_candidate_discovery_classifies_code_style_surfaces():
+    report = discover_candidates(
+        [
+            "PAY-1842 PAY-1842 checkout-v2 checkout-v2 payment_service payment_service",
+            "PAY-1842 checkout-v2 payment_service",
+        ],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_word_length=2,
+            include_phrase_candidates=False,
+            stop_words=[],
+            background_terms=["checkout", "payment", "service"],
+        ),
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+
+    assert values["pay 1842"].kind == "ticket_id"
+    assert values["checkout v2"].kind == "versioned_name"
+    assert values["payment service"].kind == "snake_case"
+    assert values["pay 1842"].score_breakdown is not None
+    assert values["pay 1842"].score_breakdown.surface_class == "ticket_id"
+    assert "ticket_id_surface" in values["pay 1842"].score_breakdown.reasons
+    assert "versioned_name_surface" in values["checkout v2"].score_breakdown.reasons
+    assert "snake_case_surface" in values["payment service"].score_breakdown.reasons
+
+
+def test_candidate_discovery_emits_trigram_phrase_candidates():
+    report = discover_candidates(
+        [
+            "blue deploy ring failed during rollout. blue deploy ring recovered.",
+            "runbook says blue deploy ring needs manual approval.",
+        ],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_document_frequency=2,
+            min_word_length=2,
+            stop_words=["during", "says"],
+        ),
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+
+    assert "blue deploy ring" in values
+    assert values["blue deploy ring"].kind == "phrase"
+    assert values["blue deploy ring"].document_count == 2
+    assert values["blue deploy ring"].mention_count == 3
+
+
+def test_candidate_discovery_builds_review_clusters():
+    report = discover_candidates(
+        [
+            "blue deploy ring failed. blue deploy ring recovered. blue deploy failed.",
+            "runbook says blue deploy ring uses blue deploy safeguards.",
+        ],
+        config=CandidateDiscoveryConfig(
+            min_frequency=2,
+            min_document_frequency=2,
+            min_word_length=2,
+            stop_words=["failed", "says", "uses"],
+        ),
+    )
+
+    assert report.cluster_count == len(report.candidate_clusters)
+    assert report.top_clusters(1) == report.candidate_clusters[:1]
+    cluster = next(
+        item
+        for item in report.candidate_clusters
+        if "blue deploy ring" in item.normalized_representative
+        or "blue deploy ring" in item.surface_values
+    )
+
+    assert isinstance(cluster, CandidateCluster)
+    assert cluster.candidate_count >= 2
+    assert "blue deploy ring" in cluster.surface_values
+    assert "blue deploy" in cluster.surface_values
+    assert "related_surface_cluster" in cluster.reasons
+    assert cluster.evidence

@@ -30,6 +30,7 @@ class AliasReviewJudgment:
     canonical_value: str | None = None
     slot: str | None = None
     context: str | None = None
+    decision_trace: Mapping[str, Any] | None = None
 
     def to_dict(self) -> JsonDict:
         """Return a JSON-serializable representation."""
@@ -44,6 +45,8 @@ class AliasReviewJudgment:
             value = getattr(self, key)
             if value is not None:
                 payload[key] = value
+        if self.decision_trace:
+            payload["decision_trace"] = dict(self.decision_trace)
         return payload
 
 
@@ -108,6 +111,7 @@ def parse_alias_review_output(raw: str | Mapping[str, Any]) -> AliasReviewJudgme
     canonical_value = _optional_str(payload.get("canonical_value"))
     slot = _optional_str(payload.get("slot"))
     context = _optional_str(payload.get("context"))
+    decision_trace = _optional_mapping(payload.get("decision_trace"))
 
     if action == "propose":
         missing = [
@@ -133,6 +137,7 @@ def parse_alias_review_output(raw: str | Mapping[str, Any]) -> AliasReviewJudgme
         canonical_value=canonical_value,
         slot=slot,
         context=context,
+        decision_trace=decision_trace,
     )
 
 
@@ -171,7 +176,19 @@ def judgment_to_proposal_payload(
         payload["profile_name"] = profile_name
     if judgment.context:
         payload["context"] = judgment.context
+    if judgment.decision_trace:
+        payload["source_payload"]["model_decision_trace"] = dict(
+            judgment.decision_trace
+        )
     return payload
+
+
+def _optional_mapping(value: Any) -> Mapping[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise AliasReviewOutputError("Alias review decision_trace must be an object.")
+    return {str(key): item for key, item in value.items()}
 
 
 def _optional_str(value: Any) -> str | None:

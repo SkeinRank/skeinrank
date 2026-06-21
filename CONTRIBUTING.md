@@ -56,7 +56,41 @@ make demo-tour-show
 
 ## Before opening a pull request
 
-Run the narrow tests for the area you changed. If the change touches the public demo, run:
+Use the root `Makefile` for the common local checks. The lint and format commands resolve Ruff from `RUFF`, `PATH`, or pyenv-managed Python versions, so they do not require a globally installed `ruff` command:
+
+```bash
+make test-fast
+make check
+```
+
+For a targeted check based on the files currently changed in Git, run:
+
+```bash
+make test-auto-plan
+make test-auto
+```
+
+The automatic router prints the changed files, selected checks, running commands, and a result summary. Use `TEST_AUTO_BASE=origin/main make test-auto` when you want the router to include committed branch changes compared with a base ref.
+
+For the Alias Scout and governance review path, run:
+
+```bash
+make test-scout
+```
+
+If the change touches migrations or schema health, run:
+
+```bash
+make test-migrations
+```
+
+If the change touches public documentation, run:
+
+```bash
+make test-docs
+```
+
+If the change touches the public demo, run:
 
 ```bash
 cd packages/skeinrank-governance-api
@@ -69,10 +103,7 @@ poetry run python -m pytest \
 If the change touches the UI, run:
 
 ```bash
-cd packages/skeinrank-ui
-npm run typecheck
-npm test -- --run
-npm run build
+make test-ui
 ```
 
 ## Contribution scope
@@ -90,7 +121,7 @@ Please open an issue first for larger work such as schema changes, new provider 
 
 ## Code style
 
-The Python CI uses Ruff and pytest. The UI uses TypeScript, Vitest, and Vite. Keep new code deterministic and avoid live network calls in tests unless a test is explicitly marked as a guarded live smoke.
+The Python CI uses Ruff and pytest. Locally, `make lint`, `make format`, and `make check` use `tools/dev/resolve_ruff.py` so Ruff can come from `RUFF=/path/to/ruff`, the active `PATH`, or a pyenv-managed Python version. The UI uses TypeScript, Vitest, and Vite. Keep new code deterministic and avoid live network calls in tests unless a test is explicitly marked as a guarded live smoke.
 
 ## Security and secrets
 
