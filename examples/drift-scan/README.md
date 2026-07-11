@@ -59,8 +59,11 @@ After reviewing the report, export alias-drift findings into a local dictionary 
 ```bash
 poetry run skeinrank drift export-draft ../../examples/drift-scan/drift-report.json \
   --out ../../examples/drift-scan/drift.dictionary-draft.json \
-  --review ../../examples/drift-scan/drift.dictionary-draft.md
+  --review ../../examples/drift-scan/drift.dictionary-draft.md \
+  --summary ../../examples/drift-scan/drift.conversion-summary.json
 ```
+
+The summary records how many report findings were eligible for candidate conversion and which finding types were kept only for review. A valid report containing only `stale_term`, `binding_lag`, or `ambiguity_signal` findings intentionally produces zero candidates and reports `no_convertible_findings`; it is not treated as a hidden threshold failure.
 
 Or run the offline Python example:
 

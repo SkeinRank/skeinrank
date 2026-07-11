@@ -81,6 +81,34 @@ print(result.document.file_name)
 print(result.extraction.canonical_values)
 ```
 
+## Keep rerank batches strict or skip blank text explicitly
+
+Rerank candidate validation fails closed by default. Use the narrow `skip_empty_text` policy only when an ingestion batch may contain blank strings and the remaining candidates should still be scored:
+
+```python
+from skeinrank import rerank_many
+
+results = rerank_many(
+    [
+        {
+            "query": "postgresql timeout",
+            "candidates": [
+                {"id": "incident-1", "text": "PostgreSQL timeout runbook"},
+                {"id": "empty-row", "text": ""},
+            ],
+        }
+    ],
+    invalid_candidate_policy="skip_empty_text",
+    passport="off",
+)
+
+validation = results[0].candidate_validation
+print(validation.accepted_count)  # 1
+print(validation.skipped_candidates[0].id)  # empty-row
+```
+
+The option does not suppress schema errors. Missing text, `None`, non-string text, empty identifiers, and requests where every candidate is blank still fail. Validation summaries remain in the result when `passport="off"`; enabled passports additionally include `candidate_skipped: empty_text` warnings.
+
 ## Profile-file extraction path
 
 The lower-level profile-file tools are still available for custom extraction profiles:

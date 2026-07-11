@@ -13,7 +13,7 @@ def test_core_package_metadata_is_ready_for_pypi():
     content = _pyproject_text()
 
     assert 'name = "skeinrank"' in content
-    assert 'version = "0.14.0"' in content
+    assert 'version = "0.15.0"' in content
     assert '"canonicalization"' in content
     assert '"documents"' in content
     assert 'license = "Apache-2.0"' in content

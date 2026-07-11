@@ -119,17 +119,31 @@ After a human reviews the report, turn `alias_drift` findings into a local dicti
 ```bash
 poetry run skeinrank drift export-draft ../../examples/drift-scan/drift-report.json \
   --out ../../examples/drift-scan/drift.dictionary-draft.json \
-  --review ../../examples/drift-scan/drift.dictionary-draft.md
+  --review ../../examples/drift-scan/drift.dictionary-draft.md \
+  --summary ../../examples/drift-scan/drift.conversion-summary.json
 ```
 
 Only `alias_drift` findings become draft candidates. `stale_term`, `binding_lag`, and `ambiguity_signal` findings are preserved as review findings so humans can decide whether to create dictionary proposals, context rules, or rollout tasks later.
+
+The conversion summary separates three counts that were previously easy to confuse:
+
+- all findings in the source report;
+- `alias_drift` findings eligible to become candidates;
+- findings retained for review but not converted into candidates.
+
+A report can therefore contain valid findings and still produce an empty candidate list. In that case `summary.status` is `no_convertible_findings`, `skipped_findings_by_type` explains the finding types, and the CLI prints a precise reason instead of implying that a threshold silently removed candidates.
 
 ```python
 from skeinrank import drift_report_to_dictionary_draft
 
 result = drift_report_to_dictionary_draft("../../examples/drift-scan/drift-report.json")
+print(result.summary.status)
+print(result.summary.source_finding_count)
+print(result.summary.alias_drift_finding_count)
+print(result.summary.skipped_findings_by_type)
 print(result.review_markdown())
 result.save("../../examples/drift-scan/drift.dictionary-draft.json")
+result.save_summary("../../examples/drift-scan/drift.conversion-summary.json")
 ```
 
 ## Safety boundary

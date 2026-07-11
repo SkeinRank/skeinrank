@@ -135,3 +135,131 @@ def test_drift_export_draft_cli_can_print_compact_json(tmp_path: Path, capsys):
     assert payload["source_format"] == "terminology_drift_report"
     assert payload["candidates"][0]["aliases"] == ["KubeletOOM"]
     assert all(finding["code"] != "drift.stale_term" for finding in payload["findings"])
+
+
+def test_conversion_summary_explains_non_convertible_findings():
+    report = TerminologyDriftReport(
+        profile_name="infra_incidents",
+        document_count=2,
+        source_count=2,
+        findings=[
+            DriftFinding(
+                finding_type=DriftFindingType.STALE_TERM,
+                severity=DriftSeverity.INFO,
+                title=f"Stale term {index}",
+                value=f"term-{index}",
+            )
+            for index in range(6)
+        ],
+    )
+
+    result = drift_report_to_dictionary_draft(report)
+
+    assert result.draft.candidate_count == 0
+    assert result.summary.status == "no_convertible_findings"
+    assert result.summary.source_finding_count == 6
+    assert result.summary.alias_drift_finding_count == 0
+    assert result.summary.candidate_count == 0
+    assert result.summary.skipped_finding_count == 6
+    assert result.summary.skipped_findings_by_type == {"stale_term": 6}
+    assert result.summary.message == (
+        "No dictionary candidates were created because the report contains no "
+        "alias_drift findings. 6 non-convertible finding(s) remain available for "
+        "review (stale_term=6)."
+    )
+    assert any(
+        finding.code == "drift.conversion_summary"
+        and finding.message == result.summary.message
+        for finding in result.draft.findings
+    )
+    markdown = result.review_markdown()
+    assert "## Conversion summary" in markdown
+    assert "`stale_term`=6" in markdown
+
+
+def test_conversion_summary_reports_successful_alias_conversion():
+    result = drift_report_to_dictionary_draft(_sample_report())
+
+    assert result.summary.status == "completed"
+    assert result.summary.source_finding_count == 2
+    assert result.summary.alias_drift_finding_count == 1
+    assert result.summary.candidate_source_finding_count == 1
+    assert result.summary.candidate_count == 1
+    assert result.summary.preserved_finding_count == 2
+    assert result.summary.skipped_findings_by_type == {"stale_term": 1}
+
+
+def test_conversion_summary_explains_disabled_alias_conversion():
+    result = drift_report_to_dictionary_draft(
+        _sample_report(),
+        config={"include_alias_drift": False},
+    )
+
+    assert result.draft.candidate_count == 0
+    assert result.summary.status == "alias_conversion_disabled"
+    assert result.summary.alias_drift_finding_count == 1
+    assert result.summary.candidate_source_finding_count == 0
+    assert result.summary.skipped_findings_by_type == {
+        "alias_drift": 1,
+        "stale_term": 1,
+    }
+    assert "alias-drift conversion is disabled" in result.summary.message
+
+
+def test_drift_export_draft_cli_writes_conversion_summary(tmp_path: Path, capsys):
+    report_path = tmp_path / "drift-report.json"
+    summary_path = tmp_path / "drift-conversion-summary.json"
+    _sample_report().save(report_path)
+
+    exit_code = main(
+        [
+            "drift",
+            "export-draft",
+            str(report_path),
+            "--summary",
+            str(summary_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert f"Wrote {summary_path}" in captured.out
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "completed"
+    assert payload["candidate_count"] == 1
+    assert payload["skipped_findings_by_type"] == {"stale_term": 1}
+
+
+def test_drift_export_draft_cli_prints_precise_empty_candidate_reason(
+    tmp_path: Path, capsys
+):
+    report_path = tmp_path / "stale-only-report.json"
+    draft_path = tmp_path / "stale-only-draft.json"
+    TerminologyDriftReport(
+        profile_name="infra_incidents",
+        document_count=1,
+        source_count=1,
+        findings=[
+            DriftFinding(
+                finding_type=DriftFindingType.STALE_TERM,
+                severity=DriftSeverity.INFO,
+                title="Stale term",
+                value="mesos",
+            )
+        ],
+    ).save(report_path)
+
+    exit_code = main(
+        [
+            "drift",
+            "export-draft",
+            str(report_path),
+            "--out",
+            str(draft_path),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "report contains no alias_drift findings" in output
+    assert "stale_term=1" in output
