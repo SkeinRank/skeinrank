@@ -187,11 +187,12 @@ Compare a dictionary with local documents to see which significant terms are not
 poetry run skeinrank drift scan \
   --dictionary ../../examples/drift-scan/company.dictionary.json \
   --docs ../../examples/drift-scan/docs \
+  --stale-min-documents 1 \
   --out ../../examples/drift-scan/drift-report.json \
   --markdown ../../examples/drift-scan/drift-report.md
 ```
 
-The report uses the versioned `TerminologyDriftReport` schema and includes `alias_drift` findings for uncovered terminology, `stale_term` findings for dictionary entries that no longer appear in the scanned corpus, optional `binding_lag` findings for pinned-vs-latest snapshot metadata, and conservative `ambiguity_signal` findings when an existing short alias appears in unfamiliar contexts. It also includes evidence snippets and `unknown_alias_rate`. It is intentionally a local terminology drift report, not a real-time monitor or search observability system.
+The report uses the versioned `TerminologyDriftReport` schema and includes `alias_drift` findings for uncovered terminology, optional corpus-level `stale_term` findings, optional `binding_lag` findings for pinned-vs-latest snapshot metadata, and conservative `ambiguity_signal` findings when an existing short alias appears in unfamiliar contexts. Stale analysis runs only when the corpus contains at least 20 documents by default; smaller scans record `stale_analysis_status="skipped"` and explain the corpus threshold in JSON and markdown. It also includes evidence snippets and `unknown_alias_rate`. It is intentionally a local terminology drift report, not a real-time monitor or search observability system.
 
 Ambiguity signals are review hints, not automatic meaning changes. Disable them with `--no-ambiguity-signals` when you only want uncovered aliases, stale terms, and binding lag.
 
@@ -362,7 +363,7 @@ The CLI returns JSON for `extract`, raw text by default for `canonicalize` and `
 
 ## Candidate discovery engine
 
-The core package also includes a deterministic candidate discovery engine for cold-start dictionary suggestions and future terminology drift reports. It scans local text, filters known dictionary terms, ranks unmatched technical candidates, and returns evidence snippets for review. Surface extraction handles code-shaped names such as `PAY-1842`, `checkout-v2`, `payment_service`, `payments-core`, compact all-caps aliases, and multi-term phrases up to trigrams. Candidate ranking is explainable: each candidate carries a score breakdown with frequency support, document-frequency support, surface class, identifier/code-shape signals, lightweight tokenizer-risk signals, background-language penalties, and a `jargon_score` that favors terms that look specific to the scanned corpus rather than generic operational words. The report also groups related candidates into review clusters so downstream agents can reason about surfaces that likely describe the same entity.
+The core package also includes a deterministic candidate discovery engine for cold-start dictionary suggestions and terminology drift reports. It scans local text, filters known dictionary terms, skips repeated cross-document boilerplate and reStructuredText directive markup, ranks unmatched technical candidates, and returns evidence snippets for review. Surface extraction handles code-shaped names such as `PAY-1842`, `checkout-v2`, `payment_service`, `payments-core`, compact all-caps aliases, and multi-term phrases up to trigrams. Candidate ranking is explainable: each candidate carries frequency and document-frequency support, surface class, identifier/code-shape signals, lightweight tokenizer-risk signals, background-language penalties, and `context-v1` counts for prose, comments, docstrings, strings, decorators, and code. A surface seen in both human-facing text and code receives a small confidence boost; code-only candidates remain available for review. The report also groups related candidates into review clusters and records input, scanned, and skipped line counts with skip reasons.
 
 ```python
 from skeinrank import CandidateDiscoveryConfig, discover_candidates, demo_dictionary
@@ -387,6 +388,8 @@ for cluster in report.top_clusters(3):
             candidate.score_breakdown.surface_class,
             candidate.score_breakdown.surface_risk_score,
             candidate.score_breakdown.tokenizer_signal_status,
+            candidate.score_breakdown.context_counts,
+            candidate.score_breakdown.context_adjustment,
             candidate.score_breakdown.reasons,
         )
 ```
@@ -395,7 +398,7 @@ for cluster in report.top_clusters(3):
 
 Tokenizer-aware scoring is optional. Without a tokenizer provider, discovery still emits a real `surface_risk_score` for compact aliases and code-shaped names such as `PAY-1842`, `checkout-v2`, `payment_service`, or `payments-core`, while `oov_score` and `token_fragmentation_score` remain empty. Teams that want model-specific signals can pass a `TokenizerSignalProvider` through `CandidateDiscoveryConfig`; the provider returns `CandidateTokenizerSignal` values and the score breakdown records `tokenizer_signal_status="available"`. The core package does not import embedding tokenizers by default.
 
-Candidate discovery does not create runtime terminology, mutate snapshots, or publish bindings. It is a shared local engine that later workflows can use to build reviewable drafts, import reports, and drift scans.
+Candidate discovery does not create runtime terminology, mutate snapshots, or publish bindings. `CandidateDiscoveryReport.skipped_lines_by_reason` makes filtering visible, and `skip_boilerplate_lines=False` or `skip_rst_markup=False` can be used when a corpus intentionally treats those lines as terminology-bearing content.
 
 Build a reviewable draft from documents in Python:
 

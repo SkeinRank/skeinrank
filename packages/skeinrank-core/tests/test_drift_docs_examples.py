@@ -62,6 +62,7 @@ def test_drift_docs_reference_existing_cli_options() -> None:
         "--min-frequency",
         "--min-document-frequency",
         "--max-candidates",
+        "--stale-min-documents",
         "--no-stale-terms",
         "--no-binding-lag",
         "--no-ambiguity-signals",

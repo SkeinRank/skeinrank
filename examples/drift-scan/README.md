@@ -13,9 +13,12 @@ poetry run skeinrank drift scan \
   --dictionary ../../examples/drift-scan/company.dictionary.json \
   --docs ../../examples/drift-scan/docs \
   --binding-metadata ../../examples/drift-scan/binding-metadata.json \
+  --stale-min-documents 1 \
   --out ../../examples/drift-scan/drift-report.json \
   --markdown ../../examples/drift-scan/drift-report.md
 ```
+
+The example corpus is intentionally small, so the command lowers the stale-analysis threshold to one document to demonstrate all four review signals. Production scans use the default threshold of 20 documents unless configured otherwise.
 
 The example corpus is shaped to produce four review signals:
 
@@ -31,6 +34,8 @@ Useful fields in the JSON report:
 - `metrics.unknown_alias_rate`
 - `metrics.unknown_candidate_count`
 - `metrics.stale_term_count`
+- `metrics.stale_analysis_status`
+- `metrics.stale_analysis_reason`
 - `metrics.binding_lag_count`
 - `metrics.binding_snapshot_lag`
 - `metrics.ambiguity_signal_count`

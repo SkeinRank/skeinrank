@@ -139,6 +139,7 @@ class DriftScanConfig(BaseModel):
     critical_min_mentions: int = Field(default=10, ge=1)
     include_stale_terms: bool = True
     stale_term_max_mentions: int = Field(default=0, ge=0)
+    stale_min_document_count: int = Field(default=20, ge=1)
     include_binding_lag: bool = True
     critical_binding_lag_snapshots: int = Field(default=5, ge=1)
     include_ambiguity_signals: bool = True
@@ -264,13 +265,17 @@ def scan_dictionary_drift_from_documents(
         )
         for candidate in candidate_report.candidates
     ]
+    stale_analysis_status, stale_analysis_reason = _stale_analysis_state(
+        document_count=len(normalized_documents),
+        config=normalized_config,
+    )
     stale_findings = (
         _stale_term_findings(
             loaded_dictionary,
             match_stats=match_stats,
             config=normalized_config,
         )
-        if normalized_config.include_stale_terms
+        if stale_analysis_status == "completed"
         else []
     )
     binding_lag_findings = (
@@ -303,8 +308,16 @@ def scan_dictionary_drift_from_documents(
     notes = [
         "Local drift scan only; no governance, snapshot, binding, or runtime state was changed."
     ]
+    if stale_analysis_status == "skipped":
+        notes.append(
+            "Stale analysis skipped: corpus contains "
+            f"{len(normalized_documents)} document(s); at least "
+            f"{normalized_config.stale_min_document_count} are required."
+        )
+    elif stale_analysis_status == "disabled":
+        notes.append("Stale analysis disabled by configuration.")
     if not findings:
-        notes.append("No significant unmatched terminology candidates were detected.")
+        notes.append("No significant emitted terminology drift findings were detected.")
     return TerminologyDriftReport(
         profile_name=profile_name,
         binding_id=normalized_config.binding_id,
@@ -323,6 +336,9 @@ def scan_dictionary_drift_from_documents(
             "covered_dictionary_term_count": covered_term_count,
             "stale_term_count": len(stale_findings),
             "stale_term_max_mentions": normalized_config.stale_term_max_mentions,
+            "stale_min_document_count": normalized_config.stale_min_document_count,
+            "stale_analysis_status": stale_analysis_status,
+            "stale_analysis_reason": stale_analysis_reason,
             "binding_lag_count": len(binding_lag_findings),
             "binding_snapshot_lag": _binding_snapshot_lag_value(normalized_config),
             "ambiguity_signal_count": len(ambiguity_findings),
@@ -330,6 +346,18 @@ def scan_dictionary_drift_from_documents(
         findings=findings,
         notes=notes,
     )
+
+
+def _stale_analysis_state(
+    *,
+    document_count: int,
+    config: DriftScanConfig,
+) -> tuple[str, str]:
+    if not config.include_stale_terms:
+        return "disabled", "disabled_by_config"
+    if document_count < config.stale_min_document_count:
+        return "skipped", "corpus_too_small"
+    return "completed", "corpus_eligible"
 
 
 def _alias_drift_finding(
