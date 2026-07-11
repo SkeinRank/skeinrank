@@ -159,7 +159,7 @@ _DEMO_DICTIONARY_PAYLOAD: dict[str, Any] = {
             "slot": "CHANGE_TYPE",
             "description": "Production rollout or release deployment.",
             "tags": ["operations", "release"],
-            "aliases": ["deploy", "rollout", "release rollout"],
+            "aliases": ["rollout", "release rollout", "production deployment"],
         },
         {
             "canonical_value": "rollback",

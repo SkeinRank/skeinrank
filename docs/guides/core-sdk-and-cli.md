@@ -42,6 +42,14 @@ poetry run skeinrank canonicalize "k8s rollout uses pg database" \
   --dictionary ../../examples/migration/console_dictionary.example.json
 ```
 
+## Choose extraction for prose and replacement for controlled text
+
+For prose, documentation, tickets, and incident reports, prefer `extract` / `extract_terms(...)`. The original text remains unchanged while the result carries canonical values, offsets, slots, and highlighted evidence. Treat this as the annotation-oriented workflow.
+
+Use `canonicalize` / `canonicalize_text(...)` for search queries, tags, filters, identifiers, and other controlled text where literal replacement is expected. Dictionary validation emits `replacement_form_mismatch` when a likely verb alias maps to a noun canonical value and could break prose grammar.
+
+The runtime matcher normalizes fullwidth and compatibility forms, Unicode spaces, common dash variants, zero-width separators, and bidi controls before matching. Matches keep offsets into the original text, and JSON results include Unicode findings. Bidi-control findings are marked high risk so an integrating application can reject or review the input.
+
 ## Extract document text
 
 ```bash

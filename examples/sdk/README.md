@@ -36,7 +36,7 @@ poetry run skeinrank demo-dictionary --output ../../examples/sdk/platform_ops_de
 ```bash
 cd packages/skeinrank-core
 poetry run skeinrank canonicalize "sev1 on kube after pg migration" --text
-poetry run skeinrank extract "gha deploy hit rmq latency spike" --text --compact
+poetry run skeinrank extract "gha rollout hit rmq latency spike" --text --compact
 ```
 
 When `--dictionary` is omitted, the CLI uses the same built-in `platform_ops_demo` dictionary as the Python facade.

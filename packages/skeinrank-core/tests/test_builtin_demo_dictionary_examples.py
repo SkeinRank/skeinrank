@@ -43,7 +43,7 @@ def test_builtin_demo_dictionary_supports_context_shaped_phrases() -> None:
     assert skeinrank.canonicalize("sev1 on kube after pg migration") == (
         "critical incident on kubernetes after postgresql database migration"
     )
-    assert skeinrank.extract("gha deploy hit rmq latency spike") == [
+    assert skeinrank.extract("gha rollout hit rmq latency spike") == [
         "github actions",
         "deployment",
         "message queue",
