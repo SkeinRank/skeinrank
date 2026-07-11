@@ -23,11 +23,14 @@ from ..backends.registry import diagnose_backends, get_backend
 from ..domain.errors import ContractError, ModelUnavailable
 from ..domain.types import (
     Candidate,
+    CandidateValidationSummary,
+    InvalidCandidatePolicy,
     RankedItem,
     RequestPassport,
     RerankRequest,
     RerankResult,
     ScoreResult,
+    SkippedCandidate,
     StageEvent,
 )
 from .passport_policy import (
@@ -216,6 +219,8 @@ class RerankEngine:
         top_k: int = 20,
         debug: bool = False,
         passport: str | None = None,
+        invalid_candidate_policy: str
+        | InvalidCandidatePolicy = InvalidCandidatePolicy.ERROR,
         deadline_ms: float | None = None,
         batch_size: int | None = None,
         warmup: bool | None = None,
@@ -228,8 +233,14 @@ class RerankEngine:
         )
 
         q = self._validate_query(query)
-        cands, warnings = self._validate_candidates(candidates)
+        cands, warnings, validation_summary = self._validate_candidates(
+            candidates, invalid_candidate_policy=invalid_candidate_policy
+        )
         if len(cands) == 0:
+            if validation_summary is not None:
+                raise ContractError(
+                    "candidates must contain at least one candidate with non-empty text after validation"
+                )
             raise ContractError("candidates must be a non-empty sequence")
 
         if top_k <= 0:
@@ -328,7 +339,12 @@ class RerankEngine:
                 variant=getattr(self._scorer, "resolved_variant", None),
             )
 
-        return RerankResult(query=q, ranked=out, passport=passport_obj)
+        return RerankResult(
+            query=q,
+            ranked=out,
+            passport=passport_obj,
+            candidate_validation=validation_summary,
+        )
 
     def rerank_many(
         self,
@@ -337,6 +353,8 @@ class RerankEngine:
         top_k: int = 10,
         passport: str | None = None,
         debug: bool = False,
+        invalid_candidate_policy: str
+        | InvalidCandidatePolicy = InvalidCandidatePolicy.ERROR,
         warmup: bool = True,
         batch_size: int | None = None,
         deadline_ms: float | None = None,
@@ -371,6 +389,7 @@ class RerankEngine:
         cands_list: list[list[Candidate]] = []
         topks: list[int] = []
         runtime_warnings_list: list[list[str]] = []
+        validation_summaries: list[CandidateValidationSummary | None] = []
         stage_events_list: list[list[StageEvent]] = [[] for _ in parsed]
 
         for r in parsed:
@@ -380,11 +399,18 @@ class RerankEngine:
             if k <= 0:
                 raise ContractError("top_k must be >= 1")
 
-            cands, w = self._validate_candidates(r.candidates)
+            cands, w, validation_summary = self._validate_candidates(
+                r.candidates, invalid_candidate_policy=invalid_candidate_policy
+            )
+            if len(cands) == 0:
+                raise ContractError(
+                    "candidates must contain at least one candidate with non-empty text after validation"
+                )
             queries.append(q)
             cands_list.append(cands)
             topks.append(k)
             runtime_warnings_list.append(list(w))
+            validation_summaries.append(validation_summary)
 
         # Shared warmup once.
         warmup_ms_total = 0.0
@@ -545,7 +571,14 @@ class RerankEngine:
                     variant=getattr(self._scorer, "resolved_variant", None),
                 )
 
-            results.append(RerankResult(query=q, ranked=out, passport=passport_obj))
+            results.append(
+                RerankResult(
+                    query=q,
+                    ranked=out,
+                    passport=passport_obj,
+                    candidate_validation=validation_summaries[i],
+                )
+            )
 
         return results
 
@@ -556,6 +589,8 @@ class RerankEngine:
         *,
         debug: bool = False,
         passport: str | None = None,
+        invalid_candidate_policy: str
+        | InvalidCandidatePolicy = InvalidCandidatePolicy.ERROR,
         deadline_ms: float | None = None,
         batch_size: int | None = None,
         warmup: bool | None = None,
@@ -566,8 +601,14 @@ class RerankEngine:
             passport=passport, debug=debug
         )
         q = self._validate_query(query)
-        cands, warnings = self._validate_candidates(candidates)
+        cands, warnings, validation_summary = self._validate_candidates(
+            candidates, invalid_candidate_policy=invalid_candidate_policy
+        )
         if len(cands) == 0:
+            if validation_summary is not None:
+                raise ContractError(
+                    "candidates must contain at least one candidate with non-empty text after validation"
+                )
             raise ContractError("candidates must be a non-empty sequence")
 
         # Optional warmup (only once per engine).
@@ -650,6 +691,7 @@ class RerankEngine:
             query=q,
             scores={k: float(v) for k, v in scores.items()},
             passport=passport_obj,
+            candidate_validation=validation_summary,
         )
 
     def _validate_query(self, query: Any) -> str:
@@ -661,8 +703,15 @@ class RerankEngine:
         return q
 
     def _validate_candidates(
-        self, candidates: Sequence[Candidate | dict[str, Any]]
-    ) -> tuple[list[Candidate], list[str]]:
+        self,
+        candidates: Sequence[Candidate | dict[str, Any]],
+        *,
+        invalid_candidate_policy: str | InvalidCandidatePolicy,
+    ) -> tuple[
+        list[Candidate],
+        list[str],
+        CandidateValidationSummary | None,
+    ]:
         if candidates is None:
             raise ContractError("candidates must be provided")
 
@@ -674,8 +723,10 @@ class RerankEngine:
                 f"too many candidates: {len(candidates)} (max_candidates={self._profile.max_candidates})"
             )
 
+        policy = _normalize_invalid_candidate_policy(invalid_candidate_policy)
         out: list[Candidate] = []
         warnings: list[str] = []
+        skipped: list[SkippedCandidate] = []
         for i, c in enumerate(candidates):
             try:
                 cand = c if isinstance(c, Candidate) else Candidate.model_validate(c)
@@ -685,6 +736,19 @@ class RerankEngine:
             if not cand.id:
                 raise ContractError(f"candidate.id must be non-empty (index {i})")
             if not cand.text or not cand.text.strip():
+                if policy == InvalidCandidatePolicy.SKIP_EMPTY_TEXT:
+                    skipped.append(
+                        SkippedCandidate(
+                            index=i,
+                            id=cand.id,
+                            code="empty_text",
+                            message="Candidate text is empty and was skipped.",
+                        )
+                    )
+                    warnings.append(
+                        f"candidate_skipped: empty_text (id={cand.id}, index={i})"
+                    )
+                    continue
                 raise ContractError(f"candidate.text must be non-empty (id={cand.id})")
 
             if len(cand.text) > self._profile.max_text_chars:
@@ -697,7 +761,18 @@ class RerankEngine:
 
             out.append(cand)
 
-        return out, warnings
+        validation_summary: CandidateValidationSummary | None = None
+        if policy != InvalidCandidatePolicy.ERROR:
+            validation_summary = CandidateValidationSummary(
+                policy=policy,
+                input_count=len(candidates),
+                accepted_count=len(out),
+                skipped_count=len(skipped),
+                skipped_by_reason={"empty_text": len(skipped)} if skipped else {},
+                skipped_candidates=skipped,
+            )
+
+        return out, warnings, validation_summary
 
     def _make_passport(
         self,
@@ -744,6 +819,20 @@ class RerankEngine:
         )
 
 
+def _normalize_invalid_candidate_policy(
+    value: str | InvalidCandidatePolicy,
+) -> InvalidCandidatePolicy:
+    if isinstance(value, InvalidCandidatePolicy):
+        return value
+    try:
+        return InvalidCandidatePolicy(str(value).strip().lower())
+    except ValueError as exc:
+        allowed = ", ".join(policy.value for policy in InvalidCandidatePolicy)
+        raise ContractError(
+            f"invalid_candidate_policy must be one of: {allowed}"
+        ) from exc
+
+
 def rerank(
     query: str,
     candidates: Sequence[Candidate | dict[str, Any]],
@@ -753,6 +842,8 @@ def rerank(
     device: str | None = None,
     debug: bool = False,
     passport: str | None = None,
+    invalid_candidate_policy: str
+    | InvalidCandidatePolicy = InvalidCandidatePolicy.ERROR,
     deadline_ms: float | None = None,
 ) -> RerankResult:
     """Convenience function for one-off reranking."""
@@ -762,6 +853,7 @@ def rerank(
         top_k=top_k,
         debug=debug,
         passport=passport,
+        invalid_candidate_policy=invalid_candidate_policy,
         deadline_ms=deadline_ms,
     )
 
@@ -774,6 +866,8 @@ def rerank_many(
     device: str | None = None,
     debug: bool = False,
     passport: str | None = None,
+    invalid_candidate_policy: str
+    | InvalidCandidatePolicy = InvalidCandidatePolicy.ERROR,
     deadline_ms: float | None = None,
     batch_size: int | None = None,
     warmup: bool = True,
@@ -787,6 +881,7 @@ def rerank_many(
         top_k=top_k,
         debug=debug,
         passport=passport,
+        invalid_candidate_policy=invalid_candidate_policy,
         deadline_ms=deadline_ms,
         batch_size=batch_size,
         warmup=warmup,
@@ -801,6 +896,8 @@ def score(
     device: str | None = None,
     debug: bool = False,
     passport: str | None = None,
+    invalid_candidate_policy: str
+    | InvalidCandidatePolicy = InvalidCandidatePolicy.ERROR,
     deadline_ms: float | None = None,
 ) -> ScoreResult:
     """Convenience function for one-off scoring."""
@@ -809,5 +906,6 @@ def score(
         candidates,
         debug=debug,
         passport=passport,
+        invalid_candidate_policy=invalid_candidate_policy,
         deadline_ms=deadline_ms,
     )

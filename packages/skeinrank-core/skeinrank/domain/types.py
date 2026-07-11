@@ -10,9 +10,10 @@ Design goals:
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 SCHEMA_VERSION = "1"
 
@@ -38,6 +39,33 @@ class Candidate(BaseModel):
     metadata: dict[str, Any] | None = Field(
         default=None, description="Optional metadata"
     )
+
+
+class InvalidCandidatePolicy(str, Enum):
+    """Validation policy for malformed rerank candidates."""
+
+    ERROR = "error"
+    SKIP_EMPTY_TEXT = "skip_empty_text"
+
+
+class SkippedCandidate(BaseModel):
+    """One candidate omitted by an explicit validation policy."""
+
+    index: int = Field(ge=0)
+    id: str
+    code: str = "empty_text"
+    message: str = "Candidate text is empty."
+
+
+class CandidateValidationSummary(BaseModel):
+    """Candidate validation outcome returned even when passports are disabled."""
+
+    policy: InvalidCandidatePolicy
+    input_count: int = Field(ge=0)
+    accepted_count: int = Field(ge=0)
+    skipped_count: int = Field(ge=0)
+    skipped_by_reason: dict[str, int] = Field(default_factory=dict)
+    skipped_candidates: list[SkippedCandidate] = Field(default_factory=list)
 
 
 class RerankRequest(BaseModel):
@@ -125,6 +153,14 @@ class RerankResult(BaseModel):
     query: str
     ranked: list[RankedItem]
     passport: RequestPassport | None = None
+    candidate_validation: CandidateValidationSummary | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler):
+        payload = handler(self)
+        if self.candidate_validation is None:
+            payload.pop("candidate_validation", None)
+        return payload
 
 
 class ScoreResult(BaseModel):
@@ -133,3 +169,11 @@ class ScoreResult(BaseModel):
     query: str
     scores: dict[str, float]
     passport: RequestPassport | None = None
+    candidate_validation: CandidateValidationSummary | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler):
+        payload = handler(self)
+        if self.candidate_validation is None:
+            payload.pop("candidate_validation", None)
+        return payload

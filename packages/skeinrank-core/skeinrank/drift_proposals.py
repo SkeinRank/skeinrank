@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -53,21 +53,87 @@ class DriftDraftConfig(BaseModel):
         return cleaned or None
 
 
+class DriftDraftConversionSummary(BaseModel):
+    """Structured explanation of how drift findings became draft candidates."""
+
+    status: Literal[
+        "completed",
+        "no_convertible_findings",
+        "alias_conversion_disabled",
+    ]
+    source_finding_count: int
+    alias_drift_finding_count: int
+    candidate_source_finding_count: int
+    candidate_count: int
+    preserved_finding_count: int
+    skipped_finding_count: int
+    skipped_findings_by_type: dict[str, int]
+    message: str
+
+    def to_markdown(self) -> str:
+        """Render the conversion summary for a review report."""
+
+        skipped = (
+            ", ".join(
+                f"`{finding_type}`={count}"
+                for finding_type, count in sorted(self.skipped_findings_by_type.items())
+            )
+            or "none"
+        )
+        return "\n".join(
+            [
+                "## Conversion summary",
+                "",
+                f"- Status: `{self.status}`",
+                f"- Source findings: **{self.source_finding_count}**",
+                f"- Alias-drift findings: **{self.alias_drift_finding_count}**",
+                f"- Candidate source findings: **{self.candidate_source_finding_count}**",
+                f"- Draft candidates: **{self.candidate_count}**",
+                f"- Preserved review findings: **{self.preserved_finding_count}**",
+                f"- Findings not converted to candidates: {skipped}",
+                "",
+                self.message,
+            ]
+        )
+
+
 class DriftDraftResult(BaseModel):
-    """Dictionary draft plus the source drift report behind it."""
+    """Dictionary draft, source report, and a conversion summary."""
 
     draft: DictionaryDraft
     report: TerminologyDriftReport
+    summary: DriftDraftConversionSummary
 
     def save(self, path: str | Path) -> None:
         """Write the draft artifact as JSON."""
 
         self.draft.save(path)
 
-    def review_markdown(self) -> str:
-        """Render the draft review markdown."""
+    def save_summary(self, path: str | Path) -> None:
+        """Write the structured conversion summary as JSON."""
 
-        return self.draft.review_markdown()
+        destination = Path(path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            self.summary.model_dump_json(indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    def review_markdown(self) -> str:
+        """Render the draft review with an explicit conversion summary."""
+
+        draft_markdown = self.draft.review_markdown()
+        marker = "\n## Findings"
+        if marker not in draft_markdown:
+            marker = "\n## Candidates"
+        before, after = draft_markdown.split(marker, 1)
+        return "\n\n".join(
+            [
+                before.rstrip(),
+                self.summary.to_markdown(),
+                f"{marker.lstrip()}" + after,
+            ]
+        )
 
 
 def drift_report_to_dictionary_draft(
@@ -90,16 +156,22 @@ def drift_report_to_dictionary_draft(
         or loaded_report.profile_name
         or "drift_candidates"
     )
-    candidates = (
-        [
-            _candidate_from_alias_drift_finding(
-                finding,
-                config=normalized_config,
-            )
-            for finding in loaded_report.findings_by_type(DriftFindingType.ALIAS_DRIFT)
-        ]
-        if normalized_config.include_alias_drift
-        else []
+    alias_drift_findings = loaded_report.findings_by_type(DriftFindingType.ALIAS_DRIFT)
+    candidate_source_findings = (
+        alias_drift_findings if normalized_config.include_alias_drift else []
+    )
+    candidates = [
+        _candidate_from_alias_drift_finding(
+            finding,
+            config=normalized_config,
+        )
+        for finding in candidate_source_findings
+    ]
+    summary = _build_conversion_summary(
+        report=loaded_report,
+        candidate_count=len(candidates),
+        include_alias_drift=normalized_config.include_alias_drift,
+        include_report_findings=normalized_config.include_report_findings,
     )
     findings: list[DraftFinding] = []
     if normalized_config.include_report_findings:
@@ -119,12 +191,21 @@ def drift_report_to_dictionary_draft(
             source=normalized_config.source_label,
         ),
     )
+    findings.insert(
+        1,
+        DraftFinding(
+            severity="info",
+            code="drift.conversion_summary",
+            message=summary.message,
+            source=normalized_config.source_label,
+        ),
+    )
     if not candidates:
         findings.append(
             DraftFinding(
                 severity="info",
                 code="drift.no_alias_candidates",
-                message="The source drift report did not contain alias-drift findings to convert into draft candidates.",
+                message=summary.message,
                 source=normalized_config.source_label,
             )
         )
@@ -136,7 +217,82 @@ def drift_report_to_dictionary_draft(
         candidates=candidates,
         findings=findings,
     )
-    return DriftDraftResult(draft=draft, report=loaded_report)
+    return DriftDraftResult(
+        draft=draft,
+        report=loaded_report,
+        summary=summary,
+    )
+
+
+def _build_conversion_summary(
+    *,
+    report: TerminologyDriftReport,
+    candidate_count: int,
+    include_alias_drift: bool,
+    include_report_findings: bool,
+) -> DriftDraftConversionSummary:
+    finding_counts: dict[str, int] = {}
+    for finding in report.findings:
+        finding_type = _finding_type_value(finding.finding_type)
+        finding_counts[finding_type] = finding_counts.get(finding_type, 0) + 1
+
+    alias_count = finding_counts.get(DriftFindingType.ALIAS_DRIFT.value, 0)
+    candidate_source_count = alias_count if include_alias_drift else 0
+    skipped_counts = dict(finding_counts)
+    if include_alias_drift:
+        skipped_counts.pop(DriftFindingType.ALIAS_DRIFT.value, None)
+    skipped_count = sum(skipped_counts.values())
+
+    if not include_alias_drift and alias_count:
+        status: Literal[
+            "completed",
+            "no_convertible_findings",
+            "alias_conversion_disabled",
+        ] = "alias_conversion_disabled"
+        message = (
+            "No dictionary candidates were created because alias-drift conversion "
+            f"is disabled. The report contains {alias_count} alias_drift finding(s)."
+        )
+    elif alias_count == 0:
+        status = "no_convertible_findings"
+        non_alias_count = len(report.findings)
+        detail = _format_finding_counts(skipped_counts)
+        message = (
+            "No dictionary candidates were created because the report contains no "
+            f"alias_drift findings. {non_alias_count} non-convertible finding(s) "
+            f"remain available for review{detail}."
+        )
+    else:
+        status = "completed"
+        detail = _format_finding_counts(skipped_counts)
+        message = (
+            f"Created {candidate_count} dictionary candidate(s) from {alias_count} "
+            f"alias_drift finding(s). {skipped_count} other finding(s) were not "
+            f"converted to candidates{detail}."
+        )
+
+    return DriftDraftConversionSummary(
+        status=status,
+        source_finding_count=len(report.findings),
+        alias_drift_finding_count=alias_count,
+        candidate_source_finding_count=candidate_source_count,
+        candidate_count=candidate_count,
+        preserved_finding_count=(
+            len(report.findings) if include_report_findings else 0
+        ),
+        skipped_finding_count=skipped_count,
+        skipped_findings_by_type=skipped_counts,
+        message=message,
+    )
+
+
+def _format_finding_counts(counts: Mapping[str, int]) -> str:
+    if not counts:
+        return ""
+    rendered = ", ".join(
+        f"{finding_type}={count}" for finding_type, count in sorted(counts.items())
+    )
+    return f" ({rendered})"
 
 
 def _coerce_report(

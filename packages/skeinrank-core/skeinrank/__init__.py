@@ -70,11 +70,14 @@ from .documents import (
 from .domain.errors import ContractError, ModelUnavailable, SkeinRankError
 from .domain.types import (
     Candidate,
+    CandidateValidationSummary,
+    InvalidCandidatePolicy,
     RankedItem,
     RequestPassport,
     RerankRequest,
     RerankResult,
     ScoreResult,
+    SkippedCandidate,
 )
 from .drafts import (
     DictionaryDraft,
@@ -93,6 +96,7 @@ from .drift import (
 )
 from .drift_proposals import (
     DriftDraftConfig,
+    DriftDraftConversionSummary,
     DriftDraftResult,
     drift_report_to_dictionary_draft,
 )
@@ -158,6 +162,9 @@ __all__ = [
     "get_profile",
     "validate_profile",
     "Candidate",
+    "InvalidCandidatePolicy",
+    "SkippedCandidate",
+    "CandidateValidationSummary",
     "RerankRequest",
     "RankedItem",
     "RerankResult",
@@ -223,6 +230,7 @@ __all__ = [
     "scan_dictionary_drift",
     "scan_dictionary_drift_from_documents",
     "DriftDraftConfig",
+    "DriftDraftConversionSummary",
     "DriftDraftResult",
     "drift_report_to_dictionary_draft",
     "DriftSeverity",
@@ -275,4 +283,4 @@ __all__ = [
     "ModelUnavailable",
 ]
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"

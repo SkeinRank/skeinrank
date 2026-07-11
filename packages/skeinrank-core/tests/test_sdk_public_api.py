@@ -8,6 +8,7 @@ from skeinrank import (
     CandidateDiscoveryDocument,
     CandidateDiscoveryReport,
     CandidateEvidence,
+    CandidateValidationSummary,
     CanonicalizedText,
     Dictionary,
     DictionaryAlias,
@@ -22,6 +23,7 @@ from skeinrank import (
     DraftCandidate,
     DraftFinding,
     DriftDraftConfig,
+    DriftDraftConversionSummary,
     DriftDraftResult,
     DriftEvidence,
     DriftFinding,
@@ -31,10 +33,12 @@ from skeinrank import (
     DriftSeverity,
     EvidenceSnippet,
     ExtractionResult,
+    InvalidCandidatePolicy,
     OpenRouterAssistantError,
     OpenRouterDictionaryAssistantConfig,
     OpenRouterDictionaryAssistantResult,
     SkeinRank,
+    SkippedCandidate,
     TerminologyDriftReport,
     TermMatch,
     UnicodeFindingKind,
@@ -97,6 +101,9 @@ def _dictionary_payload():
 
 def test_sdk_symbols_are_exported_from_public_api():
     assert CandidateDiscoveryConfig is not None
+    assert CandidateValidationSummary is not None
+    assert InvalidCandidatePolicy is not None
+    assert SkippedCandidate is not None
     assert CandidateDiscoveryDocument is not None
     assert CandidateDiscoveryReport is not None
     assert CandidateEvidence is not None
@@ -144,6 +151,7 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert BindingLagMetadata is not None
     assert DriftScanConfig is not None
     assert DriftDraftConfig is not None
+    assert DriftDraftConversionSummary is not None
     assert DriftDraftResult is not None
     assert callable(drift_report_to_dictionary_draft)
     assert callable(load_binding_metadata)

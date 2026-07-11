@@ -560,6 +560,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write a markdown draft review report to this file.",
     )
     drift_export_draft_parser.add_argument(
+        "--summary",
+        help="Write the structured drift-to-draft conversion summary as JSON.",
+    )
+    drift_export_draft_parser.add_argument(
         "--json",
         action="store_true",
         help="Print the dictionary draft JSON to stdout.",
@@ -881,14 +885,19 @@ def _handle_drift_export_draft(args: argparse.Namespace) -> int:
     if args.review:
         Path(args.review).write_text(result.review_markdown(), encoding="utf-8")
         print(f"Wrote {args.review}")
+    if args.summary:
+        result.save_summary(args.summary)
+        print(f"Wrote {args.summary}")
     if args.json:
         _write_json(
             result.draft.model_dump(mode="json", exclude_none=True),
             output_path=None,
             compact=args.compact,
         )
-    elif not args.out and not args.review:
+    elif not args.out and not args.review and not args.summary:
         _write_text(result.review_markdown(), output_path=None)
+    elif result.summary.candidate_count == 0:
+        print(result.summary.message)
     return 0
 
 

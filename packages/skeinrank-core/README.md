@@ -50,6 +50,32 @@ poetry run pytest -q
 
 The local SDK facade, demo dictionary, CLI, document helpers, and built-in reranking contracts do not require ML dependencies.
 
+## Resilient rerank batches
+
+Candidate validation is strict by default. Empty candidate text, missing fields, invalid identifiers, and malformed payloads raise `ContractError` before scoring.
+
+For ingestion pipelines where an otherwise valid batch can contain blank text, opt in to the narrow `skip_empty_text` policy:
+
+```python
+from skeinrank import rerank
+
+result = rerank(
+    "kubernetes incident",
+    [
+        {"id": "runbook", "text": "Kubernetes incident response runbook"},
+        {"id": "empty-row", "text": "   "},
+    ],
+    invalid_candidate_policy="skip_empty_text",
+    passport="off",
+)
+
+print(result.ranked[0].id)
+print(result.candidate_validation.skipped_by_reason)
+# {"empty_text": 1}
+```
+
+The policy skips only blank string values. A missing `text`, `None`, a non-string value, or an empty `id` still fails the request. If every candidate is skipped, the request also fails. `RerankResult` and `ScoreResult` return `candidate_validation` even when passports are disabled; when a passport is enabled, each skip is also recorded in `passport.warnings`. The same policy is available on `RerankEngine.rerank(...)`, `RerankEngine.score(...)`, `RerankEngine.rerank_many(...)`, and the module-level helpers.
+
 ## Public Python facade
 
 Use `SkeinRank` when you want to pass a dictionary in code:
@@ -151,6 +177,8 @@ Stable dictionary exports include:
 - `CandidateDiscoveryConfig`, `CandidateDiscoveryReport`, `CandidateScoreBreakdown`, `CandidateTokenizerSignal`, `TokenizerSignalProvider`, `discover_candidates(...)`, `discover_candidates_from_documents(...)`
 - `DictionarySuggestionConfig`, `DictionarySuggestionResult`, `suggest_dictionary(...)`, `suggest_dictionary_from_documents(...)`
 - `TerminologyDriftReport`, `DriftFinding`, `DriftEvidence`, `DriftSeverity`, `DriftFindingType`
+- `DriftDraftConfig`, `DriftDraftConversionSummary`, `DriftDraftResult`, `drift_report_to_dictionary_draft(...)`
+- `InvalidCandidatePolicy`, `SkippedCandidate`, `CandidateValidationSummary`
 
 The matcher is deterministic and local. It honors active/deprecated term and alias statuses, profile/global stop lists, applies Unicode-safe matching with original offset mapping, returns offsets, and includes evidence snippets with `<mark>...</mark>` highlights.
 
@@ -227,18 +255,22 @@ After review, turn alias-drift findings into a local dictionary draft without mu
 ```bash
 poetry run skeinrank drift export-draft ../../examples/drift-scan/drift-report.json \
   --out ../../examples/drift-scan/drift.dictionary-draft.json \
-  --review ../../examples/drift-scan/drift.dictionary-draft.md
+  --review ../../examples/drift-scan/drift.dictionary-draft.md \
+  --summary ../../examples/drift-scan/drift.conversion-summary.json
 ```
 
 ```python
 from skeinrank import drift_report_to_dictionary_draft
 
 result = drift_report_to_dictionary_draft("drift-report.json")
+print(result.summary.status)
+print(result.summary.skipped_findings_by_type)
 print(result.review_markdown())
 result.save("drift.dictionary-draft.json")
+result.save_summary("drift.conversion-summary.json")
 ```
 
-Only `alias_drift` findings become draft candidates. Stale terms, binding lag, and ambiguity signals are preserved as review findings so a human can decide whether to create dictionary proposals, context rules, or rollout tasks later.
+Only `alias_drift` findings become draft candidates. Stale terms, binding lag, and ambiguity signals are preserved as review findings so a human can decide whether to create dictionary proposals, context rules, or rollout tasks later. When a report has findings but no `alias_drift` findings, the conversion summary explicitly reports `no_convertible_findings`, the draft remains valid with zero candidates, and the source findings remain visible for review.
 
 See [`../../docs/guides/terminology-drift-report.md`](../../docs/guides/terminology-drift-report.md) and [`../../examples/drift-scan`](../../examples/drift-scan) for the complete local workflow, Python examples, report fields, and safety boundary.
 

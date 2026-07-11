@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "skeinrank"
-version = "0.14.0"
+version = "0.15.0"
 description = "Dictionary-first extraction, alias canonicalization, and lightweight reranking utilities for technical documents."
 authors = ["NkvMax"]
 license = "Apache-2.0"
