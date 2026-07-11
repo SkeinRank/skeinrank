@@ -142,6 +142,12 @@ from .suggestions import (
     suggest_dictionary,
     suggest_dictionary_from_documents,
 )
+from .text import (
+    UnicodeFindingKind,
+    UnicodeNormalizationResult,
+    UnicodeTextFinding,
+    normalize_text_for_matching,
+)
 
 __all__ = [
     "RerankEngine",
@@ -244,6 +250,10 @@ __all__ = [
     "TermMatch",
     "ExtractionResult",
     "CanonicalizedText",
+    "UnicodeFindingKind",
+    "UnicodeNormalizationResult",
+    "UnicodeTextFinding",
+    "normalize_text_for_matching",
     "load_dictionary",
     "validate_dictionary",
     "extract_terms",
@@ -265,4 +275,4 @@ __all__ = [
     "ModelUnavailable",
 ]
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"

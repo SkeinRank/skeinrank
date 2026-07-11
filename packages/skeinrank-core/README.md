@@ -12,7 +12,7 @@ import skeinrank
 print(skeinrank.canonicalize("k8s pg timeout"))
 # kubernetes postgresql timeout
 
-print(skeinrank.extract("sev1 on kube after deploy"))
+print(skeinrank.extract("sev1 on kube after rollout"))
 # ['critical incident', 'kubernetes', 'deployment']
 ```
 
@@ -37,7 +37,7 @@ CLI from a source checkout:
 
 ```bash
 poetry run skeinrank canonicalize "k8s pg timeout" --text
-poetry run skeinrank extract "sev1 on kube after deploy" --text --compact
+poetry run skeinrank extract "sev1 on kube after rollout" --text --compact
 ```
 
 ## Install from a checkout
@@ -99,7 +99,7 @@ Useful demo phrases:
 | --- | --- |
 | `k8s pg timeout` | `kubernetes postgresql timeout` |
 | `sev1 on kube after pg migration` | `critical incident on kubernetes after postgresql database migration` |
-| `gha deploy hit rmq latency spike` | `github actions`, `deployment`, `message queue`, `latency` |
+| `gha rollout hit rmq latency spike` | `github actions`, `deployment`, `message queue`, `latency` |
 | `pg layout` | `page layout` |
 | `pg dashboard` | `product group` |
 
@@ -131,6 +131,14 @@ canonicalized = canonicalize_text(
 print(canonicalized.text)  # kubernetes rollout uses postgresql database
 ```
 
+### Extraction/annotation versus replacement
+
+Use `extract_terms(...)` as the default path for prose, documentation, tickets, and other text where grammar must remain untouched. It returns canonical terms, offsets, slots, and highlighted fragments while preserving the original text. This is the extraction/annotation workflow.
+
+Use `canonicalize_text(...)` when deterministic replacement is appropriate, such as search queries, tags, filters, identifiers, or controlled short text. Replacement is intentionally literal: an alias that is a verb while its canonical value is a noun can produce broken prose. `validate_dictionary(...)` reports a `replacement_form_mismatch` warning for conservative English nominalization cases so teams can keep those aliases out of replacement-oriented dictionaries.
+
+Runtime matching applies NFKC compatibility normalization, normalizes common Unicode spaces and dash variants, checks a compact view for zero-width obfuscation such as `k\u200b8s`, and removes bidi controls from the matching view. Returned match offsets still point to the original input. `ExtractionResult` and `CanonicalizedText` expose `unicode_normalized`, `unicode_has_bidi_control`, and `unicode_findings` so callers can surface or block suspicious input.
+
 Stable dictionary exports include:
 
 - `SkeinRank`, `canonicalize(...)`, `extract(...)`, `demo_dictionary(...)`, `demo_dictionary_payload(...)`
@@ -138,12 +146,13 @@ Stable dictionary exports include:
 - `load_dictionary(...)`, `validate_dictionary(...)`
 - `extract_terms(...)`, `canonicalize_text(...)`
 - `ExtractionResult`, `TermMatch`, `CanonicalizedText`
+- `UnicodeFindingKind`, `UnicodeTextFinding`, `UnicodeNormalizationResult`, `normalize_text_for_matching(...)`
 - `DictionaryDraft`, `DraftCandidate`, `DraftFinding`, `EvidenceSnippet`
 - `CandidateDiscoveryConfig`, `CandidateDiscoveryReport`, `CandidateScoreBreakdown`, `CandidateTokenizerSignal`, `TokenizerSignalProvider`, `discover_candidates(...)`, `discover_candidates_from_documents(...)`
 - `DictionarySuggestionConfig`, `DictionarySuggestionResult`, `suggest_dictionary(...)`, `suggest_dictionary_from_documents(...)`
 - `TerminologyDriftReport`, `DriftFinding`, `DriftEvidence`, `DriftSeverity`, `DriftFindingType`
 
-The matcher is deterministic and local. It honors active/deprecated term and alias statuses, profile/global stop lists, returns offsets, and includes evidence snippets with `<mark>...</mark>` highlights.
+The matcher is deterministic and local. It honors active/deprecated term and alias statuses, profile/global stop lists, applies Unicode-safe matching with original offset mapping, returns offsets, and includes evidence snippets with `<mark>...</mark>` highlights.
 
 ## Document text extraction utilities
 

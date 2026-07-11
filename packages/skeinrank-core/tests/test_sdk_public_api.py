@@ -37,6 +37,9 @@ from skeinrank import (
     SkeinRank,
     TerminologyDriftReport,
     TermMatch,
+    UnicodeFindingKind,
+    UnicodeNormalizationResult,
+    UnicodeTextFinding,
     build_dictionary_from_docs,
     build_dictionary_from_documents,
     canonicalize,
@@ -52,6 +55,7 @@ from skeinrank import (
     load_binding_metadata,
     load_dictionary,
     merge_binding_metadata,
+    normalize_text_for_matching,
     scan_dictionary_drift,
     scan_dictionary_drift_from_documents,
     suggest_dictionary,
@@ -112,6 +116,10 @@ def test_sdk_symbols_are_exported_from_public_api():
     assert TermMatch is not None
     assert ExtractionResult is not None
     assert CanonicalizedText is not None
+    assert UnicodeFindingKind is not None
+    assert UnicodeNormalizationResult is not None
+    assert UnicodeTextFinding is not None
+    assert callable(normalize_text_for_matching)
     assert callable(load_dictionary)
     assert callable(validate_dictionary)
     assert callable(extract_terms)

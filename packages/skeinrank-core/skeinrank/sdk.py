@@ -22,6 +22,11 @@ from .dictionary_spec import (
     load_mapping_document,
     resolve_dictionary_schema_version,
 )
+from .text import (
+    UnicodeNormalizationResult,
+    UnicodeTextFinding,
+    normalize_text_for_matching,
+)
 
 _RUNTIME_ALIAS_STATUSES = frozenset({"active", "deprecated"})
 _RUNTIME_TERM_STATUSES = frozenset({"active", "deprecated"})
@@ -201,6 +206,9 @@ class ExtractionResult(BaseModel):
     matches: list[TermMatch] = Field(default_factory=list)
     canonical_values: list[str] = Field(default_factory=list)
     slots: list[str] = Field(default_factory=list)
+    unicode_normalized: bool = False
+    unicode_has_bidi_control: bool = False
+    unicode_findings: list[UnicodeTextFinding] = Field(default_factory=list)
 
     @property
     def match_count(self) -> int:
@@ -213,6 +221,9 @@ class CanonicalizedText(BaseModel):
     text: str
     profile_name: str
     replacements: list[TermMatch] = Field(default_factory=list)
+    unicode_normalized: bool = False
+    unicode_has_bidi_control: bool = False
+    unicode_findings: list[UnicodeTextFinding] = Field(default_factory=list)
 
 
 class _RuntimePattern(BaseModel):
@@ -331,6 +342,25 @@ def validate_dictionary(
                 )
             else:
                 alias_to_canonical[normalized_alias] = (normalized_canonical, term.slot)
+            if _looks_like_replacement_form_mismatch(
+                normalized_alias, normalized_canonical
+            ):
+                issues.append(
+                    DictionaryValidationIssue(
+                        severity="warning",
+                        code="replacement_form_mismatch",
+                        message=(
+                            "Alias looks like a verb form of a noun canonical value; "
+                            "replacement canonicalization may break prose grammar. "
+                            "Prefer extraction/annotation mode for prose."
+                        ),
+                        value=alias.value,
+                        details={
+                            "canonical_value": term.canonical_value,
+                            "recommended_mode": "extract",
+                        },
+                    )
+                )
 
     for canonical, count in canonical_seen.items():
         if count > 1:
@@ -369,35 +399,46 @@ def extract_terms(
     """
 
     runtime_dictionary = load_dictionary(dictionary)
+    normalization = normalize_text_for_matching(text)
+    search_views = _search_views(normalization)
     matches: list[TermMatch] = []
     occupied_spans: list[tuple[int, int]] = []
+    seen_matches: set[tuple[int, int, str, str]] = set()
     for pattern in _runtime_patterns(runtime_dictionary):
-        for raw_match in pattern.pattern.finditer(_normalize_text_for_search(text)):
-            start, end = raw_match.span()
-            if _overlaps((start, end), occupied_spans):
-                continue
-            matched_text = text[start:end]
-            match = TermMatch(
-                canonical_value=pattern.canonical_value,
-                slot=pattern.slot,
-                alias=pattern.alias,
-                matched_text=matched_text,
-                start=start,
-                end=end,
-                confidence=pattern.confidence,
-                source=pattern.source,
-                fragment=_fragment(text, start, end, context_chars=context_chars),
-                highlighted_fragment=_highlighted_fragment(
-                    text, start, end, context_chars=context_chars
-                ),
-            )
-            matches.append(match)
-            occupied_spans.append((start, end))
-            if max_matches is not None and len(matches) >= max_matches:
-                return _extraction_result(text, runtime_dictionary, matches)
+        for search_text, index_map in search_views:
+            for raw_match in pattern.pattern.finditer(search_text):
+                normalized_start, normalized_end = raw_match.span()
+                start, end = _original_span(index_map, normalized_start, normalized_end)
+                identity = (start, end, pattern.canonical_value, pattern.alias)
+                if identity in seen_matches:
+                    continue
+                seen_matches.add(identity)
+                if _overlaps((start, end), occupied_spans):
+                    continue
+                matched_text = text[start:end]
+                match = TermMatch(
+                    canonical_value=pattern.canonical_value,
+                    slot=pattern.slot,
+                    alias=pattern.alias,
+                    matched_text=matched_text,
+                    start=start,
+                    end=end,
+                    confidence=pattern.confidence,
+                    source=pattern.source,
+                    fragment=_fragment(text, start, end, context_chars=context_chars),
+                    highlighted_fragment=_highlighted_fragment(
+                        text, start, end, context_chars=context_chars
+                    ),
+                )
+                matches.append(match)
+                occupied_spans.append((start, end))
+                if max_matches is not None and len(matches) >= max_matches:
+                    return _extraction_result(
+                        text, runtime_dictionary, matches, normalization
+                    )
 
     matches.sort(key=lambda item: (item.start, item.end, item.canonical_value))
-    return _extraction_result(text, runtime_dictionary, matches)
+    return _extraction_result(text, runtime_dictionary, matches, normalization)
 
 
 def canonicalize_text(
@@ -422,7 +463,11 @@ def canonicalize_text(
     if not result.matches:
         runtime_dictionary = load_dictionary(dictionary)
         return CanonicalizedText(
-            text=text, profile_name=runtime_dictionary.profile_name
+            text=text,
+            profile_name=runtime_dictionary.profile_name,
+            unicode_normalized=result.unicode_normalized,
+            unicode_has_bidi_control=result.unicode_has_bidi_control,
+            unicode_findings=result.unicode_findings,
         )
 
     pieces: list[str] = []
@@ -436,6 +481,9 @@ def canonicalize_text(
         text="".join(pieces),
         profile_name=result.profile_name,
         replacements=result.matches,
+        unicode_normalized=result.unicode_normalized,
+        unicode_has_bidi_control=result.unicode_has_bidi_control,
+        unicode_findings=result.unicode_findings,
     )
 
 
@@ -583,16 +631,68 @@ def _normalize_status(value: str) -> str:
 
 
 def _normalize_for_match(value: str) -> str:
-    return _normalize_text_for_search(value).strip()
-
-
-def _normalize_text_for_search(text: str) -> str:
-    return (
-        text.lower()
-        .replace("\u2011", "-")
-        .replace("\u2013", "-")
-        .replace("\u2014", "-")
+    normalization = normalize_text_for_matching(value)
+    normalized_text, _ = _lower_with_map(
+        normalization.normalized_text, normalization.index_map
     )
+    return normalized_text.strip()
+
+
+def _search_views(
+    normalization: UnicodeNormalizationResult,
+) -> tuple[tuple[str, tuple[int, ...]], ...]:
+    primary = _lower_with_map(normalization.normalized_text, normalization.index_map)
+    compact = _lower_with_map(
+        normalization.compact_text, normalization.compact_index_map
+    )
+    if compact == primary:
+        return (primary,)
+    return (primary, compact)
+
+
+def _lower_with_map(
+    text: str, index_map: tuple[int, ...]
+) -> tuple[str, tuple[int, ...]]:
+    lowered_chars: list[str] = []
+    lowered_map: list[int] = []
+    for char, source_index in zip(text, index_map):
+        lowered = char.lower()
+        for lowered_char in lowered:
+            lowered_chars.append(lowered_char)
+            lowered_map.append(source_index)
+    return "".join(lowered_chars), tuple(lowered_map)
+
+
+def _original_span(index_map: tuple[int, ...], start: int, end: int) -> tuple[int, int]:
+    if start < 0 or end <= start or end > len(index_map):
+        raise ValueError("normalized match span is outside the input text")
+    return index_map[start], index_map[end - 1] + 1
+
+
+def _looks_like_replacement_form_mismatch(alias: str, canonical: str) -> bool:
+    if (
+        alias == canonical
+        or not alias.isascii()
+        or not canonical.isascii()
+        or not alias.isalpha()
+        or not canonical.isalpha()
+    ):
+        return False
+
+    candidates: set[str] = set()
+    if canonical.endswith("ment") and len(canonical) > len("ment") + 2:
+        candidates.add(canonical[: -len("ment")])
+    if canonical.endswith("ization") and len(canonical) > len("ization") + 2:
+        candidates.add(f"{canonical[: -len('ization')]}ize")
+    if canonical.endswith("isation") and len(canonical) > len("isation") + 2:
+        candidates.add(f"{canonical[: -len('isation')]}ise")
+    if canonical.endswith("ation") and len(canonical) > len("ation") + 2:
+        stem = canonical[: -len("ation")]
+        candidates.update({f"{stem}ate", f"{stem}e"})
+    if canonical.endswith("ing") and len(canonical) > len("ing") + 2:
+        stem = canonical[: -len("ing")]
+        candidates.update({stem, f"{stem}e"})
+    return alias in candidates
 
 
 def _overlaps(span: tuple[int, int], spans: Sequence[tuple[int, int]]) -> bool:
@@ -624,7 +724,10 @@ def _highlighted_fragment(
 
 
 def _extraction_result(
-    text: str, dictionary: Dictionary, matches: list[TermMatch]
+    text: str,
+    dictionary: Dictionary,
+    matches: list[TermMatch],
+    normalization: UnicodeNormalizationResult,
 ) -> ExtractionResult:
     canonical_values = _unique_in_order(match.canonical_value for match in matches)
     slots = _unique_in_order(match.slot for match in matches)
@@ -634,6 +737,9 @@ def _extraction_result(
         matches=matches,
         canonical_values=canonical_values,
         slots=slots,
+        unicode_normalized=normalization.changed,
+        unicode_has_bidi_control=normalization.has_bidi_control,
+        unicode_findings=list(normalization.findings),
     )
 
 

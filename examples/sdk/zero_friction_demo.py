@@ -25,7 +25,7 @@ def main() -> None:
     print(skeinrank.canonicalize("sev1 on kube after pg migration"))
 
     print("\nmodule extract:")
-    print(skeinrank.extract("gha deploy hit rmq latency spike"))
+    print(skeinrank.extract("gha rollout hit rmq latency spike"))
 
     print("\ncontext-shaped aliases:")
     print("pg timeout  ->", skeinrank.canonicalize("pg timeout"))

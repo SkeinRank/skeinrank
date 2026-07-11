@@ -12,7 +12,7 @@ def test_module_level_canonicalize_uses_demo_dictionary_by_default() -> None:
 
 
 def test_module_level_extract_returns_canonical_values_by_default() -> None:
-    assert skeinrank.extract("sev1 on kube after deploy") == [
+    assert skeinrank.extract("sev1 on kube after rollout") == [
         "critical incident",
         "kubernetes",
         "deployment",

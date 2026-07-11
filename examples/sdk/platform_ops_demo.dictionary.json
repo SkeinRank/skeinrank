@@ -249,9 +249,9 @@
         "release"
       ],
       "aliases": [
-        "deploy",
         "rollout",
-        "release rollout"
+        "release rollout",
+        "production deployment"
       ]
     },
     {
