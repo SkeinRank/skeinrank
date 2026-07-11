@@ -334,3 +334,118 @@ def test_candidate_discovery_builds_review_clusters():
     assert "blue deploy" in cluster.surface_values
     assert "related_surface_cluster" in cluster.reasons
     assert cluster.evidence
+
+
+def test_candidate_discovery_skips_rst_directives_and_options():
+    report = discover_candidates(
+        [
+            {
+                "source": "docs/guide.rst",
+                "text": (
+                    ".. code-block:: python\n"
+                    "   :header-rows: 1\n"
+                    "\n"
+                    "The DagProcessor coordinates DagRun state.\n"
+                ),
+            }
+        ],
+        config={
+            "min_frequency": 1,
+            "include_phrase_candidates": False,
+            "min_word_length": 3,
+        },
+    )
+
+    values = {candidate.normalized_value for candidate in report.candidates}
+    assert "code block" not in values
+    assert "header rows" not in values
+    assert "dagprocessor" in values
+    assert report.skipped_lines_by_reason == {
+        "rst_directive": 1,
+        "rst_option": 1,
+    }
+    assert report.skipped_line_count == 2
+
+
+def test_candidate_discovery_filters_repeated_boilerplate_across_documents():
+    license_line = (
+        "WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied."
+    )
+    documents = [
+        {
+            "source": f"src/module_{index}.py",
+            "text": f"{license_line}\n# DagProcessor{index} coordinates scheduler state.\n",
+        }
+        for index in range(1, 5)
+    ]
+
+    report = discover_candidates(
+        documents,
+        config={
+            "min_frequency": 1,
+            "include_phrase_candidates": False,
+            "min_word_length": 3,
+        },
+    )
+
+    values = {candidate.normalized_value for candidate in report.candidates}
+    assert "warranties" not in values
+    assert report.boilerplate_line_pattern_count == 1
+    assert report.skipped_lines_by_reason["boilerplate"] == 4
+    assert any(value.startswith("dagprocessor") for value in values)
+
+
+def test_candidate_discovery_keeps_repeated_lines_in_small_corpora():
+    shared = "The FluxCapacitor coordinates the TemporalRouter."
+    report = discover_candidates(
+        [
+            {"source": "docs/a.md", "text": shared},
+            {"source": "docs/b.md", "text": shared},
+        ],
+        config={
+            "min_frequency": 2,
+            "include_phrase_candidates": False,
+            "min_word_length": 3,
+        },
+    )
+
+    values = {candidate.normalized_value for candidate in report.candidates}
+    assert "fluxcapacitor" in values
+    assert report.boilerplate_line_pattern_count == 0
+    assert report.skipped_line_count == 0
+
+
+def test_candidate_discovery_context_signal_prefers_prose_and_code_support():
+    report = discover_candidates(
+        [
+            {
+                "source": "src/runtime.py",
+                "text": (
+                    "# FrozzleBundle is the exported runtime unit.\n"
+                    "class FrozzleBundle:\n"
+                    "    pass\n"
+                    "class GrizzleBundle:\n"
+                    "    pass\n"
+                    "value = GrizzleBundle()\n"
+                ),
+            }
+        ],
+        config={
+            "min_frequency": 2,
+            "include_phrase_candidates": False,
+            "min_word_length": 3,
+        },
+    )
+
+    values = {candidate.normalized_value: candidate for candidate in report.candidates}
+    mixed = values["frozzlebundle"]
+    code_only = values["grizzlebundle"]
+
+    assert mixed.score_breakdown is not None
+    assert code_only.score_breakdown is not None
+    assert mixed.score_breakdown.context_counts == {"code": 1, "comment": 1}
+    assert mixed.score_breakdown.context_adjustment > 0
+    assert code_only.score_breakdown.context_adjustment == 0
+    assert mixed.score > code_only.score
+    assert {item.context for item in mixed.evidence} == {"comment", "code"}
+    assert report.line_context_version == "context-v1"

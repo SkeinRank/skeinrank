@@ -15,11 +15,11 @@ Typical signals:
 | Signal | Meaning | Action |
 | --- | --- | --- |
 | `alias_drift` | Significant unmatched terminology appears in the corpus. | Review candidate terms and decide whether to add aliases or canonicals. |
-| `stale_term` | A dictionary term has little or no evidence in the scanned corpus. | Review whether the term is deprecated, out of scope, or still needed elsewhere. |
+| `stale_term` | A dictionary term has little or no evidence in an eligible corpus. | Review whether the term is deprecated, out of scope, or still needed elsewhere. |
 | `binding_lag` | Local binding metadata says the pinned snapshot is behind the latest approved snapshot. | Review whether the binding should roll forward. |
 | `ambiguity_signal` | A short existing alias appears near unfamiliar context terms. | Review context rules or split meanings; do not auto-change the alias. |
 
-The scan is not a real-time monitor and is not search observability. It does not require query logs, click data, relevance labels, or production access.
+The scan is not a real-time monitor and is not search observability. It does not require query logs, click data, relevance labels, or production access. Staleness is treated as a corpus-level signal: by default it runs only when at least 20 documents are present. Smaller corpora still produce alias, binding, and ambiguity findings, while the report records that stale analysis was skipped.
 
 ## Run a local scan
 
@@ -44,7 +44,10 @@ Useful report fields:
 | --- | --- |
 | `metrics.unknown_alias_rate` | Share of matched + unmatched terminology mentions represented by unmatched candidates. |
 | `metrics.unknown_candidate_count` | Count of unmatched terminology candidates emitted as `alias_drift`. |
-| `metrics.stale_term_count` | Count of dictionary terms with little or no corpus evidence. |
+| `metrics.stale_term_count` | Count of dictionary terms with little or no corpus evidence when stale analysis completed. |
+| `metrics.stale_analysis_status` | `completed`, `skipped`, or `disabled`. |
+| `metrics.stale_analysis_reason` | Why stale analysis ran or did not run. |
+| `metrics.stale_min_document_count` | Corpus-size threshold used by the scan. |
 | `metrics.binding_lag_count` | Count of binding lag findings emitted from optional metadata. |
 | `metrics.ambiguity_signal_count` | Count of conservative alias ambiguity review hints. |
 | `findings[].evidence` | Source snippets that explain why a finding exists. |
@@ -59,7 +62,20 @@ poetry run skeinrank drift scan \
   --docs ../../examples/drift-scan/docs \
   --min-frequency 2 \
   --min-document-frequency 1 \
-  --max-candidates 25
+  --max-candidates 25 \
+  --stale-min-documents 20
+```
+
+
+Candidate discovery removes common documentation noise before scoring. Repeated lines that occur across a configured share of at least three documents are treated as boilerplate, and reStructuredText directives such as `.. code-block::` plus option lines such as `:header-rows:` are skipped. The discovery report records `input_line_count`, `scanned_line_count`, `skipped_line_count`, `skipped_lines_by_reason`, and `boilerplate_line_pattern_count` so filtering remains reviewable. Evidence entries also carry a `context` value from the deterministic `context-v1` classifier.
+
+To intentionally run stale analysis on a small controlled fixture or narrow corpus, lower the threshold explicitly:
+
+```bash
+poetry run skeinrank drift scan \
+  --dictionary ../../examples/drift-scan/company.dictionary.json \
+  --docs ../../examples/drift-scan/docs \
+  --stale-min-documents 1
 ```
 
 Disable optional detectors when you want a narrower report:
@@ -79,7 +95,10 @@ poetry run skeinrank drift scan \
 from skeinrank import DriftScanConfig, merge_binding_metadata, scan_dictionary_drift
 
 config = merge_binding_metadata(
-    DriftScanConfig(discovery={"min_frequency": 2}),
+    DriftScanConfig(
+        stale_min_document_count=20,
+        discovery={"min_frequency": 2},
+    ),
     "../../examples/drift-scan/binding-metadata.json",
 )
 

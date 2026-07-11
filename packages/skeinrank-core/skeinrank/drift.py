@@ -272,6 +272,9 @@ class TerminologyDriftReport(BaseModel):
                 f"`{self.pinned_snapshot_version or 'unknown'}` → "
                 f"`{self.latest_snapshot_version or 'unknown'}`"
             )
+        if self.notes:
+            lines.extend(["", "## Notes", ""])
+            lines.extend(f"- {note}" for note in self.notes)
         lines.extend(["", "| Severity | Type | Value | Title |", "|---|---|---|---|"])
         if not self.findings:
             lines.append("| info | none | — | No drift findings recorded. |")

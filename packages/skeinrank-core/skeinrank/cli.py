@@ -523,6 +523,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     drift_scan_parser.add_argument(
+        "--stale-min-documents",
+        type=int,
+        default=20,
+        help=(
+            "Minimum corpus document count required before stale-term analysis runs. "
+            "Smaller corpora report that stale analysis was skipped."
+        ),
+    )
+    drift_scan_parser.add_argument(
         "--no-stale-terms",
         action="store_true",
         help="Disable stale-term findings and only report unmatched alias candidates.",
@@ -817,6 +826,7 @@ def _handle_drift_scan(args: argparse.Namespace) -> int:
             latest_snapshot_version=args.latest_snapshot,
             critical_min_mentions=args.critical_min_mentions,
             stale_term_max_mentions=args.stale_max_mentions,
+            stale_min_document_count=args.stale_min_documents,
             include_stale_terms=not args.no_stale_terms,
             include_binding_lag=not args.no_binding_lag,
             critical_binding_lag_snapshots=args.critical_binding_lag,

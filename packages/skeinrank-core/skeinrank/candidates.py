@@ -8,14 +8,22 @@ agent-assisted grouping without changing runtime dictionaries automatically.
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .discovery_context import (
+    LINE_CONTEXT_VERSION,
+    PROSE_CONTEXTS,
+    DocumentContextClassifier,
+    LineContext,
+)
 from .documents import extract_document_text
 from .sdk import Dictionary, load_dictionary
 
@@ -50,6 +58,9 @@ _DEFAULT_STOP_WORDS = frozenset(
         "can",
         "cannot",
         "case",
+        "changelog",
+        "conditions",
+        "copyright",
         "check",
         "could",
         "did",
@@ -84,13 +95,17 @@ _DEFAULT_STOP_WORDS = frozenset(
         "it",
         "its",
         "just",
+        "kind",
+        "license",
         "log",
         "logs",
+        "merchantability",
         "more",
         "most",
         "no",
         "nor",
         "not",
+        "notice",
         "of",
         "off",
         "on",
@@ -100,6 +115,7 @@ _DEFAULT_STOP_WORDS = frozenset(
         "other",
         "our",
         "out",
+        "readme",
         "over",
         "own",
         "same",
@@ -131,6 +147,8 @@ _DEFAULT_STOP_WORDS = frozenset(
         "used",
         "uses",
         "using",
+        "warranties",
+        "warranty",
         "was",
         "we",
         "were",
@@ -207,6 +225,7 @@ _DEFAULT_BACKGROUND_TERMS = frozenset(
         "query",
         "queue",
         "region",
+        "readme",
         "release",
         "request",
         "response",
@@ -250,6 +269,10 @@ _QUALIFIED_NAME_RE = re.compile(
     r"[A-Za-z][A-Za-z0-9]*(?::|/)[A-Za-z0-9][A-Za-z0-9:/._-]*"
 )
 _ALL_CAPS_RE = re.compile(r"[A-Z]{2,}(?:_[A-Z0-9]+)*[0-9]*")
+_RST_DIRECTIVE_LINE_RE = re.compile(r"^\.\.\s+[\w:-]+::")
+_RST_OPTION_LINE_RE = re.compile(r"^:[\w-]+:")
+
+_BOILERPLATE_MIN_LINE_LENGTH = 12
 
 
 class CandidateTokenizerSignal(BaseModel):
@@ -299,6 +322,10 @@ class CandidateDiscoveryConfig(BaseModel):
     include_phrase_candidates: bool = True
     max_phrase_terms: int = Field(default=3, ge=2, le=3)
     include_code_style_candidates: bool = True
+    skip_boilerplate_lines: bool = True
+    boilerplate_min_documents: int = Field(default=3, ge=2)
+    boilerplate_document_share: float = Field(default=0.25, ge=0.0, le=1.0)
+    skip_rst_markup: bool = True
     stop_words: list[str] = Field(default_factory=lambda: sorted(_DEFAULT_STOP_WORDS))
     background_terms: list[str] = Field(
         default_factory=lambda: sorted(_DEFAULT_BACKGROUND_TERMS)
@@ -308,6 +335,7 @@ class CandidateDiscoveryConfig(BaseModel):
     surface_risk_weight: float = Field(default=0.5, ge=0.0)
     tokenizer_signal_weight: float = Field(default=0.75, ge=0.0)
     background_penalty_weight: float = Field(default=0.75, ge=0.0)
+    context_weight: float = Field(default=0.75, ge=0.0)
     tokenizer_signal_provider: Any | None = Field(default=None, exclude=True)
 
     @field_validator("stop_words", "background_terms")
@@ -352,6 +380,7 @@ class CandidateEvidence(BaseModel):
     source: str
     line: int | None = None
     text: str
+    context: str | None = None
 
     @field_validator("source", "text")
     @classmethod
@@ -360,6 +389,14 @@ class CandidateEvidence(BaseModel):
         if not cleaned:
             raise ValueError("candidate evidence text must not be empty")
         return cleaned
+
+    @field_validator("context")
+    @classmethod
+    def _clean_context(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip().casefold()
+        return cleaned or None
 
 
 class CandidateScoreBreakdown(BaseModel):
@@ -375,6 +412,9 @@ class CandidateScoreBreakdown(BaseModel):
     oov_score: float | None = Field(default=None, ge=0.0, le=1.0)
     tokenizer_signal_status: str = "unavailable"
     background_penalty: float = Field(ge=0.0, le=1.0)
+    context_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    context_adjustment: float = Field(default=0.0, ge=0.0)
+    context_counts: dict[str, int] = Field(default_factory=dict)
     surface_class: str | None = None
     reasons: list[str] = Field(default_factory=list)
 
@@ -431,6 +471,12 @@ class CandidateDiscoveryReport(BaseModel):
     cluster_count: int = Field(default=0, ge=0)
     total_mentions: int = Field(ge=0)
     known_term_count: int = Field(ge=0)
+    input_line_count: int = Field(default=0, ge=0)
+    scanned_line_count: int = Field(default=0, ge=0)
+    skipped_line_count: int = Field(default=0, ge=0)
+    skipped_lines_by_reason: dict[str, int] = Field(default_factory=dict)
+    boilerplate_line_pattern_count: int = Field(default=0, ge=0)
+    line_context_version: str = LINE_CONTEXT_VERSION
     candidates: list[DiscoveredCandidate] = Field(default_factory=list)
     candidate_clusters: list[CandidateCluster] = Field(default_factory=list)
 
@@ -441,6 +487,7 @@ class CandidateDiscoveryReport(BaseModel):
         self.total_mentions = sum(
             candidate.mention_count for candidate in self.candidates
         )
+        self.skipped_line_count = sum(self.skipped_lines_by_reason.values())
         return self
 
     def top_candidates(self, limit: int = 10) -> list[DiscoveredCandidate]:
@@ -464,6 +511,7 @@ class _CandidateAccumulator:
         self.surfaces: Counter[str] = Counter()
         self.sources: set[str] = set()
         self.evidence: list[CandidateEvidence] = []
+        self.contexts: Counter[str] = Counter()
 
     def add(
         self,
@@ -472,13 +520,20 @@ class _CandidateAccumulator:
         source: str,
         line: int | None,
         snippet: str,
+        context: LineContext,
         max_evidence: int,
     ) -> None:
         self.surfaces[value] += 1
         self.sources.add(source)
+        self.contexts[context.value] += 1
         if len(self.evidence) < max_evidence:
             self.evidence.append(
-                CandidateEvidence(source=source, line=line, text=snippet)
+                CandidateEvidence(
+                    source=source,
+                    line=line,
+                    text=snippet,
+                    context=context.value,
+                )
             )
 
     @property
@@ -492,6 +547,20 @@ class _CandidateAccumulator:
     @property
     def display_value(self) -> str:
         return sorted(self.surfaces.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+
+@dataclass(frozen=True, slots=True)
+class _DiscoveryLine:
+    line_number: int
+    text: str
+    context: LineContext
+
+
+@dataclass(slots=True)
+class _DiscoveryScanStats:
+    input_line_count: int = 0
+    scanned_line_count: int = 0
+    skipped_lines_by_reason: Counter[str] = field(default_factory=Counter)
 
 
 def discover_candidates(
@@ -511,17 +580,31 @@ def discover_candidates(
     normalized_documents = _coerce_documents(documents)
     known_terms = _known_terms(dictionary)
     accumulators: dict[str, _CandidateAccumulator] = {}
+    stats = _DiscoveryScanStats()
+    boilerplate_lines = (
+        _detect_boilerplate_lines(normalized_documents, config=normalized_config)
+        if normalized_config.skip_boilerplate_lines
+        else frozenset()
+    )
 
     for document in normalized_documents:
-        _collect_unigram_candidates(
+        lines = _prepare_document_lines(
             document,
+            config=normalized_config,
+            boilerplate_lines=boilerplate_lines,
+            stats=stats,
+        )
+        _collect_unigram_candidates(
+            lines,
+            source=document.source,
             config=normalized_config,
             known_terms=known_terms,
             accumulators=accumulators,
         )
         if normalized_config.include_phrase_candidates:
             _collect_phrase_candidates(
-                document,
+                lines,
+                source=document.source,
                 config=normalized_config,
                 known_terms=known_terms,
                 accumulators=accumulators,
@@ -538,6 +621,10 @@ def discover_candidates(
         cluster_count=len(clusters),
         total_mentions=sum(candidate.mention_count for candidate in candidates),
         known_term_count=len(known_terms),
+        input_line_count=stats.input_line_count,
+        scanned_line_count=stats.scanned_line_count,
+        skipped_lines_by_reason=dict(sorted(stats.skipped_lines_by_reason.items())),
+        boilerplate_line_pattern_count=len(boilerplate_lines),
         candidates=candidates,
         candidate_clusters=clusters,
     )
@@ -615,17 +702,86 @@ def _known_terms(
     return {value for value in known if value}
 
 
-def _collect_unigram_candidates(
+def _prepare_document_lines(
     document: CandidateDiscoveryDocument,
     *,
+    config: CandidateDiscoveryConfig,
+    boilerplate_lines: frozenset[str],
+    stats: _DiscoveryScanStats,
+) -> list[_DiscoveryLine]:
+    classifier = DocumentContextClassifier(source=document.source)
+    prepared: list[_DiscoveryLine] = []
+    for line_number, raw_line in enumerate(
+        document.text.splitlines() or [document.text], start=1
+    ):
+        line = raw_line.strip()
+        if not line:
+            continue
+        stats.input_line_count += 1
+        context = classifier.classify(line)
+        normalized_line = _normalize_line(line)
+        if normalized_line in boilerplate_lines:
+            stats.skipped_lines_by_reason["boilerplate"] += 1
+            continue
+        if config.skip_rst_markup and _RST_DIRECTIVE_LINE_RE.match(line):
+            stats.skipped_lines_by_reason["rst_directive"] += 1
+            continue
+        if config.skip_rst_markup and _RST_OPTION_LINE_RE.match(line):
+            stats.skipped_lines_by_reason["rst_option"] += 1
+            continue
+        stats.scanned_line_count += 1
+        prepared.append(
+            _DiscoveryLine(line_number=line_number, text=line, context=context)
+        )
+    return prepared
+
+
+def _detect_boilerplate_lines(
+    documents: Sequence[CandidateDiscoveryDocument],
+    *,
+    config: CandidateDiscoveryConfig,
+) -> frozenset[str]:
+    """Return normalized lines repeated verbatim across many documents."""
+
+    total_documents = len(documents)
+    if total_documents < config.boilerplate_min_documents:
+        return frozenset()
+    line_documents: dict[str, set[str]] = {}
+    for index, document in enumerate(documents, start=1):
+        document_key = f"{index}:{document.source}"
+        seen_in_document: set[str] = set()
+        for raw_line in document.text.splitlines():
+            normalized = _normalize_line(raw_line)
+            if (
+                len(normalized) < _BOILERPLATE_MIN_LINE_LENGTH
+                or normalized in seen_in_document
+            ):
+                continue
+            seen_in_document.add(normalized)
+            line_documents.setdefault(normalized, set()).add(document_key)
+    threshold = max(
+        config.boilerplate_min_documents,
+        math.ceil(config.boilerplate_document_share * total_documents),
+    )
+    return frozenset(
+        line for line, sources in line_documents.items() if len(sources) >= threshold
+    )
+
+
+def _normalize_line(line: str) -> str:
+    return " ".join(line.strip().casefold().split())
+
+
+def _collect_unigram_candidates(
+    lines: Sequence[_DiscoveryLine],
+    *,
+    source: str,
     config: CandidateDiscoveryConfig,
     known_terms: set[str],
     accumulators: dict[str, _CandidateAccumulator],
 ) -> None:
-    for line_number, line in enumerate(
-        document.text.splitlines() or [document.text], start=1
-    ):
-        for match in _TOKEN_RE.finditer(line):
+    for item in lines:
+        for match in _TOKEN_RE.finditer(item.text):
             surface = match.group(1)
             normalized = _normalize_text(surface)
             if not normalized or normalized in known_terms:
@@ -639,25 +795,25 @@ def _collect_unigram_candidates(
                 normalized,
                 surface,
                 kind=kind,
-                source=document.source,
-                line=line_number,
-                snippet=_snippet(line),
+                source=source,
+                line=item.line_number,
+                snippet=_snippet(item.text),
+                context=item.context,
                 config=config,
                 accumulators=accumulators,
             )
 
 
 def _collect_phrase_candidates(
-    document: CandidateDiscoveryDocument,
+    lines: Sequence[_DiscoveryLine],
     *,
+    source: str,
     config: CandidateDiscoveryConfig,
     known_terms: set[str],
     accumulators: dict[str, _CandidateAccumulator],
 ) -> None:
-    for line_number, line in enumerate(
-        document.text.splitlines() or [document.text], start=1
-    ):
-        tokens = [match.group(0) for match in _WORD_RE.finditer(line)]
+    for item in lines:
+        tokens = [match.group(0) for match in _WORD_RE.finditer(item.text)]
         if len(tokens) < 2:
             continue
         for width in range(2, config.max_phrase_terms + 1):
@@ -680,9 +836,10 @@ def _collect_phrase_candidates(
                     normalized,
                     phrase,
                     kind="phrase",
-                    source=document.source,
-                    line=line_number,
-                    snippet=_snippet(line),
+                    source=source,
+                    line=item.line_number,
+                    snippet=_snippet(item.text),
+                    context=item.context,
                     config=config,
                     accumulators=accumulators,
                 )
@@ -713,6 +870,7 @@ def _add_candidate(
     source: str,
     line: int | None,
     snippet: str,
+    context: LineContext,
     config: CandidateDiscoveryConfig,
     accumulators: dict[str, _CandidateAccumulator],
 ) -> None:
@@ -727,6 +885,7 @@ def _add_candidate(
         source=source,
         line=line,
         snippet=snippet,
+        context=context,
         max_evidence=config.max_evidence_per_candidate,
     )
 
@@ -909,6 +1068,8 @@ def _score_candidate(
     tokenizer_signal, tokenizer_status, tokenizer_reasons = _tokenizer_signal(
         display_value, config=config
     )
+    context_score, context_reasons = _context_score(accumulator.contexts)
+    context_adjustment = support_score * config.context_weight * context_score
     tokenizer_boost = 0.0
     token_fragmentation_score: float | None = None
     oov_score: float | None = None
@@ -924,6 +1085,7 @@ def _score_candidate(
     score += support_score * config.code_shape_weight * code_shape_score
     score += support_score * config.surface_risk_weight * surface_risk_score
     score += support_score * config.tokenizer_signal_weight * tokenizer_boost
+    score += context_adjustment
     score -= support_score * config.background_penalty_weight * background_penalty
     breakdown = CandidateScoreBreakdown(
         frequency_score=round(frequency_score, 4),
@@ -940,6 +1102,9 @@ def _score_candidate(
         oov_score=None if oov_score is None else round(oov_score, 4),
         tokenizer_signal_status=tokenizer_status,
         background_penalty=round(background_penalty, 4),
+        context_score=round(context_score, 4),
+        context_adjustment=round(context_adjustment, 4),
+        context_counts=dict(sorted(accumulator.contexts.items())),
         surface_class=surface_class,
         reasons=sorted(
             set(
@@ -949,11 +1114,27 @@ def _score_candidate(
                     *surface_risk_reasons,
                     *tokenizer_reasons,
                     *background_reasons,
+                    *context_reasons,
                 ]
             )
         ),
     )
     return round(max(score, 0.0), 4), breakdown
+
+
+def _context_score(contexts: Mapping[str, int]) -> tuple[float, list[str]]:
+    prose_values = {context.value for context in PROSE_CONTEXTS}
+    prose_count = sum(count for name, count in contexts.items() if name in prose_values)
+    code_count = sum(
+        count for name, count in contexts.items() if name not in prose_values
+    )
+    if prose_count and code_count:
+        return 0.5, ["mixed_prose_code_context"]
+    if prose_count:
+        return 0.2, ["prose_context"]
+    if code_count:
+        return 0.0, ["code_only_context"]
+    return 0.0, []
 
 
 def _kind_boost(kind: str) -> float:

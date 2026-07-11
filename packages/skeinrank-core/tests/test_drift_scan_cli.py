@@ -217,12 +217,16 @@ def test_scan_dictionary_drift_emits_stale_term_findings():
                 "text": "k8s pg KubeletOOM KubeletOOM",
             }
         ],
-        config={"discovery": {"min_frequency": 2}},
+        config={
+            "stale_min_document_count": 1,
+            "discovery": {"min_frequency": 2},
+        },
     )
 
     stale_findings = report.findings_by_type(DriftFindingType.STALE_TERM)
     assert report.summary().stale_term_count == 1
     assert report.metrics["stale_term_count"] == 1
+    assert report.metrics["stale_analysis_status"] == "completed"
     assert stale_findings[0].value == "mesos"
     assert stale_findings[0].metrics["mention_count"] == 0
     assert stale_findings[0].metrics["alias_count"] == 1
@@ -247,6 +251,56 @@ def test_scan_dictionary_drift_can_disable_stale_term_findings():
     assert report.summary().stale_term_count == 0
     assert not report.findings_by_type(DriftFindingType.STALE_TERM)
     assert report.metrics["stale_term_count"] == 0
+    assert report.metrics["stale_analysis_status"] == "disabled"
+    assert report.metrics["stale_analysis_reason"] == "disabled_by_config"
+
+
+def test_scan_dictionary_drift_skips_stale_analysis_for_small_corpus_by_default():
+    report = scan_dictionary_drift_from_documents(
+        dictionary=_dictionary_with_stale_term(),
+        documents=[
+            {
+                "source": "incident.md",
+                "text": "k8s pg KubeletOOM KubeletOOM",
+            }
+        ],
+        config={"discovery": {"min_frequency": 2}},
+    )
+
+    assert report.summary().stale_term_count == 0
+    assert report.metrics["stale_analysis_status"] == "skipped"
+    assert report.metrics["stale_analysis_reason"] == "corpus_too_small"
+    assert report.metrics["stale_min_document_count"] == 20
+    assert (
+        "Stale analysis skipped: corpus contains 1 document(s)" in report.to_markdown()
+    )
+
+
+def test_drift_scan_cli_can_lower_stale_document_threshold(tmp_path: Path, capsys):
+    dictionary = tmp_path / "company.dictionary.json"
+    dictionary.write_text(json.dumps(_dictionary_with_stale_term()), encoding="utf-8")
+    docs = _write_docs(tmp_path)
+
+    exit_code = main(
+        [
+            "drift",
+            "scan",
+            "--dictionary",
+            str(dictionary),
+            "--docs",
+            str(docs),
+            "--min-frequency",
+            "2",
+            "--stale-min-documents",
+            "1",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["metrics"]["stale_analysis_status"] == "completed"
+    assert payload["metrics"]["stale_term_count"] >= 1
 
 
 def test_drift_scan_cli_can_disable_stale_terms(tmp_path: Path, capsys):

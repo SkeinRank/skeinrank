@@ -20,7 +20,10 @@ def main() -> None:
     from skeinrank import DriftScanConfig, merge_binding_metadata, scan_dictionary_drift
 
     config = merge_binding_metadata(
-        DriftScanConfig(discovery={"min_frequency": 2, "max_candidates": 25}),
+        DriftScanConfig(
+            stale_min_document_count=1,
+            discovery={"min_frequency": 2, "max_candidates": 25},
+        ),
         EXAMPLE_DIR / "binding-metadata.json",
     )
     report = scan_dictionary_drift(
