@@ -109,6 +109,27 @@ Terminology drift report
 
 → Full walkthrough: [`docs/guides/terminology-drift-report.md`](docs/guides/terminology-drift-report.md) · [`examples/drift-scan`](examples/drift-scan)
 
+## Proof on a real documentation corpus
+
+We tested cross-version terminology discovery on the public Apache Airflow documentation for releases `2.3.0`, `2.7.0`, and `3.0.0`.
+
+The **discovery phase was unsupervised with respect to the target terms**: SkeinRank received the selected documentation corpora, but no gold term list, known-renames file, release-note hints, or human labels. Human labels were applied **after ranking**, only to evaluate the bounded top-10 review output.
+
+| Release window | P@5 | P@10 | Label coverage | Labelled true recall |
+| --- | ---: | ---: | ---: | ---: |
+| Airflow `2.3.0 → 2.7.0` | **40%** (2/5) | **20%** (2/10) | **100%** (10/10) | **100%** (2/2) |
+| Airflow `2.7.0 → 3.0.0` | **100%** (5/5) | **90%** (9/10) | **100%** (10/10) | **90%** (9/10) |
+
+The two windows show why terminology discovery needs evidence and review rather than one context-free accuracy claim:
+
+- `2.3.0 → 2.7.0` is a hard incremental window. SkeinRank surfaced the real additions `db migrate` and `Dataset`, alongside pre-existing API names, example-local identifiers, an RST document target, and repeated instructional wording.
+- `2.7.0 → 3.0.0` contains a clearer vocabulary transition. The first five findings were all true and nine of the top ten were true, including `asset`, `auth manager`, `AssetAlias`, `ObjectStoragePath`, `asset events`, `bundles`, `outlet_events`, `dag bundles`, and `JWT`.
+- The known true candidate `airflow.sdk` was discovered by core but excluded by the benchmark's prose-only review policy because all 79 observed occurrences were code context. The report records that exact loss stage instead of silently treating the term as absent.
+
+This is a reproducible **documentation-corpus benchmark**, not a universal precision claim and not an evaluation of the entire retrieval stack. The exact Airflow commits, corpus settings, context policy, labels, and machine-readable evidence are published in [`SkeinRank/skeinrank-benchmark`](https://github.com/SkeinRank/skeinrank-benchmark).
+
+→ [`Canonical report`](https://github.com/SkeinRank/skeinrank-benchmark/blob/main/results/airflow/20260712T042651Z/report.md) · [`Machine-readable JSON`](https://github.com/SkeinRank/skeinrank-benchmark/blob/main/results/airflow/20260712T042651Z/report.json)
+
 ## Why this can't just be a synonym file
 
 Every search engine has a synonym list. A synonym list is **configuration**. It cannot tell you:
@@ -316,6 +337,7 @@ Deterministic benchmark and pilot workflows, no OpenRouter or production data re
 | Headless benchmark | `make benchmark-reset · benchmark-eval · benchmark-report`; [`docs/benchmarks/headless-agent-workflow.md`](docs/benchmarks/headless-agent-workflow.md) |
 | Retrieval eval | `make benchmark-retrieval-eval · benchmark-retrieval-compare`; [`docs/benchmarks/retrieval-eval-baseline.md`](docs/benchmarks/retrieval-eval-baseline.md) |
 | Performance report | `make benchmark-performance-report`; [`docs/benchmarks/cost-latency-throughput-report.md`](docs/benchmarks/cost-latency-throughput-report.md) |
+| Cross-version terminology discovery | [`SkeinRank/skeinrank-benchmark`](https://github.com/SkeinRank/skeinrank-benchmark) · fully labelled Airflow top-10 reports |
 | First-company pilot | `make pilot-plan`; [`docs/pilots/elasticsearch-pilot-integration.md`](docs/pilots/elasticsearch-pilot-integration.md) |
 
 ### Docker & Kubernetes
