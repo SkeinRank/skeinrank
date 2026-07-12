@@ -67,7 +67,9 @@ poetry run skeinrank drift scan \
 ```
 
 
-Candidate discovery removes common documentation noise before scoring. Repeated lines that occur across a configured share of at least three documents are treated as boilerplate, and reStructuredText directives such as `.. code-block::` plus option lines such as `:header-rows:` are skipped. The discovery report records `input_line_count`, `scanned_line_count`, `skipped_line_count`, `skipped_lines_by_reason`, and `boilerplate_line_pattern_count` so filtering remains reviewable. Evidence entries also carry a `context` value from the deterministic `context-v1` classifier.
+Candidate discovery removes common documentation noise before scoring. Repeated lines that occur across a configured share of at least three documents are treated as boilerplate, and reStructuredText directives such as `.. code-block::` plus option lines such as `:header-rows:` are skipped. The discovery report records `input_line_count`, `scanned_line_count`, `skipped_line_count`, `skipped_lines_by_reason`, and `boilerplate_line_pattern_count` so filtering remains reviewable.
+
+Evidence entries carry a `context` value from the deterministic `context-v2` classifier. Markdown fenced blocks, four-space and tab-indented blocks, inline backticks, reStructuredText code directives, literal blocks introduced by `::`, `literalinclude` directives, and inline double-backtick literals are distinguished from surrounding prose. Candidates found in both prose and code receive a positive context adjustment. Code-only candidates remain in the report with a negative adjustment rather than being removed, so review workflows retain API names while lowering example-specific idioms. The score breakdown exposes signed `context_score`, signed `context_adjustment`, and `context_counts` for downstream policies such as prose-required benchmark evaluation.
 
 To intentionally run stale analysis on a small controlled fixture or narrow corpus, lower the threshold explicitly:
 

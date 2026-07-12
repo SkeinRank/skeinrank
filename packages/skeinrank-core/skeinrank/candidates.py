@@ -252,13 +252,16 @@ _DEFAULT_BACKGROUND_TERMS = frozenset(
     }
 )
 
-_TOKEN_RE = re.compile(
-    r"(?<![A-Za-z0-9_])"
-    r"([A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*|[A-Z]{2,}[0-9]*|[A-Za-z]+[0-9][A-Za-z0-9]*)"
-    r"(?![A-Za-z0-9_])"
+_LEXICAL_TOKEN_PATTERN = (
+    r"[A-Za-z][A-Za-z0-9]*(?:['’][A-Za-z0-9]+)*(?:['’])?" r"(?:[._:/-][A-Za-z0-9]+)*"
 )
-_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*")
+_TOKEN_RE = re.compile(
+    rf"(?<![A-Za-z0-9_'’])({_LEXICAL_TOKEN_PATTERN}|[A-Z]{{2,}}[0-9]*|[A-Za-z]+[0-9][A-Za-z0-9]*)(?![A-Za-z0-9_'’])"
+)
+_WORD_RE = re.compile(_LEXICAL_TOKEN_PATTERN)
 _SEPARATOR_RE = re.compile(r"[\s._:/+#-]+")
+_PROSE_PHRASE_BOUNDARY_RE = re.compile(r"[.!?;]+(?:[\"'’”’)\]]+)?\s+")
+_WORD_APOSTROPHES = frozenset({"'", "’"})
 _TICKET_ID_RE = re.compile(r"[A-Z][A-Z0-9]{1,12}-\d{1,8}")
 _SNAKE_CASE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+")
 _KEBAB_CASE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+")
@@ -412,8 +415,8 @@ class CandidateScoreBreakdown(BaseModel):
     oov_score: float | None = Field(default=None, ge=0.0, le=1.0)
     tokenizer_signal_status: str = "unavailable"
     background_penalty: float = Field(ge=0.0, le=1.0)
-    context_score: float = Field(default=0.0, ge=0.0, le=1.0)
-    context_adjustment: float = Field(default=0.0, ge=0.0)
+    context_score: float = Field(default=0.0, ge=-1.0, le=1.0)
+    context_adjustment: float = 0.0
     context_counts: dict[str, int] = Field(default_factory=dict)
     surface_class: str | None = None
     reasons: list[str] = Field(default_factory=list)
@@ -553,6 +556,7 @@ class _CandidateAccumulator:
 class _DiscoveryLine:
     line_number: int
     text: str
+    evidence_text: str
     context: LineContext
 
 
@@ -714,14 +718,24 @@ def _prepare_document_lines(
     for line_number, raw_line in enumerate(
         document.text.splitlines() or [document.text], start=1
     ):
+        classified = classifier.classify_line(raw_line)
         line = raw_line.strip()
         if not line:
             continue
         stats.input_line_count += 1
-        context = classifier.classify(line)
         normalized_line = _normalize_line(line)
         if normalized_line in boilerplate_lines:
             stats.skipped_lines_by_reason["boilerplate"] += 1
+            continue
+        if classified.skip_reason == "markdown_fence":
+            stats.skipped_lines_by_reason["markdown_fence"] += 1
+            continue
+        if config.skip_rst_markup and classified.skip_reason in {
+            "rst_directive",
+            "rst_option",
+            "rst_literal_marker",
+        }:
+            stats.skipped_lines_by_reason[classified.skip_reason] += 1
             continue
         if config.skip_rst_markup and _RST_DIRECTIVE_LINE_RE.match(line):
             stats.skipped_lines_by_reason["rst_directive"] += 1
@@ -729,10 +743,21 @@ def _prepare_document_lines(
         if config.skip_rst_markup and _RST_OPTION_LINE_RE.match(line):
             stats.skipped_lines_by_reason["rst_option"] += 1
             continue
+        if not classified.segments:
+            continue
         stats.scanned_line_count += 1
-        prepared.append(
-            _DiscoveryLine(line_number=line_number, text=line, context=context)
-        )
+        evidence_text = _snippet(line)
+        for segment in classified.segments:
+            if not segment.text.strip():
+                continue
+            prepared.append(
+                _DiscoveryLine(
+                    line_number=line_number,
+                    text=segment.text,
+                    evidence_text=evidence_text,
+                    context=segment.context,
+                )
+            )
     return prepared
 
 
@@ -797,7 +822,7 @@ def _collect_unigram_candidates(
                 kind=kind,
                 source=source,
                 line=item.line_number,
-                snippet=_snippet(item.text),
+                snippet=item.evidence_text,
                 context=item.context,
                 config=config,
                 accumulators=accumulators,
@@ -813,36 +838,64 @@ def _collect_phrase_candidates(
     accumulators: dict[str, _CandidateAccumulator],
 ) -> None:
     for item in lines:
-        tokens = [match.group(0) for match in _WORD_RE.finditer(item.text)]
-        if len(tokens) < 2:
-            continue
-        for width in range(2, config.max_phrase_terms + 1):
-            for offset in range(0, len(tokens) - width + 1):
-                phrase_tokens = tokens[offset : offset + width]
-                normalized_tokens = [_normalize_text(token) for token in phrase_tokens]
-                if any(not token for token in normalized_tokens):
-                    continue
-                if all(token in config.stop_word_set for token in normalized_tokens):
-                    continue
-                phrase = " ".join(phrase_tokens)
-                normalized = " ".join(normalized_tokens)
-                if normalized in known_terms:
-                    continue
-                if not _phrase_has_signal(
-                    phrase_tokens, config=config, known_terms=known_terms
-                ):
-                    continue
-                _add_candidate(
-                    normalized,
-                    phrase,
-                    kind="phrase",
-                    source=source,
-                    line=item.line_number,
-                    snippet=_snippet(item.text),
-                    context=item.context,
-                    config=config,
-                    accumulators=accumulators,
-                )
+        for phrase_segment in _phrase_segments(item):
+            tokens = [match.group(0) for match in _WORD_RE.finditer(phrase_segment)]
+            if len(tokens) < 2:
+                continue
+            for width in range(2, config.max_phrase_terms + 1):
+                for offset in range(0, len(tokens) - width + 1):
+                    phrase_tokens = tokens[offset : offset + width]
+                    if any(_is_apostrophe_word(token) for token in phrase_tokens):
+                        continue
+                    if any(_is_fragment_token(token) for token in phrase_tokens):
+                        continue
+                    normalized_tokens = [
+                        _normalize_text(token) for token in phrase_tokens
+                    ]
+                    if any(not token for token in normalized_tokens):
+                        continue
+                    if all(
+                        token in config.stop_word_set for token in normalized_tokens
+                    ):
+                        continue
+                    phrase = " ".join(phrase_tokens)
+                    normalized = " ".join(normalized_tokens)
+                    if normalized in known_terms:
+                        continue
+                    if not _phrase_has_signal(
+                        phrase_tokens, config=config, known_terms=known_terms
+                    ):
+                        continue
+                    _add_candidate(
+                        normalized,
+                        phrase,
+                        kind="phrase",
+                        source=source,
+                        line=item.line_number,
+                        snippet=item.evidence_text,
+                        context=item.context,
+                        config=config,
+                        accumulators=accumulators,
+                    )
+
+
+def _phrase_segments(item: _DiscoveryLine) -> list[str]:
+    if item.context not in PROSE_CONTEXTS:
+        return [item.text]
+    return [
+        segment.strip()
+        for segment in _PROSE_PHRASE_BOUNDARY_RE.split(item.text)
+        if segment.strip()
+    ]
+
+
+def _is_apostrophe_word(token: str) -> bool:
+    return any(apostrophe in token for apostrophe in _WORD_APOSTROPHES)
+
+
+def _is_fragment_token(token: str) -> bool:
+    normalized = token.casefold()
+    return len(normalized) == 1 and normalized.isalpha() and token.islower()
 
 
 def _phrase_has_signal(
@@ -1131,9 +1184,9 @@ def _context_score(contexts: Mapping[str, int]) -> tuple[float, list[str]]:
     if prose_count and code_count:
         return 0.5, ["mixed_prose_code_context"]
     if prose_count:
-        return 0.2, ["prose_context"]
+        return 0.0, ["prose_context"]
     if code_count:
-        return 0.0, ["code_only_context"]
+        return -1.0, ["code_only_context_penalty"]
     return 0.0, []
 
 
@@ -1320,6 +1373,8 @@ def _candidate_kind(
     normalized = _normalize_text(cleaned)
     if not normalized or normalized in config.stop_word_set:
         return None
+    if _is_apostrophe_word(cleaned):
+        return None
 
     if config.include_code_style_candidates:
         surface_class = _surface_class(cleaned)
@@ -1395,9 +1450,8 @@ def _normalized_parts(normalized: str) -> list[str]:
 
 
 def _normalize_text(value: str) -> str:
-    return " ".join(
-        part for part in _SEPARATOR_RE.split(str(value).strip().casefold()) if part
-    )
+    normalized = str(value).strip().casefold().replace("’", "'")
+    return " ".join(part for part in _SEPARATOR_RE.split(normalized) if part)
 
 
 def _snippet(line: str, *, max_length: int = 180) -> str:
