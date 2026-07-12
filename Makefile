@@ -33,6 +33,7 @@ SCOUT_TESTS := \
 
 FAST_CORE_TESTS := \
 	tests/test_candidate_discovery.py \
+	tests/test_document_context_tokenization.py \
 	tests/test_dictionary_suggestions.py \
 	tests/test_drift_scan_cli.py
 

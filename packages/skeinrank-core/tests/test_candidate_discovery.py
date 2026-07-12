@@ -445,7 +445,7 @@ def test_candidate_discovery_context_signal_prefers_prose_and_code_support():
     assert code_only.score_breakdown is not None
     assert mixed.score_breakdown.context_counts == {"code": 1, "comment": 1}
     assert mixed.score_breakdown.context_adjustment > 0
-    assert code_only.score_breakdown.context_adjustment == 0
+    assert code_only.score_breakdown.context_adjustment < 0
     assert mixed.score > code_only.score
     assert {item.context for item in mixed.evidence} == {"comment", "code"}
-    assert report.line_context_version == "context-v1"
+    assert report.line_context_version == "context-v2"
